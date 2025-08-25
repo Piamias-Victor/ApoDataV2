@@ -1,10 +1,11 @@
 // src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 import { ProductsDrawer } from '@/components/organisms/ProductsDrawer/ProductsDrawer';
 import { LaboratoriesDrawer } from '@/components/organisms/LaboratoriesDrawer/LaboratoriesDrawer';
 import { CategoriesDrawer } from '@/components/organisms/CategoriesDrawer/CategoriesDrawer';
@@ -38,7 +39,7 @@ interface FilterBarProps {
  * FilterBar Component - Barre de filtres sticky avec drawers
  * 
  * Position sticky sous le header avec animations synchronisées
- * Un seul drawer ouvert à la fois, badges de comptage
+ * Un seul drawer ouvert à la fois, badges de comptage initialisés depuis le store
  */
 export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   const { data: session } = useSession();
@@ -50,6 +51,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     pharmacy: 0,
     date: 0,
   });
+
+  // Initialize filter counts from store on mount
+  useEffect(() => {
+    const store = useFiltersStore.getState();
+    setFilterCounts({
+      products: store.products.length,
+      laboratories: store.laboratories.length,
+      categories: store.categories.length,
+      pharmacy: store.pharmacy.length,
+      date: store.dateRange.start && store.dateRange.end ? 1 : 0,
+    });
+  }, []);
 
   const filterButtons: FilterButton[] = [
     { id: 'products', label: 'Produits', icon: <Package className="w-full h-full" />, adminOnly: false },
@@ -71,6 +84,19 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     setActiveDrawer(null);
   };
 
+  const handleClearAllFilters = (): void => {
+    const clearAllFilters = useFiltersStore.getState().clearAllFilters;
+    clearAllFilters();
+    setFilterCounts({
+      products: 0,
+      laboratories: 0,
+      categories: 0,
+      pharmacy: 0,
+      date: 0,
+    });
+    setActiveDrawer(null);
+  };
+
   const updateFilterCount = (filterType: keyof FilterCounts, count: number): void => {
     setFilterCounts(prev => ({
       ...prev,
@@ -82,6 +108,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   const visibleButtons = filterButtons.filter(button => 
     !button.adminOnly || session?.user?.role === 'admin'
   );
+
+  // Check if any filters are active
+  const hasActiveFilters = Object.values(filterCounts).some(count => count > 0);
 
   return (
     <>
@@ -143,6 +172,29 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
                   )}
                 </motion.button>
               ))}
+
+              {/* Clear All Button */}
+              {hasActiveFilters && (
+                <motion.button
+                  onClick={handleClearAllFilters}
+                  className="
+                    inline-flex items-center px-3 py-2 rounded-lg
+                    text-sm font-medium text-red-600 bg-red-50
+                    hover:bg-red-100 hover:text-red-700
+                    border border-red-200 hover:border-red-300
+                    transition-all duration-200 ease-in-out
+                    backdrop-blur-sm
+                  "
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                >
+                  Effacer tout
+                </motion.button>
+              )}
             </div>
 
           </div>
