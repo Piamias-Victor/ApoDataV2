@@ -28,6 +28,12 @@ const UserIcon = () => (
   </svg>
 );
 
+const ChevronDownIcon = () => (
+  <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+  </svg>
+);
+
 const DashboardIcon = () => (
   <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -68,7 +74,7 @@ interface HeaderProps {
 }
 
 /**
- * Header Component - Authentification NextAuth intégrée
+ * Header Component - Authentification NextAuth intégrée avec design amélioré
  */
 export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const { data: session, status } = useSession();
@@ -157,70 +163,146 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
           {/* Actions Desktop */}
           <div className="hidden md:flex items-center space-x-3">
             {status === 'loading' ? (
-              <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+              <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse" />
             ) : session?.user ? (
               <div className="relative">
                 <motion.button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  whileHover={{ scale: 1.02 }}
+                  className="
+                    relative bg-white/80 backdrop-blur-xl border border-white/20
+                    rounded-lg px-4 py-2.5 min-h-[44px]
+                    hover:bg-white/90 hover:shadow-soft hover:border-gray-200
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/20
+                    transition-all duration-200 ease-out
+                    flex items-center space-x-3
+                  "
+                  whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <div className="flex items-center space-x-2">
-                    <UserIcon />
+                  {/* User Info Container */}
+                  <div className="flex items-center space-x-3">
+                    {/* User Icon with subtle background */}
+                    <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                      <UserIcon />
+                    </div>
+                    
+                    {/* User Details */}
                     <div className="text-left">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-semibold text-gray-900 leading-none">
                         {session.user.name}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 mt-0.5 leading-none">
                         {session.user.pharmacyName || 'Admin'}
                       </div>
                     </div>
                   </div>
-                  <Badge variant={getRoleBadgeVariant(session.user.role)} size="xs">
-                    {session.user.role}
-                  </Badge>
+
+                  {/* Dropdown Arrow */}
+                  <motion.div
+                    animate={{ rotate: userMenuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="w-4 h-4 text-gray-400"
+                  >
+                    <ChevronDownIcon />
+                  </motion.div>
                 </motion.button>
 
                 {/* User Dropdown */}
                 <AnimatePresence>
                   {userMenuOpen && (
-                    <motion.div
-                      className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200"
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <div className="p-4 border-b border-gray-100">
-                        <div className="text-sm font-medium text-gray-900">
-                          {session.user.name}
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setUserMenuOpen(false)}
+                      />
+                      
+                      <motion.div
+                        className="
+                          absolute right-0 mt-2 w-72 z-50
+                          bg-white/90 backdrop-blur-xl rounded-xl 
+                          shadow-strong border border-white/20
+                          overflow-hidden
+                        "
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                      >
+                        {/* User Info Header */}
+                        <div className="p-4 border-b border-gray-100/50">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+                              <UserIcon />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">
+                                {session.user.name}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {session.user.email}
+                              </div>
+                              <div className="mt-1">
+                                <Badge 
+                                  variant={getRoleBadgeVariant(session.user.role)} 
+                                  size="xs"
+                                >
+                                  {session.user.role}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {session.user.pharmacyName && (
+                            <div className="mt-3 pt-3 border-t border-gray-100/50">
+                              <div className="text-xs text-gray-500">Pharmacie</div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {session.user.pharmacyName}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {session.user.email}
+                        
+                        {/* Menu Actions */}
+                        <div className="p-2 space-y-1">
+                          <motion.button
+                            onClick={handleDashboardAccess}
+                            className="
+                              w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg
+                              text-gray-700 hover:bg-gray-100 hover:text-blue-600
+                              transition-colors duration-200 text-left
+                            "
+                            whileHover={{ x: 2 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <span className="w-4 h-4 flex-shrink-0">
+                              <DashboardIcon />
+                            </span>
+                            <span className="text-sm font-medium">
+                              Accéder au Dashboard
+                            </span>
+                          </motion.button>
+                          
+                          <motion.button
+                            onClick={handleLogout}
+                            className="
+                              w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg
+                              text-gray-700 hover:bg-red-50 hover:text-red-600
+                              transition-colors duration-200 text-left
+                            "
+                            whileHover={{ x: 2 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <span className="w-4 h-4 flex-shrink-0">
+                              <LogOutIcon />
+                            </span>
+                            <span className="text-sm font-medium">
+                              Se déconnecter
+                            </span>
+                          </motion.button>
                         </div>
-                      </div>
-                      <div className="p-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          fullWidth
-                          iconLeft={<DashboardIcon />}
-                          onClick={handleDashboardAccess}
-                        >
-                          Accéder au Dashboard
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          fullWidth
-                          iconLeft={<LogOutIcon />}
-                          onClick={handleLogout}
-                        >
-                          Se déconnecter
-                        </Button>
-                      </div>
-                    </motion.div>
+                      </motion.div>
+                    </>
                   )}
                 </AnimatePresence>
               </div>
@@ -277,12 +359,25 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
                 <div className="pt-4 border-t border-white/20 space-y-2">
                   {session?.user ? (
                     <>
-                      <div className="px-4 py-2">
-                        <div className="text-sm font-medium text-gray-900">
-                          {session.user.name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {session.user.email}
+                      <div className="px-4 py-3 bg-white/50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                            <UserIcon />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 truncate">
+                              {session.user.name}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {session.user.email}
+                            </div>
+                          </div>
+                          <Badge 
+                            variant={getRoleBadgeVariant(session.user.role)} 
+                            size="xs"
+                          >
+                            {session.user.role}
+                          </Badge>
                         </div>
                       </div>
                       <Button
