@@ -292,10 +292,10 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                               {getResultCountText(laboratory.product_count, searchMode)}
                             </p>
                             
-                            {/* Matching products in product mode */}
+                            {/* Matching products in product mode - LIMITED TO 3 */}
                             {searchMode === 'product' && laboratory.matching_products && laboratory.matching_products.length > 0 && (
                               <div className="mt-2 space-y-1">
-                                {laboratory.matching_products.map((product, productIndex) => (
+                                {laboratory.matching_products.slice(0, 3).map((product, productIndex) => (
                                   <div key={productIndex} className="flex items-center text-xs text-gray-600 pl-2 border-l-2 border-gray-200">
                                     <span className="mr-1">→</span>
                                     <span className="truncate flex-1">
@@ -306,6 +306,11 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                                     </span>
                                   </div>
                                 ))}
+                                {laboratory.matching_products.length > 3 && (
+                                  <div className="text-xs text-gray-500 pl-3">
+                                    +{laboratory.matching_products.length - 3} autres produits...
+                                  </div>
+                                )}
                               </div>
                             )}
                             
