@@ -19,15 +19,20 @@
     "clean": "rm -rf .next dist node_modules/.cache"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.536.0",
     "next": "14.2.15",
+    "next-auth": "^4.24.11",
+    "pg": "^8.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^14.2.15",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.11",
+    "@types/pg": "^8.15.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.8.1",

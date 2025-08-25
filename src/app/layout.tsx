@@ -1,5 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
+import { SessionProvider } from '@/components/providers/SessionProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,9 +17,11 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
   return (
     <html lang="fr" className="scroll-smooth">
       <body className="min-h-screen bg-gray-50 antialiased">
-        <div id="root" className="min-h-screen">
-          {children}
-        </div>
+        <SessionProvider>
+          <div id="root" className="min-h-screen">
+            {children}
+          </div>
+        </SessionProvider>
       </body>
     </html>
   );
