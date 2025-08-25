@@ -6,7 +6,8 @@ import { DashboardHeader } from '@/components/organisms/DashboardHeader/Dashboar
 /**
  * Dashboard Page - Page principale du dashboard ApoData
  * 
- * Layout avec header dashboard, background animé et contenu vide pour l'instant
+ * Layout avec header dashboard + filterbar, background animé
+ * Padding ajusté pour header (64px) + filterbar (52px) = 116px
  */
 export default function DashboardPage(): JSX.Element {
   return (
@@ -14,15 +15,15 @@ export default function DashboardPage(): JSX.Element {
       {/* Background animé avec blobs */}
       <AnimatedBackground />
       
-      {/* Header dashboard */}
+      {/* Header dashboard avec FilterBar intégrée */}
       <DashboardHeader />
       
-      {/* Contenu principal avec padding pour header */}
-      <main className="relative z-10 pt-20">
-        {/* Contenu vide pour l'instant */}
+      {/* Contenu principal avec padding pour header + filterbar */}
+      <main className="relative z-10 pt-[116px]">
         <div className="container-apodata py-8">
           <div className="text-center text-gray-500">
             <p>Contenu du dashboard à venir...</p>
+            <p className="text-sm mt-2">Padding ajusté pour Header + FilterBar</p>
           </div>
         </div>
       </main>
