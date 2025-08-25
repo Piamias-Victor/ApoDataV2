@@ -66,6 +66,7 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { name: 'Accueil', href: '#home', icon: <HomeIcon /> },
+  { name: 'Fonctionnalités', href: '#dashboard', icon: < DashboardIcon/> },
   { name: 'À propos', href: '#about', icon: <InfoIcon /> },
 ];
 
@@ -181,10 +182,6 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
                 >
                   {/* User Info Container */}
                   <div className="flex items-center space-x-3">
-                    {/* User Icon with subtle background */}
-                    <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
-                      <UserIcon />
-                    </div>
                     
                     {/* User Details */}
                     <div className="text-left">
@@ -232,9 +229,6 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
                         {/* User Info Header */}
                         <div className="p-4 border-b border-gray-100/50">
                           <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                              <UserIcon />
-                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-gray-900 truncate">
                                 {session.user.name}
