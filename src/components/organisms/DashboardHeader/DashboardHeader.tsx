@@ -96,11 +96,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
     }
   };
 
-  // Déterminer la page actuelle
-  const currentPage = navigationItems.find(item => 
-    item.href === pathname || pathname.startsWith(item.href + '/')
-  ) || navigationItems[0]!;
-
   return (
     <motion.header
       className={`
@@ -341,7 +336,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                       whileHover={{ x: 4 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <LogOutIcon className="w-5 h-5" />
+                      <LogOutIcon />
                       <span className="font-medium">Se déconnecter</span>
                     </motion.button>
                   </div>
