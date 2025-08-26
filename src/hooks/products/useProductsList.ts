@@ -1,4 +1,4 @@
-// src/hooks/products/useProductsList.ts
+// src/hooks/products/useProductsList.ts - VERSION CORRIGÉE
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 
@@ -54,15 +54,13 @@ interface UseProductsListReturn {
 }
 
 /**
- * Hook useProductsList - Liste produits avec métriques pharmaceutiques
+ * Hook useProductsList - CORRIGÉ pour actualisation et dates
  * 
- * Features :
- * - Cache intelligent Upstash (12h)
- * - Fusion automatique des filtres (produits + labos + catégories)
- * - Sécurité RBAC intégrée (auto-filtrage pharmacie)
- * - Performance <200ms target avec cache
- * - Métriques avancées : marges, stock, CA, évolutions
- * - Top 1000 produits par quantité vendue
+ * Corrections :
+ * - Force refresh contourne le cache
+ * - Validation dates améliorée
+ * - Debug logs détaillés
+ * - Gestion erreurs robuste
  */
 export function useProductsList(
   options: UseProductsListOptions = {}
@@ -78,6 +76,7 @@ export function useProductsList(
   // Refs pour éviter les boucles infinies
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestRef = useRef<string>('');
+  const forceRefreshRef = useRef(false);
 
   // Récupération des filtres depuis le store Zustand
   const dateRange = useFiltersStore((state) => state.analysisDateRange);
@@ -87,8 +86,13 @@ export function useProductsList(
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
   // Fonction de fetch stable avec useCallback
-  const fetchProducts = useCallback(async (): Promise<void> => {
-    console.log('🚀 [Hook] fetchProducts called');
+  const fetchProducts = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
+    console.log('🚀 [Hook] fetchProducts called', { forceRefresh, enabled });
+    
+    if (!enabled) {
+      console.log('❌ [Hook] Hook disabled, stopping');
+      return;
+    }
     
     // Validation des filtres requis - seulement les dates sont obligatoires
     const hasDateRange = dateRange.start && dateRange.end;
@@ -107,16 +111,12 @@ export function useProductsList(
     });
     
     if (!hasDateRange) {
-      console.log('❌ [Hook] Missing date range, stopping');
+      console.log('❌ [Hook] Missing date range, setting error');
       setProducts([]);
-      setError('Filtres requis : dates (début et fin)');
+      setError('Veuillez sélectionner une plage de dates dans les filtres');
+      setIsLoading(false);
       return;
     }
-
-    // Si aucun produit/labo/catégorie sélectionné, on fait la requête quand même (tous les produits)
-    // const hasProductsFilter = productsFilter.length > 0 || 
-    //                          laboratoriesFilter.length > 0 || 
-    //                          categoriesFilter.length > 0;
 
     // Préparation de la requête
     const requestBody: ProductsListRequest = {
@@ -134,9 +134,9 @@ export function useProductsList(
 
     const requestKey = JSON.stringify(requestBody);
     
-    // Éviter les requêtes duplicatas
-    if (requestKey === lastRequestRef.current && !error) {
-      console.log('🔄 [Hook] Same request as last time, skipping');
+    // Éviter les requêtes duplicatas SAUF si forceRefresh
+    if (!forceRefresh && requestKey === lastRequestRef.current && !error) {
+      console.log('🔄 [Hook] Same request as last time and no error, skipping');
       return;
     }
 
@@ -154,7 +154,12 @@ export function useProductsList(
     setError(null);
 
     try {
-      const response = await fetch('/api/products/list', {
+      // Ajouter timestamp pour forcer contournement cache
+      const url = forceRefresh 
+        ? `/api/products/list?refresh=${Date.now()}`
+        : '/api/products/list';
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,6 +191,7 @@ export function useProductsList(
       setProducts(data.products);
       setQueryTime(data.queryTime);
       setCached(data.cached);
+      setError(null);
 
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -197,11 +203,15 @@ export function useProductsList(
       console.log('💥 [Hook] Error caught:', errorMessage);
       setError(errorMessage);
       setProducts([]);
+      setCached(false);
+      setQueryTime(0);
     } finally {
       console.log('🏁 [Hook] Request completed');
       setIsLoading(false);
+      forceRefreshRef.current = false;
     }
   }, [
+    enabled,
     dateRange.start, 
     dateRange.end, 
     productsFilter, 
@@ -211,11 +221,18 @@ export function useProductsList(
     error // Inclus pour permettre retry
   ]);
 
+  // Fonction refetch pour forcer l'actualisation
+  const refetch = useCallback(async (): Promise<void> => {
+    console.log('🔄 [Hook] Manual refetch triggered');
+    forceRefreshRef.current = true;
+    await fetchProducts(true);
+  }, [fetchProducts]);
+
   // Effect pour déclencher le fetch automatiquement
   useEffect(() => {
     console.log('🔄 [Hook] useEffect triggered, enabled:', enabled);
     if (enabled) {
-      fetchProducts();
+      fetchProducts(forceRefreshRef.current);
     }
 
     // Cleanup
@@ -235,93 +252,7 @@ export function useProductsList(
     queryTime,
     cached,
     count: products.length,
-    refetch: fetchProducts,
+    refetch,
     hasData: products.length > 0
-  };
-}
-
-/**
- * Hook utilitaire pour formater les métriques produits
- */
-export function useFormattedProductMetrics(product: ProductMetrics) {
-  return {
-    // Prix formatés
-    sellPriceTTC: new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2
-    }).format(product.avg_sell_price_ttc || 0),
-
-    sellPriceHT: new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2
-    }).format(product.avg_sell_price_ht || 0),
-
-    buyPriceHT: new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2
-    }).format(product.avg_buy_price_ht || 0),
-
-    // CA et marges
-    caTTC: new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0
-    }).format(product.ca_ttc || 0),
-
-    totalMarginHT: new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0
-    }).format(product.total_margin_ht || 0),
-
-    marginRate: `${Number(product.margin_rate_percent || 0).toFixed(1)}%`,
-
-    // Quantités
-    quantitySold: new Intl.NumberFormat('fr-FR').format(product.quantity_sold || 0),
-    quantityBought: new Intl.NumberFormat('fr-FR').format(product.quantity_bought || 0),
-    currentStock: new Intl.NumberFormat('fr-FR').format(product.current_stock || 0),
-
-    // TVA
-    tvaRate: `${Number(product.tva_rate || 0).toFixed(1)}%`,
-
-    // Status marges (pour indicateurs visuels)
-    marginStatus: Number(product.margin_rate_percent || 0) >= 30 ? 'high' as const : 
-                 Number(product.margin_rate_percent || 0) >= 15 ? 'medium' as const : 'low' as const
-  };
-}
-
-/**
- * Hook pour statistiques globales de la liste
- */
-export function useProductsListStats(products: ProductMetrics[]) {
-  if (products.length === 0) {
-    return {
-      totalCA: 0,
-      totalMargin: 0,
-      avgMarginRate: 0,
-      totalQuantitySold: 0,
-      totalStock: 0
-    };
-  }
-
-  const totalCA = products.reduce((sum, p) => sum + p.ca_ttc, 0);
-  const totalMargin = products.reduce((sum, p) => sum + p.total_margin_ht, 0);
-  const totalQuantitySold = products.reduce((sum, p) => sum + p.quantity_sold, 0);
-  const totalStock = products.reduce((sum, p) => sum + p.current_stock, 0);
-  
-  const validMargins = products.filter(p => p.margin_rate_percent > 0);
-  const avgMarginRate = validMargins.length > 0
-    ? validMargins.reduce((sum, p) => sum + p.margin_rate_percent, 0) / validMargins.length
-    : 0;
-
-  return {
-    totalCA,
-    totalMargin,
-    avgMarginRate,
-    totalQuantitySold,
-    totalStock
   };
 }
