@@ -1,7 +1,7 @@
 // src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/atoms/Badge/Badge';
@@ -64,11 +64,26 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     });
   }, []);
 
+  // Subscribe to store changes for real-time updates
+  useEffect(() => {
+    const unsubscribe = useFiltersStore.subscribe((state) => {
+      setFilterCounts({
+        products: state.products.length,
+        laboratories: state.laboratories.length,
+        categories: state.categories.length,
+        pharmacy: state.pharmacy.length,
+        date: state.dateRange.start && state.dateRange.end ? 1 : 0,
+      });
+    });
+
+    return unsubscribe;
+  }, []);
+
   const filterButtons: FilterButton[] = [
     { id: 'products', label: 'Produits', icon: <Package className="w-full h-full" />, adminOnly: false },
     { id: 'laboratories', label: 'Laboratoires', icon: <TestTube className="w-full h-full" />, adminOnly: false },
     { id: 'categories', label: 'Catégories', icon: <Tag className="w-full h-full" />, adminOnly: false },
-    { id: 'pharmacy', label: 'Pharmacie', icon: <Building className="w-full h-full" />, adminOnly: true },
+    { id: 'pharmacy', label: 'Pharmacies', icon: <Building className="w-full h-full" />, adminOnly: true },
     { id: 'date', label: 'Date', icon: <Calendar className="w-full h-full" />, adminOnly: false },
   ];
 
@@ -97,12 +112,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     setActiveDrawer(null);
   };
 
-  const updateFilterCount = (filterType: keyof FilterCounts, count: number): void => {
+  const updateFilterCount = useCallback((filterType: keyof FilterCounts, count: number) => {
     setFilterCounts(prev => ({
       ...prev,
       [filterType]: count
     }));
-  };
+  }, []); // Pas de dépendances pour éviter la boucle
 
   // Filtrer les boutons selon le rôle utilisateur
   const visibleButtons = filterButtons.filter(button => 
@@ -231,7 +246,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <PharmacyDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={(count: number) => updateFilterCount('pharmacy', count)}
+            onCountChange={updateFilterCount.bind(null, 'pharmacy')}
           />
         )}
         

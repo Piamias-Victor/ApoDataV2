@@ -43,9 +43,9 @@ const initialState: FilterState = {
  * 
  * Persisté en localStorage avec :
  * - Filtres produits (codes EAN)
- * - Filtres laboratoires
- * - Filtres catégories
- * - Filtres pharmacie (admin only)
+ * - Filtres laboratoires (codes produits)
+ * - Filtres catégories (codes produits)
+ * - Filtres pharmacie (IDs pharmacies - admin only)
  * - Plage de dates
  */
 export const useFiltersStore = create<FilterState & FilterActions>()(
