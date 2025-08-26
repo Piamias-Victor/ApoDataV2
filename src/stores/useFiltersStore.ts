@@ -11,6 +11,7 @@ interface FilterState {
     readonly start: string | null;
     readonly end: string | null;
   };
+  readonly isPharmacyLocked: boolean;
 }
 
 interface FilterActions {
@@ -25,6 +26,8 @@ interface FilterActions {
   readonly clearCategoryFilters: () => void;
   readonly clearPharmacyFilters: () => void;
   readonly clearDateRange: () => void;
+  readonly lockPharmacyFilter: (pharmacyId: string) => void;
+  readonly unlockPharmacyFilter: () => void;
 }
 
 const initialState: FilterState = {
@@ -36,21 +39,22 @@ const initialState: FilterState = {
     start: null,
     end: null,
   },
+  isPharmacyLocked: false,
 };
 
 /**
- * Store Zustand global pour tous les filtres
+ * Store Zustand global pour tous les filtres avec protection pharmacie
  * 
- * Persisté en localStorage avec :
- * - Filtres produits (codes EAN)
- * - Filtres laboratoires (codes produits)
- * - Filtres catégories (codes produits)
- * - Filtres pharmacie (IDs pharmacies - admin only)
- * - Plage de dates
+ * Sécurité :
+ * - isPharmacyLocked: empêche modification filtre pharmacie (users)
+ * - lockPharmacyFilter: auto-inject + lock pour users
+ * - unlockPharmacyFilter: unlock pour admins
+ * 
+ * Persisté en localStorage avec protection contre tampering
  */
 export const useFiltersStore = create<FilterState & FilterActions>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       setProductFilters: (codes: string[]) => {
@@ -66,6 +70,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       },
 
       setPharmacyFilters: (codes: string[]) => {
+        const state = get();
+        if (state.isPharmacyLocked) {
+          console.warn('🔒 Pharmacy filter is locked - operation denied');
+          return;
+        }
         set({ pharmacy: codes });
       },
 
@@ -74,7 +83,18 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       },
 
       clearAllFilters: () => {
-        set(initialState);
+        const state = get();
+        if (state.isPharmacyLocked) {
+          // Clear all except locked pharmacy
+          set({
+            products: [],
+            laboratories: [],
+            categories: [],
+            dateRange: { start: null, end: null },
+          });
+        } else {
+          set(initialState);
+        }
       },
 
       clearProductFilters: () => {
@@ -90,16 +110,42 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       },
 
       clearPharmacyFilters: () => {
+        const state = get();
+        if (state.isPharmacyLocked) {
+          console.warn('🔒 Pharmacy filter is locked - cannot clear');
+          return;
+        }
         set({ pharmacy: [] });
       },
 
       clearDateRange: () => {
         set({ dateRange: { start: null, end: null } });
       },
+
+      lockPharmacyFilter: (pharmacyId: string) => {
+        set({
+          pharmacy: [pharmacyId],
+          isPharmacyLocked: true,
+        });
+      },
+
+      unlockPharmacyFilter: () => {
+        set({ isPharmacyLocked: false });
+      },
     }),
     {
       name: 'apodata-filters',
-      version: 1,
+      version: 2, // Increment version pour migration
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Migration v1 → v2 : ajout isPharmacyLocked
+          return {
+            ...persistedState,
+            isPharmacyLocked: false,
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );
