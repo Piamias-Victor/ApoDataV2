@@ -2,6 +2,7 @@
 import React from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
+import { ProductsListTest } from '@/components/test/ProductsListTest';
 
 /**
  * Dashboard Page - Page principale du dashboard ApoData
@@ -23,6 +24,7 @@ export default function DashboardPage(): JSX.Element {
         <div className="container-apodata py-8">
           <div className="text-center text-gray-500">
             <p>Contenu du dashboard à venir...</p>
+            <ProductsListTest/>
             <p className="text-sm mt-2">Padding ajusté pour Header + FilterBar</p>
           </div>
         </div>

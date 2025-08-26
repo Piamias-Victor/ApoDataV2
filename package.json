@@ -19,6 +19,7 @@
     "clean": "rm -rf .next dist node_modules/.cache"
   },
   "dependencies": {
+    "@upstash/redis": "^1.35.3",
     "bcryptjs": "^2.4.3",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.536.0",
