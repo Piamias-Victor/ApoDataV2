@@ -12,8 +12,8 @@ interface FilterState {
     readonly end: string | null;
   };
   readonly analysisDateRange: {
-    readonly start: string | null;
-    readonly end: string | null;
+    readonly start: string;
+    readonly end: string;
   };
   readonly comparisonDateRange: {
     readonly start: string | null;
@@ -28,7 +28,7 @@ interface FilterActions {
   readonly setCategoryFilters: (codes: string[]) => void;
   readonly setPharmacyFilters: (codes: string[]) => void;
   readonly setDateRange: (start: string | null, end: string | null) => void;
-  readonly setAnalysisDateRange: (start: string | null, end: string | null) => void;
+  readonly setAnalysisDateRange: (start: string, end: string) => void;
   readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
   readonly clearAllFilters: () => void;
   readonly clearProductFilters: () => void;
@@ -40,7 +40,34 @@ interface FilterActions {
   readonly clearComparisonDateRange: () => void;
   readonly lockPharmacyFilter: (pharmacyId: string) => void;
   readonly unlockPharmacyFilter: () => void;
+  readonly resetToDefaultDates: () => void;
 }
+
+/**
+ * Calcule les dates par défaut : 1er du mois en cours → aujourd'hui
+ * Retourne toujours des strings valides
+ */
+const getDefaultAnalysisDates = (): { start: string; end: string } => {
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  // Fonction helper pour garantir une string
+  const toDateString = (date: Date): string => {
+    try {
+      const isoString = date.toISOString();
+      return isoString.split('T')[0] || '';
+    } catch {
+      return '';
+    }
+  };
+  
+  return {
+    start: toDateString(firstDayOfMonth),
+    end: toDateString(today)
+  };
+};
+
+const defaultDates = getDefaultAnalysisDates();
 
 const initialState: FilterState = {
   products: [],
@@ -52,8 +79,8 @@ const initialState: FilterState = {
     end: null,
   },
   analysisDateRange: {
-    start: null,
-    end: null,
+    start: defaultDates.start,
+    end: defaultDates.end,
   },
   comparisonDateRange: {
     start: null,
@@ -62,16 +89,6 @@ const initialState: FilterState = {
   isPharmacyLocked: false,
 };
 
-/**
- * Store Zustand global pour tous les filtres avec protection pharmacie
- * 
- * Sécurité :
- * - isPharmacyLocked: empêche modification filtre pharmacie (users)
- * - lockPharmacyFilter: auto-inject + lock pour users
- * - unlockPharmacyFilter: unlock pour admins
- * 
- * Persisté en localStorage avec protection contre tampering
- */
 export const useFiltersStore = create<FilterState & FilterActions>()(
   persist(
     (set, get) => ({
@@ -102,7 +119,19 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ dateRange: { start, end } });
       },
 
-      setAnalysisDateRange: (start: string | null, end: string | null) => {
+      setAnalysisDateRange: (start: string, end: string) => {
+        // Validation : dates vides interdites
+        if (!start.trim() || !end.trim()) {
+          console.warn('❌ Analysis dates cannot be empty');
+          return;
+        }
+        
+        // Validation : start <= end
+        if (new Date(start) > new Date(end)) {
+          console.warn('❌ Start date must be before end date');
+          return;
+        }
+        
         set({ analysisDateRange: { start, end } });
       },
 
@@ -112,18 +141,22 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearAllFilters: () => {
         const state = get();
+        const freshDates = getDefaultAnalysisDates();
+        
         if (state.isPharmacyLocked) {
-          // Clear all except locked pharmacy
           set({
             products: [],
             laboratories: [],
             categories: [],
             dateRange: { start: null, end: null },
-            analysisDateRange: { start: null, end: null },
+            analysisDateRange: { start: freshDates.start, end: freshDates.end },
             comparisonDateRange: { start: null, end: null },
           });
         } else {
-          set(initialState);
+          set({
+            ...initialState,
+            analysisDateRange: { start: freshDates.start, end: freshDates.end },
+          });
         }
       },
 
@@ -153,11 +186,27 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       },
 
       clearAnalysisDateRange: () => {
-        set({ analysisDateRange: { start: null, end: null } });
+        const freshDates = getDefaultAnalysisDates();
+        set({ 
+          analysisDateRange: { 
+            start: freshDates.start, 
+            end: freshDates.end 
+          } 
+        });
       },
 
       clearComparisonDateRange: () => {
         set({ comparisonDateRange: { start: null, end: null } });
+      },
+
+      resetToDefaultDates: () => {
+        const freshDates = getDefaultAnalysisDates();
+        set({ 
+          analysisDateRange: { 
+            start: freshDates.start, 
+            end: freshDates.end 
+          } 
+        });
       },
 
       lockPharmacyFilter: (pharmacyId: string) => {
@@ -173,21 +222,30 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 3, // Increment version pour migration
+      version: 4,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
-          // Migration v1 → v2 : ajout isPharmacyLocked
           return {
             ...persistedState,
             isPharmacyLocked: false,
           };
         }
         if (version < 3) {
-          // Migration v2 → v3 : ajout analysisDateRange et comparisonDateRange
           return {
             ...persistedState,
             analysisDateRange: { start: null, end: null },
             comparisonDateRange: { start: null, end: null },
+          };
+        }
+        if (version < 4) {
+          // Migration v3 → v4 : forcer dates par défaut si nulles
+          const freshDates = getDefaultAnalysisDates();
+          return {
+            ...persistedState,
+            analysisDateRange: {
+              start: persistedState.analysisDateRange?.start || freshDates.start,
+              end: persistedState.analysisDateRange?.end || freshDates.end,
+            },
           };
         }
         return persistedState;

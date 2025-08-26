@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X, Calendar, BarChart3 } from 'lucide-react';
+import { X, Calendar, BarChart3, AlertTriangle } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 
 interface DateDrawerProps {
@@ -34,15 +34,17 @@ const comparisonPresets: PresetOption[] = [
 ];
 
 /**
- * DateDrawer Component - Drawer pour sélection des périodes d'analyse et comparaison
- * 
- * Fonctionnalités :
- * - 2 onglets : Analyse et Comparaison
- * - Préselections différenciées par onglet
- * - Calculs automatiques de dates
- * - Auto-sélection N-1 quand analyse changée
- * - Format français DD/MM/YYYY
+ * Conversion Date vers string avec protection TypeScript
  */
+const toSafeDateString = (date: Date): string => {
+  try {
+    const iso = date.toISOString();
+    return iso.split('T')[0] || '';
+  } catch {
+    return '';
+  }
+};
+
 export const DateDrawer: React.FC<DateDrawerProps> = ({
   isOpen,
   onClose,
@@ -53,8 +55,8 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   const [customAnalysisEnd, setCustomAnalysisEnd] = useState('');
   const [customComparisonStart, setCustomComparisonStart] = useState('');
   const [customComparisonEnd, setCustomComparisonEnd] = useState('');
+  const [validationError, setValidationError] = useState<string>('');
   
-  // Prevent infinite loops
   const isAutoCalculating = useRef(false);
 
   const {
@@ -62,23 +64,23 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     comparisonDateRange,
     setAnalysisDateRange,
     setComparisonDateRange,
-    clearAnalysisDateRange,
-    clearComparisonDateRange
+    clearComparisonDateRange,
+    resetToDefaultDates
   } = useFiltersStore();
 
   // Initialize custom inputs with store values
   useEffect(() => {
-    if (analysisDateRange.start && analysisDateRange.end) {
-      setCustomAnalysisStart(formatDateForInput(analysisDateRange.start));
-      setCustomAnalysisEnd(formatDateForInput(analysisDateRange.end));
-    }
+    // analysisDateRange est maintenant toujours défini (pas nullable)
+    setCustomAnalysisStart(formatDateForInput(analysisDateRange.start));
+    setCustomAnalysisEnd(formatDateForInput(analysisDateRange.end));
+    
     if (comparisonDateRange.start && comparisonDateRange.end) {
       setCustomComparisonStart(formatDateForInput(comparisonDateRange.start));
       setCustomComparisonEnd(formatDateForInput(comparisonDateRange.end));
     }
   }, [analysisDateRange, comparisonDateRange]);
 
-  // Auto-select N-1 when analysis period changes (prevent infinite loop)
+  // Auto-select N-1 when analysis period changes
   useEffect(() => {
     if (analysisDateRange.start && analysisDateRange.end && 
         (!comparisonDateRange.start || !comparisonDateRange.end) &&
@@ -91,16 +93,17 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     }
   }, [analysisDateRange.start, analysisDateRange.end]);
 
-  // Update count when date ranges change
+  // Update count - analysis toujours comptée car obligatoire
   useEffect(() => {
-    const analysisCount = analysisDateRange.start && analysisDateRange.end ? 1 : 0;
+    const analysisCount = 1; // Toujours 1 car dates obligatoires
     const comparisonCount = comparisonDateRange.start && comparisonDateRange.end ? 1 : 0;
     onCountChange(analysisCount + comparisonCount);
-  }, [analysisDateRange, comparisonDateRange, onCountChange]);
+  }, [comparisonDateRange, onCountChange]);
 
   const formatDateForInput = (dateStr: string): string => {
     try {
       const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
       const isoString = date.toISOString();
       const datePart = isoString.split('T')[0];
       return datePart || '';
@@ -116,6 +119,32 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     } catch {
       return dateStr;
     }
+  };
+
+  const validateDates = (start: string, end: string): string => {
+    if (!start.trim() || !end.trim()) {
+      return 'Les dates de début et de fin sont obligatoires';
+    }
+    
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return 'Format de date invalide';
+    }
+    
+    if (startDate > endDate) {
+      return 'La date de début doit être antérieure à la date de fin';
+    }
+    
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Fin de journée pour comparaison
+    
+    if (endDate > today) {
+      return 'La date de fin ne peut pas être dans le futur';
+    }
+    
+    return '';
   };
 
   const calculateDateRange = (presetId: string, type: 'analysis' | 'comparison') => {
@@ -148,9 +177,26 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
         default:
           return;
       }
-      setAnalysisDateRange(start.toISOString().split('T')[0] || '', end.toISOString().split('T')[0] || '');
+      
+      const startStr = toSafeDateString(start);
+      const endStr = toSafeDateString(end);
+      
+      // Vérification TypeScript
+      if (!startStr || !endStr) {
+        setValidationError('Erreur lors du calcul des dates');
+        return;
+      }
+      
+      const validationErr = validateDates(startStr, endStr);
+      if (validationErr) {
+        setValidationError(validationErr);
+        return;
+      }
+      
+      setValidationError('');
+      setAnalysisDateRange(startStr, endStr);
     } else {
-      // Comparison presets need analysis period to calculate
+      // Comparison logic
       if (!analysisDateRange.start || !analysisDateRange.end) return;
 
       const analysisStart = new Date(analysisDateRange.start);
@@ -159,19 +205,23 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
 
       switch (presetId) {
         case 'n-1':
-          // Same period, previous year
           start = new Date(analysisStart.getFullYear() - 1, analysisStart.getMonth(), analysisStart.getDate());
           end = new Date(analysisEnd.getFullYear() - 1, analysisEnd.getMonth(), analysisEnd.getDate());
           break;
         case 'previous-period':
-          // Previous period with same duration
-          end = new Date(analysisStart.getTime() - 24 * 60 * 60 * 1000); // Day before analysis start
+          end = new Date(analysisStart.getTime() - 24 * 60 * 60 * 1000);
           start = new Date(end.getTime() - duration);
           break;
         default:
           return;
       }
-      setComparisonDateRange(start.toISOString().split('T')[0] || '', end.toISOString().split('T')[0] || '');
+      
+      const startStr = toSafeDateString(start);
+      const endStr = toSafeDateString(end);
+      
+      if (startStr && endStr) {
+        setComparisonDateRange(startStr, endStr);
+      }
     }
   };
 
@@ -180,15 +230,28 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
       if (field === 'start') {
         setCustomAnalysisStart(value);
         if (value && customAnalysisEnd) {
-          setAnalysisDateRange(value, customAnalysisEnd);
+          const validationErr = validateDates(value, customAnalysisEnd);
+          if (validationErr) {
+            setValidationError(validationErr);
+          } else {
+            setValidationError('');
+            setAnalysisDateRange(value, customAnalysisEnd);
+          }
         }
       } else {
         setCustomAnalysisEnd(value);
         if (customAnalysisStart && value) {
-          setAnalysisDateRange(customAnalysisStart, value);
+          const validationErr = validateDates(customAnalysisStart, value);
+          if (validationErr) {
+            setValidationError(validationErr);
+          } else {
+            setValidationError('');
+            setAnalysisDateRange(customAnalysisStart, value);
+          }
         }
       }
     } else {
+      // Comparison logic
       if (field === 'start') {
         setCustomComparisonStart(value);
         if (value && customComparisonEnd) {
@@ -204,17 +267,29 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   };
 
   const handleApply = () => {
+    // Validation finale avant fermeture
+    if (activeTab === 'analysis') {
+      const validationErr = validateDates(customAnalysisStart, customAnalysisEnd);
+      if (validationErr) {
+        setValidationError(validationErr);
+        return;
+      }
+    }
+    
+    setValidationError('');
     onClose();
   };
 
   const handleClear = () => {
-    clearAnalysisDateRange();
-    clearComparisonDateRange();
-    setCustomAnalysisStart('');
-    setCustomAnalysisEnd('');
-    setCustomComparisonStart('');
-    setCustomComparisonEnd('');
-    onClose();
+    if (activeTab === 'analysis') {
+      // Reset aux dates par défaut au lieu de vider
+      resetToDefaultDates();
+      setValidationError('');
+    } else {
+      clearComparisonDateRange();
+      setCustomComparisonStart('');
+      setCustomComparisonEnd('');
+    }
   };
 
   const tabs = [
@@ -255,6 +330,11 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
             <h3 className="text-lg font-semibold text-gray-900">
               Sélection des périodes
             </h3>
+            {activeTab === 'analysis' && (
+              <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full font-medium">
+                Obligatoire
+              </span>
+            )}
           </div>
           <motion.button
             onClick={onClose}
@@ -272,7 +352,10 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setValidationError(''); // Clear errors when switching tabs
+                }}
                 className={`
                   flex-1 flex items-center justify-center space-x-2 py-2 px-3 rounded-md text-sm font-medium transition-all duration-200
                   ${activeTab === tab.id
@@ -292,11 +375,22 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
+            {/* Validation Error */}
+            {validationError && (
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200 flex items-start space-x-2">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-700">{validationError}</p>
+              </div>
+            )}
+            
             {/* Current Selection Display */}
             {currentRange.start && currentRange.end && (
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm font-medium text-blue-900 mb-1">
                   Période sélectionnée
+                  {activeTab === 'analysis' && (
+                    <span className="ml-2 text-xs text-blue-600">(par défaut: mois en cours)</span>
+                  )}
                 </p>
                 <p className="text-sm text-blue-700">
                   Du {formatDateForDisplay(currentRange.start)} au {formatDateForDisplay(currentRange.end)}
@@ -325,6 +419,9 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                   >
                     <div className="font-medium text-sm text-gray-900">
                       {preset.label}
+                      {preset.id === 'current-month' && activeTab === 'analysis' && (
+                        <span className="ml-2 text-xs text-blue-600">(par défaut)</span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {preset.description}
@@ -344,28 +441,45 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
             <div>
               <h4 className="text-sm font-semibold text-gray-900 mb-3">
                 Dates personnalisées
+                {activeTab === 'analysis' && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
               </h4>
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Date de début
+                    Date de début {activeTab === 'analysis' && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="date"
                     value={currentCustomStart}
                     onChange={(e) => handleCustomDateChange(activeTab, 'start', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`
+                      w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent
+                      ${validationError && activeTab === 'analysis'
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-500'
+                      }
+                    `}
+                    required={activeTab === 'analysis'}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Date de fin
+                    Date de fin {activeTab === 'analysis' && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="date"
                     value={currentCustomEnd}
                     onChange={(e) => handleCustomDateChange(activeTab, 'end', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`
+                      w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent
+                      ${validationError && activeTab === 'analysis'
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-500'
+                      }
+                    `}
+                    required={activeTab === 'analysis'}
                   />
                 </div>
               </div>
@@ -378,12 +492,15 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
             <div className="flex space-x-2">
               <button
                 onClick={handleApply}
-                className="
+                disabled={!!validationError}
+                className={`
                   flex-1 px-4 py-2 text-sm font-medium rounded-lg
-                  bg-blue-600 text-white hover:bg-blue-700
-                  focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                  transition-all duration-200
-                "
+                  focus:ring-2 focus:ring-offset-2 transition-all duration-200
+                  ${validationError
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500'
+                  }
+                `}
               >
                 Appliquer
               </button>
@@ -391,14 +508,20 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                 onClick={handleClear}
                 className="
                   px-4 py-2 text-sm font-medium rounded-lg border
-                  border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
-                  focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+                  border-amber-300 text-amber-600 hover:bg-amber-50 hover:border-amber-400
+                  focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
                   transition-all duration-200
                 "
               >
-                Effacer
+                {activeTab === 'analysis' ? 'Réinitialiser' : 'Effacer'}
               </button>
             </div>
+            
+            {activeTab === 'analysis' && (
+              <p className="text-xs text-gray-500 text-center">
+                La période d'analyse est obligatoire et définie par défaut sur le mois en cours
+              </p>
+            )}
           </div>
 
         </div>
