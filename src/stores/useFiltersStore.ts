@@ -11,6 +11,14 @@ interface FilterState {
     readonly start: string | null;
     readonly end: string | null;
   };
+  readonly analysisDateRange: {
+    readonly start: string | null;
+    readonly end: string | null;
+  };
+  readonly comparisonDateRange: {
+    readonly start: string | null;
+    readonly end: string | null;
+  };
   readonly isPharmacyLocked: boolean;
 }
 
@@ -20,12 +28,16 @@ interface FilterActions {
   readonly setCategoryFilters: (codes: string[]) => void;
   readonly setPharmacyFilters: (codes: string[]) => void;
   readonly setDateRange: (start: string | null, end: string | null) => void;
+  readonly setAnalysisDateRange: (start: string | null, end: string | null) => void;
+  readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
   readonly clearAllFilters: () => void;
   readonly clearProductFilters: () => void;
   readonly clearLaboratoryFilters: () => void;
   readonly clearCategoryFilters: () => void;
   readonly clearPharmacyFilters: () => void;
   readonly clearDateRange: () => void;
+  readonly clearAnalysisDateRange: () => void;
+  readonly clearComparisonDateRange: () => void;
   readonly lockPharmacyFilter: (pharmacyId: string) => void;
   readonly unlockPharmacyFilter: () => void;
 }
@@ -36,6 +48,14 @@ const initialState: FilterState = {
   categories: [],
   pharmacy: [],
   dateRange: {
+    start: null,
+    end: null,
+  },
+  analysisDateRange: {
+    start: null,
+    end: null,
+  },
+  comparisonDateRange: {
     start: null,
     end: null,
   },
@@ -82,6 +102,14 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ dateRange: { start, end } });
       },
 
+      setAnalysisDateRange: (start: string | null, end: string | null) => {
+        set({ analysisDateRange: { start, end } });
+      },
+
+      setComparisonDateRange: (start: string | null, end: string | null) => {
+        set({ comparisonDateRange: { start, end } });
+      },
+
       clearAllFilters: () => {
         const state = get();
         if (state.isPharmacyLocked) {
@@ -91,6 +119,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             laboratories: [],
             categories: [],
             dateRange: { start: null, end: null },
+            analysisDateRange: { start: null, end: null },
+            comparisonDateRange: { start: null, end: null },
           });
         } else {
           set(initialState);
@@ -122,6 +152,14 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ dateRange: { start: null, end: null } });
       },
 
+      clearAnalysisDateRange: () => {
+        set({ analysisDateRange: { start: null, end: null } });
+      },
+
+      clearComparisonDateRange: () => {
+        set({ comparisonDateRange: { start: null, end: null } });
+      },
+
       lockPharmacyFilter: (pharmacyId: string) => {
         set({
           pharmacy: [pharmacyId],
@@ -135,13 +173,21 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 2, // Increment version pour migration
+      version: 3, // Increment version pour migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Migration v1 → v2 : ajout isPharmacyLocked
           return {
             ...persistedState,
             isPharmacyLocked: false,
+          };
+        }
+        if (version < 3) {
+          // Migration v2 → v3 : ajout analysisDateRange et comparisonDateRange
+          return {
+            ...persistedState,
+            analysisDateRange: { start: null, end: null },
+            comparisonDateRange: { start: null, end: null },
           };
         }
         return persistedState;

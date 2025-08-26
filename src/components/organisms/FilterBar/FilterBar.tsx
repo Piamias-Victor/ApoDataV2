@@ -55,24 +55,30 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   // Initialize filter counts from store on mount
   useEffect(() => {
     const store = useFiltersStore.getState();
+    const analysisCount = store.analysisDateRange.start && store.analysisDateRange.end ? 1 : 0;
+    const comparisonCount = store.comparisonDateRange.start && store.comparisonDateRange.end ? 1 : 0;
+    
     setFilterCounts({
       products: store.products.length,
       laboratories: store.laboratories.length,
       categories: store.categories.length,
       pharmacy: store.pharmacy.length,
-      date: store.dateRange.start && store.dateRange.end ? 1 : 0,
+      date: analysisCount + comparisonCount,
     });
   }, []);
 
   // Subscribe to store changes for real-time updates
   useEffect(() => {
     const unsubscribe = useFiltersStore.subscribe((state) => {
+      const analysisCount = state.analysisDateRange.start && state.analysisDateRange.end ? 1 : 0;
+      const comparisonCount = state.comparisonDateRange.start && state.comparisonDateRange.end ? 1 : 0;
+      
       setFilterCounts({
         products: state.products.length,
         laboratories: state.laboratories.length,
         categories: state.categories.length,
         pharmacy: state.pharmacy.length,
-        date: state.dateRange.start && state.dateRange.end ? 1 : 0,
+        date: analysisCount + comparisonCount,
       });
     });
 
@@ -117,7 +123,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
       ...prev,
       [filterType]: count
     }));
-  }, []); // Pas de dépendances pour éviter la boucle
+  }, []);
 
   // Filtrer les boutons selon le rôle utilisateur
   const visibleButtons = filterButtons.filter(button => 
