@@ -9,12 +9,13 @@ import { useProductsList } from '@/hooks/products/useProductsList';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { Card } from '@/components/atoms/Card/Card';
 import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
+import DailyMetricsTest from '@/components/test/DailyMetricsTest';
 
 /**
- * Dashboard Page - CORRIGÉ avec vraies dates du store
+ * Dashboard Page - Avec intégration DailyMetricsTest
  */
 export default function DashboardPage(): JSX.Element {
-  // CORRECTION : Récupération des vraies dates du store
+  // Récupération des vraies dates du store
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
@@ -22,7 +23,10 @@ export default function DashboardPage(): JSX.Element {
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Filtres formatés pour les hooks KPI (même format que useProductsList)
+  // État local pour afficher/masquer le test des métriques quotidiennes
+  const [showDailyMetricsTest, setShowDailyMetricsTest] = React.useState(false);
+
+  // Filtres formatés pour les hooks KPI
   const filters = {
     products: productsFilter,
     laboratories: laboratoriesFilter,
@@ -78,8 +82,20 @@ export default function DashboardPage(): JSX.Element {
               </p>
             </div>
             
-            {/* Indicateurs performance - Avec filtres actifs */}
+            {/* Indicateurs performance - Avec bouton test */}
             <div className="flex items-center space-x-3 text-sm text-gray-500">
+              {/* Bouton toggle pour Daily Metrics Test */}
+              <button
+                onClick={() => setShowDailyMetricsTest(!showDailyMetricsTest)}
+                className={`px-3 py-1 text-xs rounded-md border transition-colors ${
+                  showDailyMetricsTest 
+                    ? 'bg-purple-100 border-purple-300 text-purple-700 hover:bg-purple-200' 
+                    : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {showDailyMetricsTest ? 'Masquer' : 'Test'} Daily Metrics
+              </button>
+              
               {cached && (
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
@@ -96,13 +112,35 @@ export default function DashboardPage(): JSX.Element {
             </div>
           </div>
 
-          {/* SECTION KPI - CORRIGÉE avec vraies dates du store */}
+          {/* SECTION TEST DAILY METRICS - Conditionnelle */}
+          {showDailyMetricsTest && (
+            <div className="bg-purple-50/80 backdrop-blur-sm rounded-xl border border-purple-200/50 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <h2 className="text-sm font-medium text-purple-900">
+                    Mode Développement - Test API Daily Metrics
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowDailyMetricsTest(false)}
+                  className="text-purple-600 hover:text-purple-800 text-xs"
+                >
+                  ✕ Fermer
+                </button>
+              </div>
+              
+              <DailyMetricsTest />
+            </div>
+          )}
+
+          {/* SECTION KPI - Avec vraies dates du store */}
           <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow-sm">
             <KpisSection
-              dateRange={analysisDateRange}                    // CORRIGÉ : utilise analysisDateRange
-              comparisonDateRange={comparisonDateRange}         // CORRIGÉ : utilise comparisonDateRange du store
+              dateRange={analysisDateRange}
+              comparisonDateRange={comparisonDateRange}
               filters={filters}
-              includeComparison={hasComparison}                // CORRIGÉ : basé sur les vraies dates
+              includeComparison={hasComparison}
               onRefresh={handleGlobalRefresh}
               className="border-0 bg-transparent"
             />

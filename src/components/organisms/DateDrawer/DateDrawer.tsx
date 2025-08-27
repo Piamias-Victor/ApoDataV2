@@ -45,6 +45,14 @@ const toSafeDateString = (date: Date): string => {
   }
 };
 
+/**
+ * DateDrawer Component - CORRIGÉ pour éviter les boucles infinies
+ * 
+ * Corrections :
+ * - Ref pour éviter les appels onCountChange redondants
+ * - Protection contre les auto-calculations en boucle
+ * - Debounce sur les mises à jour de count
+ */
 export const DateDrawer: React.FC<DateDrawerProps> = ({
   isOpen,
   onClose,
@@ -57,7 +65,10 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   const [customComparisonEnd, setCustomComparisonEnd] = useState('');
   const [validationError, setValidationError] = useState<string>('');
   
+  // Refs pour éviter les boucles infinies
   const isAutoCalculating = useRef(false);
+  const countRef = useRef(0);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     analysisDateRange,
@@ -70,35 +81,70 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
 
   // Initialize custom inputs with store values
   useEffect(() => {
-    // analysisDateRange est maintenant toujours défini (pas nullable)
+    console.log('📅 [DateDrawer] Initializing custom inputs from store');
+    
     setCustomAnalysisStart(formatDateForInput(analysisDateRange.start));
     setCustomAnalysisEnd(formatDateForInput(analysisDateRange.end));
     
     if (comparisonDateRange.start && comparisonDateRange.end) {
       setCustomComparisonStart(formatDateForInput(comparisonDateRange.start));
       setCustomComparisonEnd(formatDateForInput(comparisonDateRange.end));
+    } else {
+      setCustomComparisonStart('');
+      setCustomComparisonEnd('');
     }
-  }, [analysisDateRange, comparisonDateRange]);
+  }, [analysisDateRange.start, analysisDateRange.end, comparisonDateRange.start, comparisonDateRange.end]);
 
-  // Auto-select N-1 when analysis period changes
+  // Auto-select N-1 when analysis period changes - avec protection
   useEffect(() => {
     if (analysisDateRange.start && analysisDateRange.end && 
         (!comparisonDateRange.start || !comparisonDateRange.end) &&
         !isAutoCalculating.current) {
+      
+      console.log('🔄 [DateDrawer] Auto-calculating N-1 comparison');
       isAutoCalculating.current = true;
-      calculateDateRange('n-1', 'comparison');
+      
+      // Timeout pour éviter les cascades
       setTimeout(() => {
-        isAutoCalculating.current = false;
+        calculateDateRange('n-1', 'comparison');
+        setTimeout(() => {
+          isAutoCalculating.current = false;
+        }, 200);
       }, 100);
     }
-  }, [analysisDateRange.start, analysisDateRange.end]);
+  }, [analysisDateRange.start, analysisDateRange.end, comparisonDateRange.start, comparisonDateRange.end]);
 
-  // Update count - analysis toujours comptée car obligatoire
+  // Update count avec debounce et ref pour éviter les appels redondants
   useEffect(() => {
     const analysisCount = 1; // Toujours 1 car dates obligatoires
     const comparisonCount = comparisonDateRange.start && comparisonDateRange.end ? 1 : 0;
-    onCountChange(analysisCount + comparisonCount);
-  }, [comparisonDateRange, onCountChange]);
+    const newCount = analysisCount + comparisonCount;
+    
+    // Guard : éviter les appels redondants
+    if (countRef.current !== newCount) {
+      countRef.current = newCount;
+      
+      // Clear timeout précédent
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Debounce pour éviter les appels multiples
+      timeoutRef.current = setTimeout(() => {
+        console.log(`📊 [DateDrawer] Count updated: ${newCount} (analysis: ${analysisCount}, comparison: ${comparisonCount})`);
+        onCountChange(newCount);
+      }, 50);
+    }
+  }, [comparisonDateRange.start, comparisonDateRange.end, onCountChange]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   const formatDateForInput = (dateStr: string): string => {
     try {
@@ -138,7 +184,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     }
     
     const today = new Date();
-    today.setHours(23, 59, 59, 999); // Fin de journée pour comparaison
+    today.setHours(23, 59, 59, 999);
     
     if (endDate > today) {
       return 'La date de fin ne peut pas être dans le futur';
@@ -148,6 +194,8 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   };
 
   const calculateDateRange = (presetId: string, type: 'analysis' | 'comparison') => {
+    console.log(`🧮 [DateDrawer] Calculating ${type} preset: ${presetId}`);
+    
     const today = new Date();
     let start: Date;
     let end: Date;
@@ -181,7 +229,6 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
       const startStr = toSafeDateString(start);
       const endStr = toSafeDateString(end);
       
-      // Vérification TypeScript
       if (!startStr || !endStr) {
         setValidationError('Erreur lors du calcul des dates');
         return;
@@ -195,6 +242,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
       
       setValidationError('');
       setAnalysisDateRange(startStr, endStr);
+      
     } else {
       // Comparison logic
       if (!analysisDateRange.start || !analysisDateRange.end) return;
@@ -226,6 +274,8 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   };
 
   const handleCustomDateChange = (type: 'analysis' | 'comparison', field: 'start' | 'end', value: string) => {
+    console.log(`📝 [DateDrawer] Custom date change: ${type}.${field} = ${value}`);
+    
     if (type === 'analysis') {
       if (field === 'start') {
         setCustomAnalysisStart(value);
@@ -251,279 +301,294 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
         }
       }
     } else {
-      // Comparison logic
       if (field === 'start') {
         setCustomComparisonStart(value);
         if (value && customComparisonEnd) {
-          setComparisonDateRange(value, customComparisonEnd);
+          const validationErr = validateDates(value, customComparisonEnd);
+          if (validationErr) {
+            setValidationError(validationErr);
+          } else {
+            setValidationError('');
+            setComparisonDateRange(value, customComparisonEnd);
+          }
         }
       } else {
         setCustomComparisonEnd(value);
         if (customComparisonStart && value) {
-          setComparisonDateRange(customComparisonStart, value);
+          const validationErr = validateDates(customComparisonStart, value);
+          if (validationErr) {
+            setValidationError(validationErr);
+          } else {
+            setValidationError('');
+            setComparisonDateRange(customComparisonStart, value);
+          }
         }
       }
     }
   };
 
-  const handleApply = () => {
-    // Validation finale avant fermeture
-    if (activeTab === 'analysis') {
-      const validationErr = validateDates(customAnalysisStart, customAnalysisEnd);
-      if (validationErr) {
-        setValidationError(validationErr);
-        return;
-      }
-    }
-    
+  const handleClearComparison = () => {
+    console.log('🗑️ [DateDrawer] Clearing comparison');
+    setCustomComparisonStart('');
+    setCustomComparisonEnd('');
+    clearComparisonDateRange();
     setValidationError('');
-    onClose();
   };
 
-  const handleClear = () => {
-    if (activeTab === 'analysis') {
-      // Reset aux dates par défaut au lieu de vider
-      resetToDefaultDates();
-      setValidationError('');
-    } else {
-      clearComparisonDateRange();
-      setCustomComparisonStart('');
-      setCustomComparisonEnd('');
-    }
+  const handleResetDates = () => {
+    console.log('🔄 [DateDrawer] Resetting to default dates');
+    resetToDefaultDates();
+    setValidationError('');
   };
 
-  const tabs = [
-    { id: 'analysis' as TabType, label: 'Période d\'analyse', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'comparison' as TabType, label: 'Période de comparaison', icon: <Calendar className="w-4 h-4" /> },
-  ];
-
-  const currentPresets = activeTab === 'analysis' ? analysisPresets : comparisonPresets;
-  const currentRange = activeTab === 'analysis' ? analysisDateRange : comparisonDateRange;
-  const currentCustomStart = activeTab === 'analysis' ? customAnalysisStart : customComparisonStart;
-  const currentCustomEnd = activeTab === 'analysis' ? customAnalysisEnd : customComparisonEnd;
+  if (!isOpen) return null;
 
   return (
     <>
       {/* Backdrop */}
-      {isOpen && (
-        <motion.div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          onClick={onClose}
-        />
-      )}
+      <motion.div
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        onClick={onClose}
+      />
 
       {/* Drawer */}
       <motion.div
-        className="fixed top-0 right-0 h-full w-[500px] z-50 bg-white shadow-strong border-l border-gray-200 flex flex-col"
-        initial={{ x: 500 }}
+        className="fixed top-0 right-0 h-full w-[600px] z-50 bg-white shadow-strong border-l border-gray-200 flex flex-col"
+        initial={{ x: 600 }}
         animate={{ x: 0 }}
-        exit={{ x: 500 }}
+        exit={{ x: 600 }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center space-x-2">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Sélection des périodes
-            </h3>
-            {activeTab === 'analysis' && (
-              <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full font-medium">
-                Obligatoire
-              </span>
-            )}
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Sélection des périodes
+              </h2>
+              <p className="text-gray-600 text-sm">
+                Définissez vos plages d'analyse et de comparaison
+              </p>
+            </div>
           </div>
-          <motion.button
+          
+          <button
             onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5" />
-          </motion.button>
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
 
-        {/* Tab Switch */}
-        <div className="p-6 border-b border-gray-100">
-          <div className="bg-gray-100 p-1 rounded-lg flex">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setValidationError(''); // Clear errors when switching tabs
-                }}
-                className={`
-                  flex-1 flex items-center justify-center space-x-2 py-2 px-3 rounded-md text-sm font-medium transition-all duration-200
-                  ${activeTab === tab.id
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                  }
-                `}
-              >
-                {tab.icon}
-                <span className="truncate">{tab.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('analysis')}
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+              activeTab === 'analysis'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Période d'analyse</span>
+            </div>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('comparison')}
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
+              activeTab === 'comparison'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <Calendar className="w-4 h-4" />
+              <span>Période de comparaison</span>
+            </div>
+          </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            
-            {/* Validation Error */}
-            {validationError && (
-              <div className="p-4 bg-red-50 rounded-lg border border-red-200 flex items-start space-x-2">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-700">{validationError}</p>
+        <div className="flex-1 overflow-y-auto p-6">
+          
+          {/* Validation Error */}
+          {validationError && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-red-800 font-medium">Erreur de validation</h4>
+                  <p className="text-red-700 text-sm mt-1">{validationError}</p>
+                </div>
               </div>
-            )}
-            
-            {/* Current Selection Display */}
-            {currentRange.start && currentRange.end && (
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm font-medium text-blue-900 mb-1">
-                  Période sélectionnée
-                  {activeTab === 'analysis' && (
-                    <span className="ml-2 text-xs text-blue-600">(par défaut: mois en cours)</span>
-                  )}
-                </p>
-                <p className="text-sm text-blue-700">
-                  Du {formatDateForDisplay(currentRange.start)} au {formatDateForDisplay(currentRange.end)}
-                </p>
-              </div>
-            )}
+            </div>
+          )}
 
-            {/* Presets */}
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                Sélections rapides
-              </h4>
-              <div className="space-y-2">
-                {currentPresets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => calculateDateRange(preset.id, activeTab)}
-                    disabled={activeTab === 'comparison' && (!analysisDateRange.start || !analysisDateRange.end)}
-                    className={`
-                      w-full p-3 text-left rounded-lg border transition-all duration-200
-                      ${activeTab === 'comparison' && (!analysisDateRange.start || !analysisDateRange.end)
-                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }
-                    `}
-                  >
-                    <div className="font-medium text-sm text-gray-900">
-                      {preset.label}
-                      {preset.id === 'current-month' && activeTab === 'analysis' && (
-                        <span className="ml-2 text-xs text-blue-600">(par défaut)</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {preset.description}
-                    </div>
-                  </button>
-                ))}
+          {activeTab === 'analysis' && (
+            <div className="space-y-6">
+              {/* Current Analysis Period */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="font-medium text-blue-900 mb-2">Période actuelle</h3>
+                <div className="text-blue-800 text-sm">
+                  Du {formatDateForDisplay(analysisDateRange.start)} au {formatDateForDisplay(analysisDateRange.end)}
+                </div>
               </div>
-              
-              {activeTab === 'comparison' && (!analysisDateRange.start || !analysisDateRange.end) && (
-                <p className="text-xs text-amber-600 mt-2">
-                  Définissez d'abord une période d'analyse
-                </p>
+
+              {/* Presets */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Périodes prédéfinies</h3>
+                <div className="grid gap-3">
+                  {analysisPresets.map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => calculateDateRange(preset.id, 'analysis')}
+                      className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition-colors"
+                    >
+                      <div className="font-medium text-gray-900">{preset.label}</div>
+                      <div className="text-gray-600 text-sm">{preset.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Dates */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Période personnalisée</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date de début
+                    </label>
+                    <input
+                      type="date"
+                      value={customAnalysisStart}
+                      onChange={(e) => handleCustomDateChange('analysis', 'start', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date de fin
+                    </label>
+                    <input
+                      type="date"
+                      value={customAnalysisEnd}
+                      onChange={(e) => handleCustomDateChange('analysis', 'end', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'comparison' && (
+            <div className="space-y-6">
+              {/* Current Comparison Period */}
+              {comparisonDateRange.start && comparisonDateRange.end ? (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-green-900 mb-2">Période de comparaison active</h3>
+                      <div className="text-green-800 text-sm">
+                        Du {formatDateForDisplay(comparisonDateRange.start)} au {formatDateForDisplay(comparisonDateRange.end)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClearComparison}
+                      className="text-green-700 hover:text-green-800 text-sm underline"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-700 mb-2">Aucune période de comparaison</h3>
+                  <p className="text-gray-600 text-sm">
+                    Sélectionnez une période pour comparer avec votre analyse
+                  </p>
+                </div>
               )}
-            </div>
 
-            {/* Custom Date Selection */}
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                Dates personnalisées
-                {activeTab === 'analysis' && (
-                  <span className="text-red-500 ml-1">*</span>
-                )}
-              </h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Date de début {activeTab === 'analysis' && <span className="text-red-500">*</span>}
-                  </label>
-                  <input
-                    type="date"
-                    value={currentCustomStart}
-                    onChange={(e) => handleCustomDateChange(activeTab, 'start', e.target.value)}
-                    className={`
-                      w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent
-                      ${validationError && activeTab === 'analysis'
-                        ? 'border-red-300 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-blue-500'
-                      }
-                    `}
-                    required={activeTab === 'analysis'}
-                  />
+              {/* Presets */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Comparaisons prédéfinies</h3>
+                <div className="grid gap-3">
+                  {comparisonPresets.map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => calculateDateRange(preset.id, 'comparison')}
+                      className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition-colors"
+                    >
+                      <div className="font-medium text-gray-900">{preset.label}</div>
+                      <div className="text-gray-600 text-sm">{preset.description}</div>
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Date de fin {activeTab === 'analysis' && <span className="text-red-500">*</span>}
-                  </label>
-                  <input
-                    type="date"
-                    value={currentCustomEnd}
-                    onChange={(e) => handleCustomDateChange(activeTab, 'end', e.target.value)}
-                    className={`
-                      w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent
-                      ${validationError && activeTab === 'analysis'
-                        ? 'border-red-300 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-blue-500'
-                      }
-                    `}
-                    required={activeTab === 'analysis'}
-                  />
+              </div>
+
+              {/* Custom Comparison Dates */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-3">Période personnalisée</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date de début
+                    </label>
+                    <input
+                      type="date"
+                      value={customComparisonStart}
+                      onChange={(e) => handleCustomDateChange('comparison', 'start', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date de fin
+                    </label>
+                    <input
+                      type="date"
+                      value={customComparisonEnd}
+                      onChange={(e) => handleCustomDateChange('comparison', 'end', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-          </div>
-
-          {/* Action Buttons */}
-          <div className="border-t border-gray-100 p-4 space-y-3">
-            <div className="flex space-x-2">
+        {/* Footer */}
+        <div className="border-t border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleResetDates}
+              className="text-gray-600 hover:text-gray-800 text-sm underline"
+            >
+              Réinitialiser aux valeurs par défaut
+            </button>
+            
+            <div className="flex space-x-3">
               <button
-                onClick={handleApply}
-                disabled={!!validationError}
-                className={`
-                  flex-1 px-4 py-2 text-sm font-medium rounded-lg
-                  focus:ring-2 focus:ring-offset-2 transition-all duration-200
-                  ${validationError
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500'
-                  }
-                `}
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
               >
-                Appliquer
-              </button>
-              <button
-                onClick={handleClear}
-                className="
-                  px-4 py-2 text-sm font-medium rounded-lg border
-                  border-amber-300 text-amber-600 hover:bg-amber-50 hover:border-amber-400
-                  focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
-                  transition-all duration-200
-                "
-              >
-                {activeTab === 'analysis' ? 'Réinitialiser' : 'Effacer'}
+                Fermer
               </button>
             </div>
-            
-            {activeTab === 'analysis' && (
-              <p className="text-xs text-gray-500 text-center">
-                La période d'analyse est obligatoire et définie par défaut sur le mois en cours
-              </p>
-            )}
           </div>
-
         </div>
       </motion.div>
     </>
