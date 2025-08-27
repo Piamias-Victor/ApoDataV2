@@ -1,7 +1,7 @@
 // src/app/dashboard/page.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
@@ -12,7 +12,7 @@ import { Card } from '@/components/atoms/Card/Card';
 import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 
 /**
- * Dashboard Page - Page principale avec KPI, graphique + tableau produits
+ * Dashboard Page - CORRIGÉ pour inclure les filtres laboratoires
  */
 export default function DashboardPage(): JSX.Element {
   // Hook existant pour récupérer les données produits
@@ -32,6 +32,24 @@ export default function DashboardPage(): JSX.Element {
   const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+
+  // 🎯 FUSION des codes produits : products + laboratories + categories
+  const allProductCodes = useMemo(() => {
+    const codes = Array.from(new Set([
+      ...productsFilter,
+      ...laboratoriesFilter,  // ✅ AJOUTÉ: inclure les laboratoires
+      ...categoriesFilter
+    ]));
+    
+    console.log('🔄 [Dashboard] Merged product codes:', {
+      totalCodes: codes.length,
+      fromProducts: productsFilter.length,
+      fromLaboratories: laboratoriesFilter.length,
+      fromCategories: categoriesFilter.length
+    });
+    
+    return codes;
+  }, [productsFilter, laboratoriesFilter, categoriesFilter]);
 
   // Filtres formatés pour KipsSection
   const filters = {
@@ -67,7 +85,7 @@ export default function DashboardPage(): JSX.Element {
               </p>
             </div>
             
-            {/* Indicateurs performance */}
+            {/* Indicateurs performance CORRIGÉS */}
             {products.length > 0 && (
               <div className="flex items-center space-x-4 text-sm text-gray-500">
                 {cached && (
@@ -78,21 +96,35 @@ export default function DashboardPage(): JSX.Element {
                 )}
                 <span>{queryTime}ms</span>
                 <span>{products.length} produit{products.length > 1 ? 's' : ''}</span>
+                
+                {/* Indicateurs filtres appliqués */}
                 {productsFilter.length > 0 && (
                   <span className="text-blue-600 font-medium">
-                    {productsFilter.length} produit{productsFilter.length > 1 ? 's' : ''} filtré{productsFilter.length > 1 ? 's' : ''}
+                    {productsFilter.length} produit{productsFilter.length > 1 ? 's' : ''} sélectionné{productsFilter.length > 1 ? 's' : ''}
+                  </span>
+                )}
+                {laboratoriesFilter.length > 0 && (
+                  <span className="text-purple-600 font-medium">
+                    {laboratoriesFilter.length} labo{laboratoriesFilter.length > 1 ? 's' : ''}
                   </span>
                 )}
                 {pharmacyFilter.length > 0 && (
-                  <span className="text-purple-600 font-medium">
+                  <span className="text-orange-600 font-medium">
                     {pharmacyFilter.length} pharmacie{pharmacyFilter.length > 1 ? 's' : ''}
+                  </span>
+                )}
+                {allProductCodes.length > 0 && (
+                  <span className="text-gray-700 font-medium bg-gray-200 px-2 py-1 rounded">
+                    {allProductCodes.length} codes EAN total
                   </span>
                 )}
               </div>
             )}
           </div>
 
-          {/* <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+          {/* SECTION KPI - Pour plus tard */}
+          
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
             <KpisSection
               dateRange={analysisDateRange}
               comparisonDateRange={comparisonDateRange}
@@ -100,24 +132,21 @@ export default function DashboardPage(): JSX.Element {
               includeComparison={hasComparison}
               onRefresh={refetch}
             />
-          </div> */}
+          </div>
+         
 
-          {/* SECTION KPI */}
-          
-
-          {/* GRAPHIQUE : Évolution métriques avec VRAIS filtres */}
+          {/* 🎯 GRAPHIQUE CORRIGÉ : Évolution métriques avec TOUS les filtres */}
           <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
             <MetricsEvolutionChart
               dateRange={analysisDateRange}
               filters={{
-                productCodes: productsFilter,
+                productCodes: allProductCodes,  // ✅ CORRIGÉ: utilise les codes fusionnés
                 pharmacyId: pharmacyFilter.length > 0 ? pharmacyFilter[0] : undefined
               }}
               onRefresh={refetch}
             />
           </div>
           
-
           {/* Tableau produits principal */}
           <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
             <div className="mb-4">
@@ -129,13 +158,15 @@ export default function DashboardPage(): JSX.Element {
               </p>
             </div>
             
-            {/* <ProductsTable 
+            
+            <ProductsTable 
               products={products}
               isLoading={isLoading}
               error={error}
               onRefresh={refetch}
               className="w-full"
-            /> */}
+            />
+           
           </div>
 
           {/* Message si aucune donnée */}
@@ -150,8 +181,13 @@ export default function DashboardPage(): JSX.Element {
                 <br />
                 Ajustez vos critères de recherche pour voir les données.
               </p>
-              <div className="text-sm text-gray-500">
-                💡 Vérifiez que les filtres de dates et produits sont correctement configurés
+              <div className="text-sm text-gray-500 space-y-1">
+                <div>💡 Vérifiez que les filtres de dates et produits sont correctement configurés</div>
+                {allProductCodes.length > 0 && (
+                  <div className="text-blue-600">
+                    🔍 {allProductCodes.length} codes EAN filtrés actuellement
+                  </div>
+                )}
               </div>
             </Card>
           )}
