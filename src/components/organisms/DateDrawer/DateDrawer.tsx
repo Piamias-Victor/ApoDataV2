@@ -46,12 +46,13 @@ const toSafeDateString = (date: Date): string => {
 };
 
 /**
- * DateDrawer Component - CORRIGÉ pour éviter les boucles infinies
+ * DateDrawer Component - AVEC PENDING STATE ET BOUTON APPLIQUER
  * 
- * Corrections :
- * - Ref pour éviter les appels onCountChange redondants
- * - Protection contre les auto-calculations en boucle
- * - Debounce sur les mises à jour de count
+ * Nouvelles fonctionnalités :
+ * - Pending state : les modifications ne sont pas appliquées au store immédiatement
+ * - Bouton "Appliquer" obligatoire pour valider les changements
+ * - Bouton "Effacer dates" pour reset
+ * - Cohérence visuelle avec les autres drawers
  */
 export const DateDrawer: React.FC<DateDrawerProps> = ({
   isOpen,
@@ -59,14 +60,16 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
   onCountChange
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('analysis');
-  const [customAnalysisStart, setCustomAnalysisStart] = useState('');
-  const [customAnalysisEnd, setCustomAnalysisEnd] = useState('');
-  const [customComparisonStart, setCustomComparisonStart] = useState('');
-  const [customComparisonEnd, setCustomComparisonEnd] = useState('');
+  
+  // PENDING STATE - États locaux pour les modifications non appliquées
+  const [pendingAnalysisStart, setPendingAnalysisStart] = useState('');
+  const [pendingAnalysisEnd, setPendingAnalysisEnd] = useState('');
+  const [pendingComparisonStart, setPendingComparisonStart] = useState('');
+  const [pendingComparisonEnd, setPendingComparisonEnd] = useState('');
+  
   const [validationError, setValidationError] = useState<string>('');
   
   // Refs pour éviter les boucles infinies
-  const isAutoCalculating = useRef(false);
   const countRef = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -79,45 +82,30 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     resetToDefaultDates
   } = useFiltersStore();
 
-  // Initialize custom inputs with store values
+  // Initialize pending states with store values when drawer opens
   useEffect(() => {
-    console.log('📅 [DateDrawer] Initializing custom inputs from store');
-    
-    setCustomAnalysisStart(formatDateForInput(analysisDateRange.start));
-    setCustomAnalysisEnd(formatDateForInput(analysisDateRange.end));
-    
-    if (comparisonDateRange.start && comparisonDateRange.end) {
-      setCustomComparisonStart(formatDateForInput(comparisonDateRange.start));
-      setCustomComparisonEnd(formatDateForInput(comparisonDateRange.end));
-    } else {
-      setCustomComparisonStart('');
-      setCustomComparisonEnd('');
-    }
-  }, [analysisDateRange.start, analysisDateRange.end, comparisonDateRange.start, comparisonDateRange.end]);
-
-  // Auto-select N-1 when analysis period changes - avec protection
-  useEffect(() => {
-    if (analysisDateRange.start && analysisDateRange.end && 
-        (!comparisonDateRange.start || !comparisonDateRange.end) &&
-        !isAutoCalculating.current) {
+    if (isOpen) {
+      console.log('📅 [DateDrawer] Initializing pending states from store');
       
-      console.log('🔄 [DateDrawer] Auto-calculating N-1 comparison');
-      isAutoCalculating.current = true;
+      setPendingAnalysisStart(formatDateForInput(analysisDateRange.start));
+      setPendingAnalysisEnd(formatDateForInput(analysisDateRange.end));
       
-      // Timeout pour éviter les cascades
-      setTimeout(() => {
-        calculateDateRange('n-1', 'comparison');
-        setTimeout(() => {
-          isAutoCalculating.current = false;
-        }, 200);
-      }, 100);
+      if (comparisonDateRange.start && comparisonDateRange.end) {
+        setPendingComparisonStart(formatDateForInput(comparisonDateRange.start));
+        setPendingComparisonEnd(formatDateForInput(comparisonDateRange.end));
+      } else {
+        setPendingComparisonStart('');
+        setPendingComparisonEnd('');
+      }
+      
+      setValidationError('');
     }
-  }, [analysisDateRange.start, analysisDateRange.end, comparisonDateRange.start, comparisonDateRange.end]);
+  }, [isOpen, analysisDateRange.start, analysisDateRange.end, comparisonDateRange.start, comparisonDateRange.end]);
 
-  // Update count avec debounce et ref pour éviter les appels redondants
+  // Update count based on pending states
   useEffect(() => {
-    const analysisCount = 1; // Toujours 1 car dates obligatoires
-    const comparisonCount = comparisonDateRange.start && comparisonDateRange.end ? 1 : 0;
+    const analysisCount = pendingAnalysisStart && pendingAnalysisEnd ? 1 : 0;
+    const comparisonCount = pendingComparisonStart && pendingComparisonEnd ? 1 : 0;
     const newCount = analysisCount + comparisonCount;
     
     // Guard : éviter les appels redondants
@@ -135,7 +123,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
         onCountChange(newCount);
       }, 50);
     }
-  }, [comparisonDateRange.start, comparisonDateRange.end, onCountChange]);
+  }, [pendingAnalysisStart, pendingAnalysisEnd, pendingComparisonStart, pendingComparisonEnd, onCountChange]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -195,150 +183,178 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
 
   const calculateDateRange = (presetId: string, type: 'analysis' | 'comparison') => {
     console.log(`🧮 [DateDrawer] Calculating ${type} preset: ${presetId}`);
+    setValidationError('');
     
     const today = new Date();
-    let start: Date;
-    let end: Date;
-
-    if (type === 'analysis') {
-      switch (presetId) {
-        case 'current-month':
-          start = new Date(today.getFullYear(), today.getMonth(), 1);
-          end = new Date(today);
-          break;
-        case 'last-month':
-          start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-          end = new Date(today.getFullYear(), today.getMonth(), 0);
-          break;
-        case 'current-year':
-          start = new Date(today.getFullYear(), 0, 1);
-          end = new Date(today);
-          break;
-        case 'last-year':
-          start = new Date(today.getFullYear() - 1, 0, 1);
-          end = new Date(today.getFullYear() - 1, 11, 31);
-          break;
-        case 'last-12-months':
-          start = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000);
-          end = new Date(today);
-          break;
-        default:
+    let startDate: Date;
+    let endDate: Date;
+    
+    try {
+      if (type === 'analysis') {
+        switch (presetId) {
+          case 'current-month':
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = today;
+            break;
+          case 'last-month':
+            startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            break;
+          case 'current-year':
+            startDate = new Date(today.getFullYear(), 0, 1);
+            endDate = today;
+            break;
+          case 'last-year':
+            startDate = new Date(today.getFullYear() - 1, 0, 1);
+            endDate = new Date(today.getFullYear() - 1, 11, 31);
+            break;
+          case 'last-12-months':
+            startDate = new Date(today);
+            startDate.setFullYear(today.getFullYear() - 1);
+            endDate = today;
+            break;
+          default:
+            console.warn(`Preset analysis inconnu: ${presetId}`);
+            return;
+        }
+        
+        setPendingAnalysisStart(toSafeDateString(startDate));
+        setPendingAnalysisEnd(toSafeDateString(endDate));
+        
+      } else {
+        const analysisStart = pendingAnalysisStart || analysisDateRange.start;
+        const analysisEnd = pendingAnalysisEnd || analysisDateRange.end;
+        
+        if (!analysisStart || !analysisEnd) {
+          setValidationError('Veuillez d\'abord définir une période d\'analyse');
           return;
+        }
+        
+        const baseStart = new Date(analysisStart);
+        const baseEnd = new Date(analysisEnd);
+        
+        switch (presetId) {
+          case 'n-1':
+            startDate = new Date(baseStart);
+            startDate.setFullYear(baseStart.getFullYear() - 1);
+            endDate = new Date(baseEnd);
+            endDate.setFullYear(baseEnd.getFullYear() - 1);
+            break;
+          case 'previous-period':
+            const duration = baseEnd.getTime() - baseStart.getTime();
+            endDate = new Date(baseStart.getTime() - 24 * 60 * 60 * 1000);
+            startDate = new Date(endDate.getTime() - duration);
+            break;
+          default:
+            console.warn(`Preset comparison inconnu: ${presetId}`);
+            return;
+        }
+        
+        setPendingComparisonStart(toSafeDateString(startDate));
+        setPendingComparisonEnd(toSafeDateString(endDate));
       }
       
-      const startStr = toSafeDateString(start);
-      const endStr = toSafeDateString(end);
-      
-      if (!startStr || !endStr) {
-        setValidationError('Erreur lors du calcul des dates');
-        return;
-      }
-      
-      const validationErr = validateDates(startStr, endStr);
-      if (validationErr) {
-        setValidationError(validationErr);
-        return;
-      }
-      
-      setValidationError('');
-      setAnalysisDateRange(startStr, endStr);
-      
-    } else {
-      // Comparison logic
-      if (!analysisDateRange.start || !analysisDateRange.end) return;
-
-      const analysisStart = new Date(analysisDateRange.start);
-      const analysisEnd = new Date(analysisDateRange.end);
-      const duration = analysisEnd.getTime() - analysisStart.getTime();
-
-      switch (presetId) {
-        case 'n-1':
-          start = new Date(analysisStart.getFullYear() - 1, analysisStart.getMonth(), analysisStart.getDate());
-          end = new Date(analysisEnd.getFullYear() - 1, analysisEnd.getMonth(), analysisEnd.getDate());
-          break;
-        case 'previous-period':
-          end = new Date(analysisStart.getTime() - 24 * 60 * 60 * 1000);
-          start = new Date(end.getTime() - duration);
-          break;
-        default:
-          return;
-      }
-      
-      const startStr = toSafeDateString(start);
-      const endStr = toSafeDateString(end);
-      
-      if (startStr && endStr) {
-        setComparisonDateRange(startStr, endStr);
-      }
+    } catch (error) {
+      console.error('Erreur calcul date range:', error);
+      setValidationError('Erreur lors du calcul des dates');
     }
   };
 
   const handleCustomDateChange = (type: 'analysis' | 'comparison', field: 'start' | 'end', value: string) => {
     console.log(`📝 [DateDrawer] Custom date change: ${type}.${field} = ${value}`);
+    setValidationError('');
     
     if (type === 'analysis') {
       if (field === 'start') {
-        setCustomAnalysisStart(value);
-        if (value && customAnalysisEnd) {
-          const validationErr = validateDates(value, customAnalysisEnd);
-          if (validationErr) {
-            setValidationError(validationErr);
-          } else {
-            setValidationError('');
-            setAnalysisDateRange(value, customAnalysisEnd);
-          }
-        }
+        setPendingAnalysisStart(value);
       } else {
-        setCustomAnalysisEnd(value);
-        if (customAnalysisStart && value) {
-          const validationErr = validateDates(customAnalysisStart, value);
-          if (validationErr) {
-            setValidationError(validationErr);
-          } else {
-            setValidationError('');
-            setAnalysisDateRange(customAnalysisStart, value);
-          }
-        }
+        setPendingAnalysisEnd(value);
       }
     } else {
       if (field === 'start') {
-        setCustomComparisonStart(value);
-        if (value && customComparisonEnd) {
-          const validationErr = validateDates(value, customComparisonEnd);
-          if (validationErr) {
-            setValidationError(validationErr);
-          } else {
-            setValidationError('');
-            setComparisonDateRange(value, customComparisonEnd);
-          }
-        }
+        setPendingComparisonStart(value);
       } else {
-        setCustomComparisonEnd(value);
-        if (customComparisonStart && value) {
-          const validationErr = validateDates(customComparisonStart, value);
-          if (validationErr) {
-            setValidationError(validationErr);
-          } else {
-            setValidationError('');
-            setComparisonDateRange(customComparisonStart, value);
-          }
-        }
+        setPendingComparisonEnd(value);
       }
     }
   };
 
   const handleClearComparison = () => {
-    console.log('🗑️ [DateDrawer] Clearing comparison');
-    setCustomComparisonStart('');
-    setCustomComparisonEnd('');
-    clearComparisonDateRange();
+    console.log('🗑️ [DateDrawer] Clearing pending comparison');
+    setPendingComparisonStart('');
+    setPendingComparisonEnd('');
     setValidationError('');
   };
 
   const handleResetDates = () => {
     console.log('🔄 [DateDrawer] Resetting to default dates');
-    resetToDefaultDates();
+    
+    // Reset to default analysis dates
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    setPendingAnalysisStart(toSafeDateString(firstDayOfMonth));
+    setPendingAnalysisEnd(toSafeDateString(today));
+    setPendingComparisonStart('');
+    setPendingComparisonEnd('');
     setValidationError('');
+  };
+
+  // NOUVEAU : Fonction pour appliquer les changements au store
+  const applyFilters = () => {
+    console.log('✅ [DateDrawer] Applying pending filters to store');
+    
+    // Validation analysis dates
+    const analysisError = validateDates(pendingAnalysisStart, pendingAnalysisEnd);
+    if (analysisError) {
+      setValidationError(analysisError);
+      return;
+    }
+
+    // Validation comparison dates si présentes
+    if (pendingComparisonStart && pendingComparisonEnd) {
+      const comparisonError = validateDates(pendingComparisonStart, pendingComparisonEnd);
+      if (comparisonError) {
+        setValidationError(`Comparaison: ${comparisonError}`);
+        return;
+      }
+    }
+
+    // Apply analysis dates to store
+    setAnalysisDateRange(pendingAnalysisStart, pendingAnalysisEnd);
+    
+    // Apply comparison dates to store
+    if (pendingComparisonStart && pendingComparisonEnd) {
+      setComparisonDateRange(pendingComparisonStart, pendingComparisonEnd);
+    } else {
+      clearComparisonDateRange();
+    }
+    
+    setValidationError('');
+    console.log('📅 [DateDrawer] Filters applied successfully');
+  };
+
+  // NOUVEAU : Fonction pour effacer complètement les dates
+  const clearDateFilters = () => {
+    console.log('🗑️ [DateDrawer] Clearing all date filters');
+    resetToDefaultDates();
+    
+    // Reset pending states to new defaults
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    setPendingAnalysisStart(toSafeDateString(firstDayOfMonth));
+    setPendingAnalysisEnd(toSafeDateString(today));
+    setPendingComparisonStart('');
+    setPendingComparisonEnd('');
+    setValidationError('');
+  };
+
+  const hasChanges = () => {
+    return pendingAnalysisStart !== formatDateForInput(analysisDateRange.start) ||
+           pendingAnalysisEnd !== formatDateForInput(analysisDateRange.end) ||
+           pendingComparisonStart !== formatDateForInput(comparisonDateRange.start || '') ||
+           pendingComparisonEnd !== formatDateForInput(comparisonDateRange.end || '');
   };
 
   if (!isOpen) return null;
@@ -371,7 +387,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                Sélection des périodes
+                Filtres Dates
               </h2>
               <p className="text-gray-600 text-sm">
                 Définissez vos plages d'analyse et de comparaison
@@ -418,29 +434,27 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
           </button>
         </div>
 
+        {/* Error Display */}
+        {validationError && (
+          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+            <span className="text-red-700 text-sm">{validationError}</span>
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          
-          {/* Validation Error */}
-          {validationError && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-red-800 font-medium">Erreur de validation</h4>
-                  <p className="text-red-700 text-sm mt-1">{validationError}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'analysis' && (
             <div className="space-y-6">
               {/* Current Analysis Period */}
               <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="font-medium text-blue-900 mb-2">Période actuelle</h3>
-                <div className="text-blue-800 text-sm">
-                  Du {formatDateForDisplay(analysisDateRange.start)} au {formatDateForDisplay(analysisDateRange.end)}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-blue-900 mb-2">Période d'analyse sélectionnée</h3>
+                    <div className="text-blue-800 text-sm">
+                      Du {pendingAnalysisStart ? formatDateForDisplay(pendingAnalysisStart) : 'Non défini'} au {pendingAnalysisEnd ? formatDateForDisplay(pendingAnalysisEnd) : 'Non défini'}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -471,7 +485,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                     </label>
                     <input
                       type="date"
-                      value={customAnalysisStart}
+                      value={pendingAnalysisStart}
                       onChange={(e) => handleCustomDateChange('analysis', 'start', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -482,7 +496,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                     </label>
                     <input
                       type="date"
-                      value={customAnalysisEnd}
+                      value={pendingAnalysisEnd}
                       onChange={(e) => handleCustomDateChange('analysis', 'end', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -495,13 +509,13 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
           {activeTab === 'comparison' && (
             <div className="space-y-6">
               {/* Current Comparison Period */}
-              {comparisonDateRange.start && comparisonDateRange.end ? (
+              {pendingComparisonStart && pendingComparisonEnd ? (
                 <div className="bg-green-50 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-medium text-green-900 mb-2">Période de comparaison active</h3>
+                      <h3 className="font-medium text-green-900 mb-2">Période de comparaison sélectionnée</h3>
                       <div className="text-green-800 text-sm">
-                        Du {formatDateForDisplay(comparisonDateRange.start)} au {formatDateForDisplay(comparisonDateRange.end)}
+                        Du {formatDateForDisplay(pendingComparisonStart)} au {formatDateForDisplay(pendingComparisonEnd)}
                       </div>
                     </div>
                     <button
@@ -548,7 +562,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                     </label>
                     <input
                       type="date"
-                      value={customComparisonStart}
+                      value={pendingComparisonStart}
                       onChange={(e) => handleCustomDateChange('comparison', 'start', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -559,7 +573,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
                     </label>
                     <input
                       type="date"
-                      value={customComparisonEnd}
+                      value={pendingComparisonEnd}
                       onChange={(e) => handleCustomDateChange('comparison', 'end', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -570,26 +584,52 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-6">
-          <div className="flex items-center justify-between">
+        {/* NOUVEAU : Action Buttons - MÊME STRUCTURE QUE LES AUTRES DRAWERS */}
+        <div className="border-t border-gray-100 p-4 space-y-3">
+          <div className="flex space-x-2">
             <button
-              onClick={handleResetDates}
-              className="text-gray-600 hover:text-gray-800 text-sm underline"
+              onClick={() => {
+                applyFilters();
+                onClose();
+              }}
+              disabled={!pendingAnalysisStart || !pendingAnalysisEnd}
+              className={`
+                flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
+                ${pendingAnalysisStart && pendingAnalysisEnd
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }
+              `}
             >
-              Réinitialiser aux valeurs par défaut
+              Appliquer ({countRef.current})
             </button>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-              >
-                Fermer
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                clearDateFilters();
+                onClose();
+              }}
+              className="
+                px-4 py-2 text-sm font-medium rounded-lg border
+                border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
+                focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+                transition-all duration-200
+              "
+            >
+              Effacer dates
+            </button>
           </div>
         </div>
+
+        {/* Tutorial - Compact */}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          <p className="text-xs text-gray-600">
+            <strong>Filtres Dates :</strong> Définissez vos périodes d'analyse et de comparaison
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Les changements ne sont appliqués qu'après avoir cliqué sur "Appliquer"
+          </p>
+        </div>
+
       </motion.div>
     </>
   );

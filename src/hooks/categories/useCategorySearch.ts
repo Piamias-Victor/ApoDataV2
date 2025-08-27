@@ -37,22 +37,24 @@ interface UseCategorySearchReturn {
   readonly clearSelection: () => void;
   readonly applyFilters: () => void;
   readonly clearCategoryFilters: () => void;
+  readonly pendingProductCodes: Set<string>;
 }
 
 /**
- * Hook useCategorySearch - Recherche catégories avec mode dual
+ * Crée une clé unique pour différencier universe et category
+ */
+const createCategoryKey = (name: string, type: 'universe' | 'category'): string => {
+  return `${type}:${name}`;
+};
+
+/**
+ * Hook useCategorySearch - AVEC PENDING STATE
  * 
- * Modes :
- * - 'category': recherche directe dans universe ET category
- * - 'product': recherche produit → trouve catégories/univers
- * 
- * Gère la recherche intelligente avec :
- * - Debounce 300ms
- * - États loading/error
- * - Sélection par catégorie (tous les produits)
- * - Minimum 3 caractères
- * - Storage des code_13_ref dans le store
- * - Différenciation universe/category avec clés uniques
+ * Nouvelles fonctionnalités :
+ * - Pending state pour categories et product codes
+ * - toggleCategory modifie seulement les sélections locales
+ * - applyFilters applique les product codes accumulés au store
+ * - Tracking des codes produits pending pour feedback visuel
  */
 export function useCategorySearch(): UseCategorySearchReturn {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -61,35 +63,38 @@ export function useCategorySearch(): UseCategorySearchReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('category');
   
-  // Get stored category product codes from Zustand
-  const storedCategoryCodes = useFiltersStore(state => state.categories);
+  // PENDING STATE - États locaux
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
-  
-  // Map to store category key -> product codes for selection logic
   const [categoryProductMap, setCategoryProductMap] = useState<Map<string, string[]>>(new Map());
+  const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
 
-  // Create unique key for category (name + type)
-  const createCategoryKey = (name: string, type: 'universe' | 'category'): string => {
-    return `${type}:${name}`;
-  };
+  // Récupération des codes catégories appliqués depuis le store (pour initialisation)
+  const storedCategoryCodes = useFiltersStore(state => state.categories);
 
-  // Initialize selected categories from stored codes
+  // Initialize selected categories from store when component mounts
   useEffect(() => {
-    if (storedCategoryCodes.length > 0) {
-      const storedCodesSet = new Set(storedCategoryCodes);
-      
-      // Check current categories to see which ones have all their products selected
-      const currentlySelected = new Set<string>();
-      for (const [categoryKey, productCodes] of categoryProductMap.entries()) {
-        const allCodesSelected = productCodes.every(code => storedCodesSet.has(code));
-        if (allCodesSelected && productCodes.length > 0) {
-          currentlySelected.add(categoryKey);
-        }
-      }
-      
-      setSelectedCategories(currentlySelected);
-    }
-  }, [storedCategoryCodes, categoryProductMap]);
+    console.log('🔄 [useCategorySearch] Initializing from store:', storedCategoryCodes);
+    
+    // Pour l'initialisation, on assume que tous les codes stockés forment les catégories sélectionnées
+    // En mode pending, on les met dans pendingProductCodes
+    setPendingProductCodes(new Set(storedCategoryCodes));
+    
+    // Note: On ne peut pas reconstituer facilement selectedCategories depuis les codes produits
+    // car on n'a pas la mapping inverse. C'est une limitation acceptable.
+  }, []); // Volontairement vide pour initialiser UNE SEULE FOIS
+
+  // Recalculate pending product codes when selected categories change
+  useEffect(() => {
+    const allPendingCodes = new Set<string>();
+    
+    selectedCategories.forEach(categoryKey => {
+      const productCodes = categoryProductMap.get(categoryKey) || [];
+      productCodes.forEach(code => allPendingCodes.add(code));
+    });
+    
+    setPendingProductCodes(allPendingCodes);
+    console.log('📦 [useCategorySearch] Updated pending product codes:', Array.from(allPendingCodes));
+  }, [selectedCategories, categoryProductMap]);
 
   // Debounced search function
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
@@ -109,7 +114,10 @@ export function useCategorySearch(): UseCategorySearchReturn {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: query.trim(), mode }),
+        body: JSON.stringify({ 
+          query: query.trim(),
+          mode 
+        }),
       });
 
       if (!response.ok) {
@@ -165,52 +173,53 @@ export function useCategorySearch(): UseCategorySearchReturn {
     }
   }, [searchMode]);
 
+  // MODIFIÉ : toggleCategory affecte seulement l'état local (pending)
   const toggleCategory = useCallback((categoryKey: string, productCodes: string[]) => {
-    const currentStoredCodes = useFiltersStore.getState().categories;
-    const currentStoredSet = new Set(currentStoredCodes);
+    console.log('🔄 [useCategorySearch] Toggle category (pending):', categoryKey);
     
-    // Check if this category is currently selected (all its codes are in store)
-    const isCurrentlySelected = productCodes.every(code => currentStoredSet.has(code)) && productCodes.length > 0;
-    
-    let newStoredCodes: string[];
-    
-    if (isCurrentlySelected) {
-      // Remove all codes from this category
-      newStoredCodes = currentStoredCodes.filter(code => !productCodes.includes(code));
-      setSelectedCategories(prev => {
-        const newSet = new Set(prev);
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryKey)) {
         newSet.delete(categoryKey);
-        return newSet;
-      });
-    } else {
-      // Add all codes from this category
-      const codesToAdd = productCodes.filter(code => !currentStoredSet.has(code));
-      newStoredCodes = [...currentStoredCodes, ...codesToAdd];
-      setSelectedCategories(prev => {
-        const newSet = new Set(prev);
+        console.log('➖ Removed category:', categoryKey);
+      } else {
         newSet.add(categoryKey);
-        return newSet;
-      });
-    }
-    
-    // Update store immediately for real-time UI feedback
-    useFiltersStore.getState().setCategoryFilters(newStoredCodes);
+        console.log('➕ Added category:', categoryKey);
+      }
+      return newSet;
+    });
+
+    // Ensure the mapping is updated
+    setCategoryProductMap(prev => {
+      const newMap = new Map(prev);
+      newMap.set(categoryKey, productCodes);
+      return newMap;
+    });
   }, []);
 
   const clearSelection = useCallback(() => {
+    console.log('🗑️ [useCategorySearch] Clear pending selection');
     setSelectedCategories(new Set());
-    useFiltersStore.getState().clearCategoryFilters();
+    setPendingProductCodes(new Set());
   }, []);
 
+  // MODIFIÉ : applyFilters applique les codes produits accumulés au store
   const applyFilters = useCallback(() => {
-    // Filters are already applied in real-time via toggleCategory
-    // This is just for consistency with the drawer interface
-  }, []);
+    console.log('✅ [useCategorySearch] Applying filters to store');
+    console.log('  - Selected categories:', Array.from(selectedCategories));
+    console.log('  - Pending product codes:', Array.from(pendingProductCodes));
+    
+    const setCategoryFilters = useFiltersStore.getState().setCategoryFilters;
+    setCategoryFilters(Array.from(pendingProductCodes));
+  }, [selectedCategories, pendingProductCodes]);
 
+  // MODIFIÉ : clearCategoryFilters reset le store ET tous les états locaux
   const clearCategoryFilters = useCallback(() => {
+    console.log('🗑️ [useCategorySearch] Clear category filters (store + local)');
     const clearCategoryFilters = useFiltersStore.getState().clearCategoryFilters;
     clearCategoryFilters();
     setSelectedCategories(new Set());
+    setPendingProductCodes(new Set());
   }, []);
 
   return {
@@ -226,5 +235,6 @@ export function useCategorySearch(): UseCategorySearchReturn {
     clearSelection,
     applyFilters,
     clearCategoryFilters,
+    pendingProductCodes,
   };
 }

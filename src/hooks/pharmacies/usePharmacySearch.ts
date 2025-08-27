@@ -49,40 +49,36 @@ interface UsePharmacySearchReturn {
 }
 
 /**
- * Hook usePharmacySearch - Recherche pharmacies avec filtres CA et région
+ * Hook usePharmacySearch - AVEC PENDING STATE
  * 
- * Fonctionnalités :
- * - Recherche par nom/adresse
- * - Filtre par tranche CA (4M, 4-6M, 6-8M, 8-10M, +10M)
- * - Filtre par régions françaises
- * - Debounce 300ms
- * - Sélection multiple
- * - Storage des IDs dans le store
+ * Nouvelles fonctionnalités :
+ * - Pending state pour pharmacies, CA range et régions
+ * - Toutes les modifications restent locales jusqu'au clic "Appliquer"
+ * - applyFilters combine toutes les sélections et les applique au store
  */
 export function usePharmacySearch(): UsePharmacySearchReturn {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // PENDING STATE - États locaux
+  const [selectedPharmacies, setSelectedPharmacies] = useState<Set<string>>(new Set());
   const [selectedCARange, setSelectedCARange] = useState<CARange | null>(null);
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
-  
-  // Get stored pharmacy IDs from Zustand
-  const storedPharmacyIds = useFiltersStore(state => state.pharmacy);
-  const [selectedPharmacies, setSelectedPharmacies] = useState<Set<string>>(
-    new Set(storedPharmacyIds)
-  );
 
-  // CA Ranges in millions
+  // Récupération des pharmacies appliquées depuis le store (pour initialisation)
+  const storedPharmacies = useFiltersStore(state => state.pharmacy);
+
+  // Constantes pour les filtres CA et régions
   const caRanges: CARange[] = [
     { min: 0, max: 4000000, label: '< 4M€' },
-    { min: 4000000, max: 6000000, label: '4M€ - 6M€' },
-    { min: 6000000, max: 8000000, label: '6M€ - 8M€' },
-    { min: 8000000, max: 10000000, label: '8M€ - 10M€' },
-    { min: 10000000, max: null, label: '> 10M€' }
+    { min: 4000000, max: 6000000, label: '4M - 6M€' },
+    { min: 6000000, max: 8000000, label: '6M - 8M€' },
+    { min: 8000000, max: 10000000, label: '8M - 10M€' },
+    { min: 10000000, max: null, label: '> 10M€' },
   ];
 
-  // French regions
   const regions: Region[] = [
     { name: 'Auvergne-Rhône-Alpes', code: 'ARA' },
     { name: 'Bourgogne-Franche-Comté', code: 'BFC' },
@@ -96,114 +92,137 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     { name: 'Nouvelle-Aquitaine', code: 'NAQ' },
     { name: 'Occitanie', code: 'OCC' },
     { name: 'Pays de la Loire', code: 'PDL' },
-    { name: "Provence-Alpes-Côte d'Azur", code: 'PAC' },
-    { name: 'Guadeloupe', code: 'GP' },
-    { name: 'Martinique', code: 'MQ' },
-    { name: 'Guyane', code: 'GF' },
-    { name: 'La Réunion', code: 'RE' },
-    { name: 'Mayotte', code: 'YT' }
+    { name: 'Provence-Alpes-Côte d\'Azur', code: 'PAC' },
   ];
 
-  // Debounced search - déclenche si recherche OU filtres
+  // Initialize selected pharmacies from store when component mounts
+  useEffect(() => {
+    console.log('🔄 [usePharmacySearch] Initializing from store:', storedPharmacies);
+    setSelectedPharmacies(new Set(storedPharmacies));
+  }, []); // Volontairement vide pour initialiser UNE SEULE FOIS
+
+  // Debounced search function
+  const performSearch = useCallback(async (query: string, caRange: CARange | null, regions: Set<string>) => {
+    // Search by query (nom/adresse)
+    if (query && query.trim().length >= 2) {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/search/pharmacies', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            query: query.trim(),
+            caMin: caRange?.min.toString(),
+            caMax: caRange?.max?.toString(),
+            regions: regions.size > 0 ? Array.from(regions) : undefined
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}`);
+        }
+
+        const data: SearchResponse = await response.json();
+        setPharmacies(data.pharmacies);
+
+      } catch (err) {
+        console.error('Erreur recherche pharmacies:', err);
+        setError('Erreur lors de la recherche');
+        setPharmacies([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    // Search by filters only (CA + regions)
+    else if (caRange || regions.size > 0) {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('/api/search/pharmacies', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            caMin: caRange?.min.toString(),
+            caMax: caRange?.max?.toString(),
+            regions: regions.size > 0 ? Array.from(regions) : undefined
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}`);
+        }
+
+        const data: SearchResponse = await response.json();
+        setPharmacies(data.pharmacies);
+
+      } catch (err) {
+        console.error('Erreur recherche pharmacies par filtres:', err);
+        setError('Erreur lors de la recherche');
+        setPharmacies([]);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // No valid search criteria
+      setPharmacies([]);
+      setIsLoading(false);
+      setError(null);
+    }
+  }, []);
+
+  // Debounce effect pour la recherche textuelle
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const hasSearchQuery = searchQuery.length >= 2;
-      const hasCAFilter = selectedCARange !== null;
-      const hasRegionFilter = selectedRegions.size > 0;
-      
-      if (hasSearchQuery || hasCAFilter || hasRegionFilter) {
-        performSearch();
-      } else if (searchQuery.length === 0 && !hasCAFilter && !hasRegionFilter) {
-        setPharmacies([]);
-        setSelectedPharmacies(new Set()); // Vider la sélection si plus de filtres
-      }
+      performSearch(searchQuery, selectedCARange, selectedRegions);
     }, 300);
 
     return () => clearTimeout(timeoutId);
+  }, [searchQuery, performSearch]);
+
+  // Effet pour recherche par filtres (CA + régions) - sans debounce
+  useEffect(() => {
+    if (selectedCARange || selectedRegions.size > 0) {
+      performSearch(searchQuery, selectedCARange, selectedRegions);
+    }
+  }, [selectedCARange, selectedRegions, performSearch]);
+
+  // Reset results when no search criteria
+  useEffect(() => {
+    if (!searchQuery.trim() && !selectedCARange && selectedRegions.size === 0) {
+      setPharmacies([]);
+      setIsLoading(false);
+      setError(null);
+    }
   }, [searchQuery, selectedCARange, selectedRegions]);
 
-  // Auto-sélectionner toutes les pharmacies quand les résultats changent
-  useEffect(() => {
-    if (pharmacies.length > 0) {
-      const allPharmacyIds = pharmacies.map(p => p.id);
-      setSelectedPharmacies(new Set(allPharmacyIds));
-      console.log('Auto-selected all pharmacies:', allPharmacyIds.length, 'pharmacies');
-    } else {
-      setSelectedPharmacies(new Set());
-    }
-  }, [pharmacies]);
-
-  const performSearch = async () => {
-    if (isLoading) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Construire les paramètres de recherche
-      const searchParams: any = {};
-      
-      if (searchQuery.trim()) {
-        searchParams.query = searchQuery.trim();
-      }
-      
-      if (selectedCARange) {
-        searchParams.caMin = selectedCARange.min.toString();
-        if (selectedCARange.max) {
-          searchParams.caMax = selectedCARange.max.toString();
-        }
-      }
-      
-      if (selectedRegions.size > 0) {
-        searchParams.regions = Array.from(selectedRegions);
-      }
-
-      console.log('Pharmacy search params:', searchParams);
-
-      const response = await fetch('/api/search/pharmacies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(searchParams),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
-
-      const data: SearchResponse = await response.json();
-      console.log('Pharmacy search results:', data);
-      setPharmacies(data.pharmacies);
-      
-    } catch (err) {
-      console.error('Pharmacy search error:', err);
-      setError(err instanceof Error ? err.message : 'Erreur de recherche');
-      setPharmacies([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // MODIFIÉ : togglePharmacy affecte seulement l'état local (pending)
   const togglePharmacy = useCallback((pharmacyId: string) => {
-    console.log('Toggle pharmacy called:', pharmacyId);
-    console.log('Current selectedPharmacies:', selectedPharmacies);
+    console.log('🔄 [usePharmacySearch] Toggle pharmacy (pending):', pharmacyId);
     
     setSelectedPharmacies(prev => {
       const newSet = new Set(prev);
       if (newSet.has(pharmacyId)) {
         newSet.delete(pharmacyId);
-        console.log('Removed pharmacy:', pharmacyId);
       } else {
         newSet.add(pharmacyId);
-        console.log('Added pharmacy:', pharmacyId);
       }
-      console.log('New selectedPharmacies:', newSet);
+      console.log('🏥 [usePharmacySearch] New pending selection:', Array.from(newSet));
       return newSet;
     });
-  }, [selectedPharmacies]); // Ajout de la dépendance
+  }, []);
 
+  // MODIFIÉ : toggleRegion affecte seulement l'état local (pending)
   const toggleRegion = useCallback((region: string) => {
+    console.log('🔄 [usePharmacySearch] Toggle region (pending):', region);
+    
     setSelectedRegions(prev => {
       const newSet = new Set(prev);
       if (newSet.has(region)) {
@@ -216,21 +235,33 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
   }, []);
 
   const clearSelection = useCallback(() => {
+    console.log('🗑️ [usePharmacySearch] Clear pending selection');
     setSelectedPharmacies(new Set());
     setSelectedCARange(null);
     setSelectedRegions(new Set());
   }, []);
 
+  // MODIFIÉ : applyFilters applique toutes les sélections pendantes au store
   const applyFilters = useCallback(() => {
-    const pharmacyIds = Array.from(selectedPharmacies);
-    useFiltersStore.getState().setPharmacyFilters(pharmacyIds);
-  }, [selectedPharmacies]);
+    console.log('✅ [usePharmacySearch] Applying filters to store');
+    console.log('  - Pharmacies:', Array.from(selectedPharmacies));
+    console.log('  - CA Range:', selectedCARange);
+    console.log('  - Regions:', Array.from(selectedRegions));
+    
+    // Pour l'instant, on applique seulement les pharmacies sélectionnées
+    // Les filtres CA et régions sont utilisés pour la recherche mais pas stockés
+    const setPharmacyFilters = useFiltersStore.getState().setPharmacyFilters;
+    setPharmacyFilters(Array.from(selectedPharmacies));
+  }, [selectedPharmacies, selectedCARange, selectedRegions]);
 
+  // MODIFIÉ : clearPharmacyFilters reset le store ET tous les états locaux
   const clearPharmacyFilters = useCallback(() => {
+    console.log('🗑️ [usePharmacySearch] Clear pharmacy filters (store + local)');
+    const clearPharmacyFilters = useFiltersStore.getState().clearPharmacyFilters;
+    clearPharmacyFilters();
     setSelectedPharmacies(new Set());
     setSelectedCARange(null);
     setSelectedRegions(new Set());
-    useFiltersStore.getState().clearPharmacyFilters();
   }, []);
 
   return {
@@ -249,6 +280,6 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     selectedRegions,
     toggleRegion,
     caRanges,
-    regions
+    regions,
   };
 }

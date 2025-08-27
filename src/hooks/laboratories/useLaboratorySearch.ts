@@ -36,21 +36,17 @@ interface UseLaboratorySearchReturn {
   readonly clearSelection: () => void;
   readonly applyFilters: () => void;
   readonly clearLaboratoryFilters: () => void;
+  readonly pendingProductCodes: Set<string>;
 }
 
 /**
- * Hook useLaboratorySearch - Recherche laboratoires avec mode dual
+ * Hook useLaboratorySearch - AVEC PENDING STATE
  * 
- * Modes :
- * - 'laboratory': recherche directe par nom laboratoire
- * - 'product': recherche produit → trouve laboratoires
- * 
- * Gère la recherche intelligente avec :
- * - Debounce 300ms
- * - États loading/error
- * - Sélection par laboratoire (tous les produits)
- * - Minimum 2 caractères
- * - Storage des code_13_ref dans le store
+ * Nouvelles fonctionnalités :
+ * - Pending state pour laboratories et product codes
+ * - toggleLaboratory modifie seulement les sélections locales
+ * - applyFilters applique les product codes accumulés au store
+ * - Tracking des codes produits pending pour feedback visuel
  */
 export function useLaboratorySearch(): UseLaboratorySearchReturn {
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
@@ -59,35 +55,42 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('laboratory');
   
-  // Get stored laboratory product codes from Zustand
-  const storedLaboratoryCodes = useFiltersStore(state => state.laboratories);
+  // PENDING STATE - États locaux
   const [selectedLaboratories, setSelectedLaboratories] = useState<Set<string>>(new Set());
-  
-  // Map to store laboratory name -> product codes for selection logic
   const [laboratoryProductMap, setLaboratoryProductMap] = useState<Map<string, string[]>>(new Map());
+  const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
 
-  // Initialize selected laboratories from stored codes
+  // Récupération des codes laboratoires appliqués depuis le store (pour initialisation)
+  const storedLaboratoryCodes = useFiltersStore(state => state.laboratories);
+
+  // Initialize selected laboratories from store when component mounts
   useEffect(() => {
-    if (storedLaboratoryCodes.length > 0) {
-      // Find which laboratories are currently selected based on stored codes
-      const storedCodesSet = new Set(storedLaboratoryCodes);
-      
-      // Check current laboratories to see which ones have all their products selected
-      const currentlySelected = new Set<string>();
-      for (const [labName, productCodes] of laboratoryProductMap.entries()) {
-        const allCodesSelected = productCodes.every(code => storedCodesSet.has(code));
-        if (allCodesSelected && productCodes.length > 0) {
-          currentlySelected.add(labName);
-        }
-      }
-      
-      setSelectedLaboratories(currentlySelected);
-    }
-  }, [storedLaboratoryCodes, laboratoryProductMap]);
+    console.log('🔄 [useLaboratorySearch] Initializing from store:', storedLaboratoryCodes);
+    
+    // Pour l'initialisation, on assume que tous les codes stockés forment les laboratoires sélectionnés
+    // En mode pending, on les met dans pendingProductCodes
+    setPendingProductCodes(new Set(storedLaboratoryCodes));
+    
+    // Note: On ne peut pas reconstituer facilement selectedLaboratories depuis les codes produits
+    // car on n'a pas la mapping inverse. C'est une limitation acceptable.
+  }, []); // Volontairement vide pour initialiser UNE SEULE FOIS
+
+  // Recalculate pending product codes when selected laboratories change
+  useEffect(() => {
+    const allPendingCodes = new Set<string>();
+    
+    selectedLaboratories.forEach(labName => {
+      const productCodes = laboratoryProductMap.get(labName) || [];
+      productCodes.forEach(code => allPendingCodes.add(code));
+    });
+    
+    setPendingProductCodes(allPendingCodes);
+    console.log('🧪 [useLaboratorySearch] Updated pending product codes:', Array.from(allPendingCodes));
+  }, [selectedLaboratories, laboratoryProductMap]);
 
   // Debounced search function
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
-    if (!query || query.trim().length < 2) {
+    if (!query || query.trim().length < 3) {
       setLaboratories([]);
       setLaboratoryProductMap(new Map());
       setIsLoading(false);
@@ -103,7 +106,10 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: query.trim(), mode }),
+        body: JSON.stringify({ 
+          query: query.trim(),
+          mode 
+        }),
       });
 
       if (!response.ok) {
@@ -115,8 +121,8 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
 
       // Update laboratory -> product codes mapping
       const newMap = new Map<string, string[]>();
-      data.laboratories.forEach(lab => {
-        newMap.set(lab.laboratory_name, lab.product_codes);
+      data.laboratories.forEach(laboratory => {
+        newMap.set(laboratory.laboratory_name, laboratory.product_codes);
       });
       setLaboratoryProductMap(newMap);
 
@@ -141,7 +147,7 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
 
   // Reset results when query is too short
   useEffect(() => {
-    if (searchQuery.trim().length < 2) {
+    if (searchQuery.trim().length < 3) {
       setLaboratories([]);
       setLaboratoryProductMap(new Map());
       setIsLoading(false);
@@ -151,59 +157,60 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
 
   // Clear results when mode changes
   useEffect(() => {
-    if (searchQuery.trim().length >= 2) {
+    if (searchQuery.trim().length >= 3) {
       setLaboratories([]);
       setLaboratoryProductMap(new Map());
       setIsLoading(true);
     }
   }, [searchMode]);
 
+  // MODIFIÉ : toggleLaboratory affecte seulement l'état local (pending)
   const toggleLaboratory = useCallback((labName: string, productCodes: string[]) => {
-    const currentStoredCodes = useFiltersStore.getState().laboratories;
-    const currentStoredSet = new Set(currentStoredCodes);
+    console.log('🔄 [useLaboratorySearch] Toggle laboratory (pending):', labName);
     
-    // Check if this laboratory is currently selected (all its codes are in store)
-    const isCurrentlySelected = productCodes.every(code => currentStoredSet.has(code)) && productCodes.length > 0;
-    
-    let newStoredCodes: string[];
-    
-    if (isCurrentlySelected) {
-      // Remove all codes from this laboratory
-      newStoredCodes = currentStoredCodes.filter(code => !productCodes.includes(code));
-      setSelectedLaboratories(prev => {
-        const newSet = new Set(prev);
+    setSelectedLaboratories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(labName)) {
         newSet.delete(labName);
-        return newSet;
-      });
-    } else {
-      // Add all codes from this laboratory
-      const codesToAdd = productCodes.filter(code => !currentStoredSet.has(code));
-      newStoredCodes = [...currentStoredCodes, ...codesToAdd];
-      setSelectedLaboratories(prev => {
-        const newSet = new Set(prev);
+        console.log('➖ Removed laboratory:', labName);
+      } else {
         newSet.add(labName);
-        return newSet;
-      });
-    }
-    
-    // Update store immediately for real-time UI feedback
-    useFiltersStore.getState().setLaboratoryFilters(newStoredCodes);
+        console.log('➕ Added laboratory:', labName);
+      }
+      return newSet;
+    });
+
+    // Ensure the mapping is updated
+    setLaboratoryProductMap(prev => {
+      const newMap = new Map(prev);
+      newMap.set(labName, productCodes);
+      return newMap;
+    });
   }, []);
 
   const clearSelection = useCallback(() => {
+    console.log('🗑️ [useLaboratorySearch] Clear pending selection');
     setSelectedLaboratories(new Set());
-    useFiltersStore.getState().clearLaboratoryFilters();
+    setPendingProductCodes(new Set());
   }, []);
 
+  // MODIFIÉ : applyFilters applique les codes produits accumulés au store
   const applyFilters = useCallback(() => {
-    // Filters are already applied in real-time via toggleLaboratory
-    // This is just for consistency with the drawer interface
-  }, []);
+    console.log('✅ [useLaboratorySearch] Applying filters to store');
+    console.log('  - Selected laboratories:', Array.from(selectedLaboratories));
+    console.log('  - Pending product codes:', Array.from(pendingProductCodes));
+    
+    const setLaboratoryFilters = useFiltersStore.getState().setLaboratoryFilters;
+    setLaboratoryFilters(Array.from(pendingProductCodes));
+  }, [selectedLaboratories, pendingProductCodes]);
 
+  // MODIFIÉ : clearLaboratoryFilters reset le store ET tous les états locaux
   const clearLaboratoryFilters = useCallback(() => {
+    console.log('🗑️ [useLaboratorySearch] Clear laboratory filters (store + local)');
     const clearLaboratoryFilters = useFiltersStore.getState().clearLaboratoryFilters;
     clearLaboratoryFilters();
     setSelectedLaboratories(new Set());
+    setPendingProductCodes(new Set());
   }, []);
 
   return {
@@ -219,5 +226,6 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     clearSelection,
     applyFilters,
     clearLaboratoryFilters,
+    pendingProductCodes,
   };
 }

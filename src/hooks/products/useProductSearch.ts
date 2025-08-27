@@ -29,13 +29,13 @@ interface UseProductSearchReturn {
 }
 
 /**
- * Hook useProductSearch - Recherche produits avec debounce
+ * Hook useProductSearch - AVEC PENDING STATE
  * 
- * Gère la recherche intelligente avec :
- * - Debounce 300ms
- * - États loading/error
- * - Sélection multiple avec Set
- * - Minimum 3 caractères
+ * Nouvelles fonctionnalités :
+ * - Pending state : sélections locales jusqu'au clic "Appliquer"
+ * - toggleProduct modifie seulement l'état local
+ * - applyFilters applique les sélections au store
+ * - clearProductFilters reset le store ET l'état local
  */
 export function useProductSearch(): UseProductSearchReturn {
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,11 +43,17 @@ export function useProductSearch(): UseProductSearchReturn {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Get stored selected products from Zustand
+  // PENDING STATE - Sélections locales (non appliquées au store)
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+
+  // Récupération des produits appliqués depuis le store (pour initialisation)
   const storedProducts = useFiltersStore(state => state.products);
-  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(
-    new Set(storedProducts)
-  );
+
+  // Initialize selected products from store when component mounts
+  useEffect(() => {
+    console.log('🔄 [useProductSearch] Initializing from store:', storedProducts);
+    setSelectedProducts(new Set(storedProducts));
+  }, []); // Volontairement vide pour initialiser UNE SEULE FOIS
 
   // Debounced search function
   const performSearch = useCallback(async (query: string) => {
@@ -103,7 +109,10 @@ export function useProductSearch(): UseProductSearchReturn {
     }
   }, [searchQuery]);
 
+  // MODIFIÉ : toggleProduct affecte seulement l'état local (pending)
   const toggleProduct = useCallback((code: string) => {
+    console.log('🔄 [useProductSearch] Toggle product (pending):', code);
+    
     setSelectedProducts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(code)) {
@@ -111,20 +120,26 @@ export function useProductSearch(): UseProductSearchReturn {
       } else {
         newSet.add(code);
       }
+      console.log('📦 [useProductSearch] New pending selection:', Array.from(newSet));
       return newSet;
     });
   }, []);
 
   const clearSelection = useCallback(() => {
+    console.log('🗑️ [useProductSearch] Clear pending selection');
     setSelectedProducts(new Set());
   }, []);
 
+  // MODIFIÉ : applyFilters applique les sélections pendantes au store
   const applyFilters = useCallback(() => {
+    console.log('✅ [useProductSearch] Applying filters to store:', Array.from(selectedProducts));
     const setProductFilters = useFiltersStore.getState().setProductFilters;
     setProductFilters(Array.from(selectedProducts));
   }, [selectedProducts]);
 
+  // MODIFIÉ : clearProductFilters reset le store ET l'état local
   const clearProductFilters = useCallback(() => {
+    console.log('🗑️ [useProductSearch] Clear product filters (store + local)');
     const clearProductFilters = useFiltersStore.getState().clearProductFilters;
     clearProductFilters();
     setSelectedProducts(new Set());
