@@ -7,6 +7,7 @@ import { DashboardHeader } from '@/components/organisms/DashboardHeader/Dashboar
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 import { useProductsList } from '@/hooks/products/useProductsList';
 import { Card } from '@/components/atoms/Card/Card';
+import KpiTestComponent from '../test-kpi/page';
 
 /**
  * Dashboard Page - Page principale avec tableau produits
@@ -103,6 +104,7 @@ export default function DashboardPage(): JSX.Element {
           )}
           
         </div>
+        <KpiTestComponent/>
       </main>
     </div>
   );
