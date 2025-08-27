@@ -5,26 +5,29 @@ import React, { useMemo } from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { PriceEvolutionChart } from '@/components/organisms/PriceEvolutionChart/PriceEvolutionChart';
+import { CompetitiveTable } from '@/components/organisms/CompetitiveTable/CompetitiveTable';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useCompetitiveAnalysis } from '@/hooks/competitive/useCompetitiveAnalysis';
 
 /**
- * Price Page - Analyse des prix et marges pharmaceutiques
+ * Price Page - Analyse des prix et concurrence pharmaceutiques
  * 
  * Features :
  * - Header dashboard avec filtres intégrés
  * - Graphique évolution prix mensuels
+ * - NOUVEAU : Tableau analyse concurrentielle
  * - Background animé cohérent
- * - Integration avec store filtres global
+ * - Integration store filtres global
  */
 export default function PricePage(): JSX.Element {
-  // Récupération des filtres du store global
+  // Récupération filtres store global
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
   const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Fusion des codes produits : products + laboratories + categories (même logique que dashboard)
+  // Fusion codes produits : products + laboratories + categories (logique ProductsList)
   const allProductCodes = useMemo(() => {
     const codes = Array.from(new Set([
       ...productsFilter,
@@ -42,11 +45,22 @@ export default function PricePage(): JSX.Element {
     return codes;
   }, [productsFilter, laboratoriesFilter, categoriesFilter]);
 
-  // Construction des filtres pour le composant
+  // Construction filtres pour graphique
   const chartFilters = {
-    productCodes: allProductCodes,  // Utilise les codes fusionnés
+    productCodes: allProductCodes,
     ...(pharmacyFilter.length > 0 && { pharmacyId: pharmacyFilter[0] })
   };
+
+  // Hook analyse concurrentielle
+  const {
+    products: competitiveProducts,
+    isLoading: isCompetitiveLoading,
+    error: competitiveError,
+    refetch: refetchCompetitive,
+    hasData: hasCompetitiveData
+  } = useCompetitiveAnalysis({
+    enabled: true
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 relative overflow-hidden">
@@ -58,16 +72,16 @@ export default function PricePage(): JSX.Element {
       
       {/* Contenu principal avec padding pour header + filterbar */}
       <main className="relative z-10 pt-[116px]">
-        <div className="container-apodata py-8 space-y-6">
+        <div className="container-apodata py-8 space-y-8">
           
           {/* Section titre avec indicateurs filtres */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Analyse des Prix
+                Analyse des Prix et Concurrence
               </h1>
               <p className="text-gray-600 mt-1">
-                Évolution mensuelle des prix de vente, prix d'achat et marges
+                Évolution mensuelle des prix et positionnement concurrentiel
               </p>
             </div>
             
@@ -101,12 +115,63 @@ export default function PricePage(): JSX.Element {
             </div>
           </div>
 
-          {/* Graphique principal */}
+          {/* Graphique évolution prix */}
           <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Évolution des Prix Mensuels
+            </h2>
             <PriceEvolutionChart
-                dateRange={analysisDateRange}
-                filters={chartFilters}
-                className="w-full"
+              dateRange={analysisDateRange}
+              filters={chartFilters}
+              className="w-full"
+            />
+          </div>
+          
+          {/* Analyse concurrentielle */}
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Analyse Concurrentielle
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Comparaison de vos prix avec le marché concurrent
+                </p>
+              </div>
+              
+              {/* Métriques résumé */}
+              {hasCompetitiveData && (
+                <div className="flex items-center space-x-6 text-sm">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-gray-900">
+                      {competitiveProducts.length}
+                    </div>
+                    <div className="text-gray-500">Produits analysés</div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">
+                      {competitiveProducts.filter(p => p.ecart_prix_vs_marche_pct < -2).length}
+                    </div>
+                    <div className="text-gray-500">Prix compétitifs</div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-red-600">
+                      {competitiveProducts.filter(p => p.ecart_prix_vs_marche_pct > 5).length}
+                    </div>
+                    <div className="text-gray-500">Prix élevés</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <CompetitiveTable
+              products={competitiveProducts}
+              isLoading={isCompetitiveLoading}
+              error={competitiveError}
+              onRefresh={refetchCompetitive}
+              className="w-full"
             />
           </div>
           
