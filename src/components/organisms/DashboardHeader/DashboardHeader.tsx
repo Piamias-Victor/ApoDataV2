@@ -9,9 +9,9 @@ import { Badge } from '@/components/atoms/Badge/Badge';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { 
   LayoutDashboard, 
-  Package, 
-  TestTube, 
-  Tag, 
+  ShoppingCart, 
+  Euro, 
+  Package2, 
   ChevronDown, 
   LogOut 
 } from 'lucide-react';
@@ -25,9 +25,9 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-full h-full" />, badgeVariant: 'gradient-blue' },
-  { name: 'Produits', href: '/produits', icon: <Package className="w-full h-full" />, badgeVariant: 'gradient-green' },
-  { name: 'Laboratoires', href: '/laboratoires', icon: <TestTube className="w-full h-full" />, badgeVariant: 'gradient-purple' },
-  { name: 'Catégories', href: '/categories', icon: <Tag className="w-full h-full" />, badgeVariant: 'gradient-pink' },
+  { name: 'Commande', href: '/produits', icon: <ShoppingCart className="w-full h-full" />, badgeVariant: 'gradient-green' },
+  { name: 'Prix', href: '/prix', icon: <Euro className="w-full h-full" />, badgeVariant: 'gradient-purple' },
+  { name: 'Stock', href: '/categories', icon: <Package2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
 ];
 
 interface DashboardHeaderProps {
