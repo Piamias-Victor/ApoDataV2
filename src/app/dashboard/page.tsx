@@ -5,33 +5,22 @@ import React from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
-import { MemoizedKpisSection as KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 import { useProductsList } from '@/hooks/products/useProductsList';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { Card } from '@/components/atoms/Card/Card';
+import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 
 /**
- * Dashboard Page - Avec filtres depuis Zustand store
- * 
- * CORRECTION MAJEURE :
- * - Utilise useFiltersStore comme useProductsList
- * - Plus d'états locaux inutilisés
- * - Même source de vérité pour KPI et ProductsTable
- * - Synchronisation automatique
+ * Dashboard Page - CORRIGÉ avec vraies dates du store
  */
 export default function DashboardPage(): JSX.Element {
-  // Récupération des filtres depuis le store Zustand (même source que useProductsList)
-  const dateRange = useFiltersStore((state) => state.analysisDateRange);
+  // CORRECTION : Récupération des vraies dates du store
+  const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
+  const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
   const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
-
-  // Comparaison avec période précédente (fixe pour l'instant)
-  const comparisonDateRange = {
-    start: '2023-01-01T00:00:00Z',
-    end: '2023-12-31T23:59:59Z'
-  };
 
   // Filtres formatés pour les hooks KPI (même format que useProductsList)
   const filters = {
@@ -62,6 +51,9 @@ export default function DashboardPage(): JSX.Element {
                           laboratoriesFilter.length > 0 || 
                           categoriesFilter.length > 0 || 
                           pharmacyFilter.length > 0;
+
+  // Vérification si comparaison est active
+  const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
 
   return (
     <div className="min-h-screen bg-gray-50 relative overflow-hidden">
@@ -104,28 +96,16 @@ export default function DashboardPage(): JSX.Element {
             </div>
           </div>
 
-          {/* SECTION KPI - Avec vrais filtres Zustand */}
+          {/* SECTION KPI - CORRIGÉE avec vraies dates du store */}
           <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/20 shadow-sm">
             <KpisSection
-              dateRange={dateRange}
-              comparisonDateRange={comparisonDateRange}
+              dateRange={analysisDateRange}                    // CORRIGÉ : utilise analysisDateRange
+              comparisonDateRange={comparisonDateRange}         // CORRIGÉ : utilise comparisonDateRange du store
               filters={filters}
-              includeComparison={true}
+              includeComparison={hasComparison}                // CORRIGÉ : basé sur les vraies dates
               onRefresh={handleGlobalRefresh}
               className="border-0 bg-transparent"
             />
-            
-            {/* Debug info filtres appliqués */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="px-6 pb-4">
-                <div className="text-xs text-gray-400 bg-gray-50 px-3 py-2 rounded-md">
-                  Filtres KPI: {productsFilter.length} produits, {laboratoriesFilter.length} labos, {categoriesFilter.length} catégories, {pharmacyFilter.length} pharmacies
-                  <br />
-                  Période: {dateRange.start.split('T')[0]} → {dateRange.end.split('T')[0]}
-                  {hasActiveFilters && ' | Filtrage actif'}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Tableau produits principal */}

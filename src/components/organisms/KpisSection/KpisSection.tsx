@@ -32,7 +32,7 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
   onRefresh,
   className = ''
 }) => {
-  // Hook KPI avec mêmes filtres que ProductsTable
+  // Hook KPI avec mêmes filtres que ProductsTable - UTILISE ANALYSIS ET COMPARISON
   const { 
     data, 
     isLoading, 
@@ -42,8 +42,8 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
   } = useKpiMetrics({
     enabled: true,
     includeComparison,
-    dateRange,
-    comparisonDateRange,
+    dateRange: dateRange, // Période principale (analysisDateRange du store)
+    comparisonDateRange: includeComparison ? comparisonDateRange : undefined, // Période précédente
     filters
   });
 
@@ -148,6 +148,7 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
           {isLoading ? 'Actualisation...' : 'Actualiser'}
         </Button>
       </div>
+      
 
       {/* Grille KPI responsive - 6 cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3 gap-6">
@@ -312,16 +313,6 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
         )}
         
       </div>
-      
-      {/* Informations de debug en development */}
-      {process.env.NODE_ENV === 'development' && data && (
-        <div className="mt-4 text-xs text-gray-400 bg-gray-50 p-2 rounded">
-          Debug: {data.nb_references_produits} références, {data.nb_pharmacies} pharmacies
-          {includeComparison && data.comparison && ' | Comparaison activée'}
-          {transformedKpis && ` | ${transformedKpis.length} KPIs générés`}
-        </div>
-      )}
-      
     </section>
   );
 };

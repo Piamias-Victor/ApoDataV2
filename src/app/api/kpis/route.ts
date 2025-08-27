@@ -55,8 +55,10 @@ interface KpiMetricsResponse {
   readonly nb_pharmacies: number;
   readonly comparison?: {
     readonly ca_ttc: number;
+    readonly montant_achat_ht: number;
     readonly montant_marge: number;
     readonly quantite_vendue: number;
+    readonly quantite_achetee: number;
   } | undefined;
   readonly queryTime: number;
   readonly cached: boolean;
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<KpiMetric
 
     const kpiMetrics = await calculateKpiMetrics(validatedRequest);
     
-    let comparison: { ca_ttc: number; montant_marge: number; quantite_vendue: number; } | undefined;
+    let comparison: { ca_ttc: number; montant_achat_ht: number; montant_marge: number; quantite_vendue: number; quantite_achetee: number; } | undefined;
     if (validatedRequest.comparisonDateRange) {
       console.log('📊 [API] Calculating comparison period metrics');
       const comparisonRequest: KpiRequest = {
@@ -98,8 +100,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<KpiMetric
       const comparisonMetrics = await calculateKpiMetrics(comparisonRequest);
       comparison = {
         ca_ttc: comparisonMetrics.ca_ttc,
+        montant_achat_ht: comparisonMetrics.montant_achat_ht,
         montant_marge: comparisonMetrics.montant_marge,
-        quantite_vendue: comparisonMetrics.quantite_vendue
+        quantite_vendue: comparisonMetrics.quantite_vendue,
+        quantite_achetee: comparisonMetrics.quantite_achetee
       };
     }
 
@@ -135,7 +139,29 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
     ...categoryCodes
   ]));
 
-  // Approche simplifiée sans paramètres dynamiques
+  const hasProductFilter = allProductCodes.length > 0;
+  const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
+
+  // Construction des filtres dynamiques
+  const productFilter = hasProductFilter 
+    ? 'AND ip.code_13_ref_id = ANY($3::text[])'
+    : '';
+
+  const pharmacyFilter = hasPharmacyFilter
+    ? (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])')
+    : '';
+
+  // Construction des paramètres
+  const params: any[] = [dateRange.start, dateRange.end];
+  
+  if (hasProductFilter) {
+    params.push(allProductCodes);
+  }
+  
+  if (hasPharmacyFilter) {
+    params.push(pharmacyIds);
+  }
+
   const query = `
     WITH period_sales AS (
       SELECT 
@@ -145,24 +171,34 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
         SUM(s.quantity * ins.price_with_tax) as ca_ttc_total,
         SUM(s.quantity * (
           (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
-        )) as montant_marge_reel,
-        SUM(s.quantity * ins.weighted_average_price) as montant_achat_ht_total
+        )) as montant_marge_reel
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date AND s.date <= $2::date
         AND ins.weighted_average_price > 0
-        ${allProductCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-        ${pharmacyIds && pharmacyIds.length > 0 ? (allProductCodes.length > 0 ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : ''}
+        ${productFilter}
+        ${pharmacyFilter}
     ),
     period_purchases AS (
-      SELECT SUM(po.qte) as total_quantity_bought
+      SELECT 
+        SUM(po.qte) as total_quantity_bought,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_total
       FROM data_productorder po
-      JOIN data_order o ON po.order_id = o.id
-      JOIN data_internalproduct ip ON po.product_id = ip.id
-      WHERE o.created_at >= $1::date AND o.created_at <= $2::date
-        ${allProductCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-        ${pharmacyIds && pharmacyIds.length > 0 ? (allProductCodes.length > 0 ? 'AND o.pharmacy_id = ANY($4::uuid[])' : 'AND o.pharmacy_id = ANY($3::uuid[])') : ''}
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.date <= o.created_at::date
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.created_at >= $1::date AND o.created_at < ($2::date + interval '1 day')
+        ${productFilter}
+        ${pharmacyFilter}
     ),
     current_stock AS (
       SELECT 
@@ -177,12 +213,12 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
         ORDER BY ins.product_id, ins.date DESC
       ) latest_stock ON true
       WHERE 1=1 
-        ${allProductCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-        ${pharmacyIds && pharmacyIds.length > 0 ? (allProductCodes.length > 0 ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : ''}
+        ${productFilter}
+        ${pharmacyFilter}
     )
     SELECT 
       COALESCE(ps.ca_ttc_total, 0) as ca_ttc,
-      COALESCE(ps.montant_achat_ht_total, 0) as montant_achat_ht,
+      COALESCE(pp.montant_achat_ht_total, 0) as montant_achat_ht,
       COALESCE(ps.montant_marge_reel, 0) as montant_marge,
       CASE 
         WHEN COALESCE(ps.ca_ttc_total, 0) > 0 
@@ -205,22 +241,13 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
     LEFT JOIN current_stock cs ON true;
   `;
 
-  // Construction simple des paramètres
-  const params: any[] = [dateRange.start, dateRange.end];
-  
-  if (allProductCodes.length > 0) {
-    params.push(allProductCodes);
-  }
-  
-  if (pharmacyIds && pharmacyIds.length > 0) {
-    params.push(pharmacyIds);
-  }
-
-  console.log('🔍 [API] Executing KPI query with fixed params:', {
+  console.log('🔍 [API] Executing KPI query with corrected purchase calculation:', {
     dateRange,
     productCodesLength: allProductCodes.length,
     pharmacyIdsLength: pharmacyIds?.length || 0,
-    paramsLength: params.length
+    paramsLength: params.length,
+    hasProductFilter,
+    hasPharmacyFilter
   });
 
   try {
@@ -244,6 +271,13 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
     }
 
     const row = result[0];
+    console.log('📊 [API] KPI metrics calculated:', {
+      ca_ttc: Number(row.ca_ttc) || 0,
+      montant_achat_ht: Number(row.montant_achat_ht) || 0,
+      quantite_achetee: Number(row.quantite_achetee) || 0,
+      montant_marge: Number(row.montant_marge) || 0
+    });
+
     return {
       ca_ttc: Number(row.ca_ttc) || 0,
       montant_achat_ht: Number(row.montant_achat_ht) || 0,

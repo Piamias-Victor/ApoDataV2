@@ -25,8 +25,10 @@ interface KpiMetricsResponse {
   readonly nb_pharmacies: number;
   readonly comparison?: {
     readonly ca_ttc: number;
+    readonly montant_achat_ht: number;
     readonly montant_marge: number;
     readonly quantite_vendue: number;
+    readonly quantite_achetee: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
@@ -36,7 +38,7 @@ interface UseKpiMetricsOptions {
   readonly enabled?: boolean;
   readonly includeComparison?: boolean;
   readonly dateRange: { start: string; end: string };
-  readonly comparisonDateRange?: { start: string; end: string } | undefined;
+  readonly comparisonDateRange?: { start: string | null; end: string | null } | undefined;  // CORRIGÉ : autorise null
   readonly filters?: {
     products?: string[];
     laboratories?: string[];  
@@ -57,11 +59,11 @@ interface UseKpiMetricsReturn {
 }
 
 /**
- * Hook useKpiMetrics - Dashboard KPI Metrics avec comparaison
+ * Hook useKpiMetrics - Dashboard KPI Metrics avec comparaison complète
  * 
  * Fonctionnalités :
- * - Calculs KPI temps réel : CA, marge, stock, quantités
- * - Comparaison période optionnelle
+ * - Calculs KPI temps réel : CA, marge, stock, quantités, ACHAT
+ * - Comparaison période complète (inclut montant_achat_ht + quantite_achetee)
  * - Cache intelligent avec force refresh
  * - Validation filtres (dates obligatoires)
  * - Zustand store integration
@@ -130,7 +132,9 @@ export function useKpiMetrics(
       ...(laboratories.length > 0 && { laboratoryCodes: laboratories }),
       ...(categories.length > 0 && { categoryCodes: categories }),
       ...(pharmacies.length > 0 && { pharmacyIds: pharmacies }),
-      ...(includeComparison && comparisonDateRange?.start && comparisonDateRange?.end && {
+      ...(includeComparison && 
+          comparisonDateRange?.start && 
+          comparisonDateRange?.end && {
         comparisonDateRange: {
           start: comparisonDateRange.start,
           end: comparisonDateRange.end
@@ -194,9 +198,15 @@ export function useKpiMetrics(
 
       console.log('✅ [Hook] KPI metrics fetched successfully', {
         ca_ttc: result.ca_ttc,
+        montant_achat_ht: result.montant_achat_ht,
+        quantite_achetee: result.quantite_achetee,
         nb_references: result.nb_references_produits,
         nb_pharmacies: result.nb_pharmacies,
         hasComparison: !!result.comparison,
+        comparisonHasAchat: result.comparison ? {
+          montant_achat_ht: result.comparison.montant_achat_ht,
+          quantite_achetee: result.comparison.quantite_achetee
+        } : null,
         cached: result.cached,
         queryTime: result.queryTime,
         totalTime,

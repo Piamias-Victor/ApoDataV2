@@ -40,22 +40,30 @@ export const transformKpiData = (data: KpiData): TransformedKpi[] => {
       subtitle: 'Unités vendues'
     },
     
-    // 3. Montant Achat HT (KPI principal pour card Achat/Quantités achetées)
+    // 3. Montant Achat HT (KPI principal pour card Achat/Quantités achetées) - AVEC ÉVOLUTION
     {
       title: 'Montant Achat HT',
       value: data.montant_achat_ht,
       unit: 'currency',
-      comparison: undefined,
+      comparison: data.comparison ? {
+        value: data.comparison.montant_achat_ht,
+        percentage: calculateEvolutionPercentage(data.montant_achat_ht, data.comparison.montant_achat_ht),
+        trend: getTrendDirection(calculateEvolutionPercentage(data.montant_achat_ht, data.comparison.montant_achat_ht))
+      } : undefined,
       variant: 'primary',
       subtitle: 'Coût d\'acquisition'
     },
     
-    // 4. Quantité Achetées (KPI secondaire pour card Achat/Quantités achetées)
+    // 4. Quantité Achetées (KPI secondaire pour card Achat/Quantités achetées) - AVEC ÉVOLUTION
     {
       title: 'Quantité Achetées',
       value: data.quantite_achetee,
       unit: 'number',
-      comparison: undefined,
+      comparison: data.comparison ? {
+        value: data.comparison.quantite_achetee,
+        percentage: calculateEvolutionPercentage(data.quantite_achetee, data.comparison.quantite_achetee),
+        trend: getTrendDirection(calculateEvolutionPercentage(data.quantite_achetee, data.comparison.quantite_achetee))
+      } : undefined,
       variant: 'primary',
       subtitle: 'Unités achetées'
     },
@@ -167,10 +175,10 @@ export const groupKpisForDualCards = (kpis: TransformedKpi[]): GroupedKpis => {
       secondary: kpis[1]! // Quantité vendues
     },
     
-    // Card 2: Achat HT / Quantités achetées
+    // Card 2: Achat HT / Quantités achetées - AVEC ÉVOLUTIONS
     purchaseQuantity: {
-      main: kpis[2]!, // Montant Achat HT
-      secondary: kpis[3]! // Quantité achetées
+      main: kpis[2]!, // Montant Achat HT (avec évolution)
+      secondary: kpis[3]! // Quantité achetées (avec évolution)
     },
     
     // Card 3: Marge / % Marge
@@ -212,11 +220,14 @@ export const validateKpiData = (data: KpiData): boolean => {
     return false;
   }
   
-  // Validation comparison si présente
+  // Validation comparison étendue si présente
   if (data.comparison) {
     if (typeof data.comparison.ca_ttc !== 'number' || data.comparison.ca_ttc < 0) return false;
     if (typeof data.comparison.montant_marge !== 'number') return false;
     if (typeof data.comparison.quantite_vendue !== 'number' || data.comparison.quantite_vendue < 0) return false;
+    // Validation nouvelles propriétés comparison
+    if (typeof data.comparison.montant_achat_ht !== 'number' || data.comparison.montant_achat_ht < 0) return false;
+    if (typeof data.comparison.quantite_achetee !== 'number' || data.comparison.quantite_achetee < 0) return false;
   }
   
   return true;
@@ -248,5 +259,7 @@ export const hasSignificantKpiData = (data: KpiData): boolean => {
   return data.ca_ttc > 0 || 
          Math.abs(data.montant_marge) > 0 || 
          data.valeur_stock_ht > 0 ||
-         data.quantite_vendue > 0;
+         data.quantite_vendue > 0 ||
+         data.montant_achat_ht > 0 ||
+         data.quantite_achetee > 0;
 };

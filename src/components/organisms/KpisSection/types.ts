@@ -6,7 +6,7 @@
 
 export interface KpisSectionProps {
   readonly dateRange: { start: string; end: string };
-  readonly comparisonDateRange?: { start: string; end: string };
+  readonly comparisonDateRange?: { start: string | null; end: string | null };  // CORRIGÉ : autorise null
   readonly filters?: {
     readonly products?: string[];
     readonly laboratories?: string[];
@@ -18,7 +18,7 @@ export interface KpisSectionProps {
   readonly className?: string;
 }
 
-// Interface pour données KPI calculées (correspondant à l'API)
+// Interface pour données KPI calculées (correspondant à l'API mise à jour)
 export interface KpiData {
   readonly ca_ttc: number;
   readonly montant_achat_ht: number;
@@ -33,8 +33,10 @@ export interface KpiData {
   readonly nb_pharmacies: number;
   readonly comparison?: {
     readonly ca_ttc: number;
+    readonly montant_achat_ht: number;      // AJOUTÉ pour évolution achat
     readonly montant_marge: number;
     readonly quantite_vendue: number;
+    readonly quantite_achetee: number;      // AJOUTÉ pour évolution quantité achetée
   };
 }
 
