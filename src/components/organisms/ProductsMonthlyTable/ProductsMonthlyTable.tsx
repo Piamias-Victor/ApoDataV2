@@ -153,6 +153,56 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     onRefresh?.();
   }, [refetch, onRefresh]);
 
+  // Header avec bouton actualiser - TOUJOURS VISIBLE
+  const renderHeader = () => (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center space-x-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Détails mensuels produits avec gestion stock
+          </h2>
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <span>{hasData && processedData ? processedData.pagination.totalItems : 0} produits</span>
+            <Badge variant="gray" size="sm">{queryTime}ms</Badge>
+          </div>
+        </div>
+        
+        {/* Bouton actualiser - TOUJOURS PRÉSENT */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isLoading}
+          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+          className="text-gray-600 hover:text-gray-900"
+        >
+          {isLoading ? 'Actualisation...' : 'Actualiser'}
+        </Button>
+      </div>
+      
+      <div className="flex items-center space-x-4">
+        {/* Paramètres stock idéal - compact */}
+        <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 rounded border border-gray-200">
+          <span className="text-xs text-gray-600 whitespace-nowrap">Stock idéal:</span>
+          <input
+            type="number"
+            min="1"
+            max="365"
+            value={joursStockIdeal}
+            onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
+            className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+          <span className="text-xs text-gray-500">j</span>
+        </div>
+        
+        <SearchBar
+          onSearch={handleSearch}
+          placeholder="Rechercher par nom, code EAN ou *fin_code..."
+        />
+      </div>
+    </div>
+  );
+
   // Indicateur tri pour header
   const getSortIndicator = (column: SortableColumn) => {
     if (sortConfig.column !== column) return null;
@@ -169,55 +219,61 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   // Rendu conditionnel - Loading, Error, No Data
   if (isLoading) {
     return (
-      <Card variant="elevated" className={`p-6 ${className}`}>
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-12 bg-gray-100 rounded"></div>
-            ))}
+      <div className={`space-y-4 ${className}`}>
+        {renderHeader()}
+        <Card variant="elevated" className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded"></div>
+              ))}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card variant="elevated" className={`p-6 text-center ${className}`}>
-        <div className="text-red-500 mb-4">
-          <Search className="w-12 h-12 mx-auto" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Erreur de chargement</h3>
-        <p className="text-red-600 mb-4">{error}</p>
-        <Button variant="primary" size="sm" onClick={handleRefresh} iconLeft={<RotateCcw className="w-4 h-4" />}>
-          Réessayer
-        </Button>
-      </Card>
+      <div className={`space-y-4 ${className}`}>
+        {renderHeader()}
+        <Card variant="elevated" className="p-6 text-center">
+          <div className="text-red-500 mb-4">
+            <Search className="w-12 h-12 mx-auto" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Erreur de chargement</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+        </Card>
+      </div>
     );
   }
 
   if (!hasData || processedData.products.length === 0) {
     return (
-      <Card variant="elevated" className={`p-6 text-center ${className}`}>
-        <div className="text-gray-400 mb-4">
-          <Search className="w-12 h-12 mx-auto" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          {searchQuery ? 'Aucun produit trouvé' : 'Aucune donnée disponible'}
-        </h3>
-        <p className="text-gray-600 mb-4">
-          {searchQuery 
-            ? `Aucun résultat pour "${searchQuery}". Modifiez votre recherche.`
-            : 'Sélectionnez des filtres pour voir les détails mensuels des produits.'
-          }
-        </p>
-        {searchQuery && (
-          <Button variant="secondary" size="sm" onClick={() => setSearchQuery('')}>
-            Effacer la recherche
-          </Button>
-        )}
-      </Card>
+      <div className={`space-y-4 ${className}`}>
+        {renderHeader()}
+        <Card variant="elevated" className="p-6 text-center">
+          <div className="text-gray-400 mb-4">
+            <Search className="w-12 h-12 mx-auto" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {searchQuery ? 'Aucun produit trouvé' : 'Aucune donnée disponible'}
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {searchQuery 
+              ? `Aucun résultat pour "${searchQuery}". Modifiez votre recherche.`
+              : 'Sélectionnez des filtres pour voir les détails mensuels des produits.'
+            }
+          </p>
+          {searchQuery && (
+            <Button variant="secondary" size="sm" onClick={() => setSearchQuery('')}>
+              Effacer la recherche
+            </Button>
+          )}
+        </Card>
+      </div>
     );
   }
 
@@ -225,69 +281,12 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     <div className={`space-y-4 ${className}`}>
       
       {/* Header avec contrôles et paramètres stock TOUJOURS VISIBLE */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Détails mensuels produits avec gestion stock
-            </h2>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <span>{processedData.pagination.totalItems} produits</span>
-              <Badge variant="gray" size="sm">{queryTime}ms</Badge>
-            </div>
-          </div>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isLoading}
-            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            {isLoading ? 'Actualisation...' : 'Actualiser'}
-          </Button>
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          {/* Paramètres stock idéal - compact */}
-          <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 rounded border border-gray-200">
-            <span className="text-xs text-gray-600 whitespace-nowrap">Stock idéal:</span>
-            <input
-              type="number"
-              min="1"
-              max="365"
-              value={joursStockIdeal}
-              onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
-              className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
-            />
-            <span className="text-xs text-gray-500">j</span>
-          </div>
-          
-          <SearchBar
-            onSearch={handleSearch}
-            placeholder="Rechercher par nom, code EAN ou *fin_code..."
-          />
-        </div>
-      </div>
+      {renderHeader()}
 
       {/* Tableau principal avec nouvelles colonnes TRIABLES */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 table-fixed w-full">
-            <colgroup>
-              <col className="w-32" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-20" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-24" />
-              <col className="w-16" />
-            </colgroup>
+          <table className="min-w-full divide-y divide-gray-200">
             
             {/* Header tableau avec colonnes triables */}
             <thead className="bg-gray-50">
@@ -411,9 +410,9 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                     {/* Ligne principale produit avec colonne Produit réduite */}
                     <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
                       
-                      {/* Nom produit - FORCÉ À 64px MAXIMUM */}
+                      {/* Nom produit - FORCÉ À 64px avec div contrainte */}
                       <td className="px-1 py-3">
-                        <div className="text-sm font-medium text-gray-900 truncate w-32 overflow-hidden" title={product.nom}>
+                        <div className="text-xs font-medium text-gray-900 truncate w-32 overflow-hidden" title={product.nom}>
                           {product.nom}
                         </div>
                       </td>
@@ -503,15 +502,17 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                       
                     </tr>
                     
-                    {/* Ligne expansion avec graphique */}
+                    {/* Ligne expansion avec graphique - SORT DU TABLE LAYOUT */}
                     {isExpanded && hasMonthlyData && (
                       <tr>
-                        <td colSpan={12} className="px-0 py-0 bg-gray-25">
-                          <div className="border-t border-gray-200 p-6">
-                            <ProductMonthlyChart
-                              monthlyDetails={monthlyDetails}
-                              productName={product.nom}
-                            />
+                        <td colSpan={12} className="p-0 relative">
+                          <div className="absolute left-0 right-0 bg-gray-50 border-t border-gray-200 z-10">
+                            <div className="p-6">
+                              <ProductMonthlyChart
+                                monthlyDetails={monthlyDetails}
+                                productName={product.nom}
+                              />
+                            </div>
                           </div>
                         </td>
                       </tr>

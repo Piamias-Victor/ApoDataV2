@@ -7,11 +7,11 @@ import { DashboardHeader } from '@/components/organisms/DashboardHeader/Dashboar
 import { ProductsMonthlyTable } from '@/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable';
 
 /**
- * Commandes Page - Analyse détaillée des commandes produits
+ * Stock Page - Analyse détaillée des stocks et commandes produits
  */
-export default function CommandesPage(): JSX.Element {
+export default function StockPage(): JSX.Element {
   const handleRefresh = () => {
-    console.log('Refresh commandes page');
+    console.log('Refresh stock page');
   };
 
   return (
@@ -30,10 +30,10 @@ export default function CommandesPage(): JSX.Element {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Analyse Détaillée des Commandes
+                Gestion Stock
               </h1>
               <p className="text-gray-600 mt-1">
-                Synthèse 12 mois et évolutions mensuelles par produit
+                Analyse 12 mois, stock idéal et quantités à commander par produit
               </p>
             </div>
           </div>
