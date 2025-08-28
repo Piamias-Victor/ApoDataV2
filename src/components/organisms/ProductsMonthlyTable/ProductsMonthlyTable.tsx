@@ -19,7 +19,6 @@ import {
   sortProductSummaries,
   type SortableColumn,
   type SortDirection,
-  type ProductSummary,
   type EnhancedProductSummary
 } from './utils';
 

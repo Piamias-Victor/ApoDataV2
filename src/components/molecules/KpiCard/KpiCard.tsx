@@ -5,7 +5,6 @@
 import React, { useMemo } from 'react';
 import { Card } from '@/components/atoms/Card/Card';
 import { KpiCardSkeleton } from './KpiCardSkeleton';
-import type { KpiCardProps } from './types';
 import { 
   formatKpiValue, 
   formatEvolutionPercentage, 
@@ -21,7 +20,7 @@ import {
  * - Espacement optimisé
  * - Style aéré et moderne
  */
-export const KpiCard: React.FC<KpiCardProps> = ({
+export const KpiCard: React.FC<any> = ({
   title,
   value,
   unit,

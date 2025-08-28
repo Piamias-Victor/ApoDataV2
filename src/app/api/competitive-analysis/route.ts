@@ -128,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('🗃️ [API] Executing database query...');
     
     const products = context.isAdmin 
-      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter, context)
+      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
     console.log('📈 [API] Query completed:', {
@@ -169,7 +169,6 @@ async function executeAdminQuery(
   productCodes: string[],
   pharmacyIds?: string[],
   hasProductFilter: boolean = true,
-  context: any
 ): Promise<CompetitiveMetrics[]> {
 
   const isNoPharmacySelected = !pharmacyIds || pharmacyIds.length === 0;

@@ -286,19 +286,6 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     setValidationError('');
   };
 
-  const handleResetDates = () => {
-    console.log('🔄 [DateDrawer] Resetting to default dates');
-    
-    // Reset to default analysis dates
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    
-    setPendingAnalysisStart(toSafeDateString(firstDayOfMonth));
-    setPendingAnalysisEnd(toSafeDateString(today));
-    setPendingComparisonStart('');
-    setPendingComparisonEnd('');
-    setValidationError('');
-  };
 
   // NOUVEAU : Fonction pour appliquer les changements au store
   const applyFilters = () => {
@@ -348,13 +335,6 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     setPendingComparisonStart('');
     setPendingComparisonEnd('');
     setValidationError('');
-  };
-
-  const hasChanges = () => {
-    return pendingAnalysisStart !== formatDateForInput(analysisDateRange.start) ||
-           pendingAnalysisEnd !== formatDateForInput(analysisDateRange.end) ||
-           pendingComparisonStart !== formatDateForInput(comparisonDateRange.start || '') ||
-           pendingComparisonEnd !== formatDateForInput(comparisonDateRange.end || '');
   };
 
   if (!isOpen) return null;

@@ -58,7 +58,7 @@ export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
     try {
       // Conversion YYYY-MM vers date
       const [year, month] = dateStr.split('-');
-      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      const date = new Date(parseInt(year!), parseInt(month!) - 1, 1);
       
       if (isNaN(date.getTime())) {
         console.error('Date invalide:', dateStr);

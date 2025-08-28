@@ -7,7 +7,6 @@ import { usePriceEvolution } from '@/hooks/price/usePriceEvolution';
 import { Button } from '@/components/atoms/Button/Button';
 import { MemoizedKpiCard as KpiCard } from '@/components/molecules/KpiCard/KpiCard';
 import { KpiCardSkeleton } from '@/components/molecules/KpiCard/KpiCardSkeleton';
-import type { KpiComparison, TrendDirection } from '@/components/molecules/KpiCard/types';
 
 interface PriceEvolutionKpisProps {
   readonly className?: string;
@@ -58,22 +57,6 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
       return isNaN(num) ? 0 : num;
     };
 
-    const getTrendFromEvolution = (evolutionPct: any): TrendDirection => {
-      const numValue = safeNumber(evolutionPct);
-      if (numValue > 0.5) return 'up';
-      if (numValue < -0.5) return 'down';
-      return 'neutral';
-    };
-
-    const getComparisonFromEvolution = (evolutionPct: any): KpiComparison => {
-      const numValue = safeNumber(evolutionPct);
-      return {
-        value: Math.abs(numValue),
-        percentage: numValue,
-        trend: getTrendFromEvolution(numValue)
-      };
-    };
-
     // Conversion sécurisée des métriques
     const safeMetrics = {
       evolution_prix_vente_pct: safeNumber(metrics.evolution_prix_vente_pct),
@@ -88,25 +71,29 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
         title: 'Évolution Prix Vente',
         value: safeMetrics.evolution_prix_vente_pct, // Garder le signe
         unit: 'percentage' as const,
-        subtitle: 'Début → fin période'
+        subtitle: 'Début → fin période',
+        comparison: undefined
       },
       {
         title: 'Évolution Prix Achat', 
         value: safeMetrics.evolution_prix_achat_pct, // Garder le signe
         unit: 'percentage' as const,
-        subtitle: 'Début → fin période'
+        subtitle: 'Début → fin période',
+        comparison: undefined
       },
       {
         title: 'Évolution Marge %',
         value: safeMetrics.evolution_marge_pct, // Garder le signe
         unit: 'percentage' as const,
-        subtitle: 'Différence absolue'
+        subtitle: 'Différence absolue',
+        comparison: undefined
       },
       {
         title: 'Écart vs Marché',
         value: safeMetrics.ecart_prix_vs_marche_pct, // Garder le signe
         unit: 'percentage' as const,
-        subtitle: 'Position concurrentielle'
+        subtitle: 'Position concurrentielle',
+        comparison: undefined
       }
     ];
   }, [metrics]);

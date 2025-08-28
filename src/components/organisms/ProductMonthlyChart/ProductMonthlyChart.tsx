@@ -17,7 +17,6 @@ import { TrendingUp, BarChart3 } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { 
-  convertToChartData, 
   formatCurrency, 
   formatPercentage,
   formatLargeNumber,
