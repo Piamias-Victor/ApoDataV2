@@ -18,15 +18,13 @@ interface MonthlyDetailsRow {
 interface MonthlyDetailsResponse {
   readonly monthlyData: MonthlyDetailsRow[];
   readonly count: number;
+  readonly dateRange: { start: string; end: string }; // Dates réelles utilisées
   readonly queryTime: number;
   readonly cached: boolean;
 }
 
 interface MonthlyDetailsRequest {
-  readonly dateRange: {
-    readonly start: string;
-    readonly end: string;
-  };
+  // Plus de dateRange - toujours 12 derniers mois auto
   readonly productCodes: string[];
   readonly laboratoryCodes: string[];
   readonly categoryCodes: string[];
@@ -45,6 +43,7 @@ interface UseProductsMonthlyDetailsReturn {
   readonly queryTime: number;
   readonly cached: boolean;
   readonly count: number;
+  readonly dateRange: { start: string; end: string } | null;
   readonly refetch: () => Promise<void>;
   readonly hasData: boolean;
   readonly productSummaries: ProductSummary[];
@@ -89,7 +88,7 @@ const cleanMonthlyData = (rawData: any[]): MonthlyDetailsRow[] => {
 };
 
 /**
- * Hook useProductsMonthlyDetails - Données mensuelles détaillées produits
+ * Hook useProductsMonthlyDetails - Données mensuelles 12 derniers mois fixes
  */
 export function useProductsMonthlyDetails(
   options: UseProductsMonthlyDetailsOptions = {}
@@ -101,20 +100,20 @@ export function useProductsMonthlyDetails(
   const [error, setError] = useState<string | null>(null);
   const [queryTime, setQueryTime] = useState(0);
   const [cached, setCached] = useState(false);
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
   
   // Refs pour éviter les boucles infinies
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestRef = useRef<string>('');
   const forceRefreshRef = useRef(false);
 
-  // Récupération des filtres depuis le store Zustand
-  const dateRange = useFiltersStore((state) => state.analysisDateRange);
+  // Récupération des filtres depuis le store Zustand (SANS dates)
   const productsFilter = useFiltersStore((state) => state.products);
   const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Fonction de fetch stable avec useCallback
+  // Fonction de fetch stable avec useCallback (SANS dateRange)
   const fetchMonthlyDetails = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
     console.log('🚀 [Hook] fetchMonthlyDetails called', { forceRefresh, enabled });
     
@@ -123,25 +122,15 @@ export function useProductsMonthlyDetails(
       return;
     }
     
-    // Validation des filtres requis
-    const hasDateRange = dateRange.start && dateRange.end;
+    // Validation des filtres requis (PLUS DE DATE RANGE)
     const hasFilters = productsFilter.length > 0 || laboratoriesFilter.length > 0 || categoriesFilter.length > 0;
     
-    console.log('📅 [Hook] Validation:', {
-      hasDateRange,
+    console.log('📅 [Hook] Validation (sans filtre dates):', {
       hasFilters,
       productsCount: productsFilter.length,
       laboratoriesCount: laboratoriesFilter.length,
       categoriesCount: categoriesFilter.length
     });
-    
-    if (!hasDateRange) {
-      console.log('❌ [Hook] Missing date range');
-      setMonthlyData([]);
-      setError('Veuillez sélectionner une plage de dates dans les filtres');
-      setIsLoading(false);
-      return;
-    }
 
     if (!hasFilters) {
       console.log('❌ [Hook] No product filters selected');
@@ -151,19 +140,15 @@ export function useProductsMonthlyDetails(
       return;
     }
 
-    // Préparation de la requête
+    // Préparation de la requête (SANS dateRange)
     const requestBody: MonthlyDetailsRequest = {
-      dateRange: {
-        start: dateRange.start,
-        end: dateRange.end
-      },
       productCodes: productsFilter,
       laboratoryCodes: laboratoriesFilter,
       categoryCodes: categoriesFilter,
       pharmacyIds: pharmacyFilter.length > 0 ? pharmacyFilter : undefined
     };
 
-    console.log('📤 [Hook] Request body prepared:', requestBody);
+    console.log('📤 [Hook] Request body prepared (12 mois auto):', requestBody);
 
     const requestKey = JSON.stringify(requestBody);
     
@@ -212,6 +197,7 @@ export function useProductsMonthlyDetails(
       
       console.log('✅ [Hook] Raw data received:', {
         dataCount: data.monthlyData?.length || 0,
+        dateRange: data.dateRange,
         queryTime: data.queryTime,
         cached: data.cached,
         sampleData: data.monthlyData?.[0]
@@ -221,6 +207,7 @@ export function useProductsMonthlyDetails(
       const cleanedData = cleanMonthlyData(data.monthlyData || []);
       
       setMonthlyData(cleanedData);
+      setDateRange(data.dateRange); // Stocker dates réelles utilisées
       setQueryTime(data.queryTime);
       setCached(data.cached);
       setError(null);
@@ -235,6 +222,7 @@ export function useProductsMonthlyDetails(
       console.log('💥 [Hook] Error:', errorMessage);
       setError(errorMessage);
       setMonthlyData([]);
+      setDateRange(null);
       setCached(false);
       setQueryTime(0);
     } finally {
@@ -244,8 +232,6 @@ export function useProductsMonthlyDetails(
     }
   }, [
     enabled,
-    dateRange.start, 
-    dateRange.end, 
     productsFilter, 
     laboratoriesFilter, 
     categoriesFilter, 
@@ -260,7 +246,7 @@ export function useProductsMonthlyDetails(
     await fetchMonthlyDetails(true);
   }, [fetchMonthlyDetails]);
 
-  // Effect pour déclencher le fetch automatiquement
+  // Effect pour déclencher le fetch automatiquement (SANS dateRange)
   useEffect(() => {
     console.log('🔄 [Hook] useEffect triggered, enabled:', enabled);
     if (enabled) {
@@ -336,6 +322,7 @@ export function useProductsMonthlyDetails(
     queryTime,
     cached,
     count: monthlyData.length,
+    dateRange, // Dates réelles 12 derniers mois
     refetch,
     hasData: monthlyData.length > 0,
     productSummaries,

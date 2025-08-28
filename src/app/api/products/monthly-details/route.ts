@@ -16,10 +16,7 @@ const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
 const CACHE_TTL = 43200; // 12 heures
 
 interface MonthlyDetailsRequest {
-  readonly dateRange: {
-    readonly start: string;
-    readonly end: string;
-  };
+  // Plus de dateRange - toujours 12 derniers mois auto
   readonly productCodes: string[];
   readonly laboratoryCodes: string[];
   readonly categoryCodes: string[];
@@ -37,6 +34,20 @@ interface MonthlyDetailsRow {
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
   readonly taux_marge_moyen: number;
+}
+
+/**
+ * Calcule automatiquement les 12 derniers mois
+ */
+function calculateLast12Months(): { start: string; end: string } {
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Dernier jour du mois actuel
+  
+  return {
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0]
+  };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -68,13 +79,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     
-    // Validation des dates
-    if (!body.dateRange?.start || !body.dateRange?.end) {
-      console.log('❌ [API] Missing date range');
-      return NextResponse.json({ error: 'Date range required' }, { status: 400 });
-    }
+    // 2. Calcul automatique 12 derniers mois (ignore filtres dates)
+    const dateRange = calculateLast12Months();
+    console.log('📅 [API] Auto-calculated 12 months range:', dateRange);
 
-    // 2. Fusion des codes EAN sans doublons
+    // 3. Fusion des codes EAN sans doublons
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -91,17 +100,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const hasProductFilter = allProductCodes.length > 0;
     console.log('🎯 [API] Has product filter:', hasProductFilter);
 
-    // 3. Application sécurité pharmacie
+    // 4. Application sécurité pharmacie
     const secureFilters = enforcePharmacySecurity({
-      dateRange: body.dateRange,
+      dateRange,
       pharmacy: body.pharmacyIds || []
     }, context);
 
     console.log('🛡️ [API] Secure filters applied:', secureFilters);
 
-    // 4. Génération clé cache
+    // 5. Génération clé cache (avec dates fixes 12 mois)
     const cacheKey = generateCacheKey({
-      dateRange: body.dateRange,
+      dateRange,
       productCodes: allProductCodes,
       pharmacyIds: secureFilters.pharmacy || [],
       role: context.userRole,
@@ -110,7 +119,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🔑 [API] Cache key generated:', cacheKey);
 
-    // 5. Tentative cache
+    // 6. Tentative cache
     if (CACHE_ENABLED) {
       console.log('💾 [API] Checking cache...');
       try {
@@ -132,16 +141,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('🚫 [API] Cache disabled');
     }
 
-    // 6. Exécution requête selon rôle
+    // 7. Exécution requête selon rôle (avec dates fixes)
     console.log('🗃️ [API] Executing database query...');
     console.log(`📊 [API] Query type: ${context.isAdmin ? 'ADMIN' : 'USER'}`);
     
     const monthlyData = context.isAdmin 
-      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
-      : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
+      ? await executeAdminQuery(dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
+      : await executeUserQuery(dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
     console.log('📈 [API] Query completed:', {
       dataFound: monthlyData.length,
+      dateRangeUsed: dateRange,
       queryTimeMs: Date.now() - startTime
     });
 
@@ -152,11 +162,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = {
       monthlyData,
       count: monthlyData.length,
+      dateRange, // Retour des dates réellement utilisées
       queryTime: Date.now() - startTime,
       cached: false
     };
 
-    // 7. Mise en cache
+    // 8. Mise en cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
@@ -354,8 +365,7 @@ async function executeAdminQuery(
       prix_vente_moyen,
       taux_marge_moyen
     FROM all_results
-    ORDER BY nom, sort_order, mois_offset DESC
-    LIMIT 5000;
+    ORDER BY nom, sort_order, mois_offset DESC;
   `;
 
   return await db.query(query, params);
@@ -520,8 +530,7 @@ async function executeUserQuery(
       prix_vente_moyen,
       taux_marge_moyen
     FROM all_results
-    ORDER BY nom, sort_order, mois_offset DESC
-    LIMIT 5000;
+    ORDER BY nom, sort_order, mois_offset DESC;
   `;
 
   return await db.query(query, params);

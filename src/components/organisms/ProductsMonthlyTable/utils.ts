@@ -24,9 +24,18 @@ export interface ProductSummary {
   readonly quantite_stock_actuel: number;
 }
 
+// Extension avec gestion stock idéal
+export interface EnhancedProductSummary extends ProductSummary {
+  readonly stockIdeal: number;
+  readonly quantiteACommander: number;
+  readonly ecartVsStockMoyen: number;
+  readonly ventesQuotidiennesMoyennes: number;
+}
+
 export interface ChartDataPoint {
   readonly periode: string;
   readonly quantite: number;
+  readonly stock: number;
   readonly prixVente: number;
   readonly prixAchat: number;
   readonly tauxMarge: number;
@@ -73,7 +82,7 @@ export const formatCurrency = (amount: number): string => {
 };
 
 /**
- * Formate un pourcentage avec 1 décimale et couleur conditionnelle
+ * Formate un pourcentage avec 1 décimale
  */
 export const formatPercentage = (value: number): string => {
   if (typeof value !== 'number' || isNaN(value)) {
@@ -86,34 +95,34 @@ export const formatPercentage = (value: number): string => {
  * Détermine la classe CSS pour coloration marge selon seuils pharma
  */
 export const getMarginColorClass = (marginPercent: number): string => {
-  if (marginPercent >= 25) return 'text-green-700 bg-green-50';    // Excellente
-  if (marginPercent >= 15) return 'text-green-600 bg-green-25';    // Bonne
-  if (marginPercent >= 8) return 'text-yellow-600 bg-yellow-50';   // Correcte
-  if (marginPercent >= 3) return 'text-orange-600 bg-orange-50';   // Faible
-  return 'text-red-600 bg-red-50';                                 // Critique
+  if (marginPercent >= 25) return 'text-green-700 bg-green-50';    
+  if (marginPercent >= 15) return 'text-green-600 bg-green-25';    
+  if (marginPercent >= 8) return 'text-yellow-600 bg-yellow-50';   
+  if (marginPercent >= 3) return 'text-orange-600 bg-orange-50';   
+  return 'text-red-600 bg-red-50';                                 
 };
 
 /**
  * Détermine la classe CSS pour coloration stock selon rotation
  */
 export const getStockColorClass = (stockQuantity: number, averageStock: number): string => {
-  if (stockQuantity === 0) return 'text-red-700 bg-red-100';       // Rupture
+  if (stockQuantity === 0) return 'text-red-700 bg-red-100';       
   
   const ratio = stockQuantity / Math.max(averageStock, 1);
   
-  if (ratio >= 2) return 'text-orange-600 bg-orange-50';           // Surstock
-  if (ratio >= 0.8) return 'text-green-600 bg-green-50';          // Optimal
-  if (ratio >= 0.3) return 'text-yellow-600 bg-yellow-50';        // Bas
-  return 'text-red-600 bg-red-50';                                // Critique
+  if (ratio >= 2) return 'text-orange-600 bg-orange-50';           
+  if (ratio >= 0.8) return 'text-green-600 bg-green-50';          
+  if (ratio >= 0.3) return 'text-yellow-600 bg-yellow-50';        
+  return 'text-red-600 bg-red-50';                                
 };
 
 /**
  * Filtre les produits par recherche (nom OU code EAN)
  */
 export const filterProductSummaries = (
-  products: ProductSummary[], 
+  products: ProductSummary[] | EnhancedProductSummary[], 
   searchQuery: string
-): ProductSummary[] => {
+): (ProductSummary | EnhancedProductSummary)[] => {
   if (!searchQuery.trim()) return products;
   
   const query = searchQuery.toLowerCase().trim();
@@ -134,7 +143,7 @@ export const filterProductSummaries = (
  * Pagination côté client
  */
 export const paginateProductSummaries = (
-  products: ProductSummary[],
+  products: (ProductSummary | EnhancedProductSummary)[],
   currentPage: number,
   itemsPerPage: number
 ) => {
@@ -152,7 +161,7 @@ export const paginateProductSummaries = (
 };
 
 /**
- * Tri des produits par colonne
+ * Tri des produits par colonne (avec nouvelles colonnes)
  */
 export type SortableColumn = 
   | 'nom' 
@@ -162,15 +171,18 @@ export type SortableColumn =
   | 'prix_vente_moyen'
   | 'taux_marge_moyen'
   | 'quantite_stock_moyenne'
-  | 'quantite_stock_actuel';
+  | 'quantite_stock_actuel'
+  | 'stockIdeal'
+  | 'quantiteACommander'
+  | 'ecartVsStockMoyen';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
 export const sortProductSummaries = (
-  products: ProductSummary[],
+  products: (ProductSummary | EnhancedProductSummary)[],
   column: SortableColumn,
   direction: SortDirection
-): ProductSummary[] => {
+): (ProductSummary | EnhancedProductSummary)[] => {
   if (!direction) return [...products];
 
   return [...products].sort((a, b) => {
@@ -210,6 +222,19 @@ export const sortProductSummaries = (
         aValue = a.quantite_stock_actuel;
         bValue = b.quantite_stock_actuel;
         break;
+      // Nouvelles colonnes pour tri
+      case 'stockIdeal':
+        aValue = (a as EnhancedProductSummary).stockIdeal || 0;
+        bValue = (b as EnhancedProductSummary).stockIdeal || 0;
+        break;
+      case 'quantiteACommander':
+        aValue = (a as EnhancedProductSummary).quantiteACommander || 0;
+        bValue = (b as EnhancedProductSummary).quantiteACommander || 0;
+        break;
+      case 'ecartVsStockMoyen':
+        aValue = (a as EnhancedProductSummary).ecartVsStockMoyen || 0;
+        bValue = (b as EnhancedProductSummary).ecartVsStockMoyen || 0;
+        break;
       default:
         return 0;
     }
@@ -228,7 +253,7 @@ export const sortProductSummaries = (
 };
 
 /**
- * Conversion des données mensuelles pour graphique Recharts
+ * Conversion des données mensuelles pour graphique Recharts avec stock
  */
 export const convertToChartData = (monthlyDetails: MonthlyDetailsRow[]): ChartDataPoint[] => {
   return monthlyDetails
@@ -236,12 +261,12 @@ export const convertToChartData = (monthlyDetails: MonthlyDetailsRow[]): ChartDa
     .map(row => ({
       periode: formatMonthLabel(row.mois),
       quantite: row.quantite_vendue,
+      stock: row.quantite_stock,
       prixVente: row.prix_vente_moyen,
       prixAchat: row.prix_achat_moyen,
       tauxMarge: row.taux_marge_moyen
     }))
     .sort((a, b) => {
-      // Tri chronologique pour graphique
       const dateA = parseMonthFromLabel(a.periode);
       const dateB = parseMonthFromLabel(b.periode);
       return dateA.getTime() - dateB.getTime();
@@ -303,9 +328,9 @@ const parseMonthFromLabel = (monthLabel: string): Date => {
  */
 export interface ProductPerformanceStats {
   readonly tendanceVentes: 'hausse' | 'baisse' | 'stable';
-  readonly variationVentes: number; // % entre premier et dernier mois
+  readonly variationVentes: number;
   readonly tendanceMarge: 'hausse' | 'baisse' | 'stable';
-  readonly variationMarge: number; // % entre premier et dernier mois
+  readonly variationMarge: number;
   readonly regulariteStock: 'regulier' | 'volatile' | 'critique';
   readonly coefficientVariationStock: number;
 }
@@ -375,5 +400,37 @@ export const calculateProductPerformance = (
     variationMarge,
     regulariteStock,
     coefficientVariationStock
+  };
+};
+
+/**
+ * Calcule les métriques de stock idéal pour un produit
+ */
+export const calculateStockMetrics = (
+  product: ProductSummary,
+  joursStockIdeal: number
+): {
+  stockIdeal: number;
+  quantiteACommander: number;
+  ecartVsStockMoyen: number;
+  ventesQuotidiennesMoyennes: number;
+} => {
+  // Ventes moyennes quotidiennes sur 12 mois (365 jours)
+  const ventesQuotidiennesMoyennes = product.quantite_vendue_total / 365;
+  
+  // Stock idéal = ventes quotidiennes × jours stock idéal
+  const stockIdeal = Math.round(ventesQuotidiennesMoyennes * joursStockIdeal);
+  
+  // Quantité à commander = stock idéal - stock actuel (minimum 0)
+  const quantiteACommander = Math.max(0, stockIdeal - product.quantite_stock_actuel);
+  
+  // Écart vs stock moyen = stock idéal - stock moyen
+  const ecartVsStockMoyen = stockIdeal - product.quantite_stock_moyenne;
+  
+  return {
+    stockIdeal,
+    quantiteACommander,
+    ecartVsStockMoyen,
+    ventesQuotidiennesMoyennes
   };
 };

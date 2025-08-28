@@ -20,6 +20,7 @@ import {
   convertToChartData, 
   formatCurrency, 
   formatPercentage,
+  formatLargeNumber,
   calculateProductPerformance,
   type ChartDataPoint,
   type ProductPerformanceStats 
@@ -44,14 +45,85 @@ interface ProductMonthlyChartProps {
   readonly className?: string;
 }
 
+/**
+ * Conversion des données mensuelles avec stock pour graphique
+ */
+const convertToChartDataWithStock = (monthlyDetails: MonthlyDetailsRow[]): ChartDataPoint[] => {
+  return monthlyDetails
+    .filter(row => row.type_ligne === 'MENSUEL')
+    .map(row => ({
+      periode: formatMonthLabel(row.mois),
+      quantite: row.quantite_vendue,
+      stock: row.quantite_stock,
+      prixVente: row.prix_vente_moyen,
+      prixAchat: row.prix_achat_moyen,
+      tauxMarge: row.taux_marge_moyen
+    }))
+    .sort((a, b) => {
+      const dateA = parseMonthFromLabel(a.periode);
+      const dateB = parseMonthFromLabel(b.periode);
+      return dateA.getTime() - dateB.getTime();
+    });
+};
+
+/**
+ * Formate un mois YYYY-MM en libellé court fr-FR
+ */
+const formatMonthLabel = (dateStr: string): string => {
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 2) return dateStr;
+    
+    const year = parts[0];
+    const month = parts[1];
+    if (!year || !month) return dateStr;
+    
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    return new Intl.DateTimeFormat('fr-FR', { 
+      month: 'short', 
+      year: 'numeric' 
+    }).format(date);
+  } catch {
+    return dateStr;
+  }
+};
+
+/**
+ * Parse un libellé de mois en Date pour tri chronologique
+ */
+const parseMonthFromLabel = (monthLabel: string): Date => {
+  try {
+    const parts = monthLabel.split(' ');
+    if (parts.length !== 2) return new Date();
+    
+    const monthStr = parts[0];
+    const yearStr = parts[1];
+    
+    if (!monthStr || !yearStr) return new Date();
+    
+    const year = parseInt(yearStr);
+    
+    const monthMap: Record<string, number> = {
+      'janv.': 0, 'févr.': 1, 'mars': 2, 'avr.': 3,
+      'mai': 4, 'juin': 5, 'juil.': 6, 'août': 7,
+      'sept.': 8, 'oct.': 9, 'nov.': 10, 'déc.': 11
+    };
+    
+    const month = monthMap[monthStr.toLowerCase()] ?? 0;
+    return new Date(year, month, 1);
+  } catch {
+    return new Date();
+  }
+};
+
 export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
   monthlyDetails,
   productName,
   className = ''
 }) => {
-  // Conversion données pour graphique
+  // Conversion données pour graphique avec stock
   const chartData = useMemo((): ChartDataPoint[] => {
-    return convertToChartData(monthlyDetails);
+    return convertToChartDataWithStock(monthlyDetails);
   }, [monthlyDetails]);
 
   // Calcul statistiques performance
@@ -62,15 +134,16 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
   // Validation données
   const hasValidData = chartData.length > 0;
 
-  // Configuration couleurs cohérente avec existant
+  // Configuration couleurs optimisée avec stock
   const chartColors = {
-    quantite: '#6b7280',      // gray-500 - barres
+    quantite: '#6b7280',      // gray-500 - barres quantité
+    stock: '#8b5cf6',         // violet-500 - ligne stock
     prixVente: '#3b82f6',     // blue-500 - ligne
     prixAchat: '#22c55e',     // green-500 - ligne
     tauxMarge: '#f59e0b'      // amber-500 - ligne pointillée
   };
 
-  // Tooltip personnalisé
+  // Tooltip personnalisé avec stock
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || !payload.length) return null;
 
@@ -88,8 +161,8 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
                 <span className="text-sm text-gray-600">{entry.name}</span>
               </div>
               <span className="font-medium text-gray-900">
-                {entry.dataKey === 'quantite' 
-                  ? `${Math.round(entry.value)} unités`
+                {entry.dataKey === 'quantite' || entry.dataKey === 'stock'
+                  ? `${formatLargeNumber(entry.value)} unités`
                   : entry.dataKey === 'tauxMarge'
                   ? formatPercentage(entry.value)
                   : formatCurrency(entry.value)
@@ -149,7 +222,7 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
               Évolution mensuelle - {productName}
             </h3>
             <p className="text-sm text-gray-600">
-              Analyse détaillée sur {chartData.length} mois
+              Analyse détaillée avec stock sur {chartData.length} mois
             </p>
           </div>
         </div>
@@ -175,7 +248,7 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
         </div>
       </div>
 
-      {/* Graphique principal */}
+      {/* Graphique principal avec stock */}
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
@@ -193,6 +266,7 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
               height={60}
             />
             
+            {/* Axe Y pour prix */}
             <YAxis 
               yAxisId="price"
               stroke="#6b7280"
@@ -200,12 +274,13 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
               tickFormatter={(value: any) => `${value}€`}
             />
             
+            {/* Axe Y pour quantité/stock (à droite) */}
             <YAxis 
               yAxisId="quantity"
               orientation="right"
               stroke="#6b7280"
               fontSize={12}
-              tickFormatter={(value: any) => `${value}`}
+              tickFormatter={(value: any) => formatLargeNumber(value)}
             />
             
             <Tooltip content={<CustomTooltip />} />
@@ -218,6 +293,18 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
               name="Quantité vendue"
               fill={chartColors.quantite}
               opacity={0.6}
+            />
+            
+            {/* Ligne pour stock mensuel */}
+            <Line
+              yAxisId="quantity"
+              type="monotone"
+              dataKey="stock"
+              name="Stock fin mois"
+              stroke={chartColors.stock}
+              strokeWidth={2}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
             />
             
             {/* Lignes pour les prix et marge */}

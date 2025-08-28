@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, RotateCcw, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, RotateCcw, Search, Eye, Settings } from 'lucide-react';
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
@@ -33,16 +33,7 @@ interface ProductsMonthlyTableProps {
 }
 
 /**
- * ProductsMonthlyTable - Tableau expandable avec détails mensuels
- * 
- * Features :
- * - Vue synthèse par défaut (quantités, prix, marges, stocks)
- * - Toggle expansion pour détail mensuel + graphique
- * - Tri multi-colonnes avec indicateurs visuels
- * - Recherche debounce (nom OU code EAN)
- * - Pagination côté client (50 items/page)
- * - Performance optimisée avec useMemo/useCallback
- * - Design cohérent architecture existante
+ * ProductsMonthlyTable - Tableau avec gestion stock idéal et commandes
  */
 export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   className = '',
@@ -57,6 +48,10 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   });
   const [currentPage, setCurrentPage] = useState(1);
   
+  // État local pour stock idéal (60 jours par défaut)
+  const [joursStockIdeal, setJoursStockIdeal] = useState(60);
+  const [showStockSettings, setShowStockSettings] = useState(false);
+  
   const itemsPerPage = 50;
 
   // Hook principal
@@ -69,6 +64,31 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     queryTime,
     hasData 
   } = useProductsMonthlyDetails({ enabled: true });
+
+  // Calculs stock idéal et commandes avec données 12 mois
+  const enhancedProductSummaries = useMemo(() => {
+    return productSummaries.map(product => {
+      // Ventes moyennes quotidiennes sur 12 mois
+      const ventesQuotidiennesMoyennes = product.quantite_vendue_total / 365;
+      
+      // Stock idéal = ventes quotidiennes × jours stock idéal
+      const stockIdeal = Math.round(ventesQuotidiennesMoyennes * joursStockIdeal);
+      
+      // Quantité à commander = stock idéal - stock actuel (minimum 0)
+      const quantiteACommander = Math.max(0, stockIdeal - product.quantite_stock_actuel);
+      
+      // Écart vs stock moyen = stock idéal - stock moyen
+      const ecartVsStockMoyen = stockIdeal - product.quantite_stock_moyenne;
+      
+      return {
+        ...product,
+        stockIdeal,
+        quantiteACommander,
+        ecartVsStockMoyen,
+        ventesQuotidiennesMoyennes
+      };
+    });
+  }, [productSummaries, joursStockIdeal]);
 
   // Gestion expansion/collapse produits
   const toggleProductExpansion = useCallback((codeEan: string) => {
@@ -83,50 +103,37 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     });
   }, []);
 
-  // Gestion du tri
+  // Gestion du tri simplifié (asc → desc → asc)
   const handleSort = useCallback((column: SortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        // Cycle : asc → desc → null → asc
-        const newDirection: SortDirection = 
-          prev.direction === 'asc' ? 'desc' :
-          prev.direction === 'desc' ? null : 'asc';
-        
-        return {
-          column: newDirection ? column : 'quantite_vendue_total', // Fallback
-          direction: newDirection || 'desc'
-        };
+        const newDirection: SortDirection = prev.direction === 'asc' ? 'desc' : 'asc';
+        return { column, direction: newDirection };
       }
       
-      // Nouvelle colonne, commence par desc pour métriques numériques
       return {
         column,
         direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
       };
     });
     
-    setCurrentPage(1); // Reset page lors du tri
+    setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1); // Reset page lors de la recherche
+    setCurrentPage(1);
   }, []);
 
-  // Traitement des données (filtrage + tri + pagination)
+  // Traitement des données avec nouvelles colonnes
   const processedData = useMemo(() => {
-    // 1. Filtrage par recherche
-    const filteredProducts = filterProductSummaries(productSummaries, searchQuery);
-    
-    // 2. Tri
+    const filteredProducts = filterProductSummaries(enhancedProductSummaries, searchQuery);
     const sortedProducts = sortProductSummaries(
       filteredProducts, 
       sortConfig.column || 'quantite_vendue_total',
       sortConfig.direction
     );
-    
-    // 3. Pagination
     const paginationResult = paginateProductSummaries(sortedProducts, currentPage, itemsPerPage);
     
     return {
@@ -139,7 +146,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
         endIndex: paginationResult.endIndex
       }
     };
-  }, [productSummaries, searchQuery, sortConfig, currentPage]);
+  }, [enhancedProductSummaries, searchQuery, sortConfig, currentPage]);
 
   // Handlers pagination
   const handlePrevPage = useCallback(() => {
@@ -162,7 +169,14 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  // Rendu conditionnel - Loading
+  // Couleur pour stock vs idéal
+  const getStockIdealColorClass = (stockActuel: number, stockIdeal: number): string => {
+    return stockActuel >= stockIdeal 
+      ? 'text-green-700 bg-green-50' 
+      : 'text-red-700 bg-red-50';
+  };
+
+  // Rendu conditionnel - Loading, Error, No Data (identique)
   if (isLoading) {
     return (
       <Card variant="elevated" className={`p-6 ${className}`}>
@@ -178,16 +192,13 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - Error
   if (error) {
     return (
       <Card variant="elevated" className={`p-6 text-center ${className}`}>
         <div className="text-red-500 mb-4">
           <Search className="w-12 h-12 mx-auto" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Erreur de chargement
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Erreur de chargement</h3>
         <p className="text-red-600 mb-4">{error}</p>
         <Button variant="primary" size="sm" onClick={handleRefresh} iconLeft={<RotateCcw className="w-4 h-4" />}>
           Réessayer
@@ -196,7 +207,6 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - No Data
   if (!hasData || processedData.products.length === 0) {
     return (
       <Card variant="elevated" className={`p-6 text-center ${className}`}>
@@ -224,49 +234,78 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles */}
+      {/* Header avec contrôles et paramètres stock */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              Détails mensuels produits
+              Détails mensuels produits avec gestion stock
             </h2>
             <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <span>{processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''}</span>
+              <span>{processedData.pagination.totalItems} produits</span>
               <Badge variant="gray" size="sm">{queryTime}ms</Badge>
+              <Badge variant="blue" size="sm">{joursStockIdeal}j stock idéal</Badge>
             </div>
           </div>
           
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isLoading}
-            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            {isLoading ? 'Actualisation...' : 'Actualiser'}
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowStockSettings(!showStockSettings)}
+              iconLeft={<Settings className="w-4 h-4" />}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Stock idéal
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              {isLoading ? 'Actualisation...' : 'Actualiser'}
+            </Button>
+          </div>
         </div>
         
-        <SearchBar
-          onSearch={handleSearch}
-          placeholder="Rechercher par nom, code EAN ou *fin_code..."
-        />
+        <div className="flex items-center space-x-4">
+          {/* Paramètres stock idéal */}
+          {showStockSettings && (
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <label className="text-sm font-medium text-blue-900">Jours stock idéal:</label>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={joursStockIdeal}
+                onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
+                className="w-16 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm text-blue-700">jours</span>
+            </div>
+          )}
+          
+          <SearchBar
+            onSearch={handleSearch}
+            placeholder="Rechercher par nom, code EAN ou *fin_code..."
+          />
+        </div>
       </div>
 
-      {/* Tableau principal */}
+      {/* Tableau principal avec nouvelles colonnes */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             
-            {/* Header tableau */}
+            {/* Header tableau avec nouvelles colonnes */}
             <thead className="bg-gray-50">
               <tr>
-                <th className="w-10 px-4 py-3"></th> {/* Toggle column */}
-                
                 <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('nom')}
                 >
                   <div className="flex items-center space-x-1">
@@ -276,7 +315,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('code_ean')}
                 >
                   <div className="flex items-center space-x-1">
@@ -286,7 +325,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('quantite_vendue_total')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -296,7 +335,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('prix_achat_moyen')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -306,7 +345,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('prix_vente_moyen')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -316,7 +355,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('taux_marge_moyen')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -326,7 +365,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('quantite_stock_moyenne')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -336,13 +375,26 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 </th>
                 
                 <th 
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('quantite_stock_actuel')}
                 >
                   <div className="flex items-center justify-end space-x-1">
                     <span>Stock actuel</span>
                     <span className="text-gray-400">{getSortIndicator('quantite_stock_actuel')}</span>
                   </div>
+                </th>
+                
+                {/* NOUVELLES COLONNES */}
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Qté à commander
+                </th>
+                
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Écart vs moy.
+                </th>
+                
+                <th className="w-16 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Détails
                 </th>
               </tr>
             </thead>
@@ -356,26 +408,8 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 return (
                   <React.Fragment key={product.code_ean}>
                     
-                    {/* Ligne principale produit */}
-                    <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50`}>
-                      
-                      {/* Toggle expansion */}
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleProductExpansion(product.code_ean)}
-                          disabled={!hasMonthlyData}
-                          className={`p-1 rounded hover:bg-gray-200 transition-colors ${
-                            !hasMonthlyData ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          title={hasMonthlyData ? 'Voir détails mensuels' : 'Pas de détails disponibles'}
-                        >
-                          {hasMonthlyData ? (
-                            isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <div className="w-4 h-4"></div>
-                          )}
-                        </button>
-                      </td>
+                    {/* Ligne principale produit avec nouvelles colonnes */}
+                    <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
                       
                       {/* Nom produit */}
                       <td className="px-4 py-3">
@@ -426,11 +460,45 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                         </div>
                       </td>
                       
-                      {/* Stock actuel avec couleur */}
+                      {/* Stock actuel avec couleur vs stock idéal */}
                       <td className="px-4 py-3 text-right">
-                        <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStockColorClass(product.quantite_stock_actuel, product.quantite_stock_moyenne)}`}>
+                        <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStockIdealColorClass(product.quantite_stock_actuel, product.stockIdeal)}`}>
                           {formatLargeNumber(product.quantite_stock_actuel)}
                         </div>
+                      </td>
+                      
+                      {/* NOUVELLE COLONNE: Quantité à commander */}
+                      <td className="px-4 py-3 text-right">
+                        <div className={`text-sm font-medium ${product.quantiteACommander > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {product.quantiteACommander > 0 ? formatLargeNumber(product.quantiteACommander) : '0'}
+                        </div>
+                      </td>
+                      
+                      {/* NOUVELLE COLONNE: Écart vs stock moyen */}
+                      <td className="px-4 py-3 text-right">
+                        <div className={`text-sm font-medium ${product.ecartVsStockMoyen >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {product.ecartVsStockMoyen >= 0 ? '+' : ''}{formatLargeNumber(product.ecartVsStockMoyen)}
+                        </div>
+                      </td>
+                      
+                      {/* Toggle expansion à droite */}
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => toggleProductExpansion(product.code_ean)}
+                          disabled={!hasMonthlyData}
+                          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
+                            hasMonthlyData 
+                              ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900' 
+                              : 'opacity-50 cursor-not-allowed text-gray-400'
+                          }`}
+                          title={hasMonthlyData ? 'Voir évolution mensuelle' : 'Pas de détails disponibles'}
+                        >
+                          {hasMonthlyData ? (
+                            isExpanded ? <ChevronUp className="w-4 h-4" /> : <Eye className="w-4 h-4" />
+                          ) : (
+                            <div className="w-4 h-4"></div>
+                          )}
+                        </button>
                       </td>
                       
                     </tr>
@@ -438,8 +506,8 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                     {/* Ligne expansion avec graphique */}
                     {isExpanded && hasMonthlyData && (
                       <tr>
-                        <td colSpan={9} className="px-0 py-0">
-                          <div className="bg-gray-25 border-t border-gray-200 p-6">
+                        <td colSpan={11} className="px-0 py-0 bg-gray-25">
+                          <div className="border-t border-gray-200 p-6">
                             <ProductMonthlyChart
                               monthlyDetails={monthlyDetails}
                               productName={product.nom}
@@ -463,7 +531,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
             Affichage {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
-            {' '}sur {processedData.pagination.totalItems} produits
+            sur {processedData.pagination.totalItems} produits
           </div>
           
           <div className="flex items-center space-x-2">
