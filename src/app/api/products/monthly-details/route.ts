@@ -39,14 +39,27 @@ interface MonthlyDetailsRow {
 /**
  * Calcule automatiquement les 12 derniers mois
  */
+// src/app/api/products/monthly-details/route.ts (CORRECTED)
+/**
+ * Calcule automatiquement les 12 derniers mois
+ */
 function calculateLast12Months(): { start: string; end: string } {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
   const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Dernier jour du mois actuel
   
+  // FIX: Assurer que les dates sont définies et au bon format
+  const startString = startDate.toISOString().split('T')[0];
+  const endString = endDate.toISOString().split('T')[0];
+  
+  // Validation TypeScript strict
+  if (!startString || !endString) {
+    throw new Error('Date calculation failed');
+  }
+  
   return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0]
+    start: startString,
+    end: endString
   };
 }
 

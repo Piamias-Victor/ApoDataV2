@@ -238,13 +238,13 @@ export const ProductMonthlyChart: React.FC<ProductMonthlyChartProps> = ({
             performanceStats.variationMarge,
             'Marge'
           )}
-          <Badge 
+          {/* <Badge 
             variant={performanceStats.regulariteStock === 'regulier' ? 'success' 
               : performanceStats.regulariteStock === 'volatile' ? 'warning' : 'danger'} 
             size="sm"
           >
             Stock {performanceStats.regulariteStock}
-          </Badge>
+          </Badge> */}
         </div>
       </div>
 

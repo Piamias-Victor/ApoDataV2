@@ -1,5 +1,4 @@
 // src/components/organisms/ProductsMonthlyTable/utils.ts
-
 interface MonthlyDetailsRow {
   readonly nom: string;
   readonly code_ean: string;
@@ -55,13 +54,13 @@ export const formatLargeNumber = (value: number): string => {
   const sign = value < 0 ? '-' : '';
   
   if (absValue >= 1_000_000) {
-    return `${sign}${(absValue / 1_000_000).toFixed(1)}M`;
+    return `${sign}${(absValue / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
   } else if (absValue >= 1_000) {
-    return `${sign}${(absValue / 1_000).toFixed(1)}K`;
+    return `${sign}${(absValue / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
   } else if (absValue >= 100) {
     return `${sign}${Math.round(absValue)}`;
   } else {
-    return `${sign}${absValue.toFixed(1)}`;
+    return `${sign}${absValue.toFixed(1).replace(/\.0$/, '')}`;
   }
 };
 

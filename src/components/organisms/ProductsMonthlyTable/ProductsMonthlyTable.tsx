@@ -1,8 +1,8 @@
-// src/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable.tsx
+// src/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable.tsx (IMPROVED)
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight, RotateCcw, Search, Eye, Settings } from 'lucide-react';
+import { ChevronUp, ChevronLeft, ChevronRight, RotateCcw, Search, Eye } from 'lucide-react';
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
@@ -13,13 +13,14 @@ import {
   formatLargeNumber, 
   formatCurrency, 
   formatPercentage, 
-  getMarginColorClass, 
-  getStockColorClass,
+  getMarginColorClass,
   filterProductSummaries,
   paginateProductSummaries,
   sortProductSummaries,
   type SortableColumn,
-  type SortDirection
+  type SortDirection,
+  type ProductSummary,
+  type EnhancedProductSummary
 } from './utils';
 
 interface SortConfig {
@@ -32,9 +33,6 @@ interface ProductsMonthlyTableProps {
   readonly onRefresh?: () => void;
 }
 
-/**
- * ProductsMonthlyTable - Tableau avec gestion stock idéal et commandes
- */
 export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   className = '',
   onRefresh
@@ -48,9 +46,8 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   });
   const [currentPage, setCurrentPage] = useState(1);
   
-  // État local pour stock idéal (60 jours par défaut)
+  // État local pour stock idéal (60 jours par défaut) - TOUJOURS VISIBLE
   const [joursStockIdeal, setJoursStockIdeal] = useState(60);
-  const [showStockSettings, setShowStockSettings] = useState(false);
   
   const itemsPerPage = 50;
 
@@ -66,18 +63,11 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   } = useProductsMonthlyDetails({ enabled: true });
 
   // Calculs stock idéal et commandes avec données 12 mois
-  const enhancedProductSummaries = useMemo(() => {
+  const enhancedProductSummaries: EnhancedProductSummary[] = useMemo(() => {
     return productSummaries.map(product => {
-      // Ventes moyennes quotidiennes sur 12 mois
       const ventesQuotidiennesMoyennes = product.quantite_vendue_total / 365;
-      
-      // Stock idéal = ventes quotidiennes × jours stock idéal
       const stockIdeal = Math.round(ventesQuotidiennesMoyennes * joursStockIdeal);
-      
-      // Quantité à commander = stock idéal - stock actuel (minimum 0)
       const quantiteACommander = Math.max(0, stockIdeal - product.quantite_stock_actuel);
-      
-      // Écart vs stock moyen = stock idéal - stock moyen
       const ecartVsStockMoyen = stockIdeal - product.quantite_stock_moyenne;
       
       return {
@@ -133,11 +123,11 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
       filteredProducts, 
       sortConfig.column || 'quantite_vendue_total',
       sortConfig.direction
-    );
+    ) as EnhancedProductSummary[];
     const paginationResult = paginateProductSummaries(sortedProducts, currentPage, itemsPerPage);
     
     return {
-      products: paginationResult.paginatedProducts,
+      products: paginationResult.paginatedProducts as EnhancedProductSummary[],
       pagination: {
         totalItems: filteredProducts.length,
         totalPages: paginationResult.totalPages,
@@ -176,7 +166,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
       : 'text-red-700 bg-red-50';
   };
 
-  // Rendu conditionnel - Loading, Error, No Data (identique)
+  // Rendu conditionnel - Loading, Error, No Data
   if (isLoading) {
     return (
       <Card variant="elevated" className={`p-6 ${className}`}>
@@ -234,7 +224,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles et paramètres stock */}
+      {/* Header avec contrôles et paramètres stock TOUJOURS VISIBLE */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div>
@@ -244,50 +234,35 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <span>{processedData.pagination.totalItems} produits</span>
               <Badge variant="gray" size="sm">{queryTime}ms</Badge>
-              <Badge variant="blue" size="sm">{joursStockIdeal}j stock idéal</Badge>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowStockSettings(!showStockSettings)}
-              iconLeft={<Settings className="w-4 h-4" />}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              Stock idéal
-            </Button>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isLoading}
-              iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              {isLoading ? 'Actualisation...' : 'Actualiser'}
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
         </div>
         
         <div className="flex items-center space-x-4">
-          {/* Paramètres stock idéal */}
-          {showStockSettings && (
-            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <label className="text-sm font-medium text-blue-900">Jours stock idéal:</label>
-              <input
-                type="number"
-                min="1"
-                max="365"
-                value={joursStockIdeal}
-                onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
-                className="w-16 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-sm text-blue-700">jours</span>
-            </div>
-          )}
+          {/* Paramètres stock idéal - compact */}
+          <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 rounded border border-gray-200">
+            <span className="text-xs text-gray-600 whitespace-nowrap">Stock idéal:</span>
+            <input
+              type="number"
+              min="1"
+              max="365"
+              value={joursStockIdeal}
+              onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
+              className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
+            />
+            <span className="text-xs text-gray-500">j</span>
+          </div>
           
           <SearchBar
             onSearch={handleSearch}
@@ -296,16 +271,29 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
         </div>
       </div>
 
-      {/* Tableau principal avec nouvelles colonnes */}
+      {/* Tableau principal avec nouvelles colonnes TRIABLES */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 table-fixed w-full">
+            <colgroup>
+              <col className="w-32" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-20" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-16" />
+            </colgroup>
             
-            {/* Header tableau avec nouvelles colonnes */}
+            {/* Header tableau avec colonnes triables */}
             <thead className="bg-gray-50">
               <tr>
                 <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  className="w-16 px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('nom')}
                 >
                   <div className="flex items-center space-x-1">
@@ -384,13 +372,25 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                   </div>
                 </th>
                 
-                {/* NOUVELLES COLONNES */}
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Qté à commander
+                {/* NOUVELLES COLONNES TRIABLES */}
+                <th 
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('quantiteACommander')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Qté à commander</span>
+                    <span className="text-gray-400">{getSortIndicator('quantiteACommander')}</span>
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Écart vs moy.
+                <th 
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('ecartVsStockMoyen')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Écart vs moy.</span>
+                    <span className="text-gray-400">{getSortIndicator('ecartVsStockMoyen')}</span>
+                  </div>
                 </th>
                 
                 <th className="w-16 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -408,12 +408,12 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                 return (
                   <React.Fragment key={product.code_ean}>
                     
-                    {/* Ligne principale produit avec nouvelles colonnes */}
+                    {/* Ligne principale produit avec colonne Produit réduite */}
                     <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
                       
-                      {/* Nom produit */}
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-gray-900 max-w-xs truncate" title={product.nom}>
+                      {/* Nom produit - FORCÉ À 64px MAXIMUM */}
+                      <td className="px-1 py-3">
+                        <div className="text-sm font-medium text-gray-900 truncate w-32 overflow-hidden" title={product.nom}>
                           {product.nom}
                         </div>
                       </td>
@@ -506,7 +506,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
                     {/* Ligne expansion avec graphique */}
                     {isExpanded && hasMonthlyData && (
                       <tr>
-                        <td colSpan={11} className="px-0 py-0 bg-gray-25">
+                        <td colSpan={12} className="px-0 py-0 bg-gray-25">
                           <div className="border-t border-gray-200 p-6">
                             <ProductMonthlyChart
                               monthlyDetails={monthlyDetails}
