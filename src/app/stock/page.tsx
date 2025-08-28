@@ -1,11 +1,12 @@
 // src/app/(dashboard)/commandes/page.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { ProductsMonthlyTable } from '@/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable';
 import { StockMetricsSection } from '@/components/organisms/StockMetricsSection/StockMetricsSection';
+import { StockChartsEvolution } from '@/components/organisms/StockChartsEvolution/StockChartsEvolution';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 
 /**
@@ -26,6 +27,23 @@ export default function StockPage(): JSX.Element {
     laboratories: laboratoriesFilter,
     categories: categoriesFilter,
     pharmacies: pharmacyFilter
+  };
+
+  // Fusion codes produits pour graphique : products + laboratories + categories
+  const allProductCodes = useMemo(() => {
+    const codes = Array.from(new Set([
+      ...productsFilter,
+      ...laboratoriesFilter,
+      ...categoriesFilter
+    ]));
+    
+    return codes;
+  }, [productsFilter, laboratoriesFilter, categoriesFilter]);
+
+  // Construction filtres pour graphique
+  const chartFilters = {
+    productCodes: allProductCodes,
+    ...(pharmacyFilter.length > 0 && { pharmacyId: pharmacyFilter[0] })
   };
 
   // Comparaison active si dates définies
@@ -66,6 +84,15 @@ export default function StockPage(): JSX.Element {
               comparisonDateRange={includeComparison ? comparisonDateRange : undefined}
               filters={filters}
               includeComparison={includeComparison}
+              onRefresh={handleRefresh}
+            />
+          </div>
+
+          {/* Graphique évolution stock */}
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+            <StockChartsEvolution
+              dateRange={analysisDateRange}
+              filters={chartFilters}
               onRefresh={handleRefresh}
             />
           </div>
