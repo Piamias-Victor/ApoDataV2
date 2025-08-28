@@ -6,6 +6,7 @@ import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/Animat
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { PriceEvolutionChart } from '@/components/organisms/PriceEvolutionChart/PriceEvolutionChart';
 import { CompetitiveTable } from '@/components/organisms/CompetitiveTable/CompetitiveTable';
+import { PriceEvolutionKpis } from '@/components/organisms/PriceEvolutionKpis/PriceEvolutionKpis';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useCompetitiveAnalysis } from '@/hooks/competitive/useCompetitiveAnalysis';
 
@@ -14,8 +15,9 @@ import { useCompetitiveAnalysis } from '@/hooks/competitive/useCompetitiveAnalys
  * 
  * Features :
  * - Header dashboard avec filtres intégrés
+ * - KPIs évolutions prix (4 cards)
  * - Graphique évolution prix mensuels
- * - NOUVEAU : Tableau analyse concurrentielle
+ * - Tableau analyse concurrentielle
  * - Background animé cohérent
  * - Integration store filtres global
  */
@@ -27,20 +29,13 @@ export default function PricePage(): JSX.Element {
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Fusion codes produits : products + laboratories + categories (logique ProductsList)
+  // Fusion codes produits : products + laboratories + categories
   const allProductCodes = useMemo(() => {
     const codes = Array.from(new Set([
       ...productsFilter,
       ...laboratoriesFilter,
       ...categoriesFilter
     ]));
-    
-    console.log('🔄 [PricePage] Merged product codes:', {
-      totalCodes: codes.length,
-      fromProducts: productsFilter.length,
-      fromLaboratories: laboratoriesFilter.length,
-      fromCategories: categoriesFilter.length
-    });
     
     return codes;
   }, [productsFilter, laboratoriesFilter, categoriesFilter]);
@@ -74,14 +69,14 @@ export default function PricePage(): JSX.Element {
       <main className="relative z-10 pt-[116px]">
         <div className="container-apodata py-8 space-y-8">
           
-          {/* Section titre avec indicateurs filtres */}
+          {/* Section titre */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 Analyse des Prix et Concurrence
               </h1>
               <p className="text-gray-600 mt-1">
-                Évolution mensuelle des prix et positionnement concurrentiel
+                Évolutions tarifaires, positionnement marché et analyse concurrentielle
               </p>
             </div>
             
@@ -113,6 +108,11 @@ export default function PricePage(): JSX.Element {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* KPIs évolutions prix */}
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+            <PriceEvolutionKpis />
           </div>
 
           {/* Graphique évolution prix */}

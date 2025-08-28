@@ -3,7 +3,6 @@ import type {
   CompetitiveMetrics, 
   CompetitiveSortableColumn, 
   SortDirection, 
-  CompetitivePaginationInfo 
 } from './types';
 
 /**

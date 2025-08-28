@@ -5,7 +5,6 @@ import React from 'react';
 import type { CompetitiveMetrics } from '../../organisms/CompetitiveTable/types';
 import { 
   formatCurrency, 
-  formatNumber, 
   formatPercentage, 
   getCompetitiveColorClass, 
   getMarginColorClass 
