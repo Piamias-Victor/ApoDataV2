@@ -154,7 +154,7 @@ export default function DashboardPage(): JSX.Element {
                 Analyse Détaillée des Produits
               </h2>
               <p className="text-gray-600 text-sm mt-1">
-                Vue complète des performances par produit avec indicateurs métier
+                Vue complète des performances par produit
               </p>
             </div>
             

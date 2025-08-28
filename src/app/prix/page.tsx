@@ -135,7 +135,7 @@ export default function PricePage(): JSX.Element {
                   Analyse Concurrentielle
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">
-                  Comparaison de vos prix avec le marché concurrent
+                  Comparaison de vos prix avec le groupement
                 </p>
               </div>
               
