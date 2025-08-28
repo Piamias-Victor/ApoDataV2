@@ -24,6 +24,7 @@ interface PriceEvolutionKpisProps {
  * - États loading/error cohérents ApoData
  * - Design compact et lisible
  * - Couleurs évolutions (vert hausse, rouge baisse)
+ * - Type safety pour valeurs numériques
  */
 export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
   className = '',
@@ -47,49 +48,64 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Transformation métrique en KPI card avec couleurs évolutions
+  // Transformation métrique en KPI card avec couleurs évolutions + type safety
   const kpiCards = useMemo(() => {
     if (!metrics) return null;
 
-    const getTrendFromEvolution = (evolutionPct: number): TrendDirection => {
-      if (evolutionPct > 0.5) return 'up';
-      if (evolutionPct < -0.5) return 'down';
+    // Fonction utilitaire pour conversion sécurisée en number
+    const safeNumber = (value: any): number => {
+      const num = Number(value);
+      return isNaN(num) ? 0 : num;
+    };
+
+    const getTrendFromEvolution = (evolutionPct: any): TrendDirection => {
+      const numValue = safeNumber(evolutionPct);
+      if (numValue > 0.5) return 'up';
+      if (numValue < -0.5) return 'down';
       return 'neutral';
     };
 
-    const getComparisonFromEvolution = (evolutionPct: number): KpiComparison => ({
-      value: Math.abs(evolutionPct),
-      percentage: evolutionPct,
-      trend: getTrendFromEvolution(evolutionPct)
-    });
+    const getComparisonFromEvolution = (evolutionPct: any): KpiComparison => {
+      const numValue = safeNumber(evolutionPct);
+      return {
+        value: Math.abs(numValue),
+        percentage: numValue,
+        trend: getTrendFromEvolution(numValue)
+      };
+    };
+
+    // Conversion sécurisée des métriques
+    const safeMetrics = {
+      evolution_prix_vente_pct: safeNumber(metrics.evolution_prix_vente_pct),
+      evolution_prix_achat_pct: safeNumber(metrics.evolution_prix_achat_pct),
+      evolution_marge_pct: safeNumber(metrics.evolution_marge_pct),
+      ecart_prix_vs_marche_pct: safeNumber(metrics.ecart_prix_vs_marche_pct),
+      nb_produits_analyses: safeNumber(metrics.nb_produits_analyses)
+    };
 
     return [
       {
         title: 'Évolution Prix Vente',
-        value: Math.abs(metrics.evolution_prix_vente_pct),
+        value: safeMetrics.evolution_prix_vente_pct, // Garder le signe
         unit: 'percentage' as const,
-        comparison: getComparisonFromEvolution(metrics.evolution_prix_vente_pct),
         subtitle: 'Début → fin période'
       },
       {
         title: 'Évolution Prix Achat', 
-        value: Math.abs(metrics.evolution_prix_achat_pct),
+        value: safeMetrics.evolution_prix_achat_pct, // Garder le signe
         unit: 'percentage' as const,
-        comparison: getComparisonFromEvolution(metrics.evolution_prix_achat_pct),
         subtitle: 'Début → fin période'
       },
       {
         title: 'Évolution Marge %',
-        value: Math.abs(metrics.evolution_marge_pct),
+        value: safeMetrics.evolution_marge_pct, // Garder le signe
         unit: 'percentage' as const,
-        comparison: getComparisonFromEvolution(metrics.evolution_marge_pct),
         subtitle: 'Différence absolue'
       },
       {
         title: 'Écart vs Marché',
-        value: Math.abs(metrics.ecart_prix_vs_marche_pct),
+        value: safeMetrics.ecart_prix_vs_marche_pct, // Garder le signe
         unit: 'percentage' as const,
-        comparison: getComparisonFromEvolution(metrics.ecart_prix_vs_marche_pct),
         subtitle: 'Position concurrentielle'
       }
     ];
@@ -143,7 +159,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             {hasData && metrics 
-              ? `Analyse sur ${metrics.nb_produits_analyses} produits`
+              ? `Analyse sur ${Number(metrics.nb_produits_analyses) || 0} produits`
               : 'Évolutions tarifaires et positionnement marché'
             }
           </p>

@@ -56,11 +56,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let body: PriceEvolutionRequest;
     try {
-      body = await request.json();
+      const requestText = await request.text();
+      
+      if (!requestText || requestText.trim() === '') {
+        console.log('❌ [API] Empty request body');
+        return NextResponse.json({ error: 'Request body required' }, { status: 400 });
+      }
+
+      body = JSON.parse(requestText);
+      
+      if (!body || typeof body !== 'object') {
+        console.log('❌ [API] Invalid request body structure');
+        return NextResponse.json({ error: 'Invalid request body structure' }, { status: 400 });
+      }
+      
       console.log('📥 [API] Request body received:', body);
     } catch (jsonError) {
       console.log('💥 [API] JSON parsing error:', jsonError);
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Invalid JSON body - malformed request' 
+      }, { status: 400 });
     }
     
     // Validation des dates
@@ -122,7 +137,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('🗃️ [API] Executing database query...');
     
     const metrics = context.isAdmin 
-      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter, context)
+      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
     console.log('📈 [API] Query completed:', {
@@ -162,8 +177,7 @@ async function executeAdminQuery(
   dateRange: { start: string; end: string },
   productCodes: string[],
   pharmacyIds?: string[],
-  hasProductFilter: boolean = true,
-  context: any
+  hasProductFilter: boolean = true
 ): Promise<PriceEvolutionMetrics> {
 
   const isNoPharmacySelected = !pharmacyIds || pharmacyIds.length === 0;
@@ -199,64 +213,53 @@ async function executeAdminQuery(
   const pharmacyParam = `$${paramIndex}::uuid[]`;
 
   const query = `
-    WITH date_bounds AS (
-      SELECT 
-        $1::date as start_date,
-        $2::date as end_date,
-        -- Calcul milieu de période pour séparer début/fin
-        ($1::date + ($2::date - $1::date) / 2) as mid_date
-    ),
-    -- DÉBUT DE PÉRIODE (première moitié)
-    debut_stats AS (
-      SELECT 
+    WITH prix_debut AS (
+      -- Prix le plus proche du début de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_debut,
-        AVG(ins.weighted_average_price) as prix_achat_debut,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_debut
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_debut,
+        ins.weighted_average_price as prix_achat_debut,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_debut,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.start_date 
-        AND s.date < db.mid_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ANY(${pharmacyParam})
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 3  -- Min 3 ventes pour stabilité
+      ORDER BY ip.code_13_ref_id, s.date ASC
     ),
-    -- FIN DE PÉRIODE (seconde moitié)
-    fin_stats AS (
-      SELECT 
+    prix_fin AS (
+      -- Prix le plus proche de la fin de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_fin,
-        AVG(ins.weighted_average_price) as prix_achat_fin,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_fin
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_fin,
+        ins.weighted_average_price as prix_achat_fin,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_fin,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.mid_date 
-        AND s.date <= db.end_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ANY(${pharmacyParam})
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 3  -- Min 3 ventes pour stabilité
+      ORDER BY ip.code_13_ref_id, s.date DESC
     ),
     -- MARCHÉ CONCURRENT pour écart actuel (période complète, SANS pharmacies sélectionnées)
     marche_concurrent AS (
@@ -304,8 +307,8 @@ async function executeAdminQuery(
         
         -- Évolution marge % (début -> fin) - différence absolue
         (f.marge_pct_fin - d.marge_pct_debut) as evolution_marge_pct
-      FROM debut_stats d
-      INNER JOIN fin_stats f ON d.code_13_ref_id = f.code_13_ref_id
+      FROM prix_debut d
+      INNER JOIN prix_fin f ON d.code_13_ref_id = f.code_13_ref_id
     )
     SELECT 
       -- Moyennes des évolutions individuelles
@@ -315,9 +318,9 @@ async function executeAdminQuery(
       
       -- Écart prix actuel vs marché
       CASE 
-        WHEN mc.prix_vente_marche > 0 
+        WHEN AVG(mc.prix_vente_marche) > 0 
         THEN ROUND(
-          ((mpa.prix_vente_selection - mc.prix_vente_marche) / mc.prix_vente_marche) * 100, 
+          ((AVG(mpa.prix_vente_selection) - AVG(mc.prix_vente_marche)) / AVG(mc.prix_vente_marche)) * 100, 
           2
         )
         ELSE 0
@@ -330,12 +333,26 @@ async function executeAdminQuery(
   `;
 
   const result = await db.query(query, params);
-  return result[0] || {
-    evolution_prix_vente_pct: 0,
-    evolution_prix_achat_pct: 0,
-    evolution_marge_pct: 0,
-    ecart_prix_vs_marche_pct: 0,
-    nb_produits_analyses: 0
+  const rawResult = result[0];
+
+  console.log('🔍 [DEBUG] Raw admin query result:', rawResult);
+
+  if (!rawResult) {
+    return {
+      evolution_prix_vente_pct: 0,
+      evolution_prix_achat_pct: 0,
+      evolution_marge_pct: 0,
+      ecart_prix_vs_marche_pct: 0,
+      nb_produits_analyses: 0
+    };
+  }
+
+  return {
+    evolution_prix_vente_pct: Number(rawResult.evolution_prix_vente_pct) || 0,
+    evolution_prix_achat_pct: Number(rawResult.evolution_prix_achat_pct) || 0,
+    evolution_marge_pct: Number(rawResult.evolution_marge_pct) || 0,
+    ecart_prix_vs_marche_pct: Number(rawResult.ecart_prix_vs_marche_pct) || 0,
+    nb_produits_analyses: Number(rawResult.nb_produits_analyses) || 0
   };
 }
 
@@ -359,63 +376,53 @@ async function executeUserQuery(
   const pharmacyParam = hasProductFilter ? '$4::uuid' : '$3::uuid';
 
   const query = `
-    WITH date_bounds AS (
-      SELECT 
-        $1::date as start_date,
-        $2::date as end_date,
-        ($1::date + ($2::date - $1::date) / 2) as mid_date
-    ),
-    -- MA PHARMACIE - DÉBUT
-    ma_pharmacie_debut AS (
-      SELECT 
+    WITH prix_debut AS (
+      -- Prix le plus proche du début de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_debut,
-        AVG(ins.weighted_average_price) as prix_achat_debut,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_debut
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_debut,
+        ins.weighted_average_price as prix_achat_debut,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_debut,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.start_date 
-        AND s.date < db.mid_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 3
+      ORDER BY ip.code_13_ref_id, s.date ASC
     ),
-    -- MA PHARMACIE - FIN
-    ma_pharmacie_fin AS (
-      SELECT 
+    prix_fin AS (
+      -- Prix le plus proche de la fin de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_fin,
-        AVG(ins.weighted_average_price) as prix_achat_fin,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_fin
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_fin,
+        ins.weighted_average_price as prix_achat_fin,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_fin,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.mid_date 
-        AND s.date <= db.end_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 3
+      ORDER BY ip.code_13_ref_id, s.date DESC
     ),
     -- MARCHÉ CONCURRENT (SANS ma pharmacie)
     marche_concurrent AS (
@@ -457,17 +464,17 @@ async function executeUserQuery(
           ELSE 0
         END as evolution_prix_achat_pct,
         (f.marge_pct_fin - d.marge_pct_debut) as evolution_marge_pct
-      FROM ma_pharmacie_debut d
-      INNER JOIN ma_pharmacie_fin f ON d.code_13_ref_id = f.code_13_ref_id
+      FROM prix_debut d
+      INNER JOIN prix_fin f ON d.code_13_ref_id = f.code_13_ref_id
     )
     SELECT 
       ROUND(AVG(pe.evolution_prix_vente_pct), 2) as evolution_prix_vente_pct,
       ROUND(AVG(pe.evolution_prix_achat_pct), 2) as evolution_prix_achat_pct,
       ROUND(AVG(pe.evolution_marge_pct), 2) as evolution_marge_pct,
       CASE 
-        WHEN mc.prix_vente_marche > 0 
+        WHEN AVG(mc.prix_vente_marche) > 0 
         THEN ROUND(
-          ((mpa.prix_vente_selection - mc.prix_vente_marche) / mc.prix_vente_marche) * 100, 
+          ((AVG(mpa.prix_vente_selection) - AVG(mc.prix_vente_marche)) / AVG(mc.prix_vente_marche)) * 100, 
           2
         )
         ELSE 0
@@ -479,12 +486,26 @@ async function executeUserQuery(
   `;
 
   const result = await db.query(query, params);
-  return result[0] || {
-    evolution_prix_vente_pct: 0,
-    evolution_prix_achat_pct: 0,
-    evolution_marge_pct: 0,
-    ecart_prix_vs_marche_pct: 0,
-    nb_produits_analyses: 0
+  const rawResult = result[0];
+
+  console.log('🔍 [DEBUG] Raw user query result:', rawResult);
+
+  if (!rawResult) {
+    return {
+      evolution_prix_vente_pct: 0,
+      evolution_prix_achat_pct: 0,
+      evolution_marge_pct: 0,
+      ecart_prix_vs_marche_pct: 0,
+      nb_produits_analyses: 0
+    };
+  }
+
+  return {
+    evolution_prix_vente_pct: Number(rawResult.evolution_prix_vente_pct) || 0,
+    evolution_prix_achat_pct: Number(rawResult.evolution_prix_achat_pct) || 0,
+    evolution_marge_pct: Number(rawResult.evolution_marge_pct) || 0,
+    ecart_prix_vs_marche_pct: Number(rawResult.ecart_prix_vs_marche_pct) || 0,
+    nb_produits_analyses: Number(rawResult.nb_produits_analyses) || 0
   };
 }
 
@@ -505,59 +526,51 @@ async function executeMarketEvolutionQuery(
     : [dateRange.start, dateRange.end];
 
   const query = `
-    WITH date_bounds AS (
-      SELECT 
-        $1::date as start_date,
-        $2::date as end_date,
-        ($1::date + ($2::date - $1::date) / 2) as mid_date
-    ),
-    marche_debut AS (
-      SELECT 
+    WITH prix_debut AS (
+      -- Prix le plus proche du début de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_debut,
-        AVG(ins.weighted_average_price) as prix_achat_debut,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_debut
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_debut,
+        ins.weighted_average_price as prix_achat_debut,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_debut,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.start_date 
-        AND s.date < db.mid_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 5
+      ORDER BY ip.code_13_ref_id, s.date ASC
     ),
-    marche_fin AS (
-      SELECT 
+    prix_fin AS (
+      -- Prix le plus proche de la fin de période
+      SELECT DISTINCT ON (ip.code_13_ref_id)
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_fin,
-        AVG(ins.weighted_average_price) as prix_achat_fin,
-        AVG(
-          CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as marge_pct_fin
-      FROM data_sales s, date_bounds db
+        ins.price_with_tax as prix_vente_fin,
+        ins.weighted_average_price as prix_achat_fin,
+        CASE 
+          WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
+          THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+               (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+          ELSE 0 
+        END as marge_pct_fin,
+        s.date
+      FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= db.mid_date 
-        AND s.date <= db.end_date
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
         AND ins.price_with_tax > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
-      GROUP BY ip.code_13_ref_id
-      HAVING COUNT(*) >= 5
+      ORDER BY ip.code_13_ref_id, s.date DESC
     ),
     product_evolutions AS (
       SELECT 
@@ -573,8 +586,8 @@ async function executeMarketEvolutionQuery(
           ELSE 0
         END as evolution_prix_achat_pct,
         (f.marge_pct_fin - d.marge_pct_debut) as evolution_marge_pct
-      FROM marche_debut d
-      INNER JOIN marche_fin f ON d.code_13_ref_id = f.code_13_ref_id
+      FROM prix_debut d
+      INNER JOIN prix_fin f ON d.code_13_ref_id = f.code_13_ref_id
     )
     SELECT 
       ROUND(AVG(pe.evolution_prix_vente_pct), 2) as evolution_prix_vente_pct,
@@ -586,12 +599,26 @@ async function executeMarketEvolutionQuery(
   `;
 
   const result = await db.query(query, params);
-  return result[0] || {
-    evolution_prix_vente_pct: 0,
-    evolution_prix_achat_pct: 0,
-    evolution_marge_pct: 0,
-    ecart_prix_vs_marche_pct: 0,
-    nb_produits_analyses: 0
+  const rawResult = result[0];
+
+  console.log('🔍 [DEBUG] Raw market query result:', rawResult);
+
+  if (!rawResult) {
+    return {
+      evolution_prix_vente_pct: 0,
+      evolution_prix_achat_pct: 0,
+      evolution_marge_pct: 0,
+      ecart_prix_vs_marche_pct: 0,
+      nb_produits_analyses: 0
+    };
+  }
+
+  return {
+    evolution_prix_vente_pct: Number(rawResult.evolution_prix_vente_pct) || 0,
+    evolution_prix_achat_pct: Number(rawResult.evolution_prix_achat_pct) || 0,
+    evolution_marge_pct: Number(rawResult.evolution_marge_pct) || 0,
+    ecart_prix_vs_marche_pct: Number(rawResult.ecart_prix_vs_marche_pct) || 0,
+    nb_produits_analyses: Number(rawResult.nb_produits_analyses) || 0
   };
 }
 
