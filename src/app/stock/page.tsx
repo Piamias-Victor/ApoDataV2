@@ -5,11 +5,32 @@ import React from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { ProductsMonthlyTable } from '@/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable';
+import { StockMetricsSection } from '@/components/organisms/StockMetricsSection/StockMetricsSection';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 /**
  * Stock Page - Analyse détaillée des stocks et commandes produits
  */
 export default function StockPage(): JSX.Element {
+  // Store filtres
+  const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
+  const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
+  const productsFilter = useFiltersStore((state) => state.products);
+  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
+  const categoriesFilter = useFiltersStore((state) => state.categories);
+  const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+
+  // Filtres pour les composants
+  const filters = {
+    products: productsFilter,
+    laboratories: laboratoriesFilter,
+    categories: categoriesFilter,
+    pharmacies: pharmacyFilter
+  };
+
+  // Comparaison active si dates définies
+  const includeComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
+
   const handleRefresh = () => {
     console.log('Refresh stock page');
   };
@@ -38,8 +59,28 @@ export default function StockPage(): JSX.Element {
             </div>
           </div>
 
+          {/* Section KPI Stock */}
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl shadow-lg">
+            <StockMetricsSection
+              dateRange={analysisDateRange}
+              comparisonDateRange={includeComparison ? comparisonDateRange : undefined}
+              filters={filters}
+              includeComparison={includeComparison}
+              onRefresh={handleRefresh}
+            />
+          </div>
+
           {/* Tableau principal */}
-          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Détail par Produit
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Analyse 12 mois, stock actuel et recommandations de commande
+              </p>
+            </div>
+            
             <ProductsMonthlyTable 
               onRefresh={handleRefresh}
               className="w-full"
