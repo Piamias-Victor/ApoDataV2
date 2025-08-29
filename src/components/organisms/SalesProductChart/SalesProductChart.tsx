@@ -13,10 +13,9 @@ import {
   Legend, 
   ResponsiveContainer
 } from 'recharts';
-import { TrendingUp, BarChart3 } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Badge } from '@/components/atoms/Badge/Badge';
-import { formatCurrency, formatPercentage, formatLargeNumber } from '../SalesProductsTable/utils';
 
 interface SalesProductRow {
   readonly nom: string;
@@ -49,31 +48,53 @@ interface SalesProductChartProps {
   readonly className?: string;
 }
 
-const convertToChartData = (salesDetails: SalesProductRow[]): SalesChartDataPoint[] => {
-  return salesDetails
-    .filter(row => row.type_ligne === 'DETAIL')
-    .map(row => ({
-      periode: formatPeriodLabel(row.periode),
-      quantite: row.quantite_vendue,
-      prixVente: row.prix_vente_moyen,
-      prixAchat: row.prix_achat_moyen,
-      tauxMarge: row.taux_marge_moyen,
-      montantVentes: row.montant_ventes_ttc
-    }))
-    .sort((a, b) => {
-      const dateA = parsePeriodFromLabel(a.periode);
-      const dateB = parsePeriodFromLabel(b.periode);
-      return dateA.getTime() - dateB.getTime();
-    });
+// Utilitaires formatting
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
 };
 
-const formatPeriodLabel = (periode: string): string => {
+const formatPercentage = (value: number): string => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  }).format(value / 100);
+};
+
+const formatLargeNumber = (value: number | undefined | null): string => {
+  // Guard clauses pour valeurs invalides
+  if (value === null || value === undefined || typeof value !== 'number' || isNaN(value)) {
+    return '0';
+  }
+  
+  if (value === 0) return '0';
+  if (Math.abs(value) >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+  return value.toFixed(0);
+};
+
+// CORRECTION : Guard clauses pour éviter les erreurs de nullabilité
+const formatDateFromPeriode = (periode: string | undefined, type: 'short' | 'long' = 'short'): string => {
+  if (!periode) return ''; // Guard clause
+  
+  // Gestion format YYYY-MM
   if (periode.match(/^\d{4}-\d{2}$/)) {
     try {
       const [year, month] = periode.split('-');
+      if (!year || !month) return periode;
+      
       const date = new Date(parseInt(year), parseInt(month) - 1, 1);
       return new Intl.DateTimeFormat('fr-FR', { 
-        month: 'short', 
+        month: type === 'short' ? 'short' : 'long', 
         year: 'numeric' 
       }).format(date);
     } catch {
@@ -81,6 +102,7 @@ const formatPeriodLabel = (periode: string): string => {
     }
   }
   
+  // Gestion format YYYY-MM-DD
   if (periode.match(/^\d{4}-\d{2}-\d{2}$/)) {
     try {
       const date = new Date(periode);
@@ -94,6 +116,24 @@ const formatPeriodLabel = (periode: string): string => {
   }
   
   return periode;
+};
+
+const convertToChartData = (salesDetails: SalesProductRow[]): SalesChartDataPoint[] => {
+  return salesDetails
+    .filter(row => row.type_ligne === 'DETAIL')
+    .map(row => ({
+      periode: formatDateFromPeriode(row.periode),
+      quantite: parseFloat(String(row.quantite_vendue)) || 0, // CORRECTION: Assurer conversion numérique
+      prixVente: parseFloat(String(row.prix_vente_moyen)) || 0,
+      prixAchat: parseFloat(String(row.prix_achat_moyen)) || 0,
+      tauxMarge: parseFloat(String(row.taux_marge_moyen)) || 0,
+      montantVentes: parseFloat(String(row.montant_ventes_ttc)) || 0
+    }))
+    .sort((a, b) => {
+      const dateA = parsePeriodFromLabel(a.periode);
+      const dateB = parsePeriodFromLabel(b.periode);
+      return dateA.getTime() - dateB.getTime();
+    });
 };
 
 const parsePeriodFromLabel = (periodLabel: string): Date => {
@@ -127,6 +167,9 @@ const calculateTrends = (chartData: SalesChartDataPoint[]) => {
   const first = chartData[0];
   const last = chartData[chartData.length - 1];
   
+  // CORRECTION : Guard clauses pour éviter first/last undefined
+  if (!first || !last) return { sales: 'stable', margin: 'stable' };
+  
   const salesTrend = last.quantite > first.quantite * 1.1 ? 'hausse' 
     : last.quantite < first.quantite * 0.9 ? 'baisse' : 'stable';
   
@@ -142,7 +185,10 @@ export const SalesProductChart: React.FC<SalesProductChartProps> = ({
   className = ''
 }) => {
   const chartData = useMemo((): SalesChartDataPoint[] => {
-    return convertToChartData(salesDetails);
+    console.log('🔍 [SalesChart] Raw salesDetails:', salesDetails);
+    const converted = convertToChartData(salesDetails);
+    console.log('📊 [SalesChart] Converted chartData:', converted);
+    return converted;
   }, [salesDetails]);
 
   const trends = useMemo(() => {
@@ -151,6 +197,10 @@ export const SalesProductChart: React.FC<SalesProductChartProps> = ({
 
   const hasValidData = chartData.length > 0;
 
+  // CORRECTION : Guard clauses pour first/last
+  const first = chartData[0];
+  const last = chartData[chartData.length - 1];
+  
   const chartColors = {
     quantite: '#6b7280',      // gray-500 - barres quantité
     prixVente: '#3b82f6',     // blue-500 - ligne
@@ -204,105 +254,114 @@ export const SalesProductChart: React.FC<SalesProductChartProps> = ({
 
   if (!hasValidData) {
     return (
-      <Card variant="elevated" padding="lg" className={`text-center py-8 ${className}`}>
-        <div className="text-gray-400 mb-4">
-          <BarChart3 className="w-12 h-12 mx-auto" />
+      <Card className={`p-6 ${className}`}>
+        <div className="text-center text-gray-500">
+          <BarChart3 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">Pas de données détaillées disponibles pour ce produit</p>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          Aucune donnée détaillée
-        </h3>
-        <p className="text-gray-600">
-          Pas de données d'évolution disponibles pour <strong>{productName}</strong>
-        </p>
       </Card>
     );
   }
 
   return (
-    <Card variant="elevated" padding="lg" className={`space-y-6 ${className}`}>
+    <Card className={`p-6 ${className}`}>
       
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-3">
-          <TrendingUp className="w-5 h-5 text-gray-600" />
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Évolution des ventes - {productName}
-            </h3>
-            <p className="text-sm text-gray-600">
-              Analyse sur {chartData.length} période{chartData.length > 1 ? 's' : ''}
-            </p>
+      {/* Header avec nom produit et tendances */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Évolution des ventes - {productName}
+          </h3>
+          <div className="flex items-center space-x-3">
+            {getTrendBadge(trends.sales, 'Ventes')}
+            {getTrendBadge(trends.margin, 'Marge')}
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {getTrendBadge(trends.sales, 'Ventes')}
-          {getTrendBadge(trends.margin, 'Marge')}
-        </div>
+        
+        {/* Stats période */}
+        {first && last && (
+          <div className="text-right text-sm text-gray-600">
+            <div>Période: {first.periode} → {last.periode}</div>
+            {/* CORRECTION : Vérifications nullabilité pour éviter erreurs */}
+            {last.montantVentes !== first.montantVentes && (
+              <div className="mt-1">
+                Évolution CA: {formatCurrency(first.montantVentes)} → {formatCurrency(last.montantVentes)}
+                <span className={`ml-2 font-medium ${
+                  last.montantVentes > first.montantVentes 
+                    ? 'text-green-600' 
+                    : 'text-red-600'
+                }`}>
+                  {last.montantVentes > first.montantVentes ? '+' : ''}
+                  {formatPercentage(((last.montantVentes - first.montantVentes) / first.montantVentes) * 100)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Graphique */}
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            
             <XAxis 
-              dataKey="periode"
-              stroke="#6b7280"
-              fontSize={12}
-              angle={-45}
-              textAnchor="end"
-              height={60}
+              dataKey="periode" 
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#6b7280', fontSize: 12 }}
             />
-            
-            <YAxis 
-              yAxisId="price"
-              stroke="#6b7280"
-              fontSize={12}
-              tickFormatter={(value: any) => `${value}€`}
-            />
-            
             <YAxis 
               yAxisId="quantity"
-              orientation="right"
-              stroke="#6b7280"
-              fontSize={12}
-              tickFormatter={(value: any) => formatLargeNumber(value)}
+              orientation="left"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#6b7280', fontSize: 12 }}
             />
-            
+            <YAxis 
+              yAxisId="price"
+              orientation="right"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#6b7280', fontSize: 12 }}
+            />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
             
+            {/* Barres quantité */}
             <Bar
               yAxisId="quantity"
               dataKey="quantite"
               name="Quantité vendue"
               fill={chartColors.quantite}
-              opacity={0.6}
+              opacity={0.7}
+              radius={[2, 2, 0, 0]}
             />
             
+            {/* Lignes prix */}
             <Line
               yAxisId="price"
               type="monotone"
               dataKey="prixVente"
-              name="Prix vente (€)"
+              name="Prix vente"
               stroke={chartColors.prixVente}
               strokeWidth={2}
               dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
+              connectNulls={false}
             />
             
             <Line
               yAxisId="price"
               type="monotone"
               dataKey="prixAchat"
-              name="Prix achat (€)"
+              name="Prix achat"
               stroke={chartColors.prixAchat}
               strokeWidth={2}
               dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
+              connectNulls={false}
             />
             
             <Line
@@ -312,10 +371,11 @@ export const SalesProductChart: React.FC<SalesProductChartProps> = ({
               name="Taux marge (%)"
               stroke={chartColors.tauxMarge}
               strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
               strokeDasharray="5 5"
+              dot={{ r: 4 }}
+              connectNulls={false}
             />
+            
           </ComposedChart>
         </ResponsiveContainer>
       </div>

@@ -45,6 +45,19 @@ interface UseSalesProductsOptions {
   };
 }
 
+export interface ProductSalesSummary {
+  readonly nom: string;
+  readonly code_ean: string;
+  readonly quantite_vendue: number;
+  readonly prix_achat_moyen: number;
+  readonly prix_vente_moyen: number;
+  readonly taux_marge_moyen: number;
+  readonly part_marche_quantite_pct: number;
+  readonly part_marche_marge_pct: number;
+  readonly montant_ventes_ttc: number;
+  readonly montant_marge_total: number;
+}
+
 interface UseSalesProductsReturn {
   readonly salesData: SalesProductRow[];
   readonly isLoading: boolean;
@@ -60,19 +73,6 @@ interface UseSalesProductsReturn {
   readonly getSalesDetails: (codeEan: string) => SalesProductRow[];
 }
 
-interface ProductSalesSummary {
-  readonly nom: string;
-  readonly code_ean: string;
-  readonly quantite_vendue: number;
-  readonly prix_achat_moyen: number;
-  readonly prix_vente_moyen: number;
-  readonly taux_marge_moyen: number;
-  readonly part_marche_quantite_pct: number;
-  readonly part_marche_marge_pct: number;
-  readonly montant_ventes_ttc: number;
-  readonly montant_marge_total: number;
-}
-
 const parseNumericValue = (value: any): number => {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
@@ -82,63 +82,87 @@ const parseNumericValue = (value: any): number => {
   return 0;
 };
 
-const cleanSalesData = (rawData: any[]): SalesProductRow[] => {
-  return rawData.map(row => ({
-    nom: String(row.nom || ''),
-    code_ean: String(row.code_ean || ''),
-    periode: String(row.periode || ''),
-    periode_libelle: String(row.periode_libelle || ''),
-    type_ligne: row.type_ligne as 'DETAIL' | 'SYNTHESE',
-    quantite_vendue: parseNumericValue(row.quantite_vendue),
-    prix_achat_moyen: parseNumericValue(row.prix_achat_moyen),
-    prix_vente_moyen: parseNumericValue(row.prix_vente_moyen),
-    taux_marge_moyen: parseNumericValue(row.taux_marge_moyen),
-    part_marche_quantite_pct: parseNumericValue(row.part_marche_quantite_pct),
-    part_marche_marge_pct: parseNumericValue(row.part_marche_marge_pct),
-    montant_ventes_ttc: parseNumericValue(row.montant_ventes_ttc),
-    montant_marge_total: parseNumericValue(row.montant_marge_total)
-  }));
-};
-
-/**
- * Hook useSalesProducts - Données ventes détaillées par produit sur période utilisateur
- */
-export function useSalesProducts(
-  options: UseSalesProductsOptions
-): UseSalesProductsReturn {
-  const { enabled = true, dateRange, filters = {} } = options;
-  
+export const useSalesProducts = (options?: UseSalesProductsOptions): UseSalesProductsReturn => {
+  // États
   const [salesData, setSalesData] = useState<SalesProductRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queryTime, setQueryTime] = useState(0);
   const [cached, setCached] = useState(false);
-  const [responseDateRange, setResponseDateRange] = useState<{ start: string; end: string } | null>(null);
+  const [count, setCount] = useState(0);
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | null>(null);
   
-  // Refs pour éviter boucles
+  // Refs pour éviter requêtes duplicatas
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestRef = useRef<string>('');
-  const forceRefreshRef = useRef(false);
 
-  // Extraction filtres
-  const { products = [], laboratories = [], categories = [], pharmacies = [] } = filters;
+  // Filtres depuis le store Zustand - CORRECTION : utilisation du store
+  const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
+  const productsFilter = useFiltersStore((state) => state.products);
+  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
+  const categoriesFilter = useFiltersStore((state) => state.categories);
+  const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Fonction fetch stable
+  // Utiliser les filtres passés en option ou ceux du store
+  const effectiveDateRange = options?.dateRange || analysisDateRange;
+  const effectiveFilters = options?.filters || {
+    products: productsFilter,
+    laboratories: laboratoriesFilter,
+    categories: categoriesFilter,
+    pharmacies: pharmacyFilter
+  };
+
+  const isError = error !== null;
+  const hasData = salesData.length > 0;
+
+  // Calcul des résumés produits (regroupement SYNTHESE)
+  const productSummaries = useMemo((): ProductSalesSummary[] => {
+    const syntheses = salesData.filter(row => row.type_ligne === 'SYNTHESE');
+    
+    return syntheses.map(row => ({
+      nom: row.nom,
+      code_ean: row.code_ean,
+      quantite_vendue: parseNumericValue(row.quantite_vendue),
+      prix_achat_moyen: parseNumericValue(row.prix_achat_moyen),
+      prix_vente_moyen: parseNumericValue(row.prix_vente_moyen),
+      taux_marge_moyen: parseNumericValue(row.taux_marge_moyen),
+      part_marche_quantite_pct: parseNumericValue(row.part_marche_quantite_pct),
+      part_marche_marge_pct: parseNumericValue(row.part_marche_marge_pct),
+      montant_ventes_ttc: parseNumericValue(row.montant_ventes_ttc),
+      montant_marge_total: parseNumericValue(row.montant_marge_total)
+    }));
+  }, [salesData]);
+
+  // Fonction pour récupérer les détails d'un produit
+  const getSalesDetails = useCallback((codeEan: string): SalesProductRow[] => {
+    return salesData.filter(row => 
+      row.code_ean === codeEan && row.type_ligne === 'DETAIL'
+    );
+  }, [salesData]);
+
+  // Fonction fetch avec useCallback
   const fetchSalesProducts = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
+    const enabled = options?.enabled ?? true;
+    
     console.log('🚀 [Hook] fetchSalesProducts called', { forceRefresh, enabled });
     
     if (!enabled) {
       console.log('❌ [Hook] Hook disabled, stopping');
       return;
     }
-    
-    // Validation filtres - dates ET produits obligatoires
-    const hasDateRange = dateRange.start && dateRange.end;
+
+    // Validation obligatoire : dates + au moins un filtre
+    const hasDateRange = effectiveDateRange.start && effectiveDateRange.end;
+    // CORRECTION : Guard clauses pour éviter undefined
+    const products = effectiveFilters.products || [];
+    const laboratories = effectiveFilters.laboratories || [];
+    const categories = effectiveFilters.categories || [];
+    const pharmacies = effectiveFilters.pharmacies || [];
     const hasFilters = products.length > 0 || laboratories.length > 0 || categories.length > 0;
     
     console.log('📅 [Hook] Validation:', {
-      start: dateRange.start,
-      end: dateRange.end,
+      start: effectiveDateRange.start,
+      end: effectiveDateRange.end,
       hasDateRange,
       hasFilters,
       productsCount: products.length,
@@ -165,8 +189,8 @@ export function useSalesProducts(
     // Préparation requête
     const requestBody: SalesProductsRequest = {
       dateRange: {
-        start: dateRange.start,
-        end: dateRange.end
+        start: effectiveDateRange.start,
+        end: effectiveDateRange.end
       },
       productCodes: products,
       laboratoryCodes: laboratories,
@@ -225,114 +249,67 @@ export function useSalesProducts(
         dateRange: data.dateRange,
         queryTime: data.queryTime,
         cached: data.cached,
-        sampleData: data.salesData?.[0]
+        sampleData: data.salesData?.slice(0, 2)
       });
-      
-      // Nettoyer données
-      const cleanedData = cleanSalesData(data.salesData || []);
-      
-      setSalesData(cleanedData);
-      setResponseDateRange(data.dateRange);
+
+      if (!data.salesData) {
+        throw new Error('Invalid response format: missing salesData');
+      }
+
+      setSalesData(data.salesData);
+      setCount(data.count || data.salesData.length);
+      setDateRange(data.dateRange);
       setQueryTime(data.queryTime);
       setCached(data.cached);
       setError(null);
 
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('⏹️ [Hook] Request was aborted');
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('⏹️ [Hook] Request aborted');
         return;
       }
       
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
-      console.log('💥 [Hook] Error:', errorMessage);
-      setError(errorMessage);
+      console.error('💥 [Hook] Sales products fetch error:', error);
+      setError(error.message || 'Erreur lors du chargement des données ventes');
       setSalesData([]);
-      setResponseDateRange(null);
-      setCached(false);
-      setQueryTime(0);
+      setCount(0);
+      setDateRange(null);
     } finally {
-      console.log('🏁 [Hook] Request completed');
       setIsLoading(false);
-      forceRefreshRef.current = false;
     }
-  }, [
-    enabled,
-    dateRange.start,
-    dateRange.end,
-    products, 
-    laboratories, 
-    categories, 
-    pharmacies,
-    error
-  ]);
+  }, [effectiveDateRange, effectiveFilters, options?.enabled, error]);
 
-  // Refetch fonction
+  // Fonction refetch publique
   const refetch = useCallback(async (): Promise<void> => {
-    console.log('🔄 [Hook] Manual refetch triggered');
-    forceRefreshRef.current = true;
     await fetchSalesProducts(true);
   }, [fetchSalesProducts]);
 
-  // Effect pour déclencher fetch
+  // Effect principal avec dependency array optimisée
   useEffect(() => {
-    console.log('🔄 [Hook] useEffect triggered, enabled:', enabled);
-    if (enabled) {
-      fetchSalesProducts(forceRefreshRef.current);
-    }
+    fetchSalesProducts(false);
+  }, [fetchSalesProducts]);
 
+  // Cleanup
+  useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
-        console.log('🧹 [Hook] Cleanup: aborting request');
         abortControllerRef.current.abort();
       }
     };
-  }, [enabled, fetchSalesProducts]);
-
-  // Calcul synthèses produits
-  const productSummaries = useMemo((): ProductSalesSummary[] => {
-    const summariesMap = new Map<string, ProductSalesSummary>();
-    
-    salesData.forEach((row) => {
-      if (row.type_ligne === 'SYNTHESE') {
-        summariesMap.set(row.code_ean, {
-          nom: row.nom,
-          code_ean: row.code_ean,
-          quantite_vendue: row.quantite_vendue,
-          prix_achat_moyen: row.prix_achat_moyen,
-          prix_vente_moyen: row.prix_vente_moyen,
-          taux_marge_moyen: row.taux_marge_moyen,
-          part_marche_quantite_pct: row.part_marche_quantite_pct,
-          part_marche_marge_pct: row.part_marche_marge_pct,
-          montant_ventes_ttc: row.montant_ventes_ttc,
-          montant_marge_total: row.montant_marge_total
-        });
-      }
-    });
-    
-    return Array.from(summariesMap.values());
-  }, [salesData]);
-
-  // Fonction pour détails par produit
-  const getSalesDetails = useCallback((codeEan: string): SalesProductRow[] => {
-    return salesData.filter(
-      row => row.code_ean === codeEan && row.type_ligne === 'DETAIL'
-    ).sort((a, b) => {
-      return a.periode.localeCompare(b.periode);
-    });
-  }, [salesData]);
+  }, []);
 
   return {
     salesData,
     isLoading,
     error,
-    isError: !!error,
+    isError,
     queryTime,
     cached,
-    count: salesData.length,
-    dateRange: responseDateRange,
+    count,
+    dateRange,
     refetch,
-    hasData: salesData.length > 0,
+    hasData,
     productSummaries,
     getSalesDetails
   };
-}
+};

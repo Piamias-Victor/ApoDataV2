@@ -1,7 +1,7 @@
 // src/components/organisms/SalesProductsTable/types.ts
-
 /**
  * Types pour SalesProductsTable - Tableau ventes détaillé par produit
+ * CORRECTION : Unification des types pour éviter les conflits
  */
 
 export interface SalesProductMetrics {
@@ -17,6 +17,9 @@ export interface SalesProductMetrics {
   readonly montant_marge_total: number;
 }
 
+// CORRECTION : Alias pour compatibilité avec hook useSalesProducts
+export type ProductSalesSummary = SalesProductMetrics;
+
 export interface SalesProductsResponse {
   readonly products: SalesProductMetrics[];
   readonly totalQuantiteVendue: number;
@@ -26,7 +29,7 @@ export interface SalesProductsResponse {
   readonly cached: boolean;
 }
 
-// Types pour tri des colonnes
+// CORRECTION : Types pour tri des colonnes (compatible avec les nouvelles propriétés)
 export type SalesSortableColumn = 
   | 'nom' 
   | 'code_ean'
@@ -85,3 +88,26 @@ export interface SalesEvolutionData {
   readonly queryTime: number;
   readonly cached: boolean;
 }
+
+// CORRECTION : Union types pour compatibilité avec ProductsTable existant
+export type SortableColumn = 
+  | 'product_name'
+  | 'code_ean' 
+  | 'current_stock'
+  | 'quantity_sold'
+  | 'ca_ttc'
+  | 'purchase_amount'
+  | 'total_margin_ht'
+  | 'margin_rate_percent'
+  | 'avg_sell_price_ttc'
+  | 'avg_buy_price_ht'
+  | 'unit_margin_ht'
+  | 'quantite_vendue'  // AJOUT pour compatibilité SalesTable
+  | 'nom'              // AJOUT pour compatibilité SalesTable
+  | 'prix_achat_moyen' 
+  | 'prix_vente_moyen'
+  | 'taux_marge_moyen'
+  | 'part_marche_quantite_pct'
+  | 'part_marche_marge_pct'
+  | 'montant_ventes_ttc'
+  | 'montant_marge_total';
