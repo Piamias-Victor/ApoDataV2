@@ -25,9 +25,9 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-full h-full" />, badgeVariant: 'gradient-blue' },
-  { name: 'Stock', href: '/stock', icon: <ShoppingCart className="w-full h-full" />, badgeVariant: 'gradient-green' },
+  { name: 'Ventes', href: '/ventes', icon: <ShoppingCart className="w-full h-full" />, badgeVariant: 'gradient-green' },
   { name: 'Prix', href: '/prix', icon: <Euro className="w-full h-full" />, badgeVariant: 'gradient-purple' },
-  { name: 'Stock', href: '/categories', icon: <Package2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
+  { name: 'Stock', href: '/stock', icon: <Package2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
 ];
 
 interface DashboardHeaderProps {
