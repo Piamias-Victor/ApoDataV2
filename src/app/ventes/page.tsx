@@ -7,6 +7,7 @@ import { DashboardHeader } from '@/components/organisms/DashboardHeader/Dashboar
 import { SalesTable } from '@/components/organisms/SalesTable/SalesTable';
 import { SalesKpisSection } from '@/components/organisms/SalesKpisSection/SalesKpisSection';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { MarketShareSection } from '@/components/organisms/MarketShareSection/MarketShareSection';
 
 /**
  * Page Ventes - Analyse détaillée des ventes produits avec KPI
@@ -57,6 +58,14 @@ export default function VentesPage(): JSX.Element {
               comparisonDateRange={comparisonDateRange}
               filters={filters}
               includeComparison={hasComparison}
+              onRefresh={handleRefresh}
+            />
+          </div>
+
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+            <MarketShareSection
+              dateRange={analysisDateRange}
+              filters={filters}
               onRefresh={handleRefresh}
             />
           </div>
