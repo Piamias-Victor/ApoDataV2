@@ -6,7 +6,6 @@ import { DashboardHeader } from '@/components/organisms/DashboardHeader/Dashboar
 import { ComparisonSelector } from '@/components/organisms/ComparisonSelector/ComparisonSelector';
 import { ComparisonKpisSection } from '@/components/organisms/ComparisonKpisSection/ComparisonKpisSection';
 import { ComparisonEvolutionChart } from '@/components/organisms/ComparisonEvolutionChart/ComparisonEvolutionChart';
-import { ComparisonPriceAnalysis } from '@/components/organisms/ComparisonPriceAnalysis/ComparisonPriceAnalysis';
 
 export const metadata: Metadata = {
   title: 'Comparaisons - ApoData Genesis',
@@ -67,11 +66,6 @@ export default function ComparisonsPage() {
           {/* 3. Section Graphique Évolution - GLASSMORPHISM IDENTIQUE dashboard */}
           <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
             <ComparisonEvolutionChart />
-          </div>
-
-          {/* 4. Section Analyse Prix Concurrentielle - GLASSMORPHISM IDENTIQUE dashboard */}
-          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
-            <ComparisonPriceAnalysis />
           </div>
 
           {/* Instructions d'utilisation - GLASSMORPHISM IDENTIQUE dashboard */}
