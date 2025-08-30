@@ -7,10 +7,11 @@ import { ComparisonSelector } from '@/components/organisms/ComparisonSelector/Co
 import { ComparisonKpisSection } from '@/components/organisms/ComparisonKpisSection/ComparisonKpisSection';
 import { ComparisonEvolutionChart } from '@/components/organisms/ComparisonEvolutionChart/ComparisonEvolutionChart';
 import { ComparisonPricingSection } from '@/components/organisms/ComparisonPricingSection/ComparisonPricingSection';
+import { ComparisonMarketShareSection } from '@/components/organisms/ComparisonMarketShareSection/ComparisonMarketShareSection';
 
 export const metadata: Metadata = {
   title: 'Comparaisons - ApoData Genesis',
-  description: 'Interface de comparaison produits, laboratoires et catégories pharmaceutiques avec analyse KPI, évolution temporelle et positionnement prix',
+  description: 'Interface de comparaison produits, laboratoires et catégories pharmaceutiques avec analyse KPI, évolution temporelle, positionnement prix et parts de marché par hiérarchie',
 };
 
 /**
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
  * 2. ComparisonKpisSection - Métriques KPI côte à côte
  * 3. ComparisonEvolutionChart - Évolution temporelle A vs B
  * 4. ComparisonPricingSection - Positionnement concurrentiel prix
- * 5. Instructions - Guide utilisateur
+ * 5. ComparisonMarketShareSection - Parts de marché par hiérarchie A vs B
+ * 6. Instructions - Guide utilisateur
  * 
  * Design cohérent :
  * - AnimatedBackground + DashboardHeader identiques
@@ -49,7 +51,7 @@ export default function ComparisonsPage() {
                 Comparaisons
               </h1>
               <p className="text-gray-600 mt-1">
-                Analyse comparative complète : KPI, évolution et positionnement prix
+                Analyse comparative complète : KPI, évolution, positionnement prix et parts de marché
               </p>
             </div>
           </div>
@@ -69,9 +71,14 @@ export default function ComparisonsPage() {
             <ComparisonEvolutionChart />
           </div>
 
-          {/* 4. Section Analyse des Prix - NOUVEAU */}
+          {/* 4. Section Analyse des Prix - GLASSMORPHISM IDENTIQUE dashboard */}
           <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
             <ComparisonPricingSection />
+          </div>
+
+          {/* 5. Section Parts de Marché par Hiérarchie - NOUVEAU */}
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+            <ComparisonMarketShareSection />
           </div>
 
           {/* Instructions d'utilisation - GLASSMORPHISM IDENTIQUE dashboard */}
@@ -135,6 +142,13 @@ export default function ComparisonsPage() {
                       Analyse concurrentielle vs marché
                     </div>
                   </li>
+                  <li className="flex items-start">
+                    <span className="font-medium text-green-600 mr-2">•</span>
+                    <div>
+                      <span className="font-medium">Parts de Marché</span> - 
+                      Analyse par hiérarchie (univers, catégories, familles)
+                    </div>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -157,6 +171,26 @@ export default function ComparisonsPage() {
                   <div className="text-sm text-emerald-800">
                     <span className="font-medium">Mise à jour :</span> Les données sont 
                     calculées en temps réel depuis votre base de données.
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <div className="text-sm text-green-800">
+                    <span className="font-medium">Parts de marché :</span> Comparaison 
+                    par univers, catégories et familles avec pagination synchronisée.
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-start space-x-2">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0"></div>
+                  <div className="text-sm text-amber-800">
+                    <span className="font-medium">Performance :</span> Requêtes parallèles 
+                    optimisées pour une expérience utilisateur fluide.
                   </div>
                 </div>
               </div>
