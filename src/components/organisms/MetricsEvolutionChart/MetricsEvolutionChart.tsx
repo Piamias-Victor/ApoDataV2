@@ -16,21 +16,16 @@ import { RotateCcw, Calendar, TrendingUp } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useDailyMetrics } from '@/hooks/dashboard/useDailyMetrics';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import { aggregateDataByPeriod, prepareChartData, validateChartData, formatValueForTooltip } from './utils';
 import type { MetricsEvolutionChartProps, ViewMode, DataMode, ChartDataPoint } from './types';
 
 /**
  * MetricsEvolutionChart - Graphique évolution métriques pharmaceutiques
- * 
- * Features complètes :
- * - 4 courbes : Ventes (bleu), Achats (vert), Marge (orange), Stock (violet)
- * - Toggle jour/semaine/mois avec agrégation automatique
- * - Toggle valeurs/cumul avec calculs dynamiques
- * - Intégration hook useDailyMetrics + filtres globaux
- * - Tooltips formatés + légende interactive
- * - Design cohérent Apple/Stripe/Vercel
- * - Performance optimisée avec useMemo
+ * Avec export CSV intégré
  */
 export const MetricsEvolutionChart: React.FC<MetricsEvolutionChartProps> = ({
   dateRange,
@@ -50,6 +45,9 @@ export const MetricsEvolutionChart: React.FC<MetricsEvolutionChartProps> = ({
     pharmacyId: filters.pharmacyId
   });
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
   // Traitement des données avec agrégation
   const chartData = useMemo((): ChartDataPoint[] => {
     if (!data || data.length === 0) return [];
@@ -66,7 +64,84 @@ export const MetricsEvolutionChart: React.FC<MetricsEvolutionChartProps> = ({
   // Validation données
   const isValidData = useMemo(() => validateChartData(chartData), [chartData]);
 
-  // Handlers
+  // Préparation données pour export CSV
+  const prepareChartDataForExport = useCallback(() => {
+    if (!chartData || chartData.length === 0) return [];
+    
+    // Formatage période pour lisibilité
+    const formatPeriod = (period: string) => {
+      // Si format date ISO, convertir en DD/MM/YYYY
+      if (period.includes('-')) {
+        const date = new Date(period);
+        return date.toLocaleDateString('fr-FR');
+      }
+      return period;
+    };
+    
+    // Export avec toutes les métriques
+    return chartData.map(point => {
+      const exportRow: any = {
+        'Période': formatPeriod(point.period),
+        'Type agrégation': viewMode === 'daily' ? 'Journalier' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuel',
+        'Mode affichage': dataMode === 'cumulative' ? 'Cumulé' : 'Valeurs'
+      };
+
+      // Données de base
+      exportRow['Ventes (CA TTC)'] = point.ventes || 0;
+      exportRow['Achats'] = point.achats || 0;
+      exportRow['Marge'] = point.marge || 0;
+      exportRow['Stock'] = point.stock || 0;
+
+      // Si mode cumulé, ajouter les valeurs cumulées
+      if (dataMode === 'cumulative' && point.cumulVentes) {
+        exportRow['Ventes cumulées'] = point.cumulVentes;
+        exportRow['Achats cumulés'] = point.cumulAchats || 0;
+        exportRow['Marge cumulée'] = point.cumulMarge || 0;
+      }
+
+      // Calculs additionnels
+      if (point.ventes && point.achats) {
+        const tauxMarge = ((point.marge || 0) / point.ventes) * 100;
+        exportRow['Taux de marge (%)'] = tauxMarge.toFixed(2);
+      }
+
+      // Rotation stock si disponible
+      if (point.stock && point.ventes) {
+        const rotationStock = (point.ventes * 30) / point.stock; // Approximation mensuelle
+        exportRow['Rotation stock (jours)'] = rotationStock.toFixed(1);
+      }
+
+      return exportRow;
+    });
+  }, [chartData, viewMode, dataMode]);
+
+  // Handler export
+  const handleExport = useCallback(() => {
+    const exportData = prepareChartDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_evolution_metriques');
+    
+    // Vérification et extraction des headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareChartDataForExport, exportToCsv]);
+
+  // Handlers existants
   const handleRefresh = useCallback(async () => {
     await refetch();
     onRefresh?.();
@@ -230,11 +305,18 @@ export const MetricsEvolutionChart: React.FC<MetricsEvolutionChartProps> = ({
               ))}
             </div>
 
-            {/* Refresh + stats */}
+            {/* Export CSV + Refresh + stats */}
             <div className="flex items-center space-x-2">
+              <ExportButton
+                onClick={handleExport}
+                isExporting={isExporting}
+                disabled={!chartData || chartData.length === 0}
+              />
+              
               <Badge variant="gray" size="sm">
                 {queryTime}ms
               </Badge>
+              
               <Button
                 variant="ghost" 
                 size="sm"
@@ -316,6 +398,20 @@ export const MetricsEvolutionChart: React.FC<MetricsEvolutionChartProps> = ({
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Info export */}
+        {chartData && chartData.length > 0 && (
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+            <span>
+              {chartData.length} points de données • 
+              Mode {viewMode === 'daily' ? 'journalier' : viewMode === 'weekly' ? 'hebdomadaire' : 'mensuel'} • 
+              {dataMode === 'cumulative' ? 'Valeurs cumulées' : 'Valeurs brutes'}
+            </span>
+            <span className="text-xs">
+              Export CSV disponible avec toutes les métriques
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );

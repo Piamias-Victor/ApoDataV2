@@ -9,6 +9,9 @@ import { TableHeader } from '@/components/molecules/TableHeader/TableHeader';
 import { TableRow } from '@/components/molecules/TableRow/TableRow';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import type { 
   ProductMetrics, 
   ViewMode, 
@@ -29,16 +32,7 @@ interface ProductsTableProps {
 
 /**
  * ProductsTable - Tableau avancé produits pharmaceutiques
- * 
- * Features complètes :
- * - Double vue : Totaux (Σ) / Moyennes (⌀)
- * - Tri par colonnes avec indicateurs visuels
- * - Recherche debounce 300ms (nom OU code EAN)
- * - Pagination côté client (50 items/page)
- * - Formatage intelligent grands nombres (12K, 1.2M)
- * - Couleurs conditionnelles marges métier pharma
- * - Performance optimisée 1000+ produits
- * - Design Apple/Stripe/Vercel cohérent
+ * Avec export CSV intégré
  */
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
@@ -57,6 +51,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   
   const itemsPerPage = 50;
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Gestion du tri
   const handleSort = useCallback((column: SortableColumn) => {
@@ -98,23 +95,31 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     setCurrentPage(1);
   }, []);
 
-  // Traitement des données (filtrage + tri + pagination)
-  const processedData = useMemo(() => {
+  // Traitement des données (filtrage + tri)
+  const processedDataBeforePagination = useMemo(() => {
     // 1. Filtrage par recherche
     const filteredProducts = filterProducts(products, searchQuery);
     
     // 2. Tri
     const sortedProducts = sortProducts(
       filteredProducts, 
-      sortConfig.column || 'product_name', // Default fallback
+      sortConfig.column || 'product_name',
       sortConfig.direction
     );
     
-    // 3. Pagination
-    const paginationResult = paginateProducts(sortedProducts, currentPage, itemsPerPage);
+    return sortedProducts;
+  }, [products, searchQuery, sortConfig]);
+
+  // Pagination
+  const processedData = useMemo(() => {
+    const paginationResult = paginateProducts(
+      processedDataBeforePagination, 
+      currentPage, 
+      itemsPerPage
+    );
     
     const paginationInfo: PaginationInfo = {
-      totalItems: filteredProducts.length,
+      totalItems: processedDataBeforePagination.length,
       totalPages: paginationResult.totalPages,
       currentPage,
       startIndex: paginationResult.startIndex,
@@ -125,7 +130,102 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       products: paginationResult.paginatedProducts,
       pagination: paginationInfo
     };
-  }, [products, searchQuery, sortConfig, currentPage]);
+  }, [processedDataBeforePagination, currentPage]);
+
+  // Préparation données pour export CSV
+  const prepareTableDataForExport = useCallback(() => {
+    // Utiliser toutes les données filtrées/triées (sans pagination)
+    const dataToExport = processedDataBeforePagination;
+    
+    if (!dataToExport || dataToExport.length === 0) return [];
+    
+    // Export selon le mode de vue actuel
+    return dataToExport.map(product => {
+      const exportRow: any = {
+        'Code EAN': product.code_ean || '',
+        'Nom produit': product.product_name || ''
+      };
+
+      if (viewMode === 'totals') {
+        // Mode Totaux - Utilisation des propriétés correctes avec conversion sécurisée
+        exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
+        exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
+        exportRow['Montant achat (€)'] = Number(product.purchase_amount || 0);
+        exportRow['Stock actuel'] = Number(product.current_stock || 0);
+        exportRow['Marge totale HT (€)'] = Number(product.total_margin_ht || 0);
+        
+        // Conversion sécurisée pour le taux de marge
+        const marginRate = Number(product.margin_rate_percent || 0);
+        exportRow['Taux marge (%)'] = marginRate.toFixed(2);
+        
+        // Calculs additionnels si disponibles
+        const qtySold = Number(product.quantity_sold || 0);
+        const caTtc = Number(product.ca_ttc || 0);
+        const currentStock = Number(product.current_stock || 0);
+        
+        if (qtySold > 0 && caTtc > 0) {
+          const prixMoyenVente = caTtc / qtySold;
+          exportRow['Prix moyen vente TTC (€)'] = prixMoyenVente.toFixed(2);
+        }
+        
+        if (currentStock > 0 && qtySold > 0) {
+          const joursStock = (currentStock / qtySold) * 30;
+          exportRow['Jours de stock'] = joursStock.toFixed(1);
+        }
+      } else {
+        // Mode Moyennes - Utilisation des propriétés correctes avec conversion sécurisée
+        exportRow['Prix moyen vente TTC (€)'] = Number(product.avg_sell_price_ttc || 0);
+        exportRow['Prix moyen achat HT (€)'] = Number(product.avg_buy_price_ht || 0);
+        exportRow['Marge unitaire HT (€)'] = Number(product.unit_margin_ht || 0);
+        
+        // Conversion sécurisée pour le taux de marge
+        const marginRate = Number(product.margin_rate_percent || 0);
+        exportRow['Taux marge (%)'] = marginRate.toFixed(2);
+        
+        exportRow['Stock actuel'] = Number(product.current_stock || 0);
+        exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
+        
+        // Calcul rotation stock
+        const currentStock = Number(product.current_stock || 0);
+        const qtySold = Number(product.quantity_sold || 0);
+        
+        if (currentStock > 0 && qtySold > 0) {
+          const rotationJours = (currentStock / qtySold) * 30;
+          exportRow['Rotation stock (jours)'] = rotationJours.toFixed(1);
+        }
+      }
+
+      return exportRow;
+    });
+  }, [processedDataBeforePagination, viewMode]);
+
+  // Handler export
+  const handleExport = useCallback(() => {
+    const exportData = prepareTableDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    // Nom de fichier avec contexte
+    const modeLabel = viewMode === 'totals' ? 'totaux' : 'moyennes';
+    const filename = CsvExporter.generateFilename(`apodata_produits_${modeLabel}`);
+    
+    // Vérification et extraction des headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareTableDataForExport, exportToCsv, viewMode]);
 
   // Gestion pagination
   const handlePrevPage = useCallback(() => {
@@ -158,6 +258,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           <div className="text-sm text-gray-500">
             {processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''}
           </div>
+          
+          {/* Boutons d'action */}
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!products || products.length === 0}
+            label={`Export CSV (${processedDataBeforePagination.length} lignes)`}
+          />
           
           {/* Bouton refresh */}
           {onRefresh && (
