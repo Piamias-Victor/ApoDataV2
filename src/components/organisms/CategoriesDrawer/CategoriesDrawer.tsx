@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, Loader2, Tag, Package, HelpCircle, Globe, FolderOpen } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useCategorySearch, SearchMode } from '@/hooks/categories/useCategorySearch';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 interface CategoriesDrawerProps {
   readonly isOpen: boolean;
@@ -14,15 +15,12 @@ interface CategoriesDrawerProps {
 }
 
 /**
- * CategoriesDrawer Component - Drawer pour recherche catégories dual-mode
+ * CategoriesDrawer Component - AVEC PERSISTANCE VISUELLE
  * 
- * Fonctionnalités :
- * - Mode "Catégorie" : recherche directe dans universe ET category
- * - Mode "Produit" : recherche produit → trouve catégories avec produits matchants
- * - Switch toggle avec tooltip explicatif
- * - Debounce 300ms, minimum 3 caractères
- * - Sélection par catégorie entière (tous les produits)
- * - Différenciation visuelle universe (Globe) vs category (FolderOpen)
+ * CORRECTIONS :
+ * - Détection des catégories déjà dans le store
+ * - Affichage visuel différencié (store vs nouvelles sélections)
+ * - Persistance des checkboxes entre ouvertures
  */
 export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   isOpen,
@@ -40,13 +38,17 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
     selectedCategories,
     toggleCategory,
     applyFilters,
-    clearCategoryFilters
+    clearCategoryFilters,
+    pendingProductCodes
   } = useCategorySearch();
 
-  // Update count when selection changes
+  // Accès au store pour vérifier les catégories déjà appliquées
+  const storedCategoryCodes = useFiltersStore(state => state.categories);
+
+  // Update count when selection changes - utiliser pendingProductCodes pour le count total
   useEffect(() => {
-    onCountChange(selectedCategories.size);
-  }, [selectedCategories.size, onCountChange]);
+    onCountChange(pendingProductCodes.size);
+  }, [pendingProductCodes.size, onCountChange]);
 
   const createCategoryKey = (name: string, type: 'universe' | 'category'): string => {
     return `${type}:${name}`;
@@ -57,9 +59,35 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
     toggleCategory(categoryKey, productCodes);
   };
 
-  const isCategorySelected = (categoryName: string, categoryType: 'universe' | 'category'): boolean => {
+  // CORRECTION : Vérifier si une catégorie est sélectionnée (store OU nouvelles sélections)
+  const isCategorySelected = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): boolean => {
     const categoryKey = createCategoryKey(categoryName, categoryType);
-    return selectedCategories.has(categoryKey);
+    
+    // Vérifier si cette catégorie est dans les nouvelles sélections
+    if (selectedCategories.has(categoryKey)) {
+      return true;
+    }
+
+    // Vérifier si cette catégorie est déjà dans le store
+    // (tous ses codes produits sont dans le store)
+    if (productCodes.length > 0 && productCodes.every(code => storedCategoryCodes.includes(code))) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // NOUVEAU : Déterminer le type de sélection pour l'affichage visuel
+  const getSelectionType = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): 'new' | 'stored' | 'none' => {
+    const categoryKey = createCategoryKey(categoryName, categoryType);
+    
+    if (selectedCategories.has(categoryKey)) {
+      return 'new';
+    }
+    if (productCodes.length > 0 && productCodes.every(code => storedCategoryCodes.includes(code))) {
+      return 'stored';
+    }
+    return 'none';
   };
 
   const hasResults = categories.length > 0;
@@ -83,28 +111,36 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
     return type === 'universe' ? Globe : FolderOpen;
   };
 
-  const getCategoryColor = (type: 'universe' | 'category', isSelected: boolean) => {
+  const getCategoryColor = (type: 'universe' | 'category', selectionType: 'new' | 'stored' | 'none') => {
     if (type === 'universe') {
-      return isSelected ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500';
+      return selectionType === 'stored' 
+        ? 'bg-blue-200 text-blue-700'
+        : selectionType === 'new'
+        ? 'bg-blue-600 text-white'
+        : 'bg-blue-100 text-blue-600';
     } else {
-      return isSelected ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500';
+      return selectionType === 'stored'
+        ? 'bg-green-200 text-green-700'
+        : selectionType === 'new'
+        ? 'bg-green-600 text-white'
+        : 'bg-green-100 text-green-600';
     }
   };
 
-  const getCategoryBorderColor = (type: 'universe' | 'category', isSelected: boolean) => {
+  const getBorderColor = (type: 'universe' | 'category', selectionType: 'new' | 'stored' | 'none') => {
     if (type === 'universe') {
-      return isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-25';
+      return selectionType === 'stored'
+        ? 'border-blue-300 bg-blue-50'
+        : selectionType === 'new'
+        ? 'border-blue-500 bg-blue-100'
+        : 'border-gray-200 bg-white hover:border-blue-200';
     } else {
-      return isSelected ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-green-200 hover:bg-green-25';
+      return selectionType === 'stored'
+        ? 'border-green-300 bg-green-50'
+        : selectionType === 'new'
+        ? 'border-green-500 bg-green-100'
+        : 'border-gray-200 bg-white hover:border-green-200';
     }
-  };
-
-  const getCategoryBadgeColor = (type: 'universe' | 'category') => {
-    return type === 'universe' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
-  };
-
-  const getCategoryTypeLabel = (type: 'universe' | 'category') => {
-    return type === 'universe' ? 'Univers' : 'Catégorie';
   };
 
   return (
@@ -127,210 +163,218 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
         initial={{ x: 500 }}
         animate={{ x: 0 }}
         exit={{ x: 500 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.4, ease: 'easeInOut' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center space-x-2">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Filtres Catégories
-            </h3>
-            {selectedCategories.size > 0 && (
-              <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
-                {selectedCategories.size}
-              </span>
-            )}
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-pink-100 rounded-lg">
+              <Tag className="w-5 h-5 text-pink-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Catégories</h2>
+              <p className="text-sm text-gray-500">
+                {pendingProductCodes.size} produit{pendingProductCodes.size > 1 ? 's' : ''} sélectionné{pendingProductCodes.size > 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <motion.button
+          <button
             onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
-          </motion.button>
+          </button>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-center">
-            <div className="relative">
-              {/* Toggle Switch */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setSearchMode('category')}
-                  className={`
-                    relative px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    flex items-center space-x-2
-                    ${searchMode === 'category'
-                      ? 'bg-white text-pink-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Tag className="w-4 h-4" />
-                  <span>Catégorie</span>
-                </button>
-                
-                <button
-                  onClick={() => setSearchMode('product')}
-                  className={`
-                    relative px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    flex items-center space-x-2
-                    ${searchMode === 'product'
-                      ? 'bg-white text-pink-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Package className="w-4 h-4" />
-                  <span>Produit</span>
-                </button>
-              </div>
-
-              {/* Tooltip */}
-              <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 z-10">
-                <div className="group relative">
-                  <button className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 transition-colors">
-                    <HelpCircle className="w-4 h-4" />
-                  </button>
-                  
-                  <div className="
-                    invisible group-hover:visible opacity-0 group-hover:opacity-100
-                    absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
-                    bg-gray-900 text-white text-xs rounded-lg px-3 py-2
-                    whitespace-nowrap transition-all duration-200
-                    before:content-[''] before:absolute before:top-full before:left-1/2
-                    before:transform before:-translate-x-1/2 before:border-4
-                    before:border-transparent before:border-t-gray-900
-                  ">
-                    {searchMode === 'category' ? (
-                      <div>Mode catégorie : recherche dans univers et catégories</div>
-                    ) : (
-                      <div>Mode produit : recherche un produit pour trouver ses catégories</div>
-                    )}
-                  </div>
-                </div>
+        {/* Search Mode Toggle */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Mode de recherche</span>
+            <div className="relative group">
+              <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+              <div className="absolute right-0 top-6 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                <strong>Catégorie :</strong> Recherche dans univers et catégories<br/>
+                <strong>Produit :</strong> Trouve les catégories via leurs produits
               </div>
             </div>
+          </div>
+          <div className="flex mt-2 bg-white rounded-lg border border-gray-200 p-1">
+            <button
+              onClick={() => setSearchMode('category')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center space-x-2
+                ${searchMode === 'category'
+                  ? 'bg-pink-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <Tag className="w-4 h-4" />
+              <span>Catégorie</span>
+            </button>
+            <button
+              onClick={() => setSearchMode('product')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center space-x-2
+                ${searchMode === 'product'
+                  ? 'bg-pink-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <Package className="w-4 h-4" />
+              <span>Produit</span>
+            </button>
           </div>
         </div>
 
         {/* Search Input */}
-        <div className="p-6 border-b border-gray-100">
-          <Input
-            variant="default"
-            size="md"
-            placeholder={getPlaceholderText()}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            iconLeft={<Search className="w-4 h-4" />}
-            iconRight={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
-          />
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={getPlaceholderText()}
+              className="pl-10 pr-4"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
           {searchQuery.length > 0 && searchQuery.length < 3 && (
-            <p className="text-xs text-gray-500 mt-1">
-              Minimum 3 caractères requis
+            <p className="mt-2 text-xs text-amber-600">
+              Tapez au moins 3 caractères pour rechercher
             </p>
           )}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 flex flex-col min-h-0">
-          
-          {/* Results List */}
-          <div className="flex-1 overflow-y-auto">
-            <AnimatePresence mode="wait">
-              {isLoading && (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center justify-center py-12"
-                >
-                  <div className="text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-pink-500 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600">Recherche en cours...</p>
-                  </div>
-                </motion.div>
-              )}
+        {/* Results */}
+        <div className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            {isLoading && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center justify-center py-12"
+              >
+                <div className="flex items-center space-x-3 text-gray-500">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Recherche en cours...</span>
+                </div>
+              </motion.div>
+            )}
 
-              {error && !isLoading && (
-                <motion.div
-                  key="error"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="p-6 text-center"
-                >
-                  <p className="text-sm text-red-600">{error}</p>
-                </motion.div>
-              )}
+            {error && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-4 mx-4 mt-4 bg-red-50 border border-red-200 rounded-lg"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
+            )}
 
-              {showEmptyMessage && !isLoading && (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="p-6 text-center"
-                >
-                  <p className="text-sm text-gray-500">
-                    {searchMode === 'category' ? 'Aucune catégorie trouvée' : 'Aucun produit trouvé'}
-                  </p>
-                </motion.div>
-              )}
+            {showEmptyMessage && (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-8 text-center"
+              >
+                <Tag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">Aucune catégorie trouvée</p>
+                <p className="text-xs text-gray-400">
+                  Essayez avec d'autres mots-clés
+                </p>
+              </motion.div>
+            )}
 
-              {hasResults && !isLoading && (
-                <motion.div
-                  key="results"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-4 space-y-2"
-                >
-                  {categories.map((category, index) => {
-                    const isSelected = isCategorySelected(category.category_name, category.category_type);
-                    const IconComponent = getCategoryIcon(category.category_type);
-                    
-                    return (
-                      <motion.div
-                        key={`${category.category_type}:${category.category_name}`}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className={`
-                          p-4 rounded-lg border cursor-pointer transition-all duration-200
-                          ${getCategoryBorderColor(category.category_type, isSelected)}
-                        `}
-                        onClick={() => handleCategoryToggle(category.category_name, category.category_type, category.product_codes)}
-                      >
-                        <div className="flex items-start space-x-3">
+            {hasResults && !isLoading && (
+              <motion.div
+                key="results"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-4 space-y-3"
+              >
+                {categories.map((category, index) => {
+                  const isSelected = isCategorySelected(category.category_name, category.category_type, category.product_codes);
+                  const selectionType = getSelectionType(category.category_name, category.category_type, category.product_codes);
+                  const CategoryIcon = getCategoryIcon(category.category_type);
+
+                  return (
+                    <motion.div
+                      key={`${category.category_type}:${category.category_name}-${index}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`
+                        p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
+                        ${getBorderColor(category.category_type, selectionType)}
+                      `}
+                      onClick={() => handleCategoryToggle(category.category_name, category.category_type, category.product_codes)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3 flex-1 min-w-0">
                           <div className={`
-                            w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
-                            ${getCategoryColor(category.category_type, isSelected)}
+                            flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
+                            ${getCategoryColor(category.category_type, selectionType)}
                           `}>
-                            <IconComponent className="w-5 h-5" />
+                            <CategoryIcon className="w-5 h-5" />
                           </div>
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h4 className="text-sm font-semibold text-gray-900 truncate">
-                                {category.category_name}
-                              </h4>
+                            <h4 className="text-sm font-semibold text-gray-900 truncate">
+                              {category.category_name}
+                            </h4>
+                            <p className="text-xs text-gray-500 mt-0.5 flex items-center space-x-2">
                               <span className={`
-                                px-2 py-0.5 text-xs font-medium rounded-full
-                                ${getCategoryBadgeColor(category.category_type)}
+                                px-2 py-0.5 rounded text-xs font-medium
+                                ${category.category_type === 'universe' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}
                               `}>
-                                {getCategoryTypeLabel(category.category_type)}
+                                {category.category_type === 'universe' ? 'Univers' : 'Catégorie'}
                               </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {getResultCountText(category.product_count, searchMode)}
+                              <span>•</span>
+                              <span>{getResultCountText(category.product_count, searchMode)}</span>
                             </p>
                             
-                            {/* Matching products in product mode */}
+                            {/* NOUVEAU : Indicateur de statut */}
+                            {selectionType === 'stored' && (
+                              <div className="flex items-center mt-2">
+                                <div className={`w-2 h-2 rounded-full mr-2 ${
+                                  category.category_type === 'universe' ? 'bg-blue-500' : 'bg-green-500'
+                                }`} />
+                                <span className={`text-xs font-medium ${
+                                  category.category_type === 'universe' ? 'text-blue-600' : 'text-green-600'
+                                }`}>
+                                  Déjà appliqué
+                                </span>
+                              </div>
+                            )}
+                            
+                            {selectionType === 'new' && (
+                              <div className="flex items-center mt-2">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
+                                <span className="text-xs text-orange-600 font-medium">
+                                  Nouvelle sélection
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Matching products in product mode - LIMITED TO 3 */}
                             {searchMode === 'product' && category.matching_products && category.matching_products.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {category.matching_products.slice(0, 3).map((product, productIndex) => (
@@ -351,22 +395,6 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                                 )}
                               </div>
                             )}
-                            
-                            {/* Selection indicator */}
-                            {isSelected && (
-                              <div className="flex items-center mt-2">
-                                <div className={`
-                                  w-2 h-2 rounded-full mr-2
-                                  ${category.category_type === 'universe' ? 'bg-blue-500' : 'bg-green-500'}
-                                `} />
-                                <span className={`
-                                  text-xs font-medium
-                                  ${category.category_type === 'universe' ? 'text-blue-600' : 'text-green-600'}
-                                `}>
-                                  Tous les produits sélectionnés
-                                </span>
-                              </div>
-                            )}
                           </div>
 
                           {/* Checkbox */}
@@ -375,7 +403,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                             checked={isSelected}
                             onChange={() => handleCategoryToggle(category.category_name, category.category_type, category.product_codes)}
                             className={`
-                              mt-2 w-4 h-4 border-gray-300 rounded focus:ring-2 focus:ring-offset-2
+                              mt-2 w-4 h-4 border-gray-300 rounded focus:ring-2
                               ${category.category_type === 'universe' 
                                 ? 'text-blue-600 focus:ring-blue-500' 
                                 : 'text-green-600 focus:ring-green-500'
@@ -383,74 +411,74 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                             `}
                           />
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="border-t border-gray-100 p-4 space-y-3">
-            <div className="flex space-x-2">
-              <button
-                onClick={() => {
-                  applyFilters();
-                  onClose();
-                }}
-                disabled={selectedCategories.size === 0}
-                className={`
-                  flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
-                  ${selectedCategories.size > 0
-                    ? 'bg-pink-600 text-white hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }
-                `}
-              >
-                Appliquer ({selectedCategories.size})
-              </button>
-              <button
-                onClick={() => {
-                  clearCategoryFilters();
-                  onClose();
-                }}
-                className="
-                  px-4 py-2 text-sm font-medium rounded-lg border
-                  border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
-                  focus:ring-2 focus:ring-red-500 focus:ring-offset-2
-                  transition-all duration-200
-                "
-              >
-                Effacer catégories
-              </button>
-            </div>
-          </div>
-
-          {/* Tutorial - Compact */}
-          <div className="border-t border-gray-100 p-4 bg-gray-50">
-            {searchMode === 'category' ? (
-              <>
-                <p className="text-xs text-gray-600">
-                  <strong>Mode Catégorie :</strong> Recherche dans univers et catégories
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  <span className="text-blue-600">● Univers</span> • <span className="text-green-600">● Catégories</span>
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-gray-600">
-                  <strong>Mode Produit :</strong> Lettres: nom produit • Chiffres: début EAN • *1234: fin EAN
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Trouvez un produit pour sélectionner ses catégories
-                </p>
-              </>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
             )}
-          </div>
-
+          </AnimatePresence>
         </div>
+
+        {/* Action Buttons */}
+        <div className="border-t border-gray-100 p-4 space-y-3">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                applyFilters();
+                onClose();
+              }}
+              disabled={selectedCategories.size === 0}
+              className={`
+                flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
+                ${selectedCategories.size > 0
+                  ? 'bg-pink-600 text-white hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }
+              `}
+            >
+              Appliquer ({selectedCategories.size})
+            </button>
+            <button
+              onClick={() => {
+                clearCategoryFilters();
+                onClose();
+              }}
+              className="
+                px-4 py-2 text-sm font-medium rounded-lg border
+                border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
+                focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+                transition-all duration-200
+              "
+            >
+              Effacer catégories
+            </button>
+          </div>
+        </div>
+
+        {/* Tutorial - Compact */}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          {searchMode === 'category' ? (
+            <>
+              <p className="text-xs text-gray-600">
+                <strong>Mode Catégorie :</strong> Recherche dans univers et catégories
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="text-blue-600">● Univers</span> • <span className="text-green-600">● Catégories</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-600">
+                <strong>Mode Produit :</strong> Lettres: nom produit • Chiffres: début EAN • *1234: fin EAN
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Trouvez un produit pour sélectionner ses catégories
+              </p>
+            </>
+          )}
+        </div>
+
       </motion.div>
     </>
   );

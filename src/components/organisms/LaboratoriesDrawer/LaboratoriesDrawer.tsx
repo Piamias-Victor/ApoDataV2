@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, Loader2, TestTube, Package, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useLaboratorySearch, SearchMode } from '@/hooks/laboratories/useLaboratorySearch';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 interface LaboratoriesDrawerProps {
   readonly isOpen: boolean;
@@ -14,14 +15,12 @@ interface LaboratoriesDrawerProps {
 }
 
 /**
- * LaboratoriesDrawer Component - Drawer pour recherche laboratoires dual-mode
+ * LaboratoriesDrawer Component - AVEC PERSISTANCE VISUELLE
  * 
- * Fonctionnalités :
- * - Mode "Laboratoire" : recherche par nom labo
- * - Mode "Produit" : recherche produit → trouve labos avec produits matchants
- * - Switch toggle avec tooltip explicatif
- * - Debounce 300ms, minimum 2 caractères
- * - Sélection par laboratoire entier (tous les produits)
+ * CORRECTIONS :
+ * - Détection des laboratoires déjà dans le store
+ * - Affichage visuel différencié (store vs nouvelles sélections)
+ * - Persistance des checkboxes entre ouvertures
  */
 export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
   isOpen,
@@ -39,20 +38,47 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
     selectedLaboratories,
     toggleLaboratory,
     applyFilters,
-    clearLaboratoryFilters
+    clearLaboratoryFilters,
+    pendingProductCodes
   } = useLaboratorySearch();
 
-  // Update count when selection changes
+  // Accès au store pour vérifier les laboratoires déjà appliqués
+  const storedLaboratoryCodes = useFiltersStore(state => state.laboratories);
+
+  // Update count when selection changes - utiliser pendingProductCodes pour le count total
   useEffect(() => {
-    onCountChange(selectedLaboratories.size);
-  }, [selectedLaboratories.size, onCountChange]);
+    onCountChange(pendingProductCodes.size);
+  }, [pendingProductCodes.size, onCountChange]);
 
   const handleLaboratoryToggle = (labName: string, productCodes: string[]) => {
     toggleLaboratory(labName, productCodes);
   };
 
-  const isLaboratorySelected = (labName: string): boolean => {
-    return selectedLaboratories.has(labName);
+  // CORRECTION : Vérifier si un laboratoire est sélectionné (store OU nouvelles sélections)
+  const isLaboratorySelected = (labName: string, productCodes: string[]): boolean => {
+    // Vérifier si ce laboratoire est dans les nouvelles sélections
+    if (selectedLaboratories.has(labName)) {
+      return true;
+    }
+
+    // Vérifier si ce laboratoire est déjà dans le store
+    // (tous ses codes produits sont dans le store)
+    if (productCodes.length > 0 && productCodes.every(code => storedLaboratoryCodes.includes(code))) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // NOUVEAU : Déterminer le type de sélection pour l'affichage visuel
+  const getSelectionType = (labName: string, productCodes: string[]): 'new' | 'stored' | 'none' => {
+    if (selectedLaboratories.has(labName)) {
+      return 'new';
+    }
+    if (productCodes.length > 0 && productCodes.every(code => storedLaboratoryCodes.includes(code))) {
+      return 'stored';
+    }
+    return 'none';
   };
 
   const hasResults = laboratories.length > 0;
@@ -92,192 +118,182 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
         initial={{ x: 500 }}
         animate={{ x: 0 }}
         exit={{ x: 500 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.4, ease: 'easeInOut' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center space-x-2">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Filtres Laboratoires
-            </h3>
-            {selectedLaboratories.size > 0 && (
-              <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                {selectedLaboratories.size}
-              </span>
-            )}
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <TestTube className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Laboratoires</h2>
+              <p className="text-sm text-gray-500">
+                {pendingProductCodes.size} produit{pendingProductCodes.size > 1 ? 's' : ''} sélectionné{pendingProductCodes.size > 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <motion.button
+          <button
             onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
-          </motion.button>
+          </button>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-center">
-            <div className="relative">
-              {/* Toggle Switch */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setSearchMode('laboratory')}
-                  className={`
-                    relative px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    flex items-center space-x-2
-                    ${searchMode === 'laboratory'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <TestTube className="w-4 h-4" />
-                  <span>Laboratoire</span>
-                </button>
-                
-                <button
-                  onClick={() => setSearchMode('product')}
-                  className={`
-                    relative px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    flex items-center space-x-2
-                    ${searchMode === 'product'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Package className="w-4 h-4" />
-                  <span>Produit</span>
-                </button>
-              </div>
-
-              {/* Tooltip */}
-              <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 z-10">
-                <div className="group relative">
-                  <button className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 transition-colors">
-                    <HelpCircle className="w-4 h-4" />
-                  </button>
-                  
-                  <div className="
-                    invisible group-hover:visible opacity-0 group-hover:opacity-100
-                    absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2
-                    bg-gray-900 text-white text-xs rounded-lg px-3 py-2
-                    whitespace-nowrap transition-all duration-200
-                    before:content-[''] before:absolute before:top-full before:left-1/2
-                    before:transform before:-translate-x-1/2 before:border-4
-                    before:border-transparent before:border-t-gray-900
-                  ">
-                    {searchMode === 'laboratory' ? (
-                      <div>Mode laboratoire : recherche par nom de labo</div>
-                    ) : (
-                      <div>Mode produit : recherche un produit pour trouver son laboratoire</div>
-                    )}
-                  </div>
-                </div>
+        {/* Search Mode Toggle */}
+        <div className="p-4 border-b border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Mode de recherche</span>
+            <div className="relative group">
+              <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+              <div className="absolute right-0 top-6 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                <strong>Laboratoire :</strong> Recherche directe<br/>
+                <strong>Produit :</strong> Trouve les laboratoires via leurs produits
               </div>
             </div>
+          </div>
+          <div className="flex mt-2 bg-white rounded-lg border border-gray-200 p-1">
+            <button
+              onClick={() => setSearchMode('laboratory')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center space-x-2
+                ${searchMode === 'laboratory'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <TestTube className="w-4 h-4" />
+              <span>Laboratoire</span>
+            </button>
+            <button
+              onClick={() => setSearchMode('product')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center space-x-2
+                ${searchMode === 'product'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <Package className="w-4 h-4" />
+              <span>Produit</span>
+            </button>
           </div>
         </div>
 
         {/* Search Input */}
-        <div className="p-6 border-b border-gray-100">
-          <Input
-            variant="default"
-            size="md"
-            placeholder={getPlaceholderText()}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            iconLeft={<Search className="w-4 h-4" />}
-            iconRight={isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : undefined}
-          />
-          {searchQuery.length > 0 && searchQuery.length < 2 && (
-            <p className="text-xs text-gray-500 mt-1">
-              Minimum 2 caractères requis
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={getPlaceholderText()}
+              className="pl-10 pr-4"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
+          {searchQuery.length > 0 && searchQuery.length < 3 && (
+            <p className="mt-2 text-xs text-amber-600">
+              Tapez au moins 3 caractères pour rechercher
             </p>
           )}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 flex flex-col min-h-0">
-          
-          {/* Results List */}
-          <div className="flex-1 overflow-y-auto">
-            <AnimatePresence mode="wait">
-              {isLoading && (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center justify-center py-12"
-                >
-                  <div className="text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600">Recherche en cours...</p>
-                  </div>
-                </motion.div>
-              )}
+        {/* Results */}
+        <div className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            {isLoading && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center justify-center py-12"
+              >
+                <div className="flex items-center space-x-3 text-gray-500">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Recherche en cours...</span>
+                </div>
+              </motion.div>
+            )}
 
-              {error && !isLoading && (
-                <motion.div
-                  key="error"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="p-6 text-center"
-                >
-                  <p className="text-sm text-red-600">{error}</p>
-                </motion.div>
-              )}
+            {error && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-4 mx-4 mt-4 bg-red-50 border border-red-200 rounded-lg"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
+            )}
 
-              {showEmptyMessage && !isLoading && (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="p-6 text-center"
-                >
-                  <p className="text-sm text-gray-500">
-                    {searchMode === 'laboratory' ? 'Aucun laboratoire trouvé' : 'Aucun produit trouvé'}
-                  </p>
-                </motion.div>
-              )}
+            {showEmptyMessage && (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-8 text-center"
+              >
+                <TestTube className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">Aucun laboratoire trouvé</p>
+                <p className="text-xs text-gray-400">
+                  Essayez avec d'autres mots-clés
+                </p>
+              </motion.div>
+            )}
 
-              {hasResults && !isLoading && (
-                <motion.div
-                  key="results"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-4 space-y-2"
-                >
-                  {laboratories.map((laboratory, index) => {
-                    const isSelected = isLaboratorySelected(laboratory.laboratory_name);
-                    
-                    return (
-                      <motion.div
-                        key={laboratory.laboratory_name}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.05 }}
-                        className={`
-                          p-4 rounded-lg border cursor-pointer transition-all duration-200
-                          ${isSelected
-                            ? 'border-purple-300 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                          }
-                        `}
-                        onClick={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes)}
-                      >
-                        <div className="flex items-start space-x-3">
+            {hasResults && !isLoading && (
+              <motion.div
+                key="results"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-4 space-y-3"
+              >
+                {laboratories.map((laboratory, index) => {
+                  const isSelected = isLaboratorySelected(laboratory.laboratory_name, laboratory.product_codes);
+                  const selectionType = getSelectionType(laboratory.laboratory_name, laboratory.product_codes);
+
+                  return (
+                    <motion.div
+                      key={`${laboratory.laboratory_name}-${index}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`
+                        p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
+                        ${selectionType === 'stored' 
+                          ? 'border-purple-300 bg-purple-50' 
+                          : selectionType === 'new'
+                          ? 'border-purple-500 bg-purple-100'
+                          : 'border-gray-200 bg-white hover:border-purple-200'
+                        }
+                      `}
+                      onClick={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3 flex-1 min-w-0">
                           <div className={`
-                            w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
-                            ${isSelected 
-                              ? 'bg-purple-100 text-purple-600' 
+                            flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
+                            ${selectionType === 'stored'
+                              ? 'bg-purple-200 text-purple-700' 
+                              : selectionType === 'new'
+                              ? 'bg-purple-600 text-white'
                               : 'bg-gray-100 text-gray-500'
                             }
                           `}>
@@ -291,6 +307,25 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                             <p className="text-xs text-gray-500 mt-0.5">
                               {getResultCountText(laboratory.product_count, searchMode)}
                             </p>
+                            
+                            {/* NOUVEAU : Indicateur de statut */}
+                            {selectionType === 'stored' && (
+                              <div className="flex items-center mt-2">
+                                <div className="w-2 h-2 bg-purple-500 rounded-full mr-2" />
+                                <span className="text-xs text-purple-600 font-medium">
+                                  Déjà appliqué
+                                </span>
+                              </div>
+                            )}
+                            
+                            {selectionType === 'new' && (
+                              <div className="flex items-center mt-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                                <span className="text-xs text-green-600 font-medium">
+                                  Nouvelle sélection
+                                </span>
+                              </div>
+                            )}
                             
                             {/* Matching products in product mode - LIMITED TO 3 */}
                             {searchMode === 'product' && laboratory.matching_products && laboratory.matching_products.length > 0 && (
@@ -313,16 +348,6 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                                 )}
                               </div>
                             )}
-                            
-                            {/* Selection indicator */}
-                            {isSelected && (
-                              <div className="flex items-center mt-2">
-                                <div className="w-2 h-2 bg-purple-500 rounded-full mr-2" />
-                                <span className="text-xs text-purple-600 font-medium">
-                                  Tous les produits sélectionnés
-                                </span>
-                              </div>
-                            )}
                           </div>
 
                           {/* Checkbox */}
@@ -333,69 +358,69 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                             className="mt-2 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                           />
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="border-t border-gray-100 p-4 space-y-3">
-            <div className="flex space-x-2">
-              <button
-                onClick={() => {
-                  applyFilters();
-                  onClose();
-                }}
-                disabled={selectedLaboratories.size === 0}
-                className={`
-                  flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
-                  ${selectedLaboratories.size > 0
-                    ? 'bg-purple-600 text-white hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }
-                `}
-              >
-                Appliquer ({selectedLaboratories.size})
-              </button>
-              <button
-                onClick={() => {
-                  clearLaboratoryFilters();
-                  onClose();
-                }}
-                className="
-                  px-4 py-2 text-sm font-medium rounded-lg border
-                  border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
-                  focus:ring-2 focus:ring-red-500 focus:ring-offset-2
-                  transition-all duration-200
-                "
-              >
-                Effacer labos
-              </button>
-            </div>
-          </div>
-
-          {/* Tutorial - Compact */}
-          <div className="border-t border-gray-100 p-4 bg-gray-50">
-            {searchMode === 'laboratory' ? (
-              <p className="text-xs text-gray-600">
-                <strong>Mode Laboratoire :</strong> Recherche directe par nom de laboratoire
-              </p>
-            ) : (
-              <>
-                <p className="text-xs text-gray-600">
-                  <strong>Mode Produit :</strong> Lettres: nom produit • Chiffres: début EAN • *1234: fin EAN
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Trouvez un produit pour sélectionner tout son laboratoire
-                </p>
-              </>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
             )}
-          </div>
-
+          </AnimatePresence>
         </div>
+
+        {/* Action Buttons */}
+        <div className="border-t border-gray-100 p-4 space-y-3">
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                applyFilters();
+                onClose();
+              }}
+              disabled={selectedLaboratories.size === 0}
+              className={`
+                flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
+                ${selectedLaboratories.size > 0
+                  ? 'bg-purple-600 text-white hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }
+              `}
+            >
+              Appliquer ({selectedLaboratories.size})
+            </button>
+            <button
+              onClick={() => {
+                clearLaboratoryFilters();
+                onClose();
+              }}
+              className="
+                px-4 py-2 text-sm font-medium rounded-lg border
+                border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400
+                focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+                transition-all duration-200
+              "
+            >
+              Effacer labos
+            </button>
+          </div>
+        </div>
+
+        {/* Tutorial - Compact */}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          {searchMode === 'laboratory' ? (
+            <p className="text-xs text-gray-600">
+              <strong>Mode Laboratoire :</strong> Recherche directe par nom de laboratoire
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-600">
+                <strong>Mode Produit :</strong> Lettres: nom produit • Chiffres: début EAN • *1234: fin EAN
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Trouvez un produit pour sélectionner tout son laboratoire
+              </p>
+            </>
+          )}
+        </div>
+
       </motion.div>
     </>
   );

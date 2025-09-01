@@ -48,13 +48,13 @@ const createCategoryKey = (name: string, type: 'universe' | 'category'): string 
 };
 
 /**
- * Hook useCategorySearch - AVEC PENDING STATE
+ * Hook useCategorySearch - AVEC PENDING STATE ET CUMUL
  * 
- * Nouvelles fonctionnalités :
- * - Pending state pour categories et product codes
- * - toggleCategory modifie seulement les sélections locales
- * - applyFilters applique les product codes accumulés au store
- * - Tracking des codes produits pending pour feedback visuel
+ * CORRECTIONS :
+ * - pendingProductCodes initialisé avec les codes du store (cumul)
+ * - toggleCategory cumule avec les sélections existantes
+ * - applyFilters fusionne pending + store
+ * - Persistance visuelle des sélections précédentes
  */
 export function useCategorySearch(): UseCategorySearchReturn {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -68,33 +68,40 @@ export function useCategorySearch(): UseCategorySearchReturn {
   const [categoryProductMap, setCategoryProductMap] = useState<Map<string, string[]>>(new Map());
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
 
-  // Récupération des codes catégories appliqués depuis le store (pour initialisation)
+  // État pour tracker les codes du store (pour persistance visuelle)
+  const [previousStoreCodes, setPreviousStoreCodes] = useState<Set<string>>(new Set());
+
+  // Récupération des codes catégories appliqués depuis le store
   const storedCategoryCodes = useFiltersStore(state => state.categories);
 
-  // Initialize selected categories from store when component mounts
+  // CORRECTION : Initialisation avec les codes du store pour cumul
   useEffect(() => {
     console.log('🔄 [useCategorySearch] Initializing from store:', storedCategoryCodes);
     
-    // Pour l'initialisation, on assume que tous les codes stockés forment les catégories sélectionnées
-    // En mode pending, on les met dans pendingProductCodes
-    setPendingProductCodes(new Set(storedCategoryCodes));
+    const storedCodesSet = new Set(storedCategoryCodes);
+    setPendingProductCodes(storedCodesSet);
+    setPreviousStoreCodes(storedCodesSet);
     
-    // Note: On ne peut pas reconstituer facilement selectedCategories depuis les codes produits
-    // car on n'a pas la mapping inverse. C'est une limitation acceptable.
+    console.log('🟢 [useCategorySearch] Initialized pending with store codes:', Array.from(storedCodesSet));
   }, []); // Volontairement vide pour initialiser UNE SEULE FOIS
 
-  // Recalculate pending product codes when selected categories change
+  // CORRECTION : Calculer pendingProductCodes = store + nouveaux sélectionnés
   useEffect(() => {
-    const allPendingCodes = new Set<string>();
+    const allPendingCodes = new Set(previousStoreCodes);
     
+    // Ajouter les codes des catégories nouvellement sélectionnées
     selectedCategories.forEach(categoryKey => {
       const productCodes = categoryProductMap.get(categoryKey) || [];
       productCodes.forEach(code => allPendingCodes.add(code));
     });
     
     setPendingProductCodes(allPendingCodes);
-    console.log('📦 [useCategorySearch] Updated pending product codes:', Array.from(allPendingCodes));
-  }, [selectedCategories, categoryProductMap]);
+    console.log('📦 [useCategorySearch] Updated pending product codes:', {
+      fromStore: previousStoreCodes.size,
+      fromNewSelections: allPendingCodes.size - previousStoreCodes.size,
+      total: allPendingCodes.size
+    });
+  }, [selectedCategories, categoryProductMap, previousStoreCodes]);
 
   // Debounced search function
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
@@ -173,18 +180,18 @@ export function useCategorySearch(): UseCategorySearchReturn {
     }
   }, [searchMode]);
 
-  // MODIFIÉ : toggleCategory affecte seulement l'état local (pending)
+  // CORRECTION : toggleCategory pour nouvelles sélections seulement
   const toggleCategory = useCallback((categoryKey: string, productCodes: string[]) => {
-    console.log('🔄 [useCategorySearch] Toggle category (pending):', categoryKey);
+    console.log('🔄 [useCategorySearch] Toggle category (new selection):', categoryKey);
     
     setSelectedCategories(prev => {
       const newSet = new Set(prev);
       if (newSet.has(categoryKey)) {
         newSet.delete(categoryKey);
-        console.log('➖ Removed category:', categoryKey);
+        console.log('➖ Removed from new selections:', categoryKey);
       } else {
         newSet.add(categoryKey);
-        console.log('➕ Added category:', categoryKey);
+        console.log('➕ Added to new selections:', categoryKey);
       }
       return newSet;
     });
@@ -198,28 +205,36 @@ export function useCategorySearch(): UseCategorySearchReturn {
   }, []);
 
   const clearSelection = useCallback(() => {
-    console.log('🗑️ [useCategorySearch] Clear pending selection');
+    console.log('🗑️ [useCategorySearch] Clear new selections only');
     setSelectedCategories(new Set());
-    setPendingProductCodes(new Set());
-  }, []);
+    // Restaurer seulement les codes du store
+    setPendingProductCodes(previousStoreCodes);
+  }, [previousStoreCodes]);
 
-  // MODIFIÉ : applyFilters applique les codes produits accumulés au store
+  // CORRECTION : applyFilters fusionne store + pending
   const applyFilters = useCallback(() => {
-    console.log('✅ [useCategorySearch] Applying filters to store');
-    console.log('  - Selected categories:', Array.from(selectedCategories));
-    console.log('  - Pending product codes:', Array.from(pendingProductCodes));
+    console.log('✅ [useCategorySearch] Applying cumulated filters to store');
+    console.log('  - Previous store codes:', previousStoreCodes.size);
+    console.log('  - New selected categories:', Array.from(selectedCategories));
+    console.log('  - Total pending product codes:', Array.from(pendingProductCodes));
     
     const setCategoryFilters = useFiltersStore.getState().setCategoryFilters;
     setCategoryFilters(Array.from(pendingProductCodes));
+    
+    // Mettre à jour le tracking des codes du store
+    setPreviousStoreCodes(pendingProductCodes);
+    // Clear les nouvelles sélections car elles sont maintenant dans le store
+    setSelectedCategories(new Set());
   }, [selectedCategories, pendingProductCodes]);
 
-  // MODIFIÉ : clearCategoryFilters reset le store ET tous les états locaux
+  // clearCategoryFilters reset TOUT
   const clearCategoryFilters = useCallback(() => {
-    console.log('🗑️ [useCategorySearch] Clear category filters (store + local)');
+    console.log('🗑️ [useCategorySearch] Clear ALL category filters');
     const clearCategoryFilters = useFiltersStore.getState().clearCategoryFilters;
     clearCategoryFilters();
     setSelectedCategories(new Set());
     setPendingProductCodes(new Set());
+    setPreviousStoreCodes(new Set());
   }, []);
 
   return {
