@@ -13,7 +13,7 @@ import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDr
 import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
 
 import { Package, TestTube, Tag, Building, Calendar } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | null;
 
@@ -48,7 +48,6 @@ interface FilterBarProps {
  * - Filtrage par route (cacher certains boutons selon la page)
  */
 export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
-  const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
