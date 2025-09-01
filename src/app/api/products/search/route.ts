@@ -16,18 +16,37 @@ interface SearchParams {
 }
 
 /**
- * API Route - Recherche produits intelligente
- * 
- * POST /api/products/search
- * Body: { query: string }
- * 
- * Logique de recherche :
- * - Lettres: recherche par nom
- * - Chiffres: recherche début code EAN
- * - *+chiffres: recherche fin code EAN
- * - Admin: data_globalproduct
- * - User: data_internalproduct + jointure
+ * Normalise et extrait les mots-clés d'une recherche
  */
+function extractKeywords(query: string): string[] {
+  return query
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 2);
+}
+
+/**
+ * Construit la clause WHERE pour recherche multi-mots
+ */
+function buildKeywordSearch(keywords: string[], isAdmin: boolean): { condition: string; params: string[] } {
+  if (keywords.length === 0) {
+    return { condition: '1=0', params: [] };
+  }
+
+  const nameField = isAdmin ? 'name' : 'dip.name';
+  const conditions = keywords.map((_, index) => 
+    `LOWER(${nameField}) LIKE LOWER($${isAdmin ? index + 1 : index + 2})`
+  );
+
+  return {
+    condition: conditions.join(' AND '),
+    params: keywords.map(keyword => `%${keyword}%`)
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -37,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const { query }: SearchParams = await request.json();
     
-    if (!query || query.trim().length < 3) {
+    if (!query || query.trim().length < 2) {
       return NextResponse.json({ products: [] });
     }
 
@@ -47,22 +66,29 @@ export async function POST(request: NextRequest) {
     let sqlQuery: string;
     let params: any[];
 
-    // Déterminer le type de recherche
     const isEndCodeSearch = trimmedQuery.startsWith('*') && /^\*\d+$/.test(trimmedQuery);
     const isStartCodeSearch = /^\d+$/.test(trimmedQuery);
-    const isNameSearch = !isEndCodeSearch && !isStartCodeSearch;
+    const isKeywordNameSearch = !isEndCodeSearch && !isStartCodeSearch;
 
     if (isAdmin) {
-      // Admin - recherche dans data_globalproduct
-      if (isNameSearch) {
+      if (isKeywordNameSearch) {
+        const keywords = extractKeywords(trimmedQuery);
+        const { condition, params: keywordParams } = buildKeywordSearch(keywords, true);
+        
         sqlQuery = `
           SELECT name, code_13_ref, brand_lab, universe
           FROM data_globalproduct
-          WHERE LOWER(name) LIKE LOWER($1)
-          ORDER BY name
+          WHERE ${condition}
+          ORDER BY 
+            CASE 
+              WHEN LOWER(name) LIKE LOWER($${keywords.length + 1}) THEN 1
+              ELSE 2
+            END,
+            name
           LIMIT 100
         `;
-        params = [`%${trimmedQuery}%`];
+        params = [...keywordParams, `%${trimmedQuery}%`];
+        
       } else if (isStartCodeSearch) {
         sqlQuery = `
           SELECT name, code_13_ref, brand_lab, universe
@@ -72,6 +98,7 @@ export async function POST(request: NextRequest) {
           LIMIT 100
         `;
         params = [`${trimmedQuery}%`];
+        
       } else if (isEndCodeSearch) {
         const codeDigits = trimmedQuery.substring(1);
         sqlQuery = `
@@ -85,13 +112,16 @@ export async function POST(request: NextRequest) {
       } else {
         return NextResponse.json({ products: [] });
       }
+      
     } else {
-      // User - recherche dans data_internalproduct avec jointure
       if (!session.user.pharmacyId) {
         return NextResponse.json({ error: 'No pharmacy assigned' }, { status: 400 });
       }
 
-      if (isNameSearch) {
+      if (isKeywordNameSearch) {
+        const keywords = extractKeywords(trimmedQuery);
+        const { condition, params: keywordParams } = buildKeywordSearch(keywords, false);
+        
         sqlQuery = `
           SELECT 
             dip.name,
@@ -100,12 +130,17 @@ export async function POST(request: NextRequest) {
             dgp.universe
           FROM data_internalproduct dip
           LEFT JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
-          WHERE dip.pharmacy_id = $1
-            AND LOWER(dip.name) LIKE LOWER($2)
-          ORDER BY dip.name
+          WHERE dip.pharmacy_id = $1 AND ${condition}
+          ORDER BY 
+            CASE 
+              WHEN LOWER(dip.name) LIKE LOWER($${keywords.length + 2}) THEN 1
+              ELSE 2
+            END,
+            dip.name
           LIMIT 100
         `;
-        params = [session.user.pharmacyId, `%${trimmedQuery}%`];
+        params = [session.user.pharmacyId, ...keywordParams, `%${trimmedQuery}%`];
+        
       } else if (isStartCodeSearch) {
         sqlQuery = `
           SELECT 
@@ -121,6 +156,7 @@ export async function POST(request: NextRequest) {
           LIMIT 100
         `;
         params = [session.user.pharmacyId, `${trimmedQuery}%`];
+        
       } else if (isEndCodeSearch) {
         const codeDigits = trimmedQuery.substring(1);
         sqlQuery = `
@@ -143,24 +179,33 @@ export async function POST(request: NextRequest) {
     }
 
     const startTime = Date.now();
-    const products = await db.query<ProductResult>(sqlQuery, params);
+    const result: any = await db.query(sqlQuery, params);
     const queryTime = Date.now() - startTime;
 
-    // Log performance pour requêtes lentes
-    if (queryTime > 500) {
-      console.warn(`Requête produits lente (${queryTime}ms):`, trimmedQuery);
-    }
+    const products: ProductResult[] = Array.isArray(result) 
+      ? result 
+      : (result && Array.isArray(result.rows) ? result.rows : []);
+
+    console.log(`🔍 [API] Search results:`, {
+      query: trimmedQuery,
+      type: isKeywordNameSearch ? 'keywords' : isStartCodeSearch ? 'code_start' : 'code_end',
+      keywords: isKeywordNameSearch ? extractKeywords(trimmedQuery) : undefined,
+      count: products.length,
+      queryTime,
+      firstResult: products[0]?.name
+    });
 
     return NextResponse.json({
       products,
       count: products.length,
-      queryTime
+      queryTime,
+      searchType: isKeywordNameSearch ? 'keywords' : isStartCodeSearch ? 'code_start' : 'code_end'
     });
 
   } catch (error) {
-    console.error('Erreur recherche produits:', error);
+    console.error('🚨 [API] Products search error:', error);
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: 'Erreur serveur', details: process.env.NODE_ENV === 'development' ? error : undefined },
       { status: 500 }
     );
   }

@@ -13,6 +13,7 @@ interface SearchResponse {
   readonly products: Product[];
   readonly count: number;
   readonly queryTime: number;
+  readonly searchType?: 'keywords' | 'code_start' | 'code_end';
 }
 
 interface UseProductSearchReturn {
@@ -27,42 +28,30 @@ interface UseProductSearchReturn {
   readonly applyFilters: () => void;
   readonly clearProductFilters: () => void;
   readonly pendingProductCodes: Set<string>;
-  readonly getSelectedProductsFromStore: () => SelectedProduct[]; // NOUVEAU
+  readonly getSelectedProductsFromStore: () => SelectedProduct[];
 }
 
-/**
- * Hook useProductSearch - VERSION SIMPLIFIÉE AVEC STORE
- * 
- * SIMPLIFICATIONS :
- * - Utilise directement selectedProducts du store
- * - getSelectedProductsFromStore() lit juste le store
- * - applyFilters utilise setProductFiltersWithNames
- */
 export function useProductSearch(): UseProductSearchReturn {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // États locaux pour les sélections en attente
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
   const [previousStoreCodes, setPreviousStoreCodes] = useState<Set<string>>(new Set());
 
-  // Récupération depuis le store - SIMPLIFIÉ
   const storedProductCodes = useFiltersStore(state => state.products);
   const storedSelectedProducts = useFiltersStore(state => state.selectedProducts);
 
-  // Initialisation avec les codes du store
   useEffect(() => {
     console.log('🔄 [useProductSearch] Initializing from store:', storedProductCodes.length);
     
     const storedCodesSet = new Set(storedProductCodes);
     setPendingProductCodes(storedCodesSet);
     setPreviousStoreCodes(storedCodesSet);
-  }, []); // Initialisation unique
+  }, []);
 
-  // Calculer pendingProductCodes = store + nouveaux sélectionnés
   useEffect(() => {
     const allPendingCodes = new Set(previousStoreCodes);
     
@@ -78,15 +67,13 @@ export function useProductSearch(): UseProductSearchReturn {
     });
   }, [selectedProducts, previousStoreCodes]);
 
-  // FONCTION SIMPLIFIÉE : Lire directement le store
   const getSelectedProductsFromStore = useCallback((): SelectedProduct[] => {
     console.log('📖 [useProductSearch] Reading selected products from store:', storedSelectedProducts.length);
     return storedSelectedProducts;
   }, [storedSelectedProducts]);
 
-  // Fonction de recherche avec debounce
   const performSearch = useCallback(async (query: string) => {
-    if (!query || query.trim().length < 3) {
+    if (!query || query.trim().length < 2) {
       setProducts([]);
       setIsLoading(false);
       return;
@@ -96,6 +83,12 @@ export function useProductSearch(): UseProductSearchReturn {
     setError(null);
 
     try {
+      console.log('🔍 [useProductSearch] Starting search:', {
+        query: query.trim(),
+        length: query.trim().length,
+        type: query.startsWith('*') ? 'code_end' : /^\d+$/.test(query) ? 'code_start' : 'keywords'
+      });
+
       const response = await fetch('/api/products/search', {
         method: 'POST',
         headers: {
@@ -107,22 +100,43 @@ export function useProductSearch(): UseProductSearchReturn {
       });
 
       if (!response.ok) {
-        throw new Error(`Erreur ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Erreur ${response.status}: ${errorText}`);
       }
 
       const data: SearchResponse = await response.json();
-      setProducts(data.products);
+      
+      console.log('✅ [useProductSearch] Search results:', {
+        count: data.count,
+        queryTime: data.queryTime,
+        searchType: data.searchType,
+        firstResult: data.products?.[0]?.name ?? 'N/A',
+        allResults: data.products?.map(p => p.name).slice(0, 5) ?? []
+      });
+      
+      setProducts(data.products || []);
+
+      if (data.searchType === 'keywords' && data.products && data.products.length > 0) {
+        console.log('🧠 [useProductSearch] Keywords search successful:', {
+          query: query.trim(),
+          found: `"${data.products[0]?.name ?? 'N/A'}"`,
+          total: data.count
+        });
+      }
+
+      if (data.searchType === 'keywords' && (!data.products || data.products.length === 0)) {
+        console.warn('🔍 [useProductSearch] No results for keywords search:', query.trim());
+      }
 
     } catch (err) {
-      console.error('❌ Erreur recherche produits:', err);
-      setError('Erreur lors de la recherche');
+      console.error('❌ [useProductSearch] Search error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la recherche');
       setProducts([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Effet de debounce pour la recherche
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       performSearch(searchQuery);
@@ -131,16 +145,14 @@ export function useProductSearch(): UseProductSearchReturn {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, performSearch]);
 
-  // Reset des résultats quand la requête est trop courte
   useEffect(() => {
-    if (searchQuery.trim().length < 3) {
+    if (searchQuery.trim().length < 2) {
       setProducts([]);
       setIsLoading(false);
       setError(null);
     }
   }, [searchQuery]);
 
-  // Toggle product pour nouvelles sélections
   const toggleProduct = useCallback((code: string) => {
     console.log('🔄 [useProductSearch] Toggle product:', code);
     
@@ -163,21 +175,17 @@ export function useProductSearch(): UseProductSearchReturn {
     setPendingProductCodes(previousStoreCodes);
   }, [previousStoreCodes]);
 
-  // FONCTION MODIFIÉE : Utilise setProductFiltersWithNames
   const applyFilters = useCallback(() => {
     console.log('✅ [useProductSearch] Applying filters to store with names');
     
-    // Construire la liste des produits avec leurs infos
     const newProductsInfo: SelectedProduct[] = [];
     const allProductCodes: string[] = [];
 
-    // Ajouter les produits déjà dans le store (persistance)
     storedSelectedProducts.forEach(product => {
       newProductsInfo.push(product);
       allProductCodes.push(product.code);
     });
 
-    // Ajouter les nouveaux produits sélectionnés
     selectedProducts.forEach(code => {
       const productInfo = products.find(product => product.code_13_ref === code);
       
@@ -185,32 +193,24 @@ export function useProductSearch(): UseProductSearchReturn {
         const newProduct: SelectedProduct = {
           name: productInfo.name,
           code: productInfo.code_13_ref,
+          ...(productInfo.brand_lab && { brandLab: productInfo.brand_lab }),
+          ...(productInfo.universe && { universe: productInfo.universe })
         };
-        
-        // Ajouter les propriétés optionnelles seulement si elles existent
-        if (productInfo.brand_lab) {
-          (newProduct as any).brandLab = productInfo.brand_lab;
-        }
-        if (productInfo.universe) {
-          (newProduct as any).universe = productInfo.universe;
-        }
         
         newProductsInfo.push(newProduct);
         allProductCodes.push(code);
       }
     });
 
-    // Mettre à jour le store avec codes ET noms
     const setProductFiltersWithNames = useFiltersStore.getState().setProductFiltersWithNames;
     setProductFiltersWithNames(allProductCodes, newProductsInfo);
     
     console.log('📊 Applied products to store:', {
       totalProducts: newProductsInfo.length,
       totalCodes: allProductCodes.length,
-      names: newProductsInfo.map(prod => prod.name).slice(0, 3) // Log premiers noms
+      names: newProductsInfo.map(prod => prod.name).slice(0, 3)
     });
 
-    // Reset des nouvelles sélections
     setSelectedProducts(new Set());
     setPreviousStoreCodes(new Set(allProductCodes));
   }, [selectedProducts, products, storedSelectedProducts]);
@@ -218,7 +218,7 @@ export function useProductSearch(): UseProductSearchReturn {
   const clearProductFilters = useCallback(() => {
     console.log('🗑️ [useProductSearch] Clear ALL product filters');
     const clearProductFilters = useFiltersStore.getState().clearProductFilters;
-    clearProductFilters(); // Clear à la fois codes ET noms dans le store
+    clearProductFilters();
     
     setSelectedProducts(new Set());
     setPendingProductCodes(new Set());
@@ -237,6 +237,6 @@ export function useProductSearch(): UseProductSearchReturn {
     applyFilters,
     clearProductFilters,
     pendingProductCodes,
-    getSelectedProductsFromStore, // Version simplifiée
+    getSelectedProductsFromStore,
   };
 }
