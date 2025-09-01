@@ -30,7 +30,7 @@ interface FilterButton {
   readonly label: string;
   readonly icon: React.ReactNode;
   readonly adminOnly: boolean;
-  readonly hiddenRoutes?: string[]; // Routes où ce bouton doit être caché
+  readonly hiddenRoutes?: string[];
 }
 
 interface FilterBarProps {
@@ -38,14 +38,13 @@ interface FilterBarProps {
 }
 
 /**
- * FilterBar Component - CORRIGÉ pour éviter les boucles infinies
+ * FilterBar Component - VERSION FINALE AVEC TOUS LES STORES
  * 
- * Corrections :
- * - Initialisation et subscription séparées
- * - Debounce sur les mises à jour store
- * - Guards pour éviter les updates redondantes
- * - Une seule souscription avec cleanup
- * - Filtrage par route (cacher certains boutons selon la page)
+ * TOUTES LES CORRECTIONS :
+ * - selectedProducts.length pour les produits
+ * - selectedLaboratories.length pour les laboratoires
+ * - selectedCategories.length pour les catégories
+ * - Tous les drawers gérés par store subscription
  */
 export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   const pathname = usePathname();
@@ -72,15 +71,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   useEffect(() => {
     console.log('🔧 [FilterBar] Initializing store subscription');
 
-    // Fonction pour calculer les counts depuis le store
+    // FONCTION COMPLÈTE : Calculer les counts depuis le store
     const calculateCounts = (state: any): FilterCounts => {
       const analysisCount = state.analysisDateRange.start && state.analysisDateRange.end ? 1 : 0;
       const comparisonCount = state.comparisonDateRange.start && state.comparisonDateRange.end ? 1 : 0;
       
       return {
-        products: state.products.length,
-        laboratories: state.laboratories.length,
-        categories: state.categories.length,
+        products: state.selectedProducts?.length || 0,        // CORRIGÉ : utilise selectedProducts
+        laboratories: state.selectedLaboratories?.length || 0, // CORRIGÉ : utilise selectedLaboratories
+        categories: state.selectedCategories?.length || 0,     // CORRIGÉ : utilise selectedCategories
         pharmacy: state.pharmacy.length,
         date: analysisCount + comparisonCount,
       };
@@ -91,6 +90,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     const initialCounts = calculateCounts(store);
     
     console.log('📊 [FilterBar] Initial counts:', initialCounts);
+    console.log('🔍 [FilterBar] Store details:', {
+      selectedProducts: store.selectedProducts?.length || 0,
+      selectedLaboratories: store.selectedLaboratories?.length || 0,
+      selectedCategories: store.selectedCategories?.length || 0,
+      productCodes: store.products.length,
+      laboratoryCodes: store.laboratories.length,
+      categoryCodes: store.categories.length
+    });
+    
     setFilterCounts(initialCounts);
     lastCountsRef.current = initialCounts;
 
@@ -114,6 +122,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
 
         if (hasChanged) {
           console.log('📊 [FilterBar] Counts updated:', newCounts);
+          console.log('🔍 [FilterBar] Store details:', {
+            selectedProducts: state.selectedProducts?.length || 0,
+            selectedLaboratories: state.selectedLaboratories?.length || 0,
+            selectedCategories: state.selectedCategories?.length || 0,
+            productCodes: state.products.length,
+            laboratoryCodes: state.laboratories.length,
+            categoryCodes: state.categories.length
+          });
+          
           setFilterCounts(newCounts);
           lastCountsRef.current = newCounts;
         }
@@ -185,7 +202,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     
     // Reset local counts immédiatement (sera synchronisé par la subscription)
     const resetCounts = {
-      products: 0,
+      products: 0,      // CORRIGÉ : reset à 0 aussi
       laboratories: 0,
       categories: 0,
       pharmacy: 0,
@@ -197,9 +214,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     setActiveDrawer(null);
   };
 
-  // updateFilterCount avec guard contre les mises à jour redondantes
+  // updateFilterCount MODIFIÉ : Uniquement pour pharmacy et date
   const updateFilterCount = useCallback((filterType: keyof FilterCounts, count: number) => {
     console.log(`🔄 [FilterBar] Manual count update: ${filterType} = ${count}`);
+    
+    // IMPORTANT : Ne pas updater manuellement les filtres gérés par le store
+    if (filterType === 'products' || filterType === 'laboratories' || filterType === 'categories') {
+      console.log(`⚠️ [FilterBar] Ignoring manual update for ${filterType} - managed by store`);
+      return;
+    }
     
     setFilterCounts(prev => {
       // Guard : éviter les mises à jour redondantes
@@ -224,7 +247,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
       return false;
     }
     
-    // Filtrage par route (nouveau)
+    // Filtrage par route
     if (button.hiddenRoutes?.includes(pathname)) {
       return false;
     }
@@ -350,13 +373,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
         </div>
       </motion.div>
 
-      {/* Drawers */}
+      {/* Drawers - TOUS SIMPLIFIÉS */}
       <AnimatePresence mode="wait">
+        {/* MODIFIÉ : ProductsDrawer n'utilise plus updateFilterCount */}
         {activeDrawer === 'products' && (
           <ProductsDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={(count: number) => updateFilterCount('products', count)}
+            onCountChange={() => {}} // Fonction vide - count géré par store subscription
           />
         )}
         
@@ -364,7 +388,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <LaboratoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={(count: number) => updateFilterCount('laboratories', count)}
+            onCountChange={() => {}} // Fonction vide - count géré par store subscription
           />
         )}
         
@@ -372,10 +396,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <CategoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={(count: number) => updateFilterCount('categories', count)}
+            onCountChange={() => {}} // Fonction vide - count géré par store subscription
           />
         )}
         
+        {/* Pharmacy et Date gardent leur système de count manuel */}
         {activeDrawer === 'pharmacy' && session?.user?.role === 'admin' && (
           <PharmacyDrawer
             isOpen={true}

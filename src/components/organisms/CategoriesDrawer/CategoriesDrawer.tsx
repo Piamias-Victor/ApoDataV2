@@ -3,7 +3,7 @@
 
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Loader2, Tag, Package, HelpCircle, Globe, FolderOpen } from 'lucide-react';
+import { X, Search, Loader2, Tag, Package, HelpCircle, Globe, FolderOpen, Check } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useCategorySearch, SearchMode } from '@/hooks/categories/useCategorySearch';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -15,12 +15,13 @@ interface CategoriesDrawerProps {
 }
 
 /**
- * CategoriesDrawer Component - AVEC PERSISTANCE VISUELLE
+ * CategoriesDrawer Component - AVEC SECTION SÉLECTIONNÉES
  * 
- * CORRECTIONS :
- * - Détection des catégories déjà dans le store
- * - Affichage visuel différencié (store vs nouvelles sélections)
- * - Persistance des checkboxes entre ouvertures
+ * NOUVELLES FONCTIONNALITÉS :
+ * - Section "Catégories sélectionnées" avec noms depuis le store
+ * - Désélection rapide individuelle
+ * - Indicateurs visuels différenciés (univers/catégorie)
+ * - Pas d'API supplémentaire nécessaire
  */
 export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   isOpen,
@@ -39,13 +40,15 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
     toggleCategory,
     applyFilters,
     clearCategoryFilters,
-    pendingProductCodes
+    pendingProductCodes,
+    getSelectedCategoriesFromStore
   } = useCategorySearch();
 
-  // Accès au store pour vérifier les catégories déjà appliquées
+  // Accès au store - SIMPLIFIÉ
   const storedCategoryCodes = useFiltersStore(state => state.categories);
+  const selectedCategoriesInfo = getSelectedCategoriesFromStore(); // Direct depuis le store
 
-  // Update count when selection changes - utiliser pendingProductCodes pour le count total
+  // Update count when selection changes
   useEffect(() => {
     onCountChange(pendingProductCodes.size);
   }, [pendingProductCodes.size, onCountChange]);
@@ -59,25 +62,35 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
     toggleCategory(categoryKey, productCodes);
   };
 
-  // CORRECTION : Vérifier si une catégorie est sélectionnée (store OU nouvelles sélections)
+  // Fonction pour désélectionner une catégorie du store
+  const handleDeselectStoredCategory = (categoryName: string, categoryType: 'universe' | 'category') => {
+    console.log('🗑️ [CategoriesDrawer] Deselecting stored category:', `${categoryType}:${categoryName}`);
+    
+    // Filtrer cette catégorie des sélections du store
+    const remainingCategories = selectedCategoriesInfo.filter(cat => 
+      !(cat.name === categoryName && cat.type === categoryType)
+    );
+    const remainingCodes = remainingCategories.flatMap(cat => cat.productCodes);
+    
+    // Mettre à jour le store
+    const setCategoryFiltersWithNames = useFiltersStore.getState().setCategoryFiltersWithNames;
+    setCategoryFiltersWithNames(remainingCodes, remainingCategories);
+  };
+
+  // Vérifier si une catégorie est sélectionnée (store OU nouvelles sélections)
   const isCategorySelected = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): boolean => {
     const categoryKey = createCategoryKey(categoryName, categoryType);
     
-    // Vérifier si cette catégorie est dans les nouvelles sélections
     if (selectedCategories.has(categoryKey)) {
       return true;
     }
-
-    // Vérifier si cette catégorie est déjà dans le store
-    // (tous ses codes produits sont dans le store)
     if (productCodes.length > 0 && productCodes.every(code => storedCategoryCodes.includes(code))) {
       return true;
     }
-
     return false;
   };
 
-  // NOUVEAU : Déterminer le type de sélection pour l'affichage visuel
+  // Déterminer le type de sélection pour l'affichage visuel
   const getSelectionType = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): 'new' | 'stored' | 'none' => {
     const categoryKey = createCategoryKey(categoryName, categoryType);
     
@@ -92,6 +105,8 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
 
   const hasResults = categories.length > 0;
   const showEmptyMessage = searchQuery.length >= 3 && !isLoading && !hasResults && !error;
+  const isSearching = searchQuery.length >= 3;
+  const showSelectedSection = !isSearching && selectedCategoriesInfo.length > 0;
 
   const getPlaceholderText = () => {
     return searchMode === 'category' 
@@ -256,8 +271,82 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
           )}
         </div>
 
-        {/* Results */}
+        {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
+
+          {/* SECTION CATÉGORIES SÉLECTIONNÉES */}
+          {showSelectedSection && (
+            <div className="border-b border-gray-200 bg-gray-50">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-gray-700 flex items-center">
+                    <Check className="w-4 h-4 mr-2 text-green-600" />
+                    Catégories sélectionnées ({selectedCategoriesInfo.length})
+                  </h3>
+                  <button
+                    onClick={clearCategoryFilters}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Tout effacer
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  {selectedCategoriesInfo.map((categoryInfo, index) => {
+                    const CategoryIcon = getCategoryIcon(categoryInfo.type);
+                    
+                    return (
+                      <motion.div
+                        key={`selected-${categoryInfo.type}-${categoryInfo.name}-${index}`}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`flex items-center justify-between p-3 bg-white border rounded-lg ${
+                          categoryInfo.type === 'universe' ? 'border-blue-200' : 'border-green-200'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className={`
+                            flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
+                            ${categoryInfo.type === 'universe' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}
+                          `}>
+                            <CategoryIcon className="w-4 h-4" />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 truncate block">
+                              {categoryInfo.name}
+                            </span>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className={`
+                                px-2 py-0.5 rounded text-xs font-medium
+                                ${categoryInfo.type === 'universe' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}
+                              `}>
+                                {categoryInfo.type === 'universe' ? 'Univers' : 'Catégorie'}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {categoryInfo.productCount} produits
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => handleDeselectStoredCategory(categoryInfo.name, categoryInfo.type)}
+                          className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Désélectionner cette catégorie"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* RÉSULTATS DE RECHERCHE */}
           <AnimatePresence mode="wait">
             {isLoading && (
               <motion.div
@@ -351,7 +440,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                               <span>{getResultCountText(category.product_count, searchMode)}</span>
                             </p>
                             
-                            {/* NOUVEAU : Indicateur de statut */}
+                            {/* Indicateurs de statut */}
                             {selectionType === 'stored' && (
                               <div className="flex items-center mt-2">
                                 <div className={`w-2 h-2 rounded-full mr-2 ${
@@ -374,7 +463,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                               </div>
                             )}
                             
-                            {/* Matching products in product mode - LIMITED TO 3 */}
+                            {/* Produits correspondants en mode produit */}
                             {searchMode === 'product' && category.matching_products && category.matching_products.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {category.matching_products.slice(0, 3).map((product, productIndex) => (
@@ -417,6 +506,23 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                 })}
               </motion.div>
             )}
+
+            {/* Message quand aucune recherche et aucune catégorie sélectionnée */}
+            {!isSearching && !isLoading && selectedCategoriesInfo.length === 0 && (
+              <motion.div
+                key="no-selection"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="p-8 text-center"
+              >
+                <Tag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">Aucune catégorie sélectionnée</p>
+                <p className="text-xs text-gray-400">
+                  Utilisez la recherche pour trouver des catégories
+                </p>
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
 
@@ -456,7 +562,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
           </div>
         </div>
 
-        {/* Tutorial - Compact */}
+        {/* Tutorial */}
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           {searchMode === 'category' ? (
             <>
