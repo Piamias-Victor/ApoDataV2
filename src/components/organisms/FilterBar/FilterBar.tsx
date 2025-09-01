@@ -13,6 +13,7 @@ import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDr
 import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
 
 import { Package, TestTube, Tag, Building, Calendar } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
 
 type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | null;
 
@@ -29,6 +30,7 @@ interface FilterButton {
   readonly label: string;
   readonly icon: React.ReactNode;
   readonly adminOnly: boolean;
+  readonly hiddenRoutes?: string[]; // Routes où ce bouton doit être caché
 }
 
 interface FilterBarProps {
@@ -43,8 +45,11 @@ interface FilterBarProps {
  * - Debounce sur les mises à jour store
  * - Guards pour éviter les updates redondantes
  * - Une seule souscription avec cleanup
+ * - Filtrage par route (cacher certains boutons selon la page)
  */
 export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
+  const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [filterCounts, setFilterCounts] = useState<FilterCounts>({
@@ -127,11 +132,39 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
   }, []); // Pas de dépendances pour éviter les re-souscriptions
 
   const filterButtons: FilterButton[] = [
-    { id: 'products', label: 'Produits', icon: <Package className="w-full h-full" />, adminOnly: false },
-    { id: 'laboratories', label: 'Laboratoires', icon: <TestTube className="w-full h-full" />, adminOnly: false },
-    { id: 'categories', label: 'Catégories', icon: <Tag className="w-full h-full" />, adminOnly: false },
-    { id: 'pharmacy', label: 'Pharmacies', icon: <Building className="w-full h-full" />, adminOnly: true },
-    { id: 'date', label: 'Date', icon: <Calendar className="w-full h-full" />, adminOnly: false },
+    { 
+      id: 'products', 
+      label: 'Produits', 
+      icon: <Package className="w-full h-full" />, 
+      adminOnly: false,
+      hiddenRoutes: ['/comparaisons'] 
+    },
+    { 
+      id: 'laboratories', 
+      label: 'Laboratoires', 
+      icon: <TestTube className="w-full h-full" />, 
+      adminOnly: false,
+      hiddenRoutes: ['/comparaisons'] 
+    },
+    { 
+      id: 'categories', 
+      label: 'Catégories', 
+      icon: <Tag className="w-full h-full" />, 
+      adminOnly: false,
+      hiddenRoutes: ['/comparaisons'] 
+    },
+    { 
+      id: 'pharmacy', 
+      label: 'Pharmacies', 
+      icon: <Building className="w-full h-full" />, 
+      adminOnly: true 
+    },
+    { 
+      id: 'date', 
+      label: 'Date', 
+      icon: <Calendar className="w-full h-full" />, 
+      adminOnly: false 
+    },
   ];
 
   const handleFilterClick = (filterId: DrawerType): void => {
@@ -185,10 +218,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     });
   }, []);
 
-  // Filtrer les boutons selon le rôle utilisateur
-  const visibleButtons = filterButtons.filter(button => 
-    !button.adminOnly || session?.user?.role === 'admin'
-  );
+  // Filtrer les boutons selon le rôle utilisateur ET la route actuelle
+  const visibleButtons = filterButtons.filter(button => {
+    // Filtrage par rôle admin
+    if (button.adminOnly && session?.user?.role !== 'admin') {
+      return false;
+    }
+    
+    // Filtrage par route (nouveau)
+    if (button.hiddenRoutes?.includes(pathname)) {
+      return false;
+    }
+    
+    return true;
+  });
 
   // Check if any filters are active
   const hasActiveFilters = Object.values(filterCounts).some(count => count > 0);
