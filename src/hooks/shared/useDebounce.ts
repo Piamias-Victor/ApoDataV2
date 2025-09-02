@@ -1,29 +1,26 @@
 // src/hooks/shared/useDebounce.ts
-import { useCallback, useRef } from 'react';
+'use client';
+
+import { useState, useEffect } from 'react';
 
 /**
- * Hook useDebounce - Debounce pour fonctions avec cleanup
- * 
- * Utilisé pour optimiser les recherches et éviter les requêtes excessives
- * Cleanup automatique des timeouts lors du démontage
+ * Hook pour debounce une valeur
+ * @param value - Valeur à debouncer
+ * @param delay - Délai en millisecondes
+ * @returns Valeur debouncée
  */
-export function useDebounce<T extends (...args: any[]) => void>(
-  callback: T,
-  delay: number
-): T {
-  const timeoutRef = useRef<NodeJS.Timeout>();
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
-  const debouncedCallback = useCallback((...args: Parameters<T>) => {
-    // Cleanup timeout précédent
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    // Nouveau timeout
-    timeoutRef.current = setTimeout(() => {
-      callback(...args);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
     }, delay);
-  }, [callback, delay]) as T;
 
-  return debouncedCallback;
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 }
