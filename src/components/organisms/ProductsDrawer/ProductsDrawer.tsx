@@ -1,9 +1,9 @@
 // src/components/organisms/ProductsDrawer/ProductsDrawer.tsx
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Loader2, Package, Check } from 'lucide-react';
+import { X, Search, Loader2, Package, Check, ClipboardList, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useProductSearch } from '@/hooks/products/useProductSearch';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -15,13 +15,12 @@ interface ProductsDrawerProps {
 }
 
 /**
- * ProductsDrawer Component - AVEC SECTION SÉLECTIONNÉS
+ * ProductsDrawer Component - AVEC IMPORT BULK
  * 
  * NOUVELLES FONCTIONNALITÉS :
- * - Section "Produits sélectionnés" avec noms depuis le store
- * - Désélection rapide individuelle
- * - Pas d'API supplémentaire nécessaire
- * - Indicateurs visuels conservés
+ * - Import bulk de codes via zone de texte
+ * - Parse automatique (virgule, point-virgule, espace, tabulation)
+ * - Sélection automatique des codes trouvés
  */
 export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   isOpen,
@@ -39,8 +38,19 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
     applyFilters,
     clearProductFilters,
     pendingProductCodes,
-    getSelectedProductsFromStore
+    getSelectedProductsFromStore,
+    bulkSearchProducts,
+    isBulkSearching,
+    bulkSelectProducts
   } = useProductSearch();
+
+  // État pour l'import bulk
+  const [bulkInput, setBulkInput] = useState('');
+  const [showBulkInput, setShowBulkInput] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{
+    found: number;
+    notFound: string[];
+  } | null>(null);
 
   // Accès au store - SIMPLIFIÉ
   const storedProductCodes = useFiltersStore(state => state.products);
@@ -50,6 +60,79 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   useEffect(() => {
     onCountChange(pendingProductCodes.size);
   }, [pendingProductCodes.size, onCountChange]);
+
+  // Parser les codes depuis le texte
+  const parseCodes = useCallback((text: string): string[] => {
+    // D'abord, essayer de détecter si c'est une chaîne continue de codes EAN13
+    const cleanText = text.replace(/\s+/g, ''); // Enlever tous les espaces
+    
+    // Si c'est une longue chaîne de chiffres, découper par tranches de 13 (EAN13)
+    if (/^\d+$/.test(cleanText) && cleanText.length >= 13) {
+      const codes: string[] = [];
+      for (let i = 0; i <= cleanText.length - 13; i += 13) {
+        const code = cleanText.substring(i, i + 13);
+        if (code.length === 13) {
+          codes.push(code);
+        }
+      }
+      // Si on a trouvé des codes EAN13, les retourner
+      if (codes.length > 0) {
+        return [...new Set(codes)]; // Dédupliquer
+      }
+    }
+    
+    // Sinon, utiliser la méthode classique avec séparateurs
+    const separators = /[,;\s\t\n]+/;
+    const codes = text
+      .split(separators)
+      .map(code => code.trim())
+      .filter(code => code.length > 0);
+    
+    // Dédupliquer
+    return [...new Set(codes)];
+  }, []);
+
+  // Gérer l'import bulk
+  const handleBulkImport = useCallback(async () => {
+    if (!bulkInput.trim()) return;
+
+    const codes = parseCodes(bulkInput);
+    console.log('📦 [ProductsDrawer] Importing', codes.length, 'codes');
+    console.log('📋 [ProductsDrawer] Parsed codes:', codes.slice(0, 5), '...'); // Afficher les 5 premiers pour debug
+
+    // Vérifier que les codes sont valides
+    if (codes.length === 0) {
+      setBulkResults({
+        found: 0,
+        notFound: ['Aucun code valide détecté']
+      });
+      return;
+    }
+
+    try {
+      const results = await bulkSearchProducts(codes);
+      
+      // Sélectionner automatiquement tous les produits trouvés
+      bulkSelectProducts(results.found);
+      
+      // Afficher les résultats
+      setBulkResults({
+        found: results.found.length,
+        notFound: results.notFound
+      });
+
+      // Si tout est trouvé, fermer après 2 secondes
+      if (results.notFound.length === 0) {
+        setTimeout(() => {
+          setShowBulkInput(false);
+          setBulkInput('');
+          setBulkResults(null);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error during bulk import:', err);
+    }
+  }, [bulkInput, parseCodes, bulkSearchProducts, bulkSelectProducts]);
 
   const handleProductToggle = (code: string) => {
     toggleProduct(code);
@@ -156,6 +239,77 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
             <p className="text-xs text-amber-600 mt-2">
               Tapez au moins 3 caractères pour rechercher
             </p>
+          )}
+          
+          {/* Bouton Import Bulk */}
+          <button
+            onClick={() => setShowBulkInput(!showBulkInput)}
+            className="mt-3 w-full px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+          >
+            <ClipboardList className="w-4 h-4" />
+            {showBulkInput ? 'Masquer import multiple' : 'Importer plusieurs codes'}
+          </button>
+
+          {/* Zone Import Bulk */}
+          {showBulkInput && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-3">
+              <textarea
+                value={bulkInput}
+                onChange={(e) => setBulkInput(e.target.value)}
+                placeholder="Collez vos codes EAN13 (séparés ou collés ensemble)"
+                className="w-full h-20 p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono"
+                disabled={isBulkSearching}
+              />
+              <p className="text-xs text-gray-500">
+                Formats acceptés : codes séparés (virgule, espace) ou collés ensemble (détection auto EAN13)
+              </p>
+              
+              {/* Résultats import */}
+              {bulkResults && (
+                <div className="p-2 bg-white rounded border border-gray-200">
+                  {bulkResults.found > 0 && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      {bulkResults.found} produits trouvés et sélectionnés
+                    </p>
+                  )}
+                  {bulkResults.notFound.length > 0 && (
+                    <div className="mt-1">
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {bulkResults.notFound.length} codes non trouvés
+                      </p>
+                      <div className="mt-1 max-h-16 overflow-y-auto text-xs text-gray-500">
+                        {bulkResults.notFound.slice(0, 10).join(', ')}
+                        {bulkResults.notFound.length > 10 && ` ... et ${bulkResults.notFound.length - 10} autres`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <button
+                onClick={handleBulkImport}
+                disabled={!bulkInput.trim() || isBulkSearching}
+                className={`
+                  w-full py-2 px-3 text-sm rounded-lg font-medium transition-all
+                  flex items-center justify-center gap-2
+                  ${bulkInput.trim() && !isBulkSearching
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }
+                `}
+              >
+                {isBulkSearching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Recherche en cours...
+                  </>
+                ) : (
+                  'Rechercher et sélectionner'
+                )}
+              </button>
+            </div>
           )}
         </div>
 
@@ -425,7 +579,7 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
         {/* Tutorial */}
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           <p className="text-xs text-gray-600">
-            <strong>Guide :</strong> Lettres: nom • Chiffres: début EAN • *1234: fin EAN
+            <strong>Guide :</strong> Lettres: nom • Chiffres: début EAN • *1234: fin EAN • Import multiple disponible
           </p>
         </div>
 

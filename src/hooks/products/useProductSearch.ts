@@ -16,6 +16,12 @@ interface SearchResponse {
   readonly searchType?: 'keywords' | 'code_start' | 'code_end';
 }
 
+interface BulkSearchResponse {
+  readonly found: Product[];
+  readonly notFound: string[];
+  readonly totalSearched: number;
+}
+
 interface UseProductSearchReturn {
   readonly products: Product[];
   readonly isLoading: boolean;
@@ -29,6 +35,11 @@ interface UseProductSearchReturn {
   readonly clearProductFilters: () => void;
   readonly pendingProductCodes: Set<string>;
   readonly getSelectedProductsFromStore: () => SelectedProduct[];
+  
+  // NOUVELLES FONCTIONS POUR IMPORT BULK
+  readonly bulkSearchProducts: (codes: string[]) => Promise<BulkSearchResponse>;
+  readonly isBulkSearching: boolean;
+  readonly bulkSelectProducts: (products: Product[]) => void;
 }
 
 export function useProductSearch(): UseProductSearchReturn {
@@ -36,6 +47,7 @@ export function useProductSearch(): UseProductSearchReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isBulkSearching, setIsBulkSearching] = useState(false);
   
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
@@ -116,18 +128,6 @@ export function useProductSearch(): UseProductSearchReturn {
       
       setProducts(data.products || []);
 
-      if (data.searchType === 'keywords' && data.products && data.products.length > 0) {
-        console.log('🧠 [useProductSearch] Keywords search successful:', {
-          query: query.trim(),
-          found: `"${data.products[0]?.name ?? 'N/A'}"`,
-          total: data.count
-        });
-      }
-
-      if (data.searchType === 'keywords' && (!data.products || data.products.length === 0)) {
-        console.warn('🔍 [useProductSearch] No results for keywords search:', query.trim());
-      }
-
     } catch (err) {
       console.error('❌ [useProductSearch] Search error:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors de la recherche');
@@ -135,6 +135,112 @@ export function useProductSearch(): UseProductSearchReturn {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  // NOUVELLE FONCTION : Recherche bulk de codes
+  const bulkSearchProducts = useCallback(async (codes: string[]): Promise<BulkSearchResponse> => {
+    console.log('🔍 [useProductSearch] Starting bulk search for', codes.length, 'codes');
+    setIsBulkSearching(true);
+    setError(null);
+    
+    const foundProducts: Product[] = [];
+    const notFoundCodes: string[] = [];
+    
+    try {
+      // Rechercher chaque code individuellement
+      for (const code of codes) {
+        const cleanCode = code.trim();
+        if (!cleanCode) continue;
+        
+        try {
+          const response = await fetch('/api/products/search', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              query: cleanCode
+            }),
+          });
+
+          if (!response.ok) {
+            notFoundCodes.push(cleanCode);
+            continue;
+          }
+
+          const data: SearchResponse = await response.json();
+          
+          // Vérifier si on a trouvé exactement le bon produit
+          const exactMatch = data.products?.find(p => 
+            p.code_13_ref === cleanCode || 
+            p.code_13_ref.endsWith(cleanCode) ||
+            p.code_13_ref.startsWith(cleanCode)
+          );
+          
+          if (exactMatch) {
+            foundProducts.push(exactMatch);
+            console.log('✅ Found product:', exactMatch.name, '(', cleanCode, ')');
+          } else if (data.products && data.products.length > 0) {
+            // Prendre le premier résultat si pas de match exact
+            const firstProduct = data.products[0];
+            if (firstProduct) {
+              foundProducts.push(firstProduct);
+              console.log('⚠️ Partial match for', cleanCode, ':', firstProduct.name);
+            } else {
+              notFoundCodes.push(cleanCode);
+            }
+          } else {
+            notFoundCodes.push(cleanCode);
+            console.log('❌ Not found:', cleanCode);
+          }
+          
+        } catch (err) {
+          console.error('Error searching for code', cleanCode, ':', err);
+          notFoundCodes.push(cleanCode);
+        }
+      }
+      
+      const result: BulkSearchResponse = {
+        found: foundProducts,
+        notFound: notFoundCodes,
+        totalSearched: codes.length
+      };
+      
+      console.log('📊 Bulk search complete:', {
+        found: foundProducts.length,
+        notFound: notFoundCodes.length,
+        total: codes.length
+      });
+      
+      return result;
+      
+    } catch (err) {
+      console.error('❌ [useProductSearch] Bulk search error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la recherche bulk');
+      throw err;
+    } finally {
+      setIsBulkSearching(false);
+    }
+  }, []);
+
+  // NOUVELLE FONCTION : Sélectionner plusieurs produits d'un coup
+  const bulkSelectProducts = useCallback((products: Product[]) => {
+    console.log('✅ [useProductSearch] Bulk selecting', products.length, 'products');
+    
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      products.forEach(product => {
+        newSet.add(product.code_13_ref);
+      });
+      return newSet;
+    });
+    
+    // IMPORTANT : Ajouter aussi les produits trouvés à la liste products pour qu'ils soient disponibles dans applyFilters
+    setProducts(prevProducts => {
+      const existingCodes = new Set(prevProducts.map(p => p.code_13_ref));
+      const newProducts = products.filter(p => !existingCodes.has(p.code_13_ref));
+      return [...prevProducts, ...newProducts];
+    });
   }, []);
 
   useEffect(() => {
@@ -238,5 +344,9 @@ export function useProductSearch(): UseProductSearchReturn {
     clearProductFilters,
     pendingProductCodes,
     getSelectedProductsFromStore,
+    // Nouvelles fonctions
+    bulkSearchProducts,
+    isBulkSearching,
+    bulkSelectProducts
   };
 }
