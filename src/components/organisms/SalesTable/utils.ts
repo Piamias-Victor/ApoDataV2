@@ -71,7 +71,9 @@ export const filterProductSummaries = <T extends ProductSalesSummary>(
   products: T[],
   searchQuery: string
 ): T[] => {
-  if (!searchQuery.trim()) return products;
+      if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
+    return products;
+  }
   
   const query = searchQuery.toLowerCase().trim();
   

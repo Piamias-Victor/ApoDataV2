@@ -105,7 +105,7 @@ export function filterCompetitiveProducts(
   products: CompetitiveMetrics[], 
   searchQuery: string
 ): CompetitiveMetrics[] {
-  if (!searchQuery.trim()) {
+if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
     return products;
   }
 

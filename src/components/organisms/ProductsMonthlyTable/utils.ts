@@ -122,7 +122,9 @@ export const filterProductSummaries = (
   products: ProductSummary[] | EnhancedProductSummary[], 
   searchQuery: string
 ): (ProductSummary | EnhancedProductSummary)[] => {
-  if (!searchQuery.trim()) return products;
+    if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
+    return products;
+  }
   
   const query = searchQuery.toLowerCase().trim();
   
