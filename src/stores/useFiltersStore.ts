@@ -17,7 +17,7 @@ interface SelectedCategory {
   readonly productCount: number;
 }
 
-// NOUVEAU : Interface pour stocker les infos produits
+// Interface pour stocker les infos produits
 interface SelectedProduct {
   readonly name: string;
   readonly code: string;
@@ -25,14 +25,26 @@ interface SelectedProduct {
   readonly universe?: string | undefined;
 }
 
+// NOUVEAU : Interface pour stocker les infos pharmacies
+interface SelectedPharmacy {
+  readonly id: string;
+  readonly name: string;
+  readonly address: string;
+  readonly ca: number;
+  readonly area: string;
+  readonly employees_count: number;
+  readonly id_nat: string;
+}
+
 interface FilterState {
   readonly products: string[];
-  readonly selectedProducts: SelectedProduct[]; // NOUVEAU : noms des produits
+  readonly selectedProducts: SelectedProduct[];
   readonly laboratories: string[];
   readonly selectedLaboratories: SelectedLaboratory[];
   readonly categories: string[];
   readonly selectedCategories: SelectedCategory[];
   readonly pharmacy: string[];
+  readonly selectedPharmacies: SelectedPharmacy[]; // NOUVEAU : noms des pharmacies
   readonly dateRange: {
     readonly start: string | null;
     readonly end: string | null;
@@ -50,12 +62,13 @@ interface FilterState {
 
 interface FilterActions {
   readonly setProductFilters: (codes: string[]) => void;
-  readonly setProductFiltersWithNames: (codes: string[], products: SelectedProduct[]) => void; // NOUVEAU
+  readonly setProductFiltersWithNames: (codes: string[], products: SelectedProduct[]) => void;
   readonly setLaboratoryFilters: (codes: string[]) => void;
   readonly setLaboratoryFiltersWithNames: (codes: string[], laboratories: SelectedLaboratory[]) => void;
   readonly setCategoryFilters: (codes: string[]) => void;
   readonly setCategoryFiltersWithNames: (codes: string[], categories: SelectedCategory[]) => void;
   readonly setPharmacyFilters: (codes: string[]) => void;
+  readonly setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => void; // NOUVEAU
   readonly setDateRange: (start: string | null, end: string | null) => void;
   readonly setAnalysisDateRange: (start: string, end: string) => void;
   readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
@@ -98,12 +111,13 @@ const defaultDates = getDefaultAnalysisDates();
 
 const initialState: FilterState = {
   products: [],
-  selectedProducts: [], // NOUVEAU : initialisé vide
+  selectedProducts: [],
   laboratories: [],
   selectedLaboratories: [],
   categories: [],
   selectedCategories: [],
   pharmacy: [],
+  selectedPharmacies: [], // NOUVEAU : initialisé vide
   dateRange: {
     start: null,
     end: null,
@@ -128,7 +142,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ products: codes });
       },
 
-      // NOUVELLE FONCTION : Mettre à jour codes ET noms des produits
       setProductFiltersWithNames: (codes: string[], products: SelectedProduct[]) => {
         console.log('📦 [Store] Setting product filters with names:', {
           codes: codes.length,
@@ -182,6 +195,25 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ pharmacy: codes });
       },
 
+      // NOUVELLE FONCTION : Mettre à jour IDs ET noms des pharmacies
+      setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => {
+        const state = get();
+        if (state.isPharmacyLocked) {
+          console.warn('🔒 Pharmacy filter is locked - operation denied');
+          return;
+        }
+
+        console.log('🏪 [Store] Setting pharmacy filters with names:', {
+          ids: ids.length,
+          pharmacies: pharmacies.length
+        });
+        
+        set({ 
+          pharmacy: ids,
+          selectedPharmacies: pharmacies
+        });
+      },
+
       setDateRange: (start: string | null, end: string | null) => {
         set({ dateRange: { start, end } });
       },
@@ -211,7 +243,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         if (state.isPharmacyLocked) {
           set({
             products: [],
-            selectedProducts: [], // NOUVEAU : clear aussi les noms
+            selectedProducts: [],
             laboratories: [],
             selectedLaboratories: [],
             categories: [],
@@ -232,7 +264,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         console.log('🗑️ [Store] Clearing product filters and names');
         set({ 
           products: [],
-          selectedProducts: [] // NOUVEAU : clear aussi les noms
+          selectedProducts: []
         });
       },
 
@@ -258,7 +290,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           console.warn('🔒 Pharmacy filter is locked - cannot clear');
           return;
         }
-        set({ pharmacy: [] });
+        console.log('🗑️ [Store] Clearing pharmacy filters and names');
+        set({ 
+          pharmacy: [],
+          selectedPharmacies: [] // NOUVEAU : clear aussi les noms
+        });
       },
 
       clearDateRange: () => {
@@ -302,7 +338,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 7, // INCRÉMENTÉ pour la migration
+      version: 8, // INCRÉMENTÉ pour la migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -340,10 +376,16 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           };
         }
         if (version < 7) {
-          // Migration v6 → v7 : ajouter selectedProducts
           return {
             ...persistedState,
-            selectedProducts: [], // NOUVEAU champ
+            selectedProducts: [],
+          };
+        }
+        if (version < 8) {
+          // Migration v7 → v8 : ajouter selectedPharmacies
+          return {
+            ...persistedState,
+            selectedPharmacies: [], // NOUVEAU champ
           };
         }
         return persistedState;
@@ -353,4 +395,4 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 );
 
 // Export des types pour usage externe
-export type { SelectedLaboratory, SelectedCategory, SelectedProduct };
+export type { SelectedLaboratory, SelectedCategory, SelectedProduct, SelectedPharmacy };
