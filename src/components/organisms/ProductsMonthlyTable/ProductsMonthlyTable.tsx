@@ -106,13 +106,13 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
       };
     });
     
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   // Traitement des données avec nouvelles colonnes

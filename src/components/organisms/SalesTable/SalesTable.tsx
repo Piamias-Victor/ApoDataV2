@@ -90,7 +90,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
       };
     });
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -100,7 +100,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   const handlePrevPage = useCallback(() => {

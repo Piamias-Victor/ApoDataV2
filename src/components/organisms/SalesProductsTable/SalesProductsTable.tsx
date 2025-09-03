@@ -84,7 +84,7 @@ export const SalesProductsTable: React.FC<SalesProductsTableProps> = ({
         direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
       };
     });
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -131,7 +131,7 @@ export const SalesProductsTable: React.FC<SalesProductsTableProps> = ({
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   // Rendu conditionnel

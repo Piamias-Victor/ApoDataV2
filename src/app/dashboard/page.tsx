@@ -1,7 +1,7 @@
 // src/app/dashboard/page.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { DashboardHeader } from '@/components/organisms/DashboardHeader/DashboardHeader';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
@@ -61,6 +61,24 @@ export default function DashboardPage(): JSX.Element {
 
   // Vérification si comparaison est active
   const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
+
+  const renderCount = useRef(0);
+renderCount.current += 1;
+
+console.log('🏠 Dashboard render #', renderCount.current, {
+  productsCount: products.length,
+  filtersHash: {
+    products: productsFilter.length,
+    labs: laboratoriesFilter.length,
+    categories: categoriesFilter.length,
+    pharmacy: pharmacyFilter.length
+  }
+});
+
+// Track les changements de filtres
+useEffect(() => {
+  console.log('🔄 Filters changed in Dashboard');
+}, [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
 
   return (
     <div className="min-h-screen bg-gray-50 relative overflow-hidden">

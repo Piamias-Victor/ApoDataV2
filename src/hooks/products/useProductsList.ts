@@ -1,5 +1,5 @@
-// src/hooks/products/useProductsList.ts - VERSION CORRIGÉE
-import { useState, useEffect, useRef, useCallback } from 'react';
+// src/hooks/products/useProductsList.ts - VERSION CORRIGÉE PAGINATION
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 
 interface ProductMetrics {
@@ -54,13 +54,12 @@ interface UseProductsListReturn {
 }
 
 /**
- * Hook useProductsList - CORRIGÉ pour actualisation et dates
+ * Hook useProductsList - CORRIGÉ pour pagination stable
  * 
  * Corrections :
- * - Force refresh contourne le cache
- * - Validation dates améliorée
- * - Debug logs détaillés
- * - Gestion erreurs robuste
+ * - Dépendances useCallback stabilisées avec JSON.stringify
+ * - Suppression de 'error' des dépendances qui causait les re-renders
+ * - Produits mémorisés pour référence stable
  */
 export function useProductsList(
   options: UseProductsListOptions = {}
@@ -85,7 +84,20 @@ export function useProductsList(
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Fonction de fetch stable avec useCallback
+  // Mémorisation stable des filtres arrays pour éviter re-renders
+  const stableFilters = useMemo(() => ({
+    products: JSON.stringify(productsFilter),
+    laboratories: JSON.stringify(laboratoriesFilter),
+    categories: JSON.stringify(categoriesFilter),
+    pharmacies: JSON.stringify(pharmacyFilter)
+  }), [
+    JSON.stringify(productsFilter),
+    JSON.stringify(laboratoriesFilter), 
+    JSON.stringify(categoriesFilter),
+    JSON.stringify(pharmacyFilter)
+  ]);
+
+  // Fonction de fetch stable avec useCallback CORRIGÉ
   const fetchProducts = useCallback(async (forceRefresh: boolean = false): Promise<void> => {
     console.log('🚀 [Hook] fetchProducts called', { forceRefresh, enabled });
     
@@ -213,12 +225,13 @@ export function useProductsList(
   }, [
     enabled,
     dateRange.start, 
-    dateRange.end, 
-    productsFilter, 
-    laboratoriesFilter, 
-    categoriesFilter, 
-    pharmacyFilter,
-    error // Inclus pour permettre retry
+    dateRange.end,
+    stableFilters.products,
+    stableFilters.laboratories,
+    stableFilters.categories,
+    stableFilters.pharmacies
+    // CORRIGÉ: Suppression de 'error' qui causait les re-renders constants
+    // CORRIGÉ: Utilisation de stableFilters au lieu des arrays directement
   ]);
 
   // Fonction refetch pour forcer l'actualisation
@@ -227,6 +240,12 @@ export function useProductsList(
     forceRefreshRef.current = true;
     await fetchProducts(true);
   }, [fetchProducts]);
+
+  // Mémorisation stable des produits pour éviter re-renders du tableau
+  const stableProducts = useMemo(() => {
+    console.log('📝 [Hook] Memoizing products:', products.length);
+    return products;
+  }, [JSON.stringify(products.map(p => `${p.code_ean}-${p.product_name}`))]);
 
   // Effect pour déclencher le fetch automatiquement
   useEffect(() => {
@@ -245,14 +264,14 @@ export function useProductsList(
   }, [enabled, fetchProducts]);
 
   return {
-    products,
+    products: stableProducts, // CORRIGÉ: Utilise la version mémorisée
     isLoading,
     error,
     isError: !!error,
     queryTime,
     cached,
-    count: products.length,
+    count: stableProducts.length, // CORRIGÉ: Cohérent avec products
     refetch,
-    hasData: products.length > 0
+    hasData: stableProducts.length > 0 // CORRIGÉ: Cohérent avec products
   };
 }

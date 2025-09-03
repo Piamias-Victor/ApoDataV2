@@ -1,7 +1,7 @@
 // src/components/organisms/ProductsTable/ProductsTable.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { ViewToggle } from '@/components/molecules/ViewToggle/ViewToggle';
@@ -78,13 +78,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     });
     
     // Reset page lors du tri
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1); // Reset page lors de la recherche
+    // setCurrentPage(1); // Reset page lors de la recherche
   }, []);
 
   // Gestion changement de vue
@@ -92,8 +92,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     setViewMode(newViewMode);
     // Reset tri car colonnes différentes
     setSortConfig({ column: null, direction: null });
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
+
+  // Au début de ProductsTable, après tes useState
+const renderCount = useRef(0);
+renderCount.current += 1;
+
+console.log('🔄 ProductsTable render #', renderCount.current, {
+  currentPage,
+  productsLength: products.length,
+  timestamp: new Date().toISOString()
+});
+
+// Ajoute aussi ce useEffect pour tracker les changements de currentPage
+useEffect(() => {
+  console.log('📄 currentPage changed to:', currentPage);
+}, [currentPage]);
 
   // Traitement des données (filtrage + tri)
   const processedDataBeforePagination = useMemo(() => {

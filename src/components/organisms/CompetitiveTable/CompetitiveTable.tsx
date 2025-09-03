@@ -82,13 +82,13 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
     });
     
     // Reset page lors du tri
-    setCurrentPage(1);
+    // setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1); // Reset page lors recherche
+    // setCurrentPage(1); // Reset page lors recherche
   }, []);
 
   // Traitement données (filtrage + tri + pagination)
