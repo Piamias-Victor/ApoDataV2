@@ -14,9 +14,12 @@ import {
 import { RotateCcw, TrendingUp, ArrowLeftRight } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useDailyMetrics } from '@/hooks/dashboard/useDailyMetrics';
 import { useComparisonStore } from '@/stores/useComparisonStore';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface ComparisonEvolutionChartProps {
   readonly className?: string;
@@ -40,7 +43,7 @@ interface ChartDataPoint {
 }
 
 /**
- * ComparisonEvolutionChart - Graphique évolution comparative A vs B
+ * ComparisonEvolutionChart - Graphique évolution comparative A vs B avec Export CSV
  * 
  * Features :
  * - Comparaison temporelle 2 éléments (courbes A/B)
@@ -48,6 +51,7 @@ interface ChartDataPoint {
  * - Agrégation jour/semaine/mois
  * - Design cohérent avec pages comparaisons
  * - Tooltip comparatif avec écarts
+ * - Export CSV évolution comparative
  * - Légende claire A (bleu) vs B (violet)
  */
 export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> = ({
@@ -62,6 +66,9 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
   // États locaux
   const [viewMode, setViewMode] = useState<ViewMode>('weekly');
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('ca_ttc');
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Fonction pour mapper element vers product codes
   const getProductCodes = useCallback((element: typeof elementA) => {
@@ -217,6 +224,227 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
 
     return Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [dataA, dataB, viewMode, aggregateByPeriod]);
+
+  // Préparation données pour export CSV évolution comparative
+  const prepareEvolutionDataForExport = useCallback(() => {
+    if (!chartData || chartData.length === 0 || !elementA || !elementB) return [];
+    
+    const exportData = [];
+    
+    // En-tête avec informations générales
+    exportData.push({
+      'Type Export': 'ÉVOLUTION COMPARATIVE',
+      'Élément A': elementA.name,
+      'Type A': elementA.type,
+      'Élément B': elementB.name,
+      'Type B': elementB.type,
+      'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
+      'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
+      'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
+      'Total Périodes': chartData.length.toString(),
+      'Date Export': new Date().toLocaleDateString('fr-FR'),
+      'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+      'Période': '',
+      'Date': '',
+      'CA TTC A (€)': '',
+      'CA TTC B (€)': '',
+      'Écart CA TTC (€)': '',
+      'Écart CA TTC (%)': '',
+      'Marge A (€)': '',
+      'Marge B (€)': '',
+      'Écart Marge (€)': '',
+      'Écart Marge (%)': '',
+      'Quantité A': '',
+      'Quantité B': '',
+      'Écart Quantité': '',
+      'Écart Quantité (%)': '',
+      'Performance Période': ''
+    });
+
+    // Ligne de séparation
+    exportData.push({
+      'Type Export': '--- DONNÉES ÉVOLUTION TEMPORELLE ---',
+      'Élément A': '',
+      'Type A': '',
+      'Élément B': '',
+      'Type B': '',
+      'Période Analyse': '',
+      'Agrégation': '',
+      'Métrique Sélectionnée': '',
+      'Total Périodes': '',
+      'Date Export': '',
+      'Heure Export': '',
+      'Période': '',
+      'Date': '',
+      'CA TTC A (€)': '',
+      'CA TTC B (€)': '',
+      'Écart CA TTC (€)': '',
+      'Écart CA TTC (%)': '',
+      'Marge A (€)': '',
+      'Marge B (€)': '',
+      'Écart Marge (€)': '',
+      'Écart Marge (%)': '',
+      'Quantité A': '',
+      'Quantité B': '',
+      'Écart Quantité': '',
+      'Écart Quantité (%)': '',
+      'Performance Période': ''
+    });
+    
+    // Export de toutes les périodes avec calculs d'écarts
+    chartData.forEach(dataPoint => {
+      // Calculs écarts CA TTC
+      const ecartCaTtc = dataPoint.ca_ttc_b - dataPoint.ca_ttc_a;
+      const ecartCaTtcPercent = dataPoint.ca_ttc_a !== 0 ? (ecartCaTtc / dataPoint.ca_ttc_a) * 100 : 0;
+
+      // Calculs écarts Marge
+      const ecartMarge = dataPoint.marge_b - dataPoint.marge_a;
+      const ecartMargePercent = dataPoint.marge_a !== 0 ? (ecartMarge / dataPoint.marge_a) * 100 : 0;
+
+      // Calculs écarts Quantité
+      const ecartQuantite = dataPoint.quantite_b - dataPoint.quantite_a;
+      const ecartQuantitePercent = dataPoint.quantite_a !== 0 ? (ecartQuantite / dataPoint.quantite_a) * 100 : 0;
+
+      // Performance globale de la période (qui gagne sur plus d'indicateurs)
+      const scoreA = (dataPoint.ca_ttc_a > dataPoint.ca_ttc_b ? 1 : 0) + 
+                    (dataPoint.marge_a > dataPoint.marge_b ? 1 : 0) + 
+                    (dataPoint.quantite_a > dataPoint.quantite_b ? 1 : 0);
+      const scoreB = (dataPoint.ca_ttc_b > dataPoint.ca_ttc_a ? 1 : 0) + 
+                    (dataPoint.marge_b > dataPoint.marge_a ? 1 : 0) + 
+                    (dataPoint.quantite_b > dataPoint.quantite_a ? 1 : 0);
+      
+      const performancePeriode = scoreA > scoreB ? elementA.name : scoreB > scoreA ? elementB.name : 'Égalité';
+
+      exportData.push({
+        'Type Export': 'DONNÉES PÉRIODE',
+        'Élément A': elementA.name,
+        'Type A': elementA.type,
+        'Élément B': elementB.name,
+        'Type B': elementB.type,
+        'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
+        'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
+        'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
+        'Total Périodes': chartData.length.toString(),
+        'Date Export': new Date().toLocaleDateString('fr-FR'),
+        'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+        'Période': dataPoint.period,
+        'Date': dataPoint.date,
+        'CA TTC A (€)': dataPoint.ca_ttc_a.toFixed(2),
+        'CA TTC B (€)': dataPoint.ca_ttc_b.toFixed(2),
+        'Écart CA TTC (€)': ecartCaTtc.toFixed(2),
+        'Écart CA TTC (%)': ecartCaTtcPercent.toFixed(2),
+        'Marge A (€)': dataPoint.marge_a.toFixed(2),
+        'Marge B (€)': dataPoint.marge_b.toFixed(2),
+        'Écart Marge (€)': ecartMarge.toFixed(2),
+        'Écart Marge (%)': ecartMargePercent.toFixed(2),
+        'Quantité A': dataPoint.quantite_a.toString(),
+        'Quantité B': dataPoint.quantite_b.toString(),
+        'Écart Quantité': ecartQuantite.toString(),
+        'Écart Quantité (%)': ecartQuantitePercent.toFixed(2),
+        'Performance Période': performancePeriode
+      });
+    });
+
+    // Section résumé statistique
+    exportData.push({
+      'Type Export': '--- RÉSUMÉ STATISTIQUE ---',
+      'Élément A': '',
+      'Type A': '',
+      'Élément B': '',
+      'Type B': '',
+      'Période Analyse': '',
+      'Agrégation': '',
+      'Métrique Sélectionnée': '',
+      'Total Périodes': '',
+      'Date Export': '',
+      'Heure Export': '',
+      'Période': '',
+      'Date': '',
+      'CA TTC A (€)': '',
+      'CA TTC B (€)': '',
+      'Écart CA TTC (€)': '',
+      'Écart CA TTC (%)': '',
+      'Marge A (€)': '',
+      'Marge B (€)': '',
+      'Écart Marge (€)': '',
+      'Écart Marge (%)': '',
+      'Quantité A': '',
+      'Quantité B': '',
+      'Écart Quantité': '',
+      'Écart Quantité (%)': '',
+      'Performance Période': ''
+    });
+
+    // Calculs totaux et moyennes
+    const totalCaTtcA = chartData.reduce((sum, d) => sum + d.ca_ttc_a, 0);
+    const totalCaTtcB = chartData.reduce((sum, d) => sum + d.ca_ttc_b, 0);
+    const totalMargeA = chartData.reduce((sum, d) => sum + d.marge_a, 0);
+    const totalMargeB = chartData.reduce((sum, d) => sum + d.marge_b, 0);
+    const totalQuantiteA = chartData.reduce((sum, d) => sum + d.quantite_a, 0);
+    const totalQuantiteB = chartData.reduce((sum, d) => sum + d.quantite_b, 0);
+
+    exportData.push({
+      'Type Export': 'TOTAUX PÉRIODE',
+      'Élément A': elementA.name,
+      'Type A': elementA.type,
+      'Élément B': elementB.name,
+      'Type B': elementB.type,
+      'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
+      'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
+      'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
+      'Total Périodes': chartData.length.toString(),
+      'Date Export': new Date().toLocaleDateString('fr-FR'),
+      'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+      'Période': 'TOTAL',
+      'Date': 'PÉRIODE COMPLÈTE',
+      'CA TTC A (€)': totalCaTtcA.toFixed(2),
+      'CA TTC B (€)': totalCaTtcB.toFixed(2),
+      'Écart CA TTC (€)': (totalCaTtcB - totalCaTtcA).toFixed(2),
+      'Écart CA TTC (%)': totalCaTtcA !== 0 ? (((totalCaTtcB - totalCaTtcA) / totalCaTtcA) * 100).toFixed(2) : '0',
+      'Marge A (€)': totalMargeA.toFixed(2),
+      'Marge B (€)': totalMargeB.toFixed(2),
+      'Écart Marge (€)': (totalMargeB - totalMargeA).toFixed(2),
+      'Écart Marge (%)': totalMargeA !== 0 ? (((totalMargeB - totalMargeA) / totalMargeA) * 100).toFixed(2) : '0',
+      'Quantité A': totalQuantiteA.toString(),
+      'Quantité B': totalQuantiteB.toString(),
+      'Écart Quantité': (totalQuantiteB - totalQuantiteA).toString(),
+      'Écart Quantité (%)': totalQuantiteA !== 0 ? (((totalQuantiteB - totalQuantiteA) / totalQuantiteA) * 100).toFixed(2) : '0',
+      'Performance Période': totalCaTtcB > totalCaTtcA ? elementB.name : totalCaTtcA > totalCaTtcB ? elementA.name : 'Égalité'
+    });
+    
+    return exportData;
+  }, [chartData, elementA, elementB, analysisDateRange, viewMode, selectedMetric]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareEvolutionDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée d\'évolution à exporter');
+      return;
+    }
+    
+    // Nom de fichier intelligent avec éléments et période
+    const elementASlug = elementA?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementA';
+    const elementBSlug = elementB?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementB';
+    const viewModeLabel = viewMode === 'daily' ? 'quotidien' : viewMode === 'weekly' ? 'hebdo' : 'mensuel';
+    const metricLabel = selectedMetric === 'ca_ttc' ? 'ca' : selectedMetric === 'marge' ? 'marge' : 'qte';
+    const filename = CsvExporter.generateFilename(`apodata_evolution_${elementASlug}_vs_${elementBSlug}_${viewModeLabel}_${metricLabel}`);
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export évolution invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareEvolutionDataForExport, exportToCsv, elementA, elementB, viewMode, selectedMetric]);
 
   // Handlers
   const handleRefresh = useCallback(async () => {
@@ -402,6 +630,15 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
         </div>
 
         <div className="flex items-center space-x-4">
+          {/* Export button */}
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!chartData || chartData.length === 0 || isLoading}
+            label="Export CSV"
+            size="sm"
+          />
+
           {/* Sélecteur métrique */}
           <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
             {Object.entries(metricConfig).map(([key, config]) => (

@@ -5,9 +5,12 @@
 import React, { useMemo, useCallback } from 'react';
 import { RotateCcw, Package, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import { useStockMetrics } from '@/hooks/dashboard/useStockMetrics';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { MemoizedKpiCard as KpiCard } from '@/components/molecules/KpiCard/KpiCard';
 import { KpiCardSkeleton } from '@/components/molecules/KpiCard/KpiCardSkeleton';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface StockMetricsSectionProps {
   readonly dateRange: { start: string; end: string };
@@ -25,7 +28,7 @@ interface StockMetricsSectionProps {
 
 interface StockKpiCard {
   readonly title: string;
-  readonly value: number;  // Changed from 'number | null' to 'number'
+  readonly value: number;
   readonly unit: 'currency' | 'number' | 'days';
   readonly comparison?: {
     readonly value: number;
@@ -39,9 +42,11 @@ interface StockKpiCard {
 
 /**
  * StockMetricsSection - Organism pour métriques de stock pharmaceutiques
+ * Avec export CSV intégré
  * 
  * Features complètes :
  * - 4 KPI cards : Quantité stock, Valeur stock, Stock moyen 12M, Jours de stock
+ * - Export CSV des métriques de stock avec comparaisons
  * - Grille responsive 2x2 ou 4 colonnes
  * - Hook useStockMetrics intégration directe
  * - États loading/error/empty cohérents avec KpisSection
@@ -72,6 +77,161 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
     filters
   });
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
+  // Préparation données pour export CSV
+  const prepareStockMetricsDataForExport = useCallback(() => {
+    if (!data) return [];
+    
+    const exportData = [];
+    
+    // Formatage période
+    const formatDateRange = (start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      return `${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`;
+    };
+    
+    const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
+    const comparisonPeriod = comparisonDateRange && includeComparison
+      ? formatDateRange(comparisonDateRange.start || '', comparisonDateRange.end || '')
+      : '';
+    
+    // Formatage contexte filtres
+    const formatFiltersContext = () => {
+      const filterInfo = [];
+      if (filters.products && filters.products.length > 0) {
+        filterInfo.push(`${filters.products.length} produit(s)`);
+      }
+      if (filters.laboratories && filters.laboratories.length > 0) {
+        filterInfo.push(`${filters.laboratories.length} laboratoire(s)`);
+      }
+      if (filters.categories && filters.categories.length > 0) {
+        filterInfo.push(`${filters.categories.length} catégorie(s)`);
+      }
+      if (filters.pharmacies && filters.pharmacies.length > 0) {
+        filterInfo.push(`${filters.pharmacies.length} pharmacie(s)`);
+      }
+      return filterInfo.length > 0 ? filterInfo.join(', ') : 'Tous les produits';
+    };
+    
+    const filtersContext = formatFiltersContext();
+    
+    // Helper pour sécuriser les valeurs numériques
+    const safeNumber = (value: any, defaultValue: number = 0): number => {
+      const num = Number(value);
+      return (value === null || value === undefined || isNaN(num)) ? defaultValue : num;
+    };
+    
+    // Export des 4 métriques de stock
+    exportData.push({
+      'Métrique': 'Quantité Stock Actuel',
+      'Valeur': safeNumber(data.quantite_stock_actuel_total),
+      'Unité': 'unités',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.quantite_stock_actuel_total || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison && data.comparison.quantite_stock_actuel_total
+        ? ((safeNumber(data.quantite_stock_actuel_total) - safeNumber(data.comparison.quantite_stock_actuel_total)) 
+           / safeNumber(data.comparison.quantite_stock_actuel_total) * 100).toFixed(2)
+        : '',
+      'Evolution (valeur)': data.comparison && data.comparison.quantite_stock_actuel_total
+        ? (safeNumber(data.quantite_stock_actuel_total) - safeNumber(data.comparison.quantite_stock_actuel_total))
+        : '',
+      'Périmètre': filtersContext,
+      'Nb références': safeNumber(data.nb_references_produits),
+      'Nb pharmacies': safeNumber(data.nb_pharmacies)
+    });
+    
+    exportData.push({
+      'Métrique': 'Valeur Stock Actuel',
+      'Valeur': safeNumber(data.montant_stock_actuel_total).toFixed(2),
+      'Unité': '€',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.montant_stock_actuel_total?.toFixed(2) || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison && data.comparison.montant_stock_actuel_total
+        ? ((safeNumber(data.montant_stock_actuel_total) - safeNumber(data.comparison.montant_stock_actuel_total)) 
+           / safeNumber(data.comparison.montant_stock_actuel_total) * 100).toFixed(2)
+        : '',
+      'Evolution (valeur)': data.comparison && data.comparison.montant_stock_actuel_total
+        ? (safeNumber(data.montant_stock_actuel_total) - safeNumber(data.comparison.montant_stock_actuel_total)).toFixed(2)
+        : '',
+      'Périmètre': filtersContext,
+      'Nb références': safeNumber(data.nb_references_produits),
+      'Nb pharmacies': safeNumber(data.nb_pharmacies)
+    });
+    
+    exportData.push({
+      'Métrique': 'Stock Moyen 12 Mois',
+      'Valeur': safeNumber(data.stock_moyen_12_mois),
+      'Unité': 'unités',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.stock_moyen_12_mois || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison && data.comparison.stock_moyen_12_mois
+        ? ((safeNumber(data.stock_moyen_12_mois) - safeNumber(data.comparison.stock_moyen_12_mois)) 
+           / safeNumber(data.comparison.stock_moyen_12_mois) * 100).toFixed(2)
+        : '',
+      'Evolution (valeur)': data.comparison && data.comparison.stock_moyen_12_mois
+        ? (safeNumber(data.stock_moyen_12_mois) - safeNumber(data.comparison.stock_moyen_12_mois))
+        : '',
+      'Périmètre': filtersContext,
+      'Nb références': safeNumber(data.nb_references_produits),
+      'Nb pharmacies': safeNumber(data.nb_pharmacies)
+    });
+    
+    exportData.push({
+      'Métrique': 'Jours de Stock',
+      'Valeur': safeNumber(data.jours_de_stock_actuels),
+      'Unité': 'jours',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.jours_de_stock_actuels || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison && data.comparison.jours_de_stock_actuels
+        ? ((safeNumber(data.jours_de_stock_actuels) - safeNumber(data.comparison.jours_de_stock_actuels)) 
+           / safeNumber(data.comparison.jours_de_stock_actuels) * 100).toFixed(2)
+        : '',
+      'Evolution (valeur)': data.comparison && data.comparison.jours_de_stock_actuels
+        ? (safeNumber(data.jours_de_stock_actuels) - safeNumber(data.comparison.jours_de_stock_actuels))
+        : '',
+      'Interprétation': safeNumber(data.jours_de_stock_actuels) === 0 ? 'Calcul impossible' :
+                       safeNumber(data.jours_de_stock_actuels) > 90 ? 'Stock élevé' :
+                       safeNumber(data.jours_de_stock_actuels) > 30 ? 'Stock normal' : 'Stock faible',
+      'Périmètre': filtersContext,
+      'Nb références': safeNumber(data.nb_references_produits),
+      'Nb pharmacies': safeNumber(data.nb_pharmacies)
+    });
+    
+    return exportData;
+  }, [data, dateRange, comparisonDateRange, includeComparison, filters]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareStockMetricsDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_metriques_stock');
+    
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareStockMetricsDataForExport, exportToCsv]);
+
   // Transformation données en KPI Cards avec calcul comparaisons
   const stockKpis = useMemo((): StockKpiCard[] | null => {
     if (!data) return null;
@@ -94,7 +254,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
     return [
       {
         title: 'Quantité Stock Actuel',
-        value: data.quantite_stock_actuel_total || 0,  // Ensure number, not null
+        value: data.quantite_stock_actuel_total || 0,
         unit: 'number' as const,
         comparison: formatComparison(
           data.quantite_stock_actuel_total, 
@@ -106,7 +266,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
       },
       {
         title: 'Valeur Stock Actuel',
-        value: data.montant_stock_actuel_total || 0,  // Ensure number, not null
+        value: data.montant_stock_actuel_total || 0,
         unit: 'currency' as const,
         comparison: formatComparison(
           data.montant_stock_actuel_total, 
@@ -118,7 +278,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
       },
       {
         title: 'Stock Moyen 12 Mois',
-        value: data.stock_moyen_12_mois || 0,  // Ensure number, not null
+        value: data.stock_moyen_12_mois || 0,
         unit: 'number' as const,
         comparison: formatComparison(
           data.stock_moyen_12_mois, 
@@ -130,7 +290,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
       },
       {
         title: 'Jours de Stock',
-        value: data.jours_de_stock_actuels || 0,  // Ensure number, not null
+        value: data.jours_de_stock_actuels || 0,
         unit: 'days' as const,
         comparison: formatComparison(
           data.jours_de_stock_actuels, 
@@ -219,7 +379,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
 
   return (
     <section className={`px-6 py-6 ${className}`}>
-      {/* Header avec titre et bouton refresh */}
+      {/* Header avec titre et boutons d'action */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
@@ -230,21 +390,30 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
           </p>
         </div>
         
-        {/* Bouton refresh */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={
-            <RotateCcw 
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
-            />
-          }
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!data || isLoading}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={
+              <RotateCcw 
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+              />
+            }
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
       
 

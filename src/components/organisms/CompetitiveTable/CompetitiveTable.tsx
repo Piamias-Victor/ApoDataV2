@@ -8,6 +8,9 @@ import { CompetitiveTableHeader } from '@/components/molecules/CompetitiveTableH
 import { CompetitiveTableRow } from '@/components/molecules/CompetitiveTableRow/CompetitiveTableRow';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import type { 
   CompetitiveMetrics, 
   CompetitiveSortConfig, 
@@ -29,19 +32,6 @@ interface CompetitiveTableProps {
   readonly onRefresh?: () => void;
 }
 
-/**
- * CompetitiveTable - Tableau analyse concurrentielle pharmaceutique
- * 
- * Features complètes :
- * - Tri par colonnes avec indicateurs visuels
- * - Recherche debounce 300ms (nom OU code EAN)
- * - Pagination côté client (50 items/page)
- * - Formatage intelligent grands nombres (12K, 1.2M)
- * - Couleurs conditionnelles écarts concurrentiels + marges
- * - Performance optimisée 1000+ produits
- * - Design Apple/Stripe/Vercel cohérent ProductsTable
- * - 11 colonnes données concurrentielles spécialisées
- */
 export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
   products,
   isLoading = false,
@@ -49,8 +39,7 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
   className = '',
   onRefresh
 }) => {
-  // États locaux tableau - identique ProductsTable
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortConfig, setSortConfig] = useState<CompetitiveSortConfig>({
     column: null,
     direction: null
@@ -58,12 +47,11 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   
   const itemsPerPage = 50;
+  const { exportToCsv, isExporting } = useExportCsv();
 
-  // Gestion tri
   const handleSort = useCallback((column: CompetitiveSortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        // Cycle : asc → desc → null
         const newDirection: SortDirection = 
           prev.direction === 'asc' ? 'desc' :
           prev.direction === 'desc' ? null : 'asc';
@@ -74,36 +62,24 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
         };
       }
       
-      // Nouvelle colonne, commence par asc
       return {
         column,
         direction: 'asc'
       };
     });
-    
-    // Reset page lors du tri
-    // setCurrentPage(1);
   }, []);
 
-  // Gestion recherche
   const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    // setCurrentPage(1); // Reset page lors recherche
+    setSearchQuery(query || '');
   }, []);
 
-  // Traitement données (filtrage + tri + pagination)
   const processedData = useMemo(() => {
-    // 1. Filtrage par recherche
     const filteredProducts = filterCompetitiveProducts(products, searchQuery);
-    
-    // 2. Tri
     const sortedProducts = sortCompetitiveProducts(
       filteredProducts, 
-      sortConfig.column || 'product_name', // Default fallback
+      sortConfig.column || 'product_name',
       sortConfig.direction
     );
-    
-    // 3. Pagination
     const paginationResult = paginateCompetitiveProducts(sortedProducts, currentPage, itemsPerPage);
     
     const paginationInfo: CompetitivePaginationInfo = {
@@ -116,11 +92,91 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
 
     return {
       products: paginationResult.paginatedProducts,
-      pagination: paginationInfo
+      pagination: paginationInfo,
+      allFilteredProducts: filteredProducts
     };
   }, [products, searchQuery, sortConfig, currentPage]);
 
-  // Gestion pagination
+  // FONCTION CORRIGÉE avec protection défensive
+  const prepareCompetitiveDataForExport = useCallback(() => {
+    if (!processedData.allFilteredProducts || processedData.allFilteredProducts.length === 0) return [];
+    
+    const safeSearchQuery = searchQuery || '';
+    const searchContext = safeSearchQuery.trim() 
+      ? `Recherche: "${safeSearchQuery.trim()}"` 
+      : 'Tous les produits';
+    
+    const sortContext = sortConfig.column && sortConfig.direction
+      ? `Tri: ${sortConfig.column} ${sortConfig.direction === 'asc' ? 'croissant' : 'décroissant'}`
+      : 'Tri: ordre naturel';
+    
+    // PROTECTION DÉFENSIVE sur TOUS les champs numériques
+    return processedData.allFilteredProducts.map(product => {
+      // Fonction helper pour sécuriser les valeurs numériques
+      const safeNumber = (value: any, defaultValue: number = 0): number => {
+        const num = Number(value);
+        return (value === null || value === undefined || isNaN(num)) ? defaultValue : num;
+      };
+
+      const safeString = (value: any, defaultValue: string = ''): string => {
+        return (value === null || value === undefined) ? defaultValue : String(value);
+      };
+
+      return {
+        'Nom produit': safeString(product.product_name),
+        'Code EAN': safeString(product.code_ean),
+        'Prix min marché (€)': safeNumber(product.prix_vente_min_global).toFixed(2),
+        'Prix max marché (€)': safeNumber(product.prix_vente_max_global).toFixed(2),
+        'Prix moyen marché (€)': safeNumber(product.prix_vente_moyen_global).toFixed(2),
+        'Nb pharmacies vendant': safeNumber(product.nb_pharmacies_vendant),
+        'Prix vente TTC (€)': safeNumber(product.prix_vente_moyen_selection).toFixed(2),
+        'Prix achat HT (€)': safeNumber(product.prix_achat_moyen_ht).toFixed(2),
+        'Quantité vendue': safeNumber(product.quantite_vendue_selection),
+        'Taux marge (%)': safeNumber(product.taux_marge_moyen_selection).toFixed(2),
+        'Écart vs marché (%)': safeNumber(product.ecart_prix_vs_marche_pct).toFixed(2),
+        'Interprétation écart': safeNumber(product.ecart_prix_vs_marche_pct) > 5 ? 'Trop cher' :
+                               safeNumber(product.ecart_prix_vs_marche_pct) > 2 ? 'Légèrement cher' :
+                               safeNumber(product.ecart_prix_vs_marche_pct) > -2 ? 'Prix aligné' :
+                               safeNumber(product.ecart_prix_vs_marche_pct) > -5 ? 'Légèrement moins cher' :
+                               'Très compétitif',
+        'Statut marge': safeNumber(product.taux_marge_moyen_selection) >= 30 ? 'Excellente (≥30%)' :
+                        safeNumber(product.taux_marge_moyen_selection) >= 20 ? 'Correcte (20-30%)' :
+                        'Faible (<20%)',
+        'Contexte recherche': searchContext,
+        'Contexte tri': sortContext,
+        'Total produits trouvés': processedData.allFilteredProducts.length
+      };
+    });
+  }, [processedData.allFilteredProducts, searchQuery, sortConfig]);
+
+  const handleExport = useCallback(() => {
+    const exportData = prepareCompetitiveDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const safeSearchQuery = searchQuery || '';
+    const searchSuffix = safeSearchQuery.trim() 
+      ? `_${safeSearchQuery.trim().replace(/[^a-zA-Z0-9]/g, '_')}` 
+      : '';
+    const filename = CsvExporter.generateFilename(`apodata_analyse_concurrentielle${searchSuffix}`);
+    
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareCompetitiveDataForExport, exportToCsv, searchQuery]);
+
   const handlePrevPage = useCallback(() => {
     setCurrentPage(prev => Math.max(1, prev - 1));
   }, []);
@@ -129,7 +185,6 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
     setCurrentPage(prev => Math.min(processedData.pagination.totalPages, prev + 1));
   }, [processedData.pagination.totalPages]);
 
-  // États erreur et loading
   if (error) {
     return (
       <Card variant="elevated" className={`p-6 text-center ${className}`}>
@@ -140,15 +195,19 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      
-      {/* Header avec contrôles */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
             {processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''} analysé{processedData.pagination.totalItems > 1 ? 's' : ''}
           </div>
           
-          {/* Bouton refresh */}
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!products || products.length === 0 || isLoading}
+            label={`Export CSV (${processedData.pagination.totalItems} ligne${processedData.pagination.totalItems > 1 ? 's' : ''})`}
+          />
+          
           {onRefresh && (
             <Button
               variant="ghost"
@@ -173,11 +232,9 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
         />
       </div>
 
-      {/* Tableau principal */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 table-fixed" style={{ width: '700px' }}>
-            
             <CompetitiveTableHeader
               sortConfig={sortConfig}
               onSort={handleSort}
@@ -212,12 +269,10 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
                 ))
               )}
             </tbody>
-            
           </table>
         </div>
       </Card>
 
-      {/* Pagination */}
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
@@ -252,7 +307,6 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
           </div>
         </div>
       )}
-      
     </div>
   );
 };

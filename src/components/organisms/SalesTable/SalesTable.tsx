@@ -7,8 +7,11 @@ import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { SalesProductChart } from '../SalesProductChart/SalesProductChart';
 import { useSalesProducts } from '@/hooks/dashboard/useSalesProducts';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import { 
   formatLargeNumber, 
   formatCurrency, 
@@ -26,7 +29,9 @@ import type {
 
 /**
  * SalesTable - Tableau des ventes avec design identique à ProductsMonthlyTable
- * Architecture complète : recherche, tri, pagination, expansion graphique
+ * Avec export CSV intégré
+ * 
+ * Architecture complète : recherche, tri, pagination, expansion graphique, export CSV
  */
 export const SalesTable: React.FC<SalesTableProps> = ({
   className = '',
@@ -54,6 +59,9 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     hasData 
   } = useSalesProducts();
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
   // Traitement données avec filtrage, tri, pagination
   const processedData = useMemo(() => {
     return processProductSummaries(
@@ -64,6 +72,101 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       itemsPerPage
     );
   }, [productSummaries, searchQuery, sortConfig, currentPage, itemsPerPage]);
+
+  // Préparation données pour export CSV
+  const prepareSalesDataForExport = useCallback(() => {
+    if (!productSummaries || productSummaries.length === 0) return [];
+    
+    const exportData = [];
+    
+    // En-tête avec informations générales
+    exportData.push({
+      'Produit': 'INFORMATIONS GÉNÉRALES',
+      'Code EAN': '',
+      'Quantité Recherche': searchQuery || 'Toutes',
+      'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
+      'Page Actuelle': currentPage.toString(),
+      'Total Produits': productSummaries.length.toString(),
+      'Temps de Requête (ms)': queryTime.toString(),
+      'Quantité Vendue': '',
+      'Prix Achat Moyen (€)': '',
+      'Prix Vente Moyen (€)': '',
+      'Taux Marge Moyen (%)': '',
+      'Part Marché Qté (%)': '',
+      'Part Marché Marge (%)': '',
+      'Montant TTC (€)': '',
+      'Montant Marge (€)': ''
+    });
+
+    // Ligne de séparation
+    exportData.push({
+      'Produit': '--- DONNÉES PRODUITS ---',
+      'Code EAN': '',
+      'Quantité Recherche': '',
+      'Tri Actuel': '',
+      'Page Actuelle': '',
+      'Total Produits': '',
+      'Temps de Requête (ms)': '',
+      'Quantité Vendue': '',
+      'Prix Achat Moyen (€)': '',
+      'Prix Vente Moyen (€)': '',
+      'Taux Marge Moyen (%)': '',
+      'Part Marché Qté (%)': '',
+      'Part Marché Marge (%)': '',
+      'Montant TTC (€)': '',
+      'Montant Marge (€)': ''
+    });
+    
+    // Export de tous les produits (pas seulement la page actuelle pour un export complet)
+    productSummaries.forEach(product => {
+      exportData.push({
+        'Produit': product.nom,
+        'Code EAN': product.code_ean,
+        'Quantité Recherche': searchQuery || 'Toutes',
+        'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
+        'Page Actuelle': currentPage.toString(),
+        'Total Produits': productSummaries.length.toString(),
+        'Temps de Requête (ms)': queryTime.toString(),
+        'Quantité Vendue': product.quantite_vendue.toString(),
+        'Prix Achat Moyen (€)': product.prix_achat_moyen.toFixed(2),
+        'Prix Vente Moyen (€)': product.prix_vente_moyen.toFixed(2),
+        'Taux Marge Moyen (%)': product.taux_marge_moyen.toFixed(2),
+        'Part Marché Qté (%)': product.part_marche_quantite_pct.toFixed(2),
+        'Part Marché Marge (%)': product.part_marche_marge_pct.toFixed(2),
+        'Montant TTC (€)': product.montant_ventes_ttc.toFixed(2),
+        'Montant Marge (€)': product.montant_marge_total.toFixed(2)
+      });
+    });
+    
+    return exportData;
+  }, [productSummaries, searchQuery, sortConfig, currentPage, queryTime]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareSalesDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const searchSuffix = searchQuery ? `_recherche_${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+    const filename = CsvExporter.generateFilename(`apodata_tableau_ventes${searchSuffix}`);
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareSalesDataForExport, exportToCsv, searchQuery]);
 
   // Handlers
   const toggleProductExpansion = useCallback((codeEan: string) => {
@@ -90,7 +193,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
       };
     });
-    // setCurrentPage(1);
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -100,7 +202,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    // setCurrentPage(1);
   }, []);
 
   const handlePrevPage = useCallback(() => {
@@ -117,7 +218,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  // Header avec bouton actualiser - TOUJOURS VISIBLE (identique à ProductsMonthlyTable)
+  // Header avec bouton actualiser et export - TOUJOURS VISIBLE
   const renderHeader = () => (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center space-x-4">
@@ -131,17 +232,26 @@ export const SalesTable: React.FC<SalesTableProps> = ({
           </div>
         </div>
         
-        {/* Bouton actualiser - TOUJOURS PRÉSENT */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!hasData || isLoading || productSummaries.length === 0}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
       
       <div className="flex items-center space-x-4">
@@ -172,7 +282,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - Error (identique à ProductsMonthlyTable)
+  // Rendu conditionnel - Error
   if (error) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -188,7 +298,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - No Data (identique à ProductsMonthlyTable)
+  // Rendu conditionnel - No Data
   if (!hasData || processedData.products.length === 0) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -373,7 +483,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                         </div>
                       </td>
                       
-                      {/* Taux marge avec couleur (identique à ProductsMonthlyTable) */}
+                      {/* Taux marge avec couleur */}
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarginColorClass(product.taux_marge_moyen)}`}>
                           {formatPercentage(product.taux_marge_moyen)}
@@ -401,7 +511,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                         </div>
                       </td>
                       
-                      {/* Toggle expansion à droite (identique à ProductsMonthlyTable) */}
+                      {/* Toggle expansion à droite */}
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleProductExpansion(product.code_ean)}
@@ -448,7 +558,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         </div>
       </Card>
 
-      {/* Pagination (identique à ProductsMonthlyTable) */}
+      {/* Pagination */}
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">

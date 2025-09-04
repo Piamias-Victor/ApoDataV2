@@ -5,8 +5,11 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { RotateCcw, AlertCircle, ArrowLeftRight, TrendingUp, Eye, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useComparisonMarketShare } from '@/hooks/comparisons/useComparisonMarketShare';
 import { useComparisonStore } from '@/stores/useComparisonStore';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
 import { Card } from '@/components/atoms/Card/Card';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface ComparisonMarketShareSectionProps {
   readonly className?: string;
@@ -23,10 +26,12 @@ const HIERARCHY_LABELS: Record<HierarchyLevel, string> = {
 
 /**
  * ComparisonMarketShareSection - Analyse parts de marché A vs B par hiérarchie
+ * Avec export CSV intégré
  * 
  * Fonctionnalités :
  * - Comparaison side-by-side des parts de marché A vs B
  * - 3 niveaux hiérarchiques : Univers, Catégories, Familles
+ * - Export CSV complet avec tous les segments et métriques
  * - Barres de progression avec CA + Marge pour chaque élément
  * - Pagination synchronisée entre A et B
  * - Top 3 laboratoires par segment
@@ -42,6 +47,9 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
 
   // État niveau hiérarchique
   const [activeLevel, setActiveLevel] = useState<HierarchyLevel>('category');
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Hook comparaison market share
   const { 
@@ -63,6 +71,240 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
     elementB,
     hierarchyLevel: activeLevel
   });
+
+  // Préparation données pour export CSV
+  const prepareMarketShareDataForExport = useCallback(() => {
+    const exportData = [];
+    
+    // Métadonnées de l'export
+    const currentDate = new Date().toLocaleDateString('fr-FR');
+    const levelLabel = HIERARCHY_LABELS[activeLevel];
+    
+    // Header de contexte
+    exportData.push({
+      'Type': 'Contexte Export',
+      'Élément A': elementA?.name || 'Non sélectionné',
+      'Élément B': elementB?.name || 'Non sélectionné',
+      'Niveau Hiérarchique': levelLabel,
+      'Date Export': currentDate,
+      'Page Actuelle': currentPage.toString(),
+      'Segment': 'Informations générales',
+      'Métrique': 'Configuration',
+      'Valeur A': hasDataA ? 'Données disponibles' : 'Aucune donnée',
+      'Valeur B': hasDataB ? 'Données disponibles' : 'Aucune donnée',
+      'Unité': 'État',
+      'Top Labs A': dataA ? `${dataA.segments.length} segments` : '0',
+      'Top Labs B': dataB ? `${dataB.segments.length} segments` : '0'
+    });
+    
+    // Segments alignés pour comparaison
+    const segmentsA = dataA?.segments || [];
+    const segmentsB = dataB?.segments || [];
+    
+    // Union des noms de segments
+    const allSegmentNames = new Set([
+      ...segmentsA.map(s => s.segment_name),
+      ...segmentsB.map(s => s.segment_name)
+    ]);
+    
+    // Export détaillé par segment
+    Array.from(allSegmentNames).forEach(segmentName => {
+      const segmentA = segmentsA.find(s => s.segment_name === segmentName);
+      const segmentB = segmentsB.find(s => s.segment_name === segmentName);
+      
+      // Part de marché CA
+      exportData.push({
+        'Type': 'Part de Marché CA',
+        'Élément A': elementA?.name || 'Non sélectionné',
+        'Élément B': elementB?.name || 'Non sélectionné',
+        'Niveau Hiérarchique': levelLabel,
+        'Date Export': currentDate,
+        'Page Actuelle': currentPage.toString(),
+        'Segment': segmentName,
+        'Métrique': 'Part de Marché CA (%)',
+        'Valeur A': segmentA ? segmentA.part_marche_ca_pct.toFixed(2) + ' %' : 'N/A',
+        'Valeur B': segmentB ? segmentB.part_marche_ca_pct.toFixed(2) + ' %' : 'N/A',
+        'Unité': 'Pourcentage',
+        'Top Labs A': segmentA ? segmentA.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A',
+        'Top Labs B': segmentB ? segmentB.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A'
+      });
+      
+      // CA détaillés
+      if (segmentA || segmentB) {
+        exportData.push({
+          'Type': 'Détail CA',
+          'Élément A': elementA?.name || 'Non sélectionné',
+          'Élément B': elementB?.name || 'Non sélectionné',
+          'Niveau Hiérarchique': levelLabel,
+          'Date Export': currentDate,
+          'Page Actuelle': currentPage.toString(),
+          'Segment': segmentName,
+          'Métrique': 'CA Sélection vs CA Total',
+          'Valeur A': segmentA ? segmentA.ca_selection.toFixed(0) + ' €' : 'N/A',
+          'Valeur B': segmentB ? segmentB.ca_selection.toFixed(0) + ' €' : 'N/A',
+          'Unité': 'Euros',
+          'Top Labs A': segmentA ? segmentA.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A',
+          'Top Labs B': segmentB ? segmentB.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A'
+        });
+      }
+      
+      // Part de marché Marge
+      exportData.push({
+        'Type': 'Part de Marché Marge',
+        'Élément A': elementA?.name || 'Non sélectionné',
+        'Élément B': elementB?.name || 'Non sélectionné',
+        'Niveau Hiérarchique': levelLabel,
+        'Date Export': currentDate,
+        'Page Actuelle': currentPage.toString(),
+        'Segment': segmentName,
+        'Métrique': 'Part de Marché Marge (%)',
+        'Valeur A': segmentA ? segmentA.part_marche_marge_pct.toFixed(2) + ' %' : 'N/A',
+        'Valeur B': segmentB ? segmentB.part_marche_marge_pct.toFixed(2) + ' %' : 'N/A',
+        'Unité': 'Pourcentage',
+        'Top Labs A': segmentA ? segmentA.marge_selection.toFixed(0) + ' € (marge)' : 'N/A',
+        'Top Labs B': segmentB ? segmentB.marge_selection.toFixed(0) + ' € (marge)' : 'N/A'
+      });
+      
+      // Top laboratoires A
+      if (segmentA && segmentA.top_brand_labs && segmentA.top_brand_labs.length > 0) {
+        segmentA.top_brand_labs.slice(0, 3).forEach((lab, labIndex) => {
+          exportData.push({
+            'Type': 'Top Laboratoires A',
+            'Élément A': elementA?.name || 'Non sélectionné',
+            'Élément B': elementB?.name || 'Non sélectionné',
+            'Niveau Hiérarchique': levelLabel,
+            'Date Export': currentDate,
+            'Page Actuelle': currentPage.toString(),
+            'Segment': segmentName,
+            'Métrique': `Top Lab ${labIndex + 1}`,
+            'Valeur A': lab.brand_lab,
+            'Valeur B': 'N/A',
+            'Unité': 'Nom laboratoire',
+            'Top Labs A': lab.ca_brand_lab.toFixed(0) + ' €',
+            'Top Labs B': 'N/A'
+          });
+        });
+      }
+      
+      // Top laboratoires B
+      if (segmentB && segmentB.top_brand_labs && segmentB.top_brand_labs.length > 0) {
+        segmentB.top_brand_labs.slice(0, 3).forEach((lab, labIndex) => {
+          exportData.push({
+            'Type': 'Top Laboratoires B',
+            'Élément A': elementA?.name || 'Non sélectionné',
+            'Élément B': elementB?.name || 'Non sélectionné',
+            'Niveau Hiérarchique': levelLabel,
+            'Date Export': currentDate,
+            'Page Actuelle': currentPage.toString(),
+            'Segment': segmentName,
+            'Métrique': `Top Lab ${labIndex + 1}`,
+            'Valeur A': 'N/A',
+            'Valeur B': lab.brand_lab,
+            'Unité': 'Nom laboratoire',
+            'Top Labs A': 'N/A',
+            'Top Labs B': lab.ca_brand_lab.toFixed(0) + ' €'
+          });
+        });
+      }
+    });
+    
+    // Résumé statistiques si les deux éléments ont des données
+    if (hasDataA && hasDataB && dataA && dataB) {
+      exportData.push({
+        'Type': 'Résumé Statistiques',
+        'Élément A': elementA?.name || 'Non sélectionné',
+        'Élément B': elementB?.name || 'Non sélectionné',
+        'Niveau Hiérarchique': levelLabel,
+        'Date Export': currentDate,
+        'Page Actuelle': currentPage.toString(),
+        'Segment': 'Résumé Global',
+        'Métrique': 'Temps de calcul',
+        'Valeur A': dataA.queryTime + ' ms',
+        'Valeur B': dataB.queryTime + ' ms',
+        'Unité': 'Millisecondes',
+        'Top Labs A': dataA.segments.length + ' segments',
+        'Top Labs B': dataB.segments.length + ' segments'
+      });
+      
+      // Calculs de moyennes pour résumé
+      const avgMarketShareCA_A = dataA.segments.reduce((sum, s) => sum + s.part_marche_ca_pct, 0) / dataA.segments.length;
+      const avgMarketShareCA_B = dataB.segments.reduce((sum, s) => sum + s.part_marche_ca_pct, 0) / dataB.segments.length;
+      const avgMarketShareMarge_A = dataA.segments.reduce((sum, s) => sum + s.part_marche_marge_pct, 0) / dataA.segments.length;
+      const avgMarketShareMarge_B = dataB.segments.reduce((sum, s) => sum + s.part_marche_marge_pct, 0) / dataB.segments.length;
+      
+      exportData.push({
+        'Type': 'Résumé Moyennes',
+        'Élément A': elementA?.name || 'Non sélectionné',
+        'Élément B': elementB?.name || 'Non sélectionné',
+        'Niveau Hiérarchique': levelLabel,
+        'Date Export': currentDate,
+        'Page Actuelle': currentPage.toString(),
+        'Segment': 'Moyennes Calculées',
+        'Métrique': 'Part de Marché CA Moyenne',
+        'Valeur A': avgMarketShareCA_A.toFixed(2) + ' %',
+        'Valeur B': avgMarketShareCA_B.toFixed(2) + ' %',
+        'Unité': 'Pourcentage moyen',
+        'Top Labs A': 'Écart: ' + (avgMarketShareCA_A - avgMarketShareCA_B).toFixed(2) + ' %',
+        'Top Labs B': avgMarketShareCA_A > avgMarketShareCA_B ? 'Avantage A' : 'Avantage B'
+      });
+      
+      exportData.push({
+        'Type': 'Résumé Moyennes',
+        'Élément A': elementA?.name || 'Non sélectionné',
+        'Élément B': elementB?.name || 'Non sélectionné',
+        'Niveau Hiérarchique': levelLabel,
+        'Date Export': currentDate,
+        'Page Actuelle': currentPage.toString(),
+        'Segment': 'Moyennes Calculées',
+        'Métrique': 'Part de Marché Marge Moyenne',
+        'Valeur A': avgMarketShareMarge_A.toFixed(2) + ' %',
+        'Valeur B': avgMarketShareMarge_B.toFixed(2) + ' %',
+        'Unité': 'Pourcentage moyen',
+        'Top Labs A': 'Écart: ' + (avgMarketShareMarge_A - avgMarketShareMarge_B).toFixed(2) + ' %',
+        'Top Labs B': avgMarketShareMarge_A > avgMarketShareMarge_B ? 'Avantage A' : 'Avantage B'
+      });
+    }
+    
+    return exportData;
+  }, [elementA, elementB, activeLevel, currentPage, dataA, dataB, hasDataA, hasDataB]);
+
+  // Handler export avec vérifications
+  const handleExport = useCallback(() => {
+    if (!elementA && !elementB) {
+      console.warn('Aucun élément sélectionné pour export');
+      return;
+    }
+    
+    const exportData = prepareMarketShareDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    // Nom de fichier avec niveau hiérarchique et éléments
+    const levelName = activeLevel;
+    const elementNames = [
+      elementA?.name?.replace(/\s+/g, '_') || 'vide',
+      elementB?.name?.replace(/\s+/g, '_') || 'vide'
+    ].join('_vs_');
+    
+    const filename = CsvExporter.generateFilename(`apodata_parts_marche_${levelName}_${elementNames}`);
+    
+    // Vérification headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [elementA, elementB, activeLevel, prepareMarketShareDataForExport, exportToCsv]);
 
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
@@ -170,6 +412,15 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
               Élément {position} : {selectedElement?.name}
             </p>
           </div>
+          
+          {/* Export partiel disponible */}
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={isLoading}
+            label="Export élément sélectionné"
+            size="sm"
+          />
         </div>
 
         <Card variant="outlined" padding="xl" className="text-center">
@@ -195,7 +446,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
 
   return (
     <div className={`space-y-8 ${className}`}>
-      {/* Header avec résumé */}
+      {/* Header avec résumé et export */}
       <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -218,18 +469,36 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
                 </span>
               </div>
             </div>
+            
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4 text-green-600" />
+              <span className="text-sm text-gray-600">
+                Niveau : {HIERARCHY_LABELS[activeLevel]}
+              </span>
+            </div>
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-        >
-          Actualiser
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={isLoading || (!hasDataA && !hasDataB)}
+            label="Export Parts de Marché"
+            size="sm"
+          />
+          
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+          >
+            Actualiser
+          </Button>
+        </div>
       </div>
 
       {/* État d'erreur */}

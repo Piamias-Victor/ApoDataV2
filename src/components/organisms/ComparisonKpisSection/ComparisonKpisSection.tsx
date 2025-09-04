@@ -1,13 +1,16 @@
 // src/components/organisms/ComparisonKpisSection/ComparisonKpisSection.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { RotateCcw, AlertCircle, ArrowLeftRight, TrendingUp, Eye, BarChart3 } from 'lucide-react';
 import { useComparisonKpis } from '@/hooks/dashboard/useComparisonKpis';
 import { useComparisonStore } from '@/stores/useComparisonStore';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
 import { Card } from '@/components/atoms/Card/Card';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { ComparisonKpiCard } from '@/components/molecules/ComparisonKpiCard/ComparisonKpiCard';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface ComparisonKpisSectionProps {
   readonly className?: string;
@@ -15,7 +18,7 @@ interface ComparisonKpisSectionProps {
 }
 
 /**
- * ComparisonKpisSection - Layout intuitif amélioré
+ * ComparisonKpisSection - Layout intuitif amélioré avec Export CSV
  * 
  * Améliorations UX :
  * - Grille adaptative 2-3 colonnes selon écran
@@ -23,6 +26,7 @@ interface ComparisonKpisSectionProps {
  * - Header plus expressif avec résumé performance
  * - États vides plus engageants
  * - Loading states optimisés
+ * - Export CSV comparatif intégré
  * - Micro-animations fluides
  */
 export const ComparisonKpisSection: React.FC<ComparisonKpisSectionProps> = ({
@@ -46,6 +50,9 @@ export const ComparisonKpisSection: React.FC<ComparisonKpisSectionProps> = ({
     elementA,
     elementB
   });
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Configuration KPIs groupés par importance
   const kpiGroups = useMemo(() => ({
@@ -135,11 +142,190 @@ export const ComparisonKpisSection: React.FC<ComparisonKpisSectionProps> = ({
     return { caWinner, margeWinner, volumeWinner, overallWinner, scoreA, scoreB };
   }, [dataA, dataB]);
 
+  // Préparation données pour export CSV comparatif
+  const prepareComparisonDataForExport = useCallback(() => {
+    if (!dataA || !dataB || !elementA || !elementB) return [];
+    
+    const exportData = [];
+    
+    // En-tête avec informations générales
+    exportData.push({
+      'Type Comparaison': 'ANALYSE COMPARATIVE',
+      'Élément A': elementA.name,
+      'Type A': elementA.type,
+      'Élément B': elementB.name,
+      'Type B': elementB.type,
+      'Date Export': new Date().toLocaleDateString('fr-FR'),
+      'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+      'Performance Globale': performanceSummary?.overallWinner === 'A' ? `${elementA.name} devance` : 
+                           performanceSummary?.overallWinner === 'B' ? `${elementB.name} devance` : 
+                           'Performance équivalente',
+      'Score A': performanceSummary?.scoreA.toString() || '0',
+      'Score B': performanceSummary?.scoreB.toString() || '0',
+      'KPI': '',
+      'Valeur A': '',
+      'Valeur B': '',
+      'Écart Absolu': '',
+      'Écart Relatif (%)': '',
+      'Gagnant': '',
+      'Unité': '',
+      'Catégorie': ''
+    });
+
+    // Ligne de séparation
+    exportData.push({
+      'Type Comparaison': '--- DÉTAIL KPI PAR CATÉGORIE ---',
+      'Élément A': '',
+      'Type A': '',
+      'Élément B': '',
+      'Type B': '',
+      'Date Export': '',
+      'Heure Export': '',
+      'Performance Globale': '',
+      'Score A': '',
+      'Score B': '',
+      'KPI': '',
+      'Valeur A': '',
+      'Valeur B': '',
+      'Écart Absolu': '',
+      'Écart Relatif (%)': '',
+      'Gagnant': '',
+      'Unité': '',
+      'Catégorie': ''
+    });
+
+    // Export par catégorie avec calculs d'écarts
+    const allKpis = [
+      ...kpiGroups.performance.map(kpi => ({ ...kpi, category: 'Performance commerciale' })),
+      ...kpiGroups.volumes.map(kpi => ({ ...kpi, category: 'Volumes et achats' })),
+      ...kpiGroups.stock.map(kpi => ({ ...kpi, category: 'Gestion des stocks' }))
+    ];
+
+    allKpis.forEach(kpiConfig => {
+      const valueA = (dataA[kpiConfig.key as keyof typeof dataA] as number) || 0;
+      const valueB = (dataB[kpiConfig.key as keyof typeof dataB] as number) || 0;
+      const ecartAbsolu = valueB - valueA;
+      const ecartRelatif = valueA !== 0 ? ((ecartAbsolu / valueA) * 100) : 0;
+      const gagnant = valueB > valueA ? elementB.name : valueA > valueB ? elementA.name : 'Égalité';
+
+      exportData.push({
+        'Type Comparaison': 'COMPARAISON KPI',
+        'Élément A': elementA.name,
+        'Type A': elementA.type,
+        'Élément B': elementB.name,
+        'Type B': elementB.type,
+        'Date Export': new Date().toLocaleDateString('fr-FR'),
+        'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+        'Performance Globale': performanceSummary?.overallWinner === 'A' ? `${elementA.name} devance` : 
+                             performanceSummary?.overallWinner === 'B' ? `${elementB.name} devance` : 
+                             'Performance équivalente',
+        'Score A': performanceSummary?.scoreA.toString() || '0',
+        'Score B': performanceSummary?.scoreB.toString() || '0',
+        'KPI': kpiConfig.title,
+        'Valeur A': kpiConfig.unit === 'currency' ? valueA.toFixed(2) :
+                   kpiConfig.unit === 'percentage' ? valueA.toFixed(2) :
+                   kpiConfig.unit === 'days' ? valueA.toFixed(1) :
+                   valueA.toString(),
+        'Valeur B': kpiConfig.unit === 'currency' ? valueB.toFixed(2) :
+                   kpiConfig.unit === 'percentage' ? valueB.toFixed(2) :
+                   kpiConfig.unit === 'days' ? valueB.toFixed(1) :
+                   valueB.toString(),
+        'Écart Absolu': kpiConfig.unit === 'currency' ? ecartAbsolu.toFixed(2) :
+                       kpiConfig.unit === 'percentage' ? ecartAbsolu.toFixed(2) :
+                       kpiConfig.unit === 'days' ? ecartAbsolu.toFixed(1) :
+                       ecartAbsolu.toString(),
+        'Écart Relatif (%)': ecartRelatif.toFixed(2),
+        'Gagnant': gagnant,
+        'Unité': kpiConfig.unit === 'currency' ? 'EUR' :
+                 kpiConfig.unit === 'percentage' ? '%' :
+                 kpiConfig.unit === 'days' ? 'jours' :
+                 kpiConfig.unit === 'number' ? 'unités' : '',
+        'Catégorie': kpiConfig.category
+      });
+    });
+
+    // Section résumé technique
+    exportData.push({
+      'Type Comparaison': '--- RÉSUMÉ TECHNIQUE ---',
+      'Élément A': '',
+      'Type A': '',
+      'Élément B': '',
+      'Type B': '',
+      'Date Export': '',
+      'Heure Export': '',
+      'Performance Globale': '',
+      'Score A': '',
+      'Score B': '',
+      'KPI': '',
+      'Valeur A': '',
+      'Valeur B': '',
+      'Écart Absolu': '',
+      'Écart Relatif (%)': '',
+      'Gagnant': '',
+      'Unité': '',
+      'Catégorie': ''
+    });
+
+    exportData.push({
+      'Type Comparaison': 'MÉTADONNÉES',
+      'Élément A': elementA.name,
+      'Type A': elementA.type,
+      'Élément B': elementB.name,
+      'Type B': elementB.type,
+      'Date Export': new Date().toLocaleDateString('fr-FR'),
+      'Heure Export': new Date().toLocaleTimeString('fr-FR'),
+      'Performance Globale': performanceSummary?.overallWinner === 'A' ? `${elementA.name} devance` : 
+                           performanceSummary?.overallWinner === 'B' ? `${elementB.name} devance` : 
+                           'Performance équivalente',
+      'Score A': performanceSummary?.scoreA.toString() || '0',
+      'Score B': performanceSummary?.scoreB.toString() || '0',
+      'KPI': 'Pharmacies concernées A',
+      'Valeur A': dataA.nb_pharmacies?.toString() || '0',
+      'Valeur B': dataB.nb_pharmacies?.toString() || '0',
+      'Écart Absolu': ((dataB.nb_pharmacies || 0) - (dataA.nb_pharmacies || 0)).toString(),
+      'Écart Relatif (%)': dataA.nb_pharmacies ? (((dataB.nb_pharmacies || 0) - (dataA.nb_pharmacies || 0)) / (dataA.nb_pharmacies || 1) * 100).toFixed(2) : '0',
+      'Gagnant': (dataB.nb_pharmacies || 0) > (dataA.nb_pharmacies || 0) ? elementB.name : (dataA.nb_pharmacies || 0) > (dataB.nb_pharmacies || 0) ? elementA.name : 'Égalité',
+      'Unité': 'pharmacies',
+      'Catégorie': 'Technique'
+    });
+
+    return exportData;
+  }, [dataA, dataB, elementA, elementB, performanceSummary, kpiGroups]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareComparisonDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée de comparaison à exporter');
+      return;
+    }
+    
+    // Nom de fichier intelligent avec éléments comparés
+    const elementASlug = elementA?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementA';
+    const elementBSlug = elementB?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementB';
+    const filename = CsvExporter.generateFilename(`apodata_comparaison_${elementASlug}_vs_${elementBSlug}`);
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export comparaison invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareComparisonDataForExport, exportToCsv, elementA, elementB]);
+
   // Handler refresh
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     await refetch();
     onRefresh?.();
-  };
+  }, [refetch, onRefresh]);
 
   // État aucun élément sélectionné
   if (!elementA && !elementB) {
@@ -216,7 +402,7 @@ export const ComparisonKpisSection: React.FC<ComparisonKpisSectionProps> = ({
 
   return (
     <div className={`space-y-8 ${className}`}>
-      {/* Header avec résumé performance */}
+      {/* Header avec résumé performance et export */}
       <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -253,15 +439,25 @@ export const ComparisonKpisSection: React.FC<ComparisonKpisSectionProps> = ({
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-        >
-          Actualiser
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!hasDataA || !hasDataB || isLoading}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+          >
+            Actualiser
+          </Button>
+        </div>
       </div>
 
       {/* État d'erreur */}

@@ -5,7 +5,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMarketShareHierarchy } from '@/hooks/ventes/useMarketShareHierarchy';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface MarketShareSectionProps {
   readonly dateRange: { start: string; end: string };
@@ -29,12 +32,14 @@ const HIERARCHY_LABELS: Record<HierarchyLevel, string> = {
 
 /**
  * MarketShareSection - Parts de marché par hiérarchie produits
+ * Avec export CSV intégré
  * 
  * Features :
  * - 3 niveaux : Univers, Catégories, Familles
  * - Barres de progression avec CA + Marge
  * - Pagination 5 segments par niveau
  * - Tri par CA sélection décroissant
+ * - Export CSV complet avec top laboratoires
  * - États loading/error/empty cohérents
  */
 export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
@@ -66,6 +71,9 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
     filters
   });
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
     await refetch();
@@ -96,6 +104,127 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
       maximumFractionDigits: 1
     }).format(percentage / 100);
   }, []);
+
+  // Préparation données pour export CSV
+  const prepareMarketShareDataForExport = useCallback(() => {
+    if (!data || data.segments.length === 0) return [];
+    
+    const exportData = [];
+    
+    // Formatage période pour lisibilité
+    const formatDateRange = (start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      return `${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`;
+    };
+    
+    const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
+    
+    // En-tête avec informations générales
+    exportData.push({
+      'Segment': 'INFORMATIONS GÉNÉRALES',
+      'Niveau Hiérarchie': HIERARCHY_LABELS[activeLevel],
+      'Période': currentPeriod,
+      'Page Actuelle': currentPage.toString(),
+      'Total Pages': totalPages.toString(),
+      'Total Segments': totalSegments.toString(),
+      'Temps de Calcul (ms)': data.queryTime.toString(),
+      'Données en Cache': data.cached ? 'Oui' : 'Non',
+      'CA Sélection (€)': '',
+      'Part Marché CA (%)': '',
+      'Marge Sélection (€)': '',
+      'Part Marché Marge (%)': '',
+      'CA Total Segment (€)': '',
+      'Marge Total Segment (€)': '',
+      'Top 1 Lab': '',
+      'Top 1 CA': '',
+      'Top 2 Lab': '',
+      'Top 2 CA': '',
+      'Top 3 Lab': '',
+      'Top 3 CA': ''
+    });
+
+    // Ligne de séparation
+    exportData.push({
+      'Segment': '--- DONNÉES PAR SEGMENT ---',
+      'Niveau Hiérarchie': '',
+      'Période': '',
+      'Page Actuelle': '',
+      'Total Pages': '',
+      'Total Segments': '',
+      'Temps de Calcul (ms)': '',
+      'Données en Cache': '',
+      'CA Sélection (€)': '',
+      'Part Marché CA (%)': '',
+      'Marge Sélection (€)': '',
+      'Part Marché Marge (%)': '',
+      'CA Total Segment (€)': '',
+      'Marge Total Segment (€)': '',
+      'Top 1 Lab': '',
+      'Top 1 CA': '',
+      'Top 2 Lab': '',
+      'Top 2 CA': '',
+      'Top 3 Lab': '',
+      'Top 3 CA': ''
+    });
+    
+    // Export de tous les segments avec leurs données
+    data.segments.forEach(segment => {
+      const topLabs = segment.top_brand_labs || [];
+      
+      exportData.push({
+        'Segment': segment.segment_name,
+        'Niveau Hiérarchie': HIERARCHY_LABELS[activeLevel],
+        'Période': currentPeriod,
+        'Page Actuelle': currentPage.toString(),
+        'Total Pages': totalPages.toString(),
+        'Total Segments': totalSegments.toString(),
+        'Temps de Calcul (ms)': data.queryTime.toString(),
+        'Données en Cache': data.cached ? 'Oui' : 'Non',
+        'CA Sélection (€)': segment.ca_selection.toString(),
+        'Part Marché CA (%)': segment.part_marche_ca_pct.toFixed(2),
+        'Marge Sélection (€)': segment.marge_selection.toString(),
+        'Part Marché Marge (%)': segment.part_marche_marge_pct.toFixed(2),
+        'CA Total Segment (€)': segment.ca_total_segment.toString(),
+        'Marge Total Segment (€)': segment.marge_total_segment.toString(),
+        'Top 1 Lab': topLabs[0]?.brand_lab || 'N/A',
+        'Top 1 CA': topLabs[0]?.ca_brand_lab?.toString() || '0',
+        'Top 2 Lab': topLabs[1]?.brand_lab || 'N/A',
+        'Top 2 CA': topLabs[1]?.ca_brand_lab?.toString() || '0',
+        'Top 3 Lab': topLabs[2]?.brand_lab || 'N/A',
+        'Top 3 CA': topLabs[2]?.ca_brand_lab?.toString() || '0'
+      });
+    });
+    
+    return exportData;
+  }, [data, dateRange, activeLevel, currentPage, totalPages, totalSegments]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareMarketShareDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const levelLabel = HIERARCHY_LABELS[activeLevel].toLowerCase().replace(' ', '_');
+    const filename = CsvExporter.generateFilename(`apodata_parts_marche_${levelLabel}`);
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareMarketShareDataForExport, exportToCsv, activeLevel]);
 
   // État empty avec validation
   const isEmpty = useMemo(() => {
@@ -142,7 +271,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
 
   return (
     <section className={`px-6 py-6 ${className}`}>
-      {/* Header avec titre et contrôles */}
+      {/* Header avec titre, contrôles et boutons d'action */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
@@ -153,20 +282,30 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
           </p>
         </div>
         
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={
-            <RotateCcw 
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
-            />
-          }
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!data || isLoading || !hasData || data.segments.length === 0}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={
+              <RotateCcw 
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+              />
+            }
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
 
       {/* Onglets niveaux hiérarchiques */}

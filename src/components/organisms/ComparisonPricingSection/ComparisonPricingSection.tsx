@@ -4,9 +4,12 @@
 import React, { useMemo, useCallback } from 'react';
 import { RotateCcw, AlertCircle, ArrowLeftRight, TrendingDown, TrendingUp, Eye, DollarSign } from 'lucide-react';
 import { useComparisonStore } from '@/stores/useComparisonStore';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
 import { Card } from '@/components/atoms/Card/Card';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useComparisonPricing } from '@/hooks/competitive/useComparisonPricing';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface ComparisonPricingSectionProps {
   readonly className?: string;
@@ -29,11 +32,13 @@ interface PriceComparisonData {
 
 /**
  * ComparisonPricingSection - Analyse comparative des prix A vs B
+ * Avec export CSV intégré
  * 
  * Features :
  * - Utilise API /api/competitive-analysis existante
  * - 2 requêtes parallèles avec productCodes A et B
  * - Tableau side-by-side résumés prix/marges
+ * - Export CSV complet avec comparaisons
  * - Indicateurs écarts concurrentiels 
  * - États vides engageants
  * - Design cohérent Apple/Stripe
@@ -44,6 +49,9 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
 }) => {
   // Store comparison pour les éléments sélectionnés
   const { elementA, elementB } = useComparisonStore();
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Hook pricing comparison dédié
   const { 
@@ -183,7 +191,216 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
     };
   }, [elementB, hasDataB, productsB]);
 
-  // Handler refresh
+  // Préparation données pour export CSV
+  const prepareComparisonDataForExport = useCallback(() => {
+    const exportData = [];
+    
+    // Métadonnées de la comparaison
+    const currentDate = new Date().toLocaleDateString('fr-FR');
+    
+    // Section résumé comparatif si les deux éléments existent
+    if (comparisonDataA && comparisonDataB) {
+      exportData.push({
+        'Type': 'Résumé Comparatif',
+        'Élément A': comparisonDataA.elementName,
+        'Élément B': comparisonDataB.elementName,
+        'Date Export': currentDate,
+        'Métrique': 'Comparaison Générale',
+        'Valeur A': '',
+        'Valeur B': '',
+        'Écart': '',
+        'Avantage': '',
+        'Statut A': comparisonDataA.summary.avgSellingPrice > 0 ? 'Données disponibles' : 'Aucune vente',
+        'Statut B': comparisonDataB.summary.avgSellingPrice > 0 ? 'Données disponibles' : 'Aucune vente'
+      });
+      
+      // Comparaisons détaillées uniquement si les deux ont des ventes
+      if (comparisonDataA.summary.avgSellingPrice > 0 && comparisonDataB.summary.avgSellingPrice > 0) {
+        // Prix de vente moyen
+        const priceDiff = comparisonDataA.summary.avgSellingPrice - comparisonDataB.summary.avgSellingPrice;
+        exportData.push({
+          'Type': 'Comparaison Détaillée',
+          'Élément A': comparisonDataA.elementName,
+          'Élément B': comparisonDataB.elementName,
+          'Date Export': currentDate,
+          'Métrique': 'Prix de vente moyen',
+          'Valeur A': comparisonDataA.summary.avgSellingPrice.toFixed(2) + ' €',
+          'Valeur B': comparisonDataB.summary.avgSellingPrice.toFixed(2) + ' €',
+          'Écart': Math.abs(priceDiff).toFixed(2) + ' €',
+          'Avantage': priceDiff > 0 ? 'B (prix plus bas)' : priceDiff < 0 ? 'A (prix plus bas)' : 'Égal',
+          'Statut A': 'Actif',
+          'Statut B': 'Actif'
+        });
+        
+        // Taux de marge
+        const marginDiff = comparisonDataA.summary.avgMarginRate - comparisonDataB.summary.avgMarginRate;
+        exportData.push({
+          'Type': 'Comparaison Détaillée',
+          'Élément A': comparisonDataA.elementName,
+          'Élément B': comparisonDataB.elementName,
+          'Date Export': currentDate,
+          'Métrique': 'Taux de marge moyen',
+          'Valeur A': comparisonDataA.summary.avgMarginRate.toFixed(1) + ' %',
+          'Valeur B': comparisonDataB.summary.avgMarginRate.toFixed(1) + ' %',
+          'Écart': Math.abs(marginDiff).toFixed(1) + ' %',
+          'Avantage': marginDiff > 0 ? 'A (marge supérieure)' : marginDiff < 0 ? 'B (marge supérieure)' : 'Égal',
+          'Statut A': 'Actif',
+          'Statut B': 'Actif'
+        });
+        
+        // Écart vs marché
+        const marketGapDiff = comparisonDataA.summary.marketGap - comparisonDataB.summary.marketGap;
+        exportData.push({
+          'Type': 'Comparaison Détaillée',
+          'Élément A': comparisonDataA.elementName,
+          'Élément B': comparisonDataB.elementName,
+          'Date Export': currentDate,
+          'Métrique': 'Écart vs marché',
+          'Valeur A': (comparisonDataA.summary.marketGap >= 0 ? '+' : '') + comparisonDataA.summary.marketGap.toFixed(1) + ' %',
+          'Valeur B': (comparisonDataB.summary.marketGap >= 0 ? '+' : '') + comparisonDataB.summary.marketGap.toFixed(1) + ' %',
+          'Écart': Math.abs(marketGapDiff).toFixed(1) + ' %',
+          'Avantage': marketGapDiff > 0 ? 'A (meilleur positionnement)' : marketGapDiff < 0 ? 'B (meilleur positionnement)' : 'Égal',
+          'Statut A': 'Actif',
+          'Statut B': 'Actif'
+        });
+      }
+    }
+    
+    // Données détaillées élément A
+    if (comparisonDataA) {
+      exportData.push({
+        'Type': 'Détail Élément A',
+        'Élément A': comparisonDataA.elementName,
+        'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
+        'Date Export': currentDate,
+        'Métrique': 'Nombre total produits',
+        'Valeur A': comparisonDataA.summary.totalProducts.toString(),
+        'Valeur B': '',
+        'Écart': '',
+        'Avantage': '',
+        'Statut A': 'Référencé',
+        'Statut B': ''
+      });
+      
+      if (comparisonDataA.summary.avgSellingPrice > 0) {
+        exportData.push({
+          'Type': 'Détail Élément A',
+          'Élément A': comparisonDataA.elementName,
+          'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
+          'Date Export': currentDate,
+          'Métrique': 'Prix vente moyen',
+          'Valeur A': comparisonDataA.summary.avgSellingPrice.toFixed(2) + ' €',
+          'Valeur B': '',
+          'Écart': '',
+          'Avantage': '',
+          'Statut A': 'Vendu',
+          'Statut B': ''
+        });
+        
+        exportData.push({
+          'Type': 'Détail Élément A',
+          'Élément A': comparisonDataA.elementName,
+          'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
+          'Date Export': currentDate,
+          'Métrique': 'Fourchette marché',
+          'Valeur A': comparisonDataA.summary.minMarketPrice.toFixed(2) + ' € - ' + comparisonDataA.summary.maxMarketPrice.toFixed(2) + ' €',
+          'Valeur B': '',
+          'Écart': '',
+          'Avantage': '',
+          'Statut A': 'Référence marché',
+          'Statut B': ''
+        });
+      }
+    }
+    
+    // Données détaillées élément B
+    if (comparisonDataB) {
+      exportData.push({
+        'Type': 'Détail Élément B',
+        'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
+        'Élément B': comparisonDataB.elementName,
+        'Date Export': currentDate,
+        'Métrique': 'Nombre total produits',
+        'Valeur A': '',
+        'Valeur B': comparisonDataB.summary.totalProducts.toString(),
+        'Écart': '',
+        'Avantage': '',
+        'Statut A': '',
+        'Statut B': 'Référencé'
+      });
+      
+      if (comparisonDataB.summary.avgSellingPrice > 0) {
+        exportData.push({
+          'Type': 'Détail Élément B',
+          'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
+          'Élément B': comparisonDataB.elementName,
+          'Date Export': currentDate,
+          'Métrique': 'Prix vente moyen',
+          'Valeur A': '',
+          'Valeur B': comparisonDataB.summary.avgSellingPrice.toFixed(2) + ' €',
+          'Écart': '',
+          'Avantage': '',
+          'Statut A': '',
+          'Statut B': 'Vendu'
+        });
+        
+        exportData.push({
+          'Type': 'Détail Élément B',
+          'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
+          'Élément B': comparisonDataB.elementName,
+          'Date Export': currentDate,
+          'Métrique': 'Fourchette marché',
+          'Valeur A': '',
+          'Valeur B': comparisonDataB.summary.minMarketPrice.toFixed(2) + ' € - ' + comparisonDataB.summary.maxMarketPrice.toFixed(2) + ' €',
+          'Écart': '',
+          'Avantage': '',
+          'Statut A': '',
+          'Statut B': 'Référence marché'
+        });
+      }
+    }
+    
+    return exportData;
+  }, [comparisonDataA, comparisonDataB]);
+
+  // Handler export avec vérifications
+  const handleExport = useCallback(() => {
+    if (!elementA && !elementB) {
+      console.warn('Aucun élément sélectionné pour export');
+      return;
+    }
+    
+    const exportData = prepareComparisonDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    // Nom de fichier avec éléments comparés
+    const elementNames = [
+      elementA?.name || 'vide',
+      elementB?.name || 'vide'
+    ].join('_vs_');
+    
+    const filename = CsvExporter.generateFilename(`apodata_comparaison_prix_${elementNames}`);
+    
+    // Vérification headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [elementA, elementB, prepareComparisonDataForExport, exportToCsv]);
+
+  // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
     await refetch();
     onRefresh?.();
@@ -254,6 +471,15 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               Élément {position} : {selectedElement?.name}
             </p>
           </div>
+          
+          {/* Export partiel disponible */}
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={isLoading}
+            label="Export élément sélectionné"
+            size="sm"
+          />
         </div>
 
         <Card variant="outlined" padding="xl" className="text-center">
@@ -279,7 +505,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
 
   return (
     <div className={`space-y-8 ${className}`}>
-      {/* Header avec indicateurs éléments */}
+      {/* Header avec indicateurs éléments et export */}
       <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -314,15 +540,26 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-        >
-          Actualiser
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={isLoading || (!comparisonDataA && !comparisonDataB)}
+            label="Export Comparaison"
+            size="sm"
+          />
+          
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+          >
+            Actualiser
+          </Button>
+        </div>
       </div>
 
       {/* État d'erreur */}

@@ -1,4 +1,4 @@
-// src/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable.tsx (IMPROVED)
+// src/components/organisms/ProductsMonthlyTable/ProductsMonthlyTable.tsx (IMPROVED avec Export)
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -7,8 +7,11 @@ import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { ProductMonthlyChart } from '../ProductMonthlyChart/ProductMonthlyChart';
 import { useProductsMonthlyDetails } from '@/hooks/products/useProductsMonthlyDetails';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import { 
   formatLargeNumber, 
   formatCurrency, 
@@ -61,6 +64,9 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     hasData 
   } = useProductsMonthlyDetails({ enabled: true });
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
   // Calculs stock idéal et commandes avec données 12 mois
   const enhancedProductSummaries: EnhancedProductSummary[] = useMemo(() => {
     return productSummaries.map(product => {
@@ -78,6 +84,133 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
       };
     });
   }, [productSummaries, joursStockIdeal]);
+
+  // Préparation données pour export CSV
+  const prepareMonthlyDataForExport = useCallback(() => {
+    if (!enhancedProductSummaries || enhancedProductSummaries.length === 0) return [];
+    
+    const exportData = [];
+    
+    // En-tête avec informations générales
+    exportData.push({
+      'Produit': 'INFORMATIONS GÉNÉRALES',
+      'Code EAN': '',
+      'Recherche': searchQuery || 'Toutes',
+      'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
+      'Page Actuelle': currentPage.toString(),
+      'Total Produits': enhancedProductSummaries.length.toString(),
+      'Jours Stock Idéal': joursStockIdeal.toString(),
+      'Temps de Requête (ms)': queryTime.toString(),
+      'Qté Vendue 12M': '',
+      'Prix Achat Moyen (€)': '',
+      'Prix Vente Moyen (€)': '',
+      'Taux Marge Moyen (%)': '',
+      'Stock Moyen': '',
+      'Stock Actuel': '',
+      'Stock Idéal Calculé': '',
+      'Qté à Commander': '',
+      'Écart vs Stock Moyen': '',
+      'Ventes Quotidiennes Moy.': '',
+      'Montant Ventes 12M (€)': '',
+      'Montant Marge 12M (€)': '',
+      'Ratio Stock/Ventes (%)': '',
+      'Jours de Stock Actuels': ''
+    });
+
+    // Ligne de séparation
+    exportData.push({
+      'Produit': '--- DONNÉES PRODUITS MENSUELS ---',
+      'Code EAN': '',
+      'Recherche': '',
+      'Tri Actuel': '',
+      'Page Actuelle': '',
+      'Total Produits': '',
+      'Jours Stock Idéal': '',
+      'Temps de Requête (ms)': '',
+      'Qté Vendue 12M': '',
+      'Prix Achat Moyen (€)': '',
+      'Prix Vente Moyen (€)': '',
+      'Taux Marge Moyen (%)': '',
+      'Stock Moyen': '',
+      'Stock Actuel': '',
+      'Stock Idéal Calculé': '',
+      'Qté à Commander': '',
+      'Écart vs Stock Moyen': '',
+      'Ventes Quotidiennes Moy.': '',
+      'Montant Ventes 12M (€)': '',
+      'Montant Marge 12M (€)': '',
+      'Ratio Stock/Ventes (%)': '',
+      'Jours de Stock Actuels': ''
+    });
+    
+    // Export de tous les produits avec calculs avancés
+    enhancedProductSummaries.forEach(product => {
+      // Calculs additionnels pour export
+      const montantVentes12M = product.quantite_vendue_total * product.prix_vente_moyen;
+      const montantMarge12M = montantVentes12M - (product.quantite_vendue_total * product.prix_achat_moyen);
+      const ratioStockVentes = product.quantite_vendue_total > 0 
+        ? (product.quantite_stock_actuel / product.quantite_vendue_total) * 100 
+        : 0;
+      const joursStockActuels = product.ventesQuotidiennesMoyennes > 0 
+        ? product.quantite_stock_actuel / product.ventesQuotidiennesMoyennes 
+        : 0;
+
+      exportData.push({
+        'Produit': product.nom,
+        'Code EAN': product.code_ean,
+        'Recherche': searchQuery || 'Toutes',
+        'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
+        'Page Actuelle': currentPage.toString(),
+        'Total Produits': enhancedProductSummaries.length.toString(),
+        'Jours Stock Idéal': joursStockIdeal.toString(),
+        'Temps de Requête (ms)': queryTime.toString(),
+        'Qté Vendue 12M': product.quantite_vendue_total.toString(),
+        'Prix Achat Moyen (€)': product.prix_achat_moyen.toFixed(2),
+        'Prix Vente Moyen (€)': product.prix_vente_moyen.toFixed(2),
+        'Taux Marge Moyen (%)': product.taux_marge_moyen.toFixed(2),
+        'Stock Moyen': product.quantite_stock_moyenne.toString(),
+        'Stock Actuel': product.quantite_stock_actuel.toString(),
+        'Stock Idéal Calculé': product.stockIdeal.toString(),
+        'Qté à Commander': product.quantiteACommander.toString(),
+        'Écart vs Stock Moyen': product.ecartVsStockMoyen.toString(),
+        'Ventes Quotidiennes Moy.': product.ventesQuotidiennesMoyennes.toFixed(2),
+        'Montant Ventes 12M (€)': montantVentes12M.toFixed(2),
+        'Montant Marge 12M (€)': montantMarge12M.toFixed(2),
+        'Ratio Stock/Ventes (%)': ratioStockVentes.toFixed(2),
+        'Jours de Stock Actuels': joursStockActuels.toFixed(1)
+      });
+    });
+    
+    return exportData;
+  }, [enhancedProductSummaries, searchQuery, sortConfig, currentPage, joursStockIdeal, queryTime]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareMonthlyDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const searchSuffix = searchQuery ? `_recherche_${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+    const stockSuffix = `_stock${joursStockIdeal}j`;
+    const filename = CsvExporter.generateFilename(`apodata_details_mensuels${searchSuffix}${stockSuffix}`);
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareMonthlyDataForExport, exportToCsv, searchQuery, joursStockIdeal]);
 
   // Gestion expansion/collapse produits
   const toggleProductExpansion = useCallback((codeEan: string) => {
@@ -105,14 +238,11 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
         direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
       };
     });
-    
-    // setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    // setCurrentPage(1);
   }, []);
 
   // Traitement des données avec nouvelles colonnes
@@ -152,7 +282,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Header avec bouton actualiser - TOUJOURS VISIBLE
+  // Header avec bouton actualiser et export - TOUJOURS VISIBLE
   const renderHeader = () => (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center space-x-4">
@@ -166,17 +296,26 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
           </div>
         </div>
         
-        {/* Bouton actualiser - TOUJOURS PRÉSENT */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!hasData || isLoading || enhancedProductSummaries.length === 0}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
       
       <div className="flex items-center space-x-4">
@@ -215,7 +354,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
       : 'text-red-700 bg-red-50';
   };
 
-  // Rendu conditionnel - Loading, Error, No Data
+  // Rendu conditionnel - Loading
   if (isLoading) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -234,6 +373,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     );
   }
 
+  // Rendu conditionnel - Error
   if (error) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -249,6 +389,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
     );
   }
 
+  // Rendu conditionnel - No Data
   if (!hasData || processedData.products.length === 0) {
     return (
       <div className={`space-y-4 ${className}`}>

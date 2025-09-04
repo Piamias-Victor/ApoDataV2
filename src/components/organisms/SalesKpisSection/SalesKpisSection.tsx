@@ -5,9 +5,12 @@
 import React, { useMemo, useCallback } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { useSalesKpiMetrics } from '@/hooks/ventes/useSalesKpiMetrics';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { KpiCardSkeleton } from '@/components/molecules/KpiCard/KpiCardSkeleton';
 import { MemoizedDualKpiCard as DualKpiCard } from '@/components/molecules/DualKpiCard/DualKpiCard';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import type { SalesKpisSectionProps } from './types';
 import { 
   transformSalesKpiData, 
@@ -19,6 +22,7 @@ import {
 
 /**
  * SalesKpisSection - KPI spécialisés page ventes
+ * Avec export CSV intégré
  * 
  * Features :
  * - 4 DualKpiCard : Quantités/CA, Parts marché, Références, Marge
@@ -26,6 +30,7 @@ import {
  * - États loading/error/empty cohérents
  * - Design identique KpisSection
  * - Performance optimisée React.memo + useMemo
+ * - Export CSV complet avec données de comparaison
  */
 export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
   dateRange,
@@ -50,6 +55,9 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
     filters
   });
 
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
   // Validation et transformation données
   const transformedKpis = useMemo(() => {
     if (!data || !validateSalesKpiData(data)) return null;
@@ -66,6 +74,157 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
       return null;
     }
   }, [transformedKpis]);
+
+  // Préparation données pour export CSV
+  const prepareSalesKpiDataForExport = useCallback(() => {
+    if (!data) return [];
+    
+    const exportData = [];
+    
+    // Formatage période
+    const formatDateRange = (start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      return `${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`;
+    };
+    
+    const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
+    const comparisonPeriod = comparisonDateRange && includeComparison ? 
+      formatDateRange(comparisonDateRange.start || '', comparisonDateRange.end || '') : '';
+    
+    // Export de tous les KPI ventes avec valeurs et comparaisons
+    exportData.push({
+      'Indicateur': 'Quantité Vendue',
+      'Valeur': data.quantite_vendue,
+      'Unité': 'unités',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.quantite_vendue || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.quantite_vendue - data.comparison.quantite_vendue) / data.comparison.quantite_vendue * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.quantite_vendue - data.comparison.quantite_vendue) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'CA TTC',
+      'Valeur': data.ca_ttc,
+      'Unité': '€',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.ca_ttc || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.ca_ttc - data.comparison.ca_ttc) / data.comparison.ca_ttc * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.ca_ttc - data.comparison.ca_ttc).toFixed(2) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Part de Marché CA',
+      'Valeur': data.part_marche_ca_pct.toFixed(2),
+      'Unité': '%',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.part_marche_ca_pct?.toFixed(2) || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.part_marche_ca_pct - data.comparison.part_marche_ca_pct) / data.comparison.part_marche_ca_pct * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.part_marche_ca_pct - data.comparison.part_marche_ca_pct).toFixed(2) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Part de Marché Marge',
+      'Valeur': data.part_marche_marge_pct.toFixed(2),
+      'Unité': '%',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.part_marche_marge_pct?.toFixed(2) || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.part_marche_marge_pct - data.comparison.part_marche_marge_pct) / data.comparison.part_marche_marge_pct * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.part_marche_marge_pct - data.comparison.part_marche_marge_pct).toFixed(2) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Nb Références Sélection',
+      'Valeur': data.nb_references_selection,
+      'Unité': 'références',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.nb_references_selection || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.nb_references_selection - data.comparison.nb_references_selection) / data.comparison.nb_references_selection * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.nb_references_selection - data.comparison.nb_references_selection) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Nb Références 80% CA',
+      'Valeur': data.nb_references_80pct_ca,
+      'Unité': 'références',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.nb_references_80pct_ca || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.nb_references_80pct_ca - data.comparison.nb_references_80pct_ca) / data.comparison.nb_references_80pct_ca * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.nb_references_80pct_ca - data.comparison.nb_references_80pct_ca) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Montant Marge',
+      'Valeur': data.montant_marge,
+      'Unité': '€',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.montant_marge || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.montant_marge - data.comparison.montant_marge) / data.comparison.montant_marge * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.montant_marge - data.comparison.montant_marge).toFixed(2) : ''
+    });
+    
+    exportData.push({
+      'Indicateur': 'Taux de Marge',
+      'Valeur': data.taux_marge_pct.toFixed(2),
+      'Unité': '%',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': data.comparison?.taux_marge_pct?.toFixed(2) || '',
+      'Période précédente': comparisonPeriod,
+      'Evolution (%)': data.comparison ? 
+        ((data.taux_marge_pct - data.comparison.taux_marge_pct) / data.comparison.taux_marge_pct * 100).toFixed(2) : '',
+      'Evolution (valeur)': data.comparison ? 
+        (data.taux_marge_pct - data.comparison.taux_marge_pct).toFixed(2) : ''
+    });
+    
+    return exportData;
+  }, [data, dateRange, comparisonDateRange, includeComparison]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareSalesKpiDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_kpis_ventes');
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareSalesKpiDataForExport, exportToCsv]);
 
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
@@ -124,7 +283,7 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
 
   return (
     <section className={`px-6 py-6 ${className}`}>
-      {/* Header avec titre et bouton refresh */}
+      {/* Header avec titre et boutons d'action */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
@@ -135,21 +294,30 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
           </p>
         </div>
         
-        {/* Bouton refresh */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={
-            <RotateCcw 
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
-            />
-          }
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!data || isLoading}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={
+              <RotateCcw 
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+              />
+            }
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
       
       {/* Grille KPI responsive - 4 DualKpiCard en 2x2 */}

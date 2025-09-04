@@ -4,9 +4,13 @@
 import React, { useMemo, useCallback } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { usePriceEvolution } from '@/hooks/price/usePriceEvolution';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { MemoizedKpiCard as KpiCard } from '@/components/molecules/KpiCard/KpiCard';
 import { KpiCardSkeleton } from '@/components/molecules/KpiCard/KpiCardSkeleton';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface PriceEvolutionKpisProps {
   readonly className?: string;
@@ -15,9 +19,11 @@ interface PriceEvolutionKpisProps {
 
 /**
  * PriceEvolutionKpis - Organism évolutions prix pharmaceutiques
+ * Avec export CSV intégré
  * 
  * Features :
  * - 4 KPI cards évolutions prix/marges
+ * - Export CSV des métriques d'évolution
  * - Grille responsive 2x2 ou 4x1
  * - Hook usePriceEvolution intégration directe
  * - États loading/error cohérents ApoData
@@ -40,6 +46,117 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
   } = usePriceEvolution({
     enabled: true
   });
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
+
+  // Filtres pour contexte export
+  const dateRange = useFiltersStore((state) => state.analysisDateRange);
+  const productsFilter = useFiltersStore((state) => state.products);
+  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
+  const categoriesFilter = useFiltersStore((state) => state.categories);
+  const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+
+  // Préparation données pour export CSV
+  const preparePriceEvolutionDataForExport = useCallback(() => {
+    if (!metrics) return [];
+    
+    const exportData = [];
+    
+    // Formatage période
+    const formatDateRange = (start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      return `${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`;
+    };
+    
+    const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
+    
+    // Formatage contexte filtres
+    const formatFiltersContext = () => {
+      const filters = [];
+      if (productsFilter.length > 0) filters.push(`${productsFilter.length} produit(s)`);
+      if (laboratoriesFilter.length > 0) filters.push(`${laboratoriesFilter.length} laboratoire(s)`);
+      if (categoriesFilter.length > 0) filters.push(`${categoriesFilter.length} catégorie(s)`);
+      if (pharmacyFilter.length > 0) filters.push(`${pharmacyFilter.length} pharmacie(s)`);
+      return filters.length > 0 ? filters.join(', ') : 'Tous les produits';
+    };
+    
+    const filtersContext = formatFiltersContext();
+    
+    // Export des 4 métriques d'évolution
+    exportData.push({
+      'Métrique': 'Évolution Prix Vente',
+      'Valeur (%)': metrics.evolution_prix_vente_pct.toFixed(2),
+      'Interprétation': metrics.evolution_prix_vente_pct > 0 ? 'Hausse' : 
+                       metrics.evolution_prix_vente_pct < 0 ? 'Baisse' : 'Stable',
+      'Période analysée': currentPeriod,
+      'Périmètre': filtersContext,
+      'Nb produits analysés': metrics.nb_produits_analyses,
+      'Type calcul': 'Début → fin période'
+    });
+    
+    exportData.push({
+      'Métrique': 'Évolution Prix Achat',
+      'Valeur (%)': metrics.evolution_prix_achat_pct.toFixed(2),
+      'Interprétation': metrics.evolution_prix_achat_pct > 0 ? 'Hausse' : 
+                       metrics.evolution_prix_achat_pct < 0 ? 'Baisse' : 'Stable',
+      'Période analysée': currentPeriod,
+      'Périmètre': filtersContext,
+      'Nb produits analysés': metrics.nb_produits_analyses,
+      'Type calcul': 'Début → fin période'
+    });
+    
+    exportData.push({
+      'Métrique': 'Évolution Marge %',
+      'Valeur (%)': metrics.evolution_marge_pct.toFixed(2),
+      'Interprétation': metrics.evolution_marge_pct > 0 ? 'Amélioration' : 
+                       metrics.evolution_marge_pct < 0 ? 'Dégradation' : 'Stable',
+      'Période analysée': currentPeriod,
+      'Périmètre': filtersContext,
+      'Nb produits analysés': metrics.nb_produits_analyses,
+      'Type calcul': 'Différence absolue'
+    });
+    
+    exportData.push({
+      'Métrique': 'Écart vs Marché',
+      'Valeur (%)': metrics.ecart_prix_vs_marche_pct.toFixed(2),
+      'Interprétation': metrics.ecart_prix_vs_marche_pct > 0 ? 'Au-dessus marché' : 
+                       metrics.ecart_prix_vs_marche_pct < 0 ? 'En-dessous marché' : 'Aligné marché',
+      'Période analysée': currentPeriod,
+      'Périmètre': filtersContext,
+      'Nb produits analysés': metrics.nb_produits_analyses,
+      'Type calcul': 'Position concurrentielle'
+    });
+    
+    return exportData;
+  }, [metrics, dateRange, productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = preparePriceEvolutionDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_evolutions_prix');
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [preparePriceEvolutionDataForExport, exportToCsv]);
 
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
@@ -138,7 +255,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
 
   return (
     <section className={`px-6 py-6 ${className}`}>
-      {/* Header avec titre et bouton refresh */}
+      {/* Header avec titre et boutons d'action */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
@@ -152,21 +269,30 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
           </p>
         </div>
         
-        {/* Bouton refresh */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          iconLeft={
-            <RotateCcw 
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
-            />
-          }
-          className="text-gray-600 hover:text-gray-900"
-        >
-          {isLoading ? 'Actualisation...' : 'Actualiser'}
-        </Button>
+        {/* Boutons d'action */}
+        <div className="flex items-center space-x-2">
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={!metrics || isLoading}
+            label="Export CSV"
+          />
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            iconLeft={
+              <RotateCcw 
+                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+              />
+            }
+            className="text-gray-600 hover:text-gray-900"
+          >
+            {isLoading ? 'Actualisation...' : 'Actualiser'}
+          </Button>
+        </div>
       </div>
       
 

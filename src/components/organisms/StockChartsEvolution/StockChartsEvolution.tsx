@@ -17,7 +17,10 @@ import { RotateCcw, Package } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useStockCharts } from '@/hooks/dashboard/useStockCharts';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 
 interface StockChartsEvolutionProps {
   dateRange: { start: string; end: string };
@@ -38,6 +41,7 @@ interface StockChartDataPoint {
 
 /**
  * StockChartsEvolution - Graphique évolution métriques de stock
+ * Avec export CSV intégré
  */
 export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
   dateRange,
@@ -52,6 +56,9 @@ export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
     productCodes: filters.productCodes || [],
     pharmacyId: filters.pharmacyId
   });
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Utility function pour formater les mois
   const formatMonthLabel = useCallback((dateStr: string): string => {
@@ -125,6 +132,90 @@ export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
     }
   }, [data, formatMonthLabel]);
 
+  // Préparation données pour export CSV
+  const prepareStockChartDataForExport = useCallback(() => {
+    if (!data || data.length === 0) return [];
+    
+    // Formatage période pour lisibilité
+    const formatPeriodForExport = (dateStr: string) => {
+      try {
+        const [year, month] = dateStr.split('-');
+        const date = new Date(parseInt(year!), parseInt(month!) - 1, 1);
+        return date.toLocaleDateString('fr-FR', { 
+          month: 'long', 
+          year: 'numeric' 
+        });
+      } catch (error) {
+        return dateStr;
+      }
+    };
+    
+    // Formatage contexte filtres
+    const formatFiltersContext = () => {
+      const filterInfo = [];
+      if (filters.productCodes && filters.productCodes.length > 0) {
+        filterInfo.push(`${filters.productCodes.length} produit(s)`);
+      }
+      if (filters.pharmacyId) {
+        filterInfo.push('Pharmacie spécifique');
+      }
+      return filterInfo.length > 0 ? filterInfo.join(', ') : 'Tous les produits';
+    };
+    
+    const filtersContext = formatFiltersContext();
+    
+    // Helper pour sécuriser les valeurs numériques
+    const safeNumber = (value: any, defaultValue: number = 0): number => {
+      const num = Number(value);
+      return (value === null || value === undefined || isNaN(num)) ? defaultValue : num;
+    };
+    
+    // Export avec toutes les métriques mensuelles
+    return data.map(entry => ({
+      'Période': formatPeriodForExport(entry.periode),
+      'Mois ISO': entry.periode,
+      'Quantité en stock (unités)': safeNumber(entry.quantite_stock),
+      'Quantité vendue (unités)': safeNumber(entry.quantite_vendue),
+      'Jours de stock': entry.jours_stock !== null ? safeNumber(entry.jours_stock).toFixed(1) : 'N/A',
+      'Taux rotation stock': entry.jours_stock !== null && entry.jours_stock > 0 
+        ? (365 / safeNumber(entry.jours_stock)).toFixed(2)
+        : 'N/A',
+      'Interprétation stock': entry.jours_stock === null ? 'Calcul impossible' :
+                             safeNumber(entry.jours_stock) > 90 ? 'Stock élevé' :
+                             safeNumber(entry.jours_stock) > 30 ? 'Stock normal' : 'Stock faible',
+      'Écart stock/ventes': safeNumber(entry.quantite_stock) > 0 && safeNumber(entry.quantite_vendue) > 0
+        ? (safeNumber(entry.quantite_stock) / safeNumber(entry.quantite_vendue)).toFixed(2)
+        : 'N/A',
+      'Période analysée': `${new Date(dateRange.start).toLocaleDateString('fr-FR')} - ${new Date(dateRange.end).toLocaleDateString('fr-FR')}`,
+      'Périmètre': filtersContext
+    }));
+  }, [data, dateRange, filters]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = prepareStockChartDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_evolution_stock_mensuelle');
+    
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [prepareStockChartDataForExport, exportToCsv]);
+
   // Validation données
   const isValidData = useMemo(() => {
     const isValid = chartData.length > 0;
@@ -150,6 +241,7 @@ export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
             <div className="flex items-center justify-between mb-6">
               <div className="h-6 bg-gray-200 rounded w-48"></div>
               <div className="flex space-x-2">
+                <div className="h-8 bg-gray-200 rounded w-20"></div>
                 <div className="h-8 bg-gray-200 rounded w-20"></div>
               </div>
             </div>
@@ -272,13 +364,27 @@ export const StockChartsEvolution: React.FC<StockChartsEvolutionProps> = ({
               <Badge variant="gray" size="sm">
                 {queryTime}ms
               </Badge>
+              
+              <ExportButton
+                onClick={handleExport}
+                isExporting={isExporting}
+                disabled={!data || data.length === 0 || isLoading}
+                label={`Export CSV (${data?.length || 0} mois)`}
+              />
+              
               <Button
                 variant="ghost" 
                 size="sm"
                 onClick={handleRefresh}
-                iconLeft={<RotateCcw className="w-4 h-4" />}
+                disabled={isLoading}
+                iconLeft={
+                  <RotateCcw 
+                    className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+                  />
+                }
+                className="text-gray-600 hover:text-gray-900"
               >
-                Actualiser
+                {isLoading ? 'Actualisation...' : 'Actualiser'}
               </Button>
             </div>
           </div>

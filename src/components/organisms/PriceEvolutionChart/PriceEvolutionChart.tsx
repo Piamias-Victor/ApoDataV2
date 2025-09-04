@@ -17,11 +17,15 @@ import { RotateCcw, Euro } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { Badge } from '@/components/atoms/Badge/Badge';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { usePriceMetrics } from '@/hooks/dashboard/usePriceMetrics';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
 import type { PriceEvolutionChartProps, PriceChartDataPoint } from './types';
 
 /**
  * PriceEvolutionChart - Graphique évolution métriques de prix
+ * Avec export CSV intégré
  */
 export const PriceEvolutionChart: React.FC<PriceEvolutionChartProps> = ({
   dateRange,
@@ -36,6 +40,9 @@ export const PriceEvolutionChart: React.FC<PriceEvolutionChartProps> = ({
     productCodes: filters.productCodes || [],
     pharmacyId: filters.pharmacyId
   });
+
+  // Hook export CSV
+  const { exportToCsv, isExporting } = useExportCsv();
 
   // Utility function pour formater les mois - DÉFINIE EN PREMIER
   const formatMonthLabel = useCallback((dateStr: string): string => {
@@ -95,6 +102,78 @@ export const PriceEvolutionChart: React.FC<PriceEvolutionChartProps> = ({
     }
   }, [data, formatMonthLabel]);
 
+  // Préparation données pour export CSV
+  const preparePriceChartDataForExport = useCallback(() => {
+    if (!data || data.length === 0) return [];
+    
+    // Formatage période pour lisibilité
+    const formatPeriodForExport = (dateStr: string) => {
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('fr-FR', { 
+          month: 'long', 
+          year: 'numeric' 
+        });
+      } catch (error) {
+        return dateStr;
+      }
+    };
+    
+    // Formatage contexte filtres
+    const formatFiltersContext = () => {
+      const filterInfo = [];
+      if (filters.productCodes && filters.productCodes.length > 0) {
+        filterInfo.push(`${filters.productCodes.length} produit(s)`);
+      }
+      if (filters.pharmacyId) {
+        filterInfo.push('Pharmacie spécifique');
+      }
+      return filterInfo.length > 0 ? filterInfo.join(', ') : 'Tous les produits';
+    };
+    
+    const filtersContext = formatFiltersContext();
+    
+    // Export avec toutes les métriques mensuelles
+    return data.map(entry => ({
+      'Période': formatPeriodForExport(entry.mois),
+      'Mois ISO': entry.mois,
+      'Quantité vendue (unités)': entry.quantite_vendue_mois,
+      'Prix vente TTC moyen (€)': entry.prix_vente_ttc_moyen.toFixed(2),
+      'Prix achat HT moyen (€)': entry.prix_achat_ht_moyen.toFixed(2),
+      'Taux marge moyen (%)': entry.taux_marge_moyen_pourcentage.toFixed(2),
+      'Marge unitaire (€)': (entry.prix_vente_ttc_moyen - entry.prix_achat_ht_moyen).toFixed(2),
+      'CA mensuel estimé (€)': (entry.quantite_vendue_mois * entry.prix_vente_ttc_moyen).toFixed(2),
+      'Période analysée': `${new Date(dateRange.start).toLocaleDateString('fr-FR')} - ${new Date(dateRange.end).toLocaleDateString('fr-FR')}`,
+      'Périmètre': filtersContext
+    }));
+  }, [data, dateRange, filters]);
+
+  // Handler export avec vérification
+  const handleExport = useCallback(() => {
+    const exportData = preparePriceChartDataForExport();
+    
+    if (exportData.length === 0) {
+      console.warn('Aucune donnée à exporter');
+      return;
+    }
+    
+    const filename = CsvExporter.generateFilename('apodata_evolution_prix_mensuelle');
+    
+    // Vérification que le premier élément existe avant d'obtenir les headers
+    if (!exportData[0]) {
+      console.error('Données export invalides');
+      return;
+    }
+    
+    const headers = Object.keys(exportData[0]);
+    
+    exportToCsv({
+      filename,
+      headers,
+      data: exportData
+    });
+  }, [preparePriceChartDataForExport, exportToCsv]);
+
   // Validation données
   const isValidData = useMemo(() => {
     const isValid = chartData.length > 0;
@@ -120,6 +199,7 @@ export const PriceEvolutionChart: React.FC<PriceEvolutionChartProps> = ({
             <div className="flex items-center justify-between mb-6">
               <div className="h-6 bg-gray-200 rounded w-48"></div>
               <div className="flex space-x-2">
+                <div className="h-8 bg-gray-200 rounded w-20"></div>
                 <div className="h-8 bg-gray-200 rounded w-20"></div>
               </div>
             </div>
@@ -243,13 +323,27 @@ export const PriceEvolutionChart: React.FC<PriceEvolutionChartProps> = ({
               <Badge variant="gray" size="sm">
                 {queryTime}ms
               </Badge>
+              
+              <ExportButton
+                onClick={handleExport}
+                isExporting={isExporting}
+                disabled={!data || data.length === 0 || isLoading}
+                label={`Export CSV (${data?.length || 0} mois)`}
+              />
+              
               <Button
                 variant="ghost" 
                 size="sm"
                 onClick={handleRefresh}
-                iconLeft={<RotateCcw className="w-4 h-4" />}
+                disabled={isLoading}
+                iconLeft={
+                  <RotateCcw 
+                    className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+                  />
+                }
+                className="text-gray-600 hover:text-gray-900"
               >
-                Actualiser
+                {isLoading ? 'Actualisation...' : 'Actualiser'}
               </Button>
             </div>
           </div>
