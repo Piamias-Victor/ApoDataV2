@@ -191,9 +191,8 @@ async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetrics
         SELECT weighted_average_price
         FROM data_inventorysnapshot ins2
         WHERE ins2.product_id = po.product_id
-          AND ins2.date <= o.created_at::date
           AND ins2.weighted_average_price > 0
-        ORDER BY ins2.date DESC
+        ORDER BY ins2.date DESC  -- Dernier prix connu
         LIMIT 1
       ) closest_snap ON true
       WHERE o.created_at >= $1::date AND o.created_at < ($2::date + interval '1 day')

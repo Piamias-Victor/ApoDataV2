@@ -196,9 +196,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           SELECT weighted_average_price
           FROM data_inventorysnapshot ins2
           WHERE ins2.product_id = po.product_id
-            AND ins2.date <= o.created_at::date
             AND ins2.weighted_average_price > 0
-          ORDER BY ins2.date DESC
+          ORDER BY ins2.date DESC  -- ✅ Utilise le dernier prix connu
           LIMIT 1
         ) closest_snap ON true
         WHERE 1=1
@@ -206,7 +205,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
           AND o.created_at >= $1::date AND o.created_at <= $2::date
         GROUP BY o.created_at::date
-      ),
+),
       daily_stock AS (
         SELECT 
           cal.date_jour,
