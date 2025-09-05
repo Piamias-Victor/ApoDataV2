@@ -1,255 +1,276 @@
 // src/hooks/common/useStandardFetch.ts
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 
 // Types génériques standardisés
 interface StandardOptions<TFilters = any> {
-  readonly enabled?: boolean | undefined;
-  readonly filters?: TFilters | undefined;
-  readonly dateRange?: {
-    readonly start: string;
-    readonly end: string;
-  } | undefined;
-  readonly comparisonDateRange?: {
-    readonly start: string | null;
-    readonly end: string | null;
-  } | undefined;
-  readonly includeComparison?: boolean | undefined;
-  readonly forceRefresh?: boolean | undefined;
+ readonly enabled?: boolean | undefined;
+ readonly filters?: TFilters | undefined;
+ readonly dateRange?: {
+   readonly start: string;
+   readonly end: string;
+ } | undefined;
+ readonly comparisonDateRange?: {
+   readonly start: string | null;
+   readonly end: string | null;
+ } | undefined;
+ readonly includeComparison?: boolean | undefined;
+ readonly forceRefresh?: boolean | undefined;
 }
 
 interface StandardReturn<T> {
-  readonly data: T | null;
-  readonly isLoading: boolean;
-  readonly error: string | null;
-  readonly isError: boolean;
-  readonly queryTime: number;
-  readonly cached: boolean;
-  readonly refetch: () => Promise<void>;
-  readonly hasData: boolean;
+ readonly data: T | null;
+ readonly isLoading: boolean;
+ readonly error: string | null;
+ readonly isError: boolean;
+ readonly queryTime: number;
+ readonly cached: boolean;
+ readonly refetch: () => Promise<void>;
+ readonly hasData: boolean;
 }
 
 /**
- * Hook générique standardisé pour tous les appels API
- * 
- * Pattern unique obligatoire :
- * - useCallback pour fetchData avec dependencies stabilisées
- * - useEffect avec [enabled, fetchData] uniquement
- * - AbortController pour cleanup
- * - Error handling unifié
- * - Cache strategy cohérente
- */
+* Hook générique standardisé pour tous les appels API
+* 
+* Pattern unique obligatoire :
+* - useCallback pour fetchData avec dependencies stabilisées
+* - useEffect avec [enabled, fetchData] uniquement
+* - AbortController pour cleanup
+* - Error handling unifié
+* - Cache strategy cohérente
+* - Reset automatique lors changement de route
+*/
 export function useStandardFetch<T, TFilters = any>(
-  endpoint: string,
-  options: StandardOptions<TFilters> = {}
+ endpoint: string,
+ options: StandardOptions<TFilters> = {}
 ): StandardReturn<T> {
-  const {
-    enabled = true,
-    filters = {} as TFilters,
-    dateRange,
-    comparisonDateRange,
-    includeComparison = false,
-    forceRefresh = false
-  } = options;
+ const {
+   enabled = true,
+   filters = {} as TFilters,
+   dateRange,
+   comparisonDateRange,
+   includeComparison = false,
+   forceRefresh = false
+ } = options;
 
-  // États standardisés
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [queryTime, setQueryTime] = useState(0);
-  const [cached, setCached] = useState(false);
+ // États standardisés
+ const [data, setData] = useState<T | null>(null);
+ const [isLoading, setIsLoading] = useState(false);
+ const [error, setError] = useState<string | null>(null);
+ const [queryTime, setQueryTime] = useState(0);
+ const [cached, setCached] = useState(false);
 
-  // Refs standardisés pour tous les hooks
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const lastRequestRef = useRef<string>('');
-  const forceRefreshRef = useRef(forceRefresh);
+ // Refs standardisés pour tous les hooks
+ const abortControllerRef = useRef<AbortController | null>(null);
+ const lastRequestRef = useRef<string>('');
+ const forceRefreshRef = useRef(forceRefresh);
 
-  // Stabilisation des filtres avec useMemo (plus de JSON.stringify dans useEffect)
-  const stableFilters = useMemo(() => 
-    JSON.stringify(filters)
-  , [filters]);
+ // Hook pour détecter changement de route
+ const pathname = usePathname();
 
-  // Stabilisation dateRange
-  const stableDateRange = useMemo(() => 
-    dateRange ? `${dateRange.start}-${dateRange.end}` : null
-  , [dateRange?.start, dateRange?.end]);
+ // Reset état lors changement de route
+ useEffect(() => {
+   console.log(`🗺️ [${endpoint}] Route changed to: ${pathname}`);
+   setData(null);
+   setError(null);
+   setIsLoading(false);
+   setCached(false);
+   setQueryTime(0);
+   lastRequestRef.current = '';
+   
+   // Annuler requête en cours
+   if (abortControllerRef.current) {
+     abortControllerRef.current.abort();
+   }
+ }, [pathname, endpoint]);
 
-  // Stabilisation comparisonDateRange
-  const stableComparisonRange = useMemo(() => 
-    comparisonDateRange && comparisonDateRange.start && comparisonDateRange.end
-      ? `${comparisonDateRange.start}-${comparisonDateRange.end}`
-      : null
-  , [comparisonDateRange?.start, comparisonDateRange?.end]);
+ // Stabilisation des filtres avec useMemo (plus de JSON.stringify dans useEffect)
+ const stableFilters = useMemo(() => 
+   JSON.stringify(filters)
+ , [filters]);
 
-  // Construction body standardisée
-  const requestBody = useMemo((): Record<string, any> => {
-    const body: Record<string, any> = {};
+ // Stabilisation dateRange
+ const stableDateRange = useMemo(() => 
+   dateRange ? `${dateRange.start}-${dateRange.end}` : null
+ , [dateRange?.start, dateRange?.end]);
 
-    // Dates obligatoires si présentes
-    if (dateRange) {
-      body.dateRange = dateRange;
-    }
+ // Stabilisation comparisonDateRange
+ const stableComparisonRange = useMemo(() => 
+   comparisonDateRange && comparisonDateRange.start && comparisonDateRange.end
+     ? `${comparisonDateRange.start}-${comparisonDateRange.end}`
+     : null
+ , [comparisonDateRange?.start, comparisonDateRange?.end]);
 
-    // Comparaison optionnelle
-    if (includeComparison && comparisonDateRange?.start && comparisonDateRange?.end) {
-      body.comparisonDateRange = comparisonDateRange;
-    }
+ // Construction body standardisée
+ const requestBody = useMemo((): Record<string, any> => {
+   const body: Record<string, any> = {};
 
-    // Filtres si présents (structure flexible)
-    if (filters && typeof filters === 'object') {
-      Object.assign(body, filters);
-    }
+   // Dates obligatoires si présentes
+   if (dateRange) {
+     body.dateRange = dateRange;
+   }
 
-    return body;
-  }, [dateRange, comparisonDateRange, includeComparison, stableFilters]);
+   // Comparaison optionnelle
+   if (includeComparison && comparisonDateRange?.start && comparisonDateRange?.end) {
+     body.comparisonDateRange = comparisonDateRange;
+   }
 
-  // PATTERN STANDARDISÉ : fetchData avec useCallback
-  const fetchData = useCallback(async (forceRefreshParam: boolean = false): Promise<void> => {
-    if (!enabled) return;
+   // Filtres si présents (structure flexible)
+   if (filters && typeof filters === 'object') {
+     Object.assign(body, filters);
+   }
 
-    // Update force refresh ref
-    forceRefreshRef.current = forceRefreshParam;
+   return body;
+ }, [dateRange, comparisonDateRange, includeComparison, stableFilters]);
 
-    // Clé de requête unique pour éviter duplicatas
-    const requestKey = JSON.stringify({
-      endpoint,
-      body: requestBody,
-      forceRefresh: forceRefreshRef.current
-    });
+ // PATTERN STANDARDISÉ : fetchData avec useCallback
+ const fetchData = useCallback(async (forceRefreshParam: boolean = false): Promise<void> => {
+   if (!enabled) return;
 
-    // Skip si même requête et pas d'erreur (sauf forceRefresh)
-    if (!forceRefreshParam && requestKey === lastRequestRef.current && !error) {
-      console.log(`🔄 [${endpoint}] Same request, skipping`);
-      return;
-    }
+   // Update force refresh ref
+   forceRefreshRef.current = forceRefreshParam;
 
-    // Annuler requête précédente
-    if (abortControllerRef.current) {
-      console.log(`⏹️ [${endpoint}] Aborting previous request`);
-      abortControllerRef.current.abort();
-    }
+   // Clé de requête unique pour éviter duplicatas
+   const requestKey = JSON.stringify({
+     endpoint,
+     body: requestBody,
+     forceRefresh: forceRefreshRef.current
+   });
 
-    abortControllerRef.current = new AbortController();
-    lastRequestRef.current = requestKey;
+   // Skip si même requête et pas d'erreur (sauf forceRefresh)
+   if (!forceRefreshParam && requestKey === lastRequestRef.current && !error) {
+     console.log(`🔄 [${endpoint}] Same request, skipping`);
+     return;
+   }
 
-    console.log(`⏳ [${endpoint}] Starting fetch...`, { body: requestBody, forceRefresh: forceRefreshParam });
-    
-    setIsLoading(true);
-    setError(null);
+   // Annuler requête précédente
+   if (abortControllerRef.current) {
+     console.log(`⏹️ [${endpoint}] Aborting previous request`);
+     abortControllerRef.current.abort();
+   }
 
-    try {
-      const startTime = performance.now();
+   abortControllerRef.current = new AbortController();
+   lastRequestRef.current = requestKey;
 
-      // URL avec timestamp pour forceRefresh
-      const url = forceRefreshParam 
-        ? `${endpoint}?refresh=${Date.now()}`
-        : endpoint;
+   console.log(`⏳ [${endpoint}] Starting fetch...`, { body: requestBody, forceRefresh: forceRefreshParam });
+   
+   setIsLoading(true);
+   setError(null);
 
-      // Configuration fetch
-      const fetchConfig: RequestInit = {
-        method: Object.keys(requestBody).length > 0 ? 'POST' : 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: abortControllerRef.current.signal,
-      };
+   try {
+     const startTime = performance.now();
 
-      // Body seulement si POST et données présentes
-      if (fetchConfig.method === 'POST' && Object.keys(requestBody).length > 0) {
-        fetchConfig.body = JSON.stringify(requestBody);
-      }
+     // URL avec timestamp pour forceRefresh
+     const url = forceRefreshParam 
+       ? `${endpoint}?refresh=${Date.now()}`
+       : endpoint;
 
-      const response = await fetch(url, fetchConfig);
+     // Configuration fetch
+     const fetchConfig: RequestInit = {
+       method: Object.keys(requestBody).length > 0 ? 'POST' : 'GET',
+       headers: {
+         'Content-Type': 'application/json',
+       },
+       signal: abortControllerRef.current.signal,
+     };
 
-      console.log(`📡 [${endpoint}] Response:`, {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText
-      });
+     // Body seulement si POST et données présentes
+     if (fetchConfig.method === 'POST' && Object.keys(requestBody).length > 0) {
+       fetchConfig.body = JSON.stringify(requestBody);
+     }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
+     const response = await fetch(url, fetchConfig);
 
-      const result = await response.json();
-      const endTime = performance.now();
-      const totalTime = Math.round(endTime - startTime);
+     console.log(`📡 [${endpoint}] Response:`, {
+       status: response.status,
+       ok: response.ok,
+       statusText: response.statusText
+     });
 
-      console.log(`✅ [${endpoint}] Success:`, {
-        queryTime: result.queryTime || 0,
-        totalTime,
-        cached: result.cached || false,
-        hasData: !!result
-      });
+     if (!response.ok) {
+       const errorData = await response.json().catch(() => ({}));
+       throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+     }
 
-      setData(result);
-      setQueryTime(result.queryTime || 0);
-      setCached(result.cached && !forceRefreshRef.current);
-      setError(null);
+     const result = await response.json();
+     const endTime = performance.now();
+     const totalTime = Math.round(endTime - startTime);
 
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          console.log(`⛔ [${endpoint}] Request aborted`);
-          return;
-        }
-        
-        console.error(`❌ [${endpoint}] Fetch failed:`, err.message);
-        setError(err.message);
-      } else {
-        console.error(`❌ [${endpoint}] Unknown error:`, err);
-        setError(`Erreur inattendue lors du chargement`);
-      }
-      
-      setData(null);
-      setCached(false);
-    } finally {
-      setIsLoading(false);
-      forceRefreshRef.current = false;
-    }
+     console.log(`✅ [${endpoint}] Success:`, {
+       queryTime: result.queryTime || 0,
+       totalTime,
+       cached: result.cached || false,
+       hasData: !!result
+     });
 
-  }, [
-    enabled,
-    endpoint,
-    stableFilters,
-    stableDateRange,
-    stableComparisonRange,
-    includeComparison,
-    error // Garder pour retry si erreur
-  ]);
+     setData(result);
+     setQueryTime(result.queryTime || 0);
+     setCached(result.cached && !forceRefreshRef.current);
+     setError(null);
 
-  // Fonction refetch publique standardisée
-  const refetch = useCallback(async (): Promise<void> => {
-    console.log(`🔄 [${endpoint}] Manual refetch triggered`);
-    await fetchData(true);
-  }, [fetchData]);
+   } catch (err) {
+     if (err instanceof Error) {
+       if (err.name === 'AbortError') {
+         console.log(`⛔ [${endpoint}] Request aborted`);
+         return;
+       }
+       
+       console.error(`❌ [${endpoint}] Fetch failed:`, err.message);
+       setError(err.message);
+     } else {
+       console.error(`❌ [${endpoint}] Unknown error:`, err);
+       setError(`Erreur inattendue lors du chargement`);
+     }
+     
+     setData(null);
+     setCached(false);
+   } finally {
+     setIsLoading(false);
+     forceRefreshRef.current = false;
+   }
 
-  // PATTERN STANDARDISÉ : useEffect avec [enabled, fetchData] uniquement
-  useEffect(() => {
-    if (enabled) {
-      console.log(`🎯 [${endpoint}] Auto-fetch triggered by dependency change`);
-      fetchData(false);
-    }
-  }, [enabled, fetchData]);
+ }, [
+   enabled,
+   endpoint,
+   stableFilters,
+   stableDateRange,
+   stableComparisonRange,
+   includeComparison,
+   error // Garder pour retry si erreur
+ ]);
 
-  // Cleanup standardisé
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        console.log(`🧹 [${endpoint}] Cleanup: aborting request`);
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
+ // Fonction refetch publique standardisée
+ const refetch = useCallback(async (): Promise<void> => {
+   console.log(`🔄 [${endpoint}] Manual refetch triggered`);
+   await fetchData(true);
+ }, [fetchData]);
 
-  return {
-    data,
-    isLoading,
-    error,
-    isError: !!error,
-    queryTime,
-    cached,
-    refetch,
-    hasData: !!data
-  };
+ // PATTERN STANDARDISÉ : useEffect avec [enabled, fetchData] uniquement
+ useEffect(() => {
+   if (enabled) {
+     console.log(`🎯 [${endpoint}] Auto-fetch triggered by dependency change`);
+     fetchData(false);
+   }
+ }, [enabled, fetchData]);
+
+ // Cleanup standardisé
+ useEffect(() => {
+   return () => {
+     if (abortControllerRef.current) {
+       console.log(`🧹 [${endpoint}] Cleanup: aborting request`);
+       abortControllerRef.current.abort();
+     }
+   };
+ }, []);
+
+ return {
+   data,
+   isLoading,
+   error,
+   isError: !!error,
+   queryTime,
+   cached,
+   refetch,
+   hasData: !!data
+ };
 }

@@ -1,41 +1,28 @@
 // src/hooks/comparisons/useComparisonMarketShare.ts
-import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useStandardFetch } from '@/hooks/common/useStandardFetch';
+import type { StandardFilters } from '@/hooks/common/types';
 import type { ComparisonElement } from '@/types/comparison';
+import { useState, useCallback, useMemo } from 'react';
 
-interface MarketShareHierarchyRequest {
-  dateRange: { start: string; end: string; };
-  productCodes?: string[];
-  laboratoryCodes?: string[];
-  categoryCodes?: string[];
-  pharmacyIds?: string[];
-  hierarchyLevel: 'universe' | 'category' | 'family';
-  page?: number;
-  limit?: number;
-}
-
-interface HierarchySegment {
+interface MarketShareSegment {
   readonly segment_name: string;
-  readonly ca_selection: number;
   readonly part_marche_ca_pct: number;
-  readonly marge_selection: number;
   readonly part_marche_marge_pct: number;
+  readonly ca_selection: number;
   readonly ca_total_segment: number;
-  readonly marge_total_segment: number;
-  readonly top_brand_labs: {
-    readonly brand_lab: string;
-    readonly ca_brand_lab: number;
-    readonly marge_brand_lab: number;
-  }[];
+  readonly marge_selection: number;
+  readonly top_brand_labs: Array<{
+    brand_lab: string;
+    ca_brand_lab: number;
+  }>;
 }
 
-interface MarketShareHierarchyResponse {
-  readonly segments: HierarchySegment[];
-  readonly hierarchyLevel: string;
+interface MarketShareResponse {
+  readonly segments: MarketShareSegment[];
   readonly pagination: {
-    readonly currentPage: number;
-    readonly totalPages: number;
-    readonly totalSegments: number;
+    totalSegments: number;
+    totalPages: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
@@ -51,64 +38,40 @@ interface UseComparisonMarketShareOptions {
 }
 
 interface UseComparisonMarketShareReturn {
-  readonly dataA: MarketShareHierarchyResponse | null;
-  readonly dataB: MarketShareHierarchyResponse | null;
+  readonly dataA: MarketShareResponse | null;
+  readonly dataB: MarketShareResponse | null;
   readonly isLoading: boolean;
   readonly error: string | null;
   readonly isError: boolean;
-  readonly queryTimeA: number;
-  readonly queryTimeB: number;
   readonly refetch: () => Promise<void>;
   readonly hasDataA: boolean;
   readonly hasDataB: boolean;
   readonly currentPage: number;
-  readonly setPage: (page: number) => void;
+  readonly totalPages: number;
   readonly canPreviousPage: boolean;
   readonly canNextPage: boolean;
   readonly previousPage: () => void;
   readonly nextPage: () => void;
 }
 
-/**
- * Hook useComparisonMarketShare - Parts de marché comparées A vs B
- * 
- * Fonctionnalités :
- * - 2 requêtes parallèles vers /api/ventes/market-share-hierarchy
- * - Mapping automatique ComparisonElement vers productCodes
- * - Pagination synchronisée pour A et B
- * - États loading/error unifiés
- * - Performance optimisée avec abort controllers
- */
 export function useComparisonMarketShare(
   options: UseComparisonMarketShareOptions
 ): UseComparisonMarketShareReturn {
-  const { 
+  const {
     enabled = true,
     elementA,
     elementB,
     hierarchyLevel,
-    page: initialPage = 1,
+    page = 1,
     limit = 5
   } = options;
 
-  // Store filters pour dates et pharmacies
+  const [currentPage, setCurrentPage] = useState(page);
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore(state => state.pharmacy);
 
-  // États
-  const [dataA, setDataA] = useState<MarketShareHierarchyResponse | null>(null);
-  const [dataB, setDataB] = useState<MarketShareHierarchyResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [queryTimeA, setQueryTimeA] = useState(0);
-  const [queryTimeB, setQueryTimeB] = useState(0);
-  const [currentPage, setCurrentPage] = useState(initialPage);
-
-  // Refs pour cleanup
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Helper: mapping element vers codes produits
-  const getProductCodes = useCallback((element: ComparisonElement | null): string[] => {
+  // Fonction pour mapper ComparisonElement vers productCodes
+  const mapElementToProductCodes = useCallback((element: ComparisonElement | null): string[] => {
     if (!element) return [];
 
     switch (element.type) {
@@ -122,258 +85,112 @@ export function useComparisonMarketShare(
     }
   }, []);
 
-  // Helper: construction requête API
-  const buildRequest = useCallback((
-    element: ComparisonElement, 
-    page: number
-  ): MarketShareHierarchyRequest => {
-    const productCodes = getProductCodes(element);
-    
-    return {
-      dateRange: {
-        start: analysisDateRange.start,
-        end: analysisDateRange.end
-      },
-      hierarchyLevel,
-      page,
-      limit,
+  // Filtres pour l'élément A
+  const filtersA = useMemo(() => {
+    const productCodes = mapElementToProductCodes(elementA);
+    const standardFilters: StandardFilters & Record<string, any> = {
       productCodes,
-      ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
-    };
-  }, [getProductCodes, analysisDateRange, hierarchyLevel, limit, pharmacyFilter]);
-
-  // Fonction fetch principale avec 2 requêtes parallèles
-  const fetchMarketShareData = useCallback(async (targetPage: number = currentPage): Promise<void> => {
-    if (!enabled) return;
-
-    const hasValidDates = analysisDateRange.start && analysisDateRange.end;
-    if (!hasValidDates) {
-      setDataA(null);
-      setDataB(null);
-      setError('Veuillez sélectionner une plage de dates dans les filtres');
-      return;
-    }
-
-    if (!elementA && !elementB) {
-      setDataA(null);
-      setDataB(null);
-      setError(null);
-      return;
-    }
-
-    // Annuler requête précédente
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    console.log('🎯 [ComparisonMarketShare] Starting parallel fetch:', {
+      laboratoryCodes: [],
+      categoryCodes: [],
       hierarchyLevel,
-      targetPage,
-      elementA: elementA?.name,
-      elementB: elementB?.name
-    });
-
-    abortControllerRef.current = new AbortController();
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const requests: Promise<MarketShareHierarchyResponse>[] = [];
-      
-      // Requête A si élément présent
-      if (elementA) {
-        const requestBodyA = buildRequest(elementA, targetPage);
-        const promiseA = fetch('/api/ventes/market-share-hierarchy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBodyA),
-          signal: abortControllerRef.current.signal
-        }).then(async (response) => {
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(`API Error A: ${errorData.error || response.statusText}`);
-          }
-          return response.json();
-        });
-        
-        requests.push(promiseA);
-      }
-
-      // Requête B si élément présent
-      if (elementB) {
-        const requestBodyB = buildRequest(elementB, targetPage);
-        const promiseB = fetch('/api/ventes/market-share-hierarchy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBodyB),
-          signal: abortControllerRef.current.signal
-        }).then(async (response) => {
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(`API Error B: ${errorData.error || response.statusText}`);
-          }
-          return response.json();
-        });
-
-        requests.push(promiseB);
-      }
-
-      // Exécution parallèle
-      const results = await Promise.allSettled(requests);
-      
-      // Traitement résultats A
-      let resultA: MarketShareHierarchyResponse | null = null;
-      let queryA = 0;
-      if (elementA && results[0]) {
-        if (results[0].status === 'fulfilled') {
-          resultA = results[0].value;
-          queryA = resultA.queryTime;
-        } else {
-          console.error('❌ Market Share A failed:', results[0].reason);
-          throw new Error(results[0].reason?.message || 'Erreur requête élément A');
-        }
-      }
-
-      // Traitement résultats B  
-      let resultB: MarketShareHierarchyResponse | null = null;
-      let queryB = 0;
-      const resultBIndex = elementA && elementB ? 1 : 0;
-      if (elementB && results[resultBIndex]) {
-        if (results[resultBIndex].status === 'fulfilled') {
-          resultB = results[resultBIndex].value;
-          queryB = resultB.queryTime;
-        } else {
-          console.error('❌ Market Share B failed:', results[resultBIndex].reason);
-          throw new Error(results[resultBIndex].reason?.message || 'Erreur requête élément B');
-        }
-      }
-
-      console.log('✅ [ComparisonMarketShare] Parallel fetch completed:', {
-        segmentsA: resultA?.segments.length || 0,
-        segmentsB: resultB?.segments.length || 0,
-        queryTimeA: queryA,
-        queryTimeB: queryB,
-        hierarchyLevel
-      });
-
-      // MAJ états
-      setDataA(resultA);
-      setDataB(resultB);
-      setQueryTimeA(queryA);
-      setQueryTimeB(queryB);
-      setCurrentPage(targetPage);
-      setError(null);
-
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          console.log('⛔ [ComparisonMarketShare] Request aborted');
-          return;
-        }
-        
-        console.error('❌ [ComparisonMarketShare] Fetch failed:', err.message);
-        setError(err.message);
-      } else {
-        console.error('❌ [ComparisonMarketShare] Unknown error:', err);
-        setError('Erreur inattendue lors du chargement des parts de marché');
-      }
-      
-      setDataA(null);
-      setDataB(null);
-    } finally {
-      setIsLoading(false);
+      page: currentPage,
+      limit
+    };
+    
+    if (pharmacyFilter.length > 0) {
+      standardFilters.pharmacyIds = pharmacyFilter;
     }
-  }, [
-    enabled,
-    analysisDateRange,
-    hierarchyLevel,
-    elementA,
-    elementB,
-    currentPage,
-    buildRequest
-  ]);
+    
+    return standardFilters;
+  }, [elementA, hierarchyLevel, currentPage, limit, pharmacyFilter, mapElementToProductCodes]);
 
-  // Fonction refetch publique
-  const refetch = useCallback(async (): Promise<void> => {
-    console.log('🔄 [ComparisonMarketShare] Manual refetch triggered');
-    await fetchMarketShareData(currentPage);
-  }, [fetchMarketShareData, currentPage]);
+  // Filtres pour l'élément B
+  const filtersB = useMemo(() => {
+    const productCodes = mapElementToProductCodes(elementB);
+    const standardFilters: StandardFilters & Record<string, any> = {
+      productCodes,
+      laboratoryCodes: [],
+      categoryCodes: [],
+      hierarchyLevel,
+      page: currentPage,
+      limit
+    };
+    
+    if (pharmacyFilter.length > 0) {
+      standardFilters.pharmacyIds = pharmacyFilter;
+    }
+    
+    return standardFilters;
+  }, [elementB, hierarchyLevel, currentPage, limit, pharmacyFilter, mapElementToProductCodes]);
 
-  // Pagination handlers
-  const setPage = useCallback((page: number) => {
-    console.log('📄 [ComparisonMarketShare] Setting page:', page);
-    setCurrentPage(page);
-  }, []);
+  // Hook pour l'élément A
+  const resultA = useStandardFetch<MarketShareResponse>('/api/ventes/market-share-hierarchy', {
+    enabled: enabled && !!elementA && mapElementToProductCodes(elementA).length > 0,
+    dateRange: analysisDateRange,
+    filters: filtersA
+  });
+
+  // Hook pour l'élément B
+  const resultB = useStandardFetch<MarketShareResponse>('/api/ventes/market-share-hierarchy', {
+    enabled: enabled && !!elementB && mapElementToProductCodes(elementB).length > 0,
+    dateRange: analysisDateRange,
+    filters: filtersB
+  });
+
+  // États combinés
+  const isLoading = resultA.isLoading || resultB.isLoading;
+  const error = resultA.error || resultB.error;
+  const isError = resultA.isError || resultB.isError;
+
+  // Pagination
+  const totalPages = Math.max(
+    resultA.data?.pagination.totalPages || 0,
+    resultB.data?.pagination.totalPages || 0
+  );
+
+  const canPreviousPage = currentPage > 1;
+  const canNextPage = currentPage < totalPages;
 
   const previousPage = useCallback(() => {
-    if (currentPage > 1) {
-      setPage(currentPage - 1);
+    if (canPreviousPage) {
+      setCurrentPage(currentPage - 1);
     }
-  }, [currentPage, setPage]);
+  }, [currentPage, canPreviousPage]);
 
   const nextPage = useCallback(() => {
-    const maxPagesA = dataA?.pagination.totalPages || 0;
-    const maxPagesB = dataB?.pagination.totalPages || 0;
-    const maxPages = Math.max(maxPagesA, maxPagesB);
+    if (canNextPage) {
+      setCurrentPage(currentPage + 1);
+    }
+  }, [currentPage, canNextPage]);
+
+  // Fonction refetch combinée
+  const refetch = useCallback(async (): Promise<void> => {
+    console.log('🔄 [Hook] Manual refetch triggered for market share comparison');
+    const promises = [];
     
-    if (currentPage < maxPages) {
-      setPage(currentPage + 1);
+    if (elementA && mapElementToProductCodes(elementA).length > 0) {
+      promises.push(resultA.refetch());
     }
-  }, [currentPage, dataA, dataB, setPage]);
-
-  // Auto-fetch sur changements de dépendances
-  useEffect(() => {
-    if (enabled && (elementA || elementB)) {
-      console.log('🎯 [ComparisonMarketShare] Auto-fetch triggered:', {
-        hierarchyLevel,
-        currentPage,
-        elementA: elementA?.name,
-        elementB: elementB?.name
-      });
-      fetchMarketShareData(currentPage);
+    if (elementB && mapElementToProductCodes(elementB).length > 0) {
+      promises.push(resultB.refetch());
     }
-  }, [
-    enabled,
-    elementA,
-    elementB,
-    hierarchyLevel,
-    currentPage,
-    analysisDateRange.start,
-    analysisDateRange.end,
-    JSON.stringify(pharmacyFilter),
-    fetchMarketShareData
-  ]);
-
-  // Cleanup à la destruction
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        console.log('🧹 [ComparisonMarketShare] Cleanup: aborting request');
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
-  // Computed values
-  const maxPagesA = dataA?.pagination.totalPages || 0;
-  const maxPagesB = dataB?.pagination.totalPages || 0;
-  const maxPages = Math.max(maxPagesA, maxPagesB);
+    
+    await Promise.all(promises);
+  }, [elementA, elementB, resultA.refetch, resultB.refetch, mapElementToProductCodes]);
 
   return {
-    dataA,
-    dataB,
+    dataA: resultA.data,
+    dataB: resultB.data,
     isLoading,
     error,
-    isError: !!error,
-    queryTimeA,
-    queryTimeB,
+    isError,
     refetch,
-    hasDataA: !!dataA,
-    hasDataB: !!dataB,
+    hasDataA: resultA.hasData,
+    hasDataB: resultB.hasData,
     currentPage,
-    setPage,
-    canPreviousPage: currentPage > 1,
-    canNextPage: currentPage < maxPages,
+    totalPages,
+    canPreviousPage,
+    canNextPage,
     previousPage,
     nextPage
   };

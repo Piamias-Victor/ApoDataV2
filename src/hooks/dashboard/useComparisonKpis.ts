@@ -1,7 +1,9 @@
 // src/hooks/dashboard/useComparisonKpis.ts
-import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useStandardFetch } from '@/hooks/common/useStandardFetch';
+import type { StandardFilters } from '@/hooks/common/types';
 import type { ComparisonElement } from '@/types/comparison';
+import { useCallback, useEffect, useMemo } from 'react';
 
 interface KpiMetricsResponse {
   readonly ca_ttc: number;
@@ -38,17 +40,6 @@ interface UseComparisonKpisReturn {
   readonly hasDataB: boolean;
 }
 
-/**
- * Hook useComparisonKpis - Comparaison KPI A vs B
- * 
- * Fonctionnalités :
- * - 2 requêtes parallèles vers /api/kpis
- * - Mapping automatique ComparisonElement vers filtres API
- * - Utilise dates du store filters (analysisDateRange)
- * - États loading/error cohérents
- * - Abort controller pour cleanup
- * - Performance optimisée avec useCallback
- */
 export function useComparisonKpis(
   options: UseComparisonKpisOptions
 ): UseComparisonKpisReturn {
@@ -58,21 +49,8 @@ export function useComparisonKpis(
     elementB
   } = options;
 
-  // Récupération des dates depuis le store filters
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore(state => state.pharmacy);
-
-  // États
-  const [dataA, setDataA] = useState<KpiMetricsResponse | null>(null);
-  const [dataB, setDataB] = useState<KpiMetricsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [queryTimeA, setQueryTimeA] = useState(0);
-  const [queryTimeB, setQueryTimeB] = useState(0);
-
-  // Refs pour abort controller
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const lastRequestRef = useRef<string>('');
 
   // Fonction pour mapper ComparisonElement vers filtres API
   const mapElementToFilters = useCallback((element: ComparisonElement | null) => {
@@ -80,226 +58,95 @@ export function useComparisonKpis(
 
     switch (element.type) {
       case 'product':
-        // Pour les produits, utiliser le code_13_ref directement
         return { productCodes: [element.id] };
-      
       case 'laboratory':
-        // Pour les laboratoires, utiliser TOUS les codes produits du laboratoire
         return { productCodes: element.metadata.product_codes || [] };
-      
       case 'category':
-        // Pour les catégories, utiliser TOUS les codes produits de la catégorie
         return { productCodes: element.metadata.product_codes || [] };
-      
       default:
         return {};
     }
   }, []);
 
-  // Fonction fetch KPI pour un élément
-  const fetchElementKpis = useCallback(async (
-    element: ComparisonElement | null,
-    signal: AbortSignal
-  ): Promise<KpiMetricsResponse | null> => {
-    if (!element) return null;
-
-    const elementFilters = mapElementToFilters(element);
-    
-    const requestBody = {
-      dateRange: analysisDateRange,
-      ...elementFilters,
-      ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
+  // Filtres pour l'élément A
+  const filtersA = useMemo(() => {
+    const baseFilters = mapElementToFilters(elementA);
+    const standardFilters: StandardFilters & Record<string, any> = {
+      ...baseFilters
     };
-
-    console.log(`📡 [Hook] Fetching KPIs for element ${element.name}:`, {
-      element: element.name,
-      type: element.type,
-      dateRange: analysisDateRange,
-      filters: elementFilters
-    });
-
-    const response = await fetch('/api/kpis', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody),
-      signal
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    
+    if (pharmacyFilter.length > 0) {
+      standardFilters.pharmacyIds = pharmacyFilter;
     }
+    
+    return standardFilters;
+  }, [elementA, pharmacyFilter, mapElementToFilters]);
 
-    return await response.json();
-  }, [analysisDateRange, pharmacyFilter, mapElementToFilters]);
-
-  // Fonction fetch principale
-  const fetchComparisonKpis = useCallback(async (): Promise<void> => {
-    if (!enabled) {
-      console.log('❌ [Hook] Hook disabled, stopping');
-      return;
+  // Filtres pour l'élément B
+  const filtersB = useMemo(() => {
+    const baseFilters = mapElementToFilters(elementB);
+    const standardFilters: StandardFilters & Record<string, any> = {
+      ...baseFilters
+    };
+    
+    if (pharmacyFilter.length > 0) {
+      standardFilters.pharmacyIds = pharmacyFilter;
     }
+    
+    return standardFilters;
+  }, [elementB, pharmacyFilter, mapElementToFilters]);
 
-    // Validation : au moins un élément requis
-    if (!elementA && !elementB) {
-      console.log('❌ [Hook] No elements to compare');
-      setDataA(null);
-      setDataB(null);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
+  // Hook pour l'élément A
+  const resultA = useStandardFetch<KpiMetricsResponse>('/api/kpis', {
+    enabled: enabled && !!elementA,
+    dateRange: analysisDateRange,
+    filters: filtersA
+  });
 
-    // Validation dates
-    if (!analysisDateRange.start || !analysisDateRange.end) {
-      console.log('❌ [Hook] Missing analysis date range');
-      setError('Veuillez sélectionner une plage de dates dans les filtres');
-      setIsLoading(false);
-      return;
-    }
+  // Hook pour l'élément B
+  const resultB = useStandardFetch<KpiMetricsResponse>('/api/kpis', {
+    enabled: enabled && !!elementB,
+    dateRange: analysisDateRange,
+    filters: filtersB
+  });
 
-    // Vérifier si requête identique
-    const requestKey = JSON.stringify({
-      elementA: elementA?.id,
-      elementB: elementB?.id,
-      dateRange: analysisDateRange,
-      pharmacy: pharmacyFilter
-    });
+  // États combinés
+  const isLoading = resultA.isLoading || resultB.isLoading;
+  const error = resultA.error || resultB.error;
+  const isError = resultA.isError || resultB.isError;
 
-    if (requestKey === lastRequestRef.current) {
-      console.log('🔄 [Hook] Request identical, skipping');
-      return;
-    }
-
-    // Annuler requête précédente
-    if (abortControllerRef.current) {
-      console.log('⛔ [Hook] Aborting previous request');
-      abortControllerRef.current.abort();
-    }
-
-    console.log('🚀 [Hook] Starting comparison KPIs fetch', {
-      elementA: elementA?.name,
-      elementB: elementB?.name,
-      dateRange: analysisDateRange
-    });
-
-    abortControllerRef.current = new AbortController();
-    lastRequestRef.current = requestKey;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const startTime = Date.now();
-
-      // Lancer les 2 requêtes en parallèle
-      const [resultA, resultB] = await Promise.all([
-        fetchElementKpis(elementA, abortControllerRef.current.signal),
-        fetchElementKpis(elementB, abortControllerRef.current.signal)
-      ]);
-
-      const totalTime = Date.now() - startTime;
-
-      console.log('✅ [Hook] Comparison KPIs fetched successfully', {
-        elementA: elementA?.name,
-        elementB: elementB?.name,
-        dataA: resultA ? {
-          ca_ttc: resultA.ca_ttc,
-          montant_marge: resultA.montant_marge,
-          nb_references: resultA.nb_references_produits
-        } : null,
-        dataB: resultB ? {
-          ca_ttc: resultB.ca_ttc,
-          montant_marge: resultB.montant_marge,
-          nb_references: resultB.nb_references_produits
-        } : null,
-        totalTime
-      });
-
-      setDataA(resultA);
-      setDataB(resultB);
-      setQueryTimeA(resultA?.queryTime || 0);
-      setQueryTimeB(resultB?.queryTime || 0);
-      setError(null);
-
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          console.log('⛔ [Hook] Request aborted');
-          return;
-        }
-        
-        console.error('❌ [Hook] Comparison KPIs fetch failed:', err.message);
-        setError(err.message);
-      } else {
-        console.error('❌ [Hook] Unknown error:', err);
-        setError('Erreur inattendue lors du chargement des KPI de comparaison');
-      }
-      
-      setDataA(null);
-      setDataB(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    enabled,
-    elementA?.id,
-    elementB?.id,
-    analysisDateRange.start,
-    analysisDateRange.end,
-    JSON.stringify(pharmacyFilter),
-    fetchElementKpis
-  ]);
-
-  // Fonction refetch publique
+  // Fonction refetch combinée
   const refetch = useCallback(async (): Promise<void> => {
-    console.log('🔄 [Hook] Manual refetch triggered');
-    lastRequestRef.current = ''; // Force refresh
-    await fetchComparisonKpis();
-  }, [fetchComparisonKpis]);
+    console.log('🔄 [Hook] Manual refetch triggered for comparison');
+    const promises = [];
+    
+    if (elementA) promises.push(resultA.refetch());
+    if (elementB) promises.push(resultB.refetch());
+    
+    await Promise.all(promises);
+  }, [elementA, elementB, resultA.refetch, resultB.refetch]);
 
-  // Effet pour déclencher le fetch automatique
+  // Log des changements pour debug
   useEffect(() => {
     if (enabled) {
-      console.log('🎯 [Hook] Auto-fetch triggered by dependency change', {
+      console.log('🎯 [Hook] Comparison elements changed:', {
         elementA: elementA?.name,
         elementB: elementB?.name,
         dateRange: analysisDateRange
       });
-      fetchComparisonKpis();
     }
-  }, [
-    enabled,
-    elementA?.id,
-    elementB?.id,
-    analysisDateRange.start,
-    analysisDateRange.end,
-    JSON.stringify(pharmacyFilter),
-    fetchComparisonKpis
-  ]);
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        console.log('🧹 [Hook] Cleanup: aborting request');
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
+  }, [enabled, elementA?.name, elementB?.name, analysisDateRange]);
 
   return {
-    dataA,
-    dataB,
+    dataA: resultA.data,
+    dataB: resultB.data,
     isLoading,
     error,
-    isError: !!error,
-    queryTimeA,
-    queryTimeB,
+    isError,
+    queryTimeA: resultA.queryTime,
+    queryTimeB: resultB.queryTime,
     refetch,
-    hasDataA: !!dataA,
-    hasDataB: !!dataB
+    hasDataA: resultA.hasData,
+    hasDataB: resultB.hasData
   };
 }
