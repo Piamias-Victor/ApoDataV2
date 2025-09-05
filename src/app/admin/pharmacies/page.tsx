@@ -4,23 +4,30 @@
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { Users } from 'lucide-react';
 import { PharmaciesTable } from '@/components/organisms/PharmaciesTable';
 import { PharmacyEditModal } from '@/components/organisms/PharmacyEditModal';
+import { UserCreateModal } from '@/components/organisms/UserCreateModal';
 import { usePharmacies } from '@/hooks/admin/usePharmacies';
 import type { Pharmacy, PharmacyUpdateData } from '@/types/pharmacy';
 
 /**
- * Page Admin - Gestion des Pharmacies
+ * Page Admin - Gestion des Pharmacies avec création d'utilisateurs intégrée
  * Accessible uniquement aux admins via /admin/pharmacies
  */
 export default function PharmaciesAdminPage() {
   const router = useRouter();
   const { data, loading, error, filters, setSearch, setPage, refetch } = usePharmacies();
+  
+  // États modals
   const [selectedPharmacy, setSelectedPharmacy] = useState<Pharmacy | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isUserCreateModalOpen, setIsUserCreateModalOpen] = useState(false);
   
-  // Gestion de l'édition
+  // États UI
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // === HANDLERS PHARMACIES ===
   const handleEdit = (pharmacy: Pharmacy) => {
     setSelectedPharmacy(pharmacy);
     setIsEditModalOpen(true);
@@ -32,28 +39,46 @@ export default function PharmaciesAdminPage() {
   };
   
   const handleSavePharmacy = useCallback(async (id: string, updateData: PharmacyUpdateData) => {
-    const response = await fetch(`/api/admin/pharmacies/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updateData),
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to update pharmacy');
+    try {
+      const response = await fetch(`/api/admin/pharmacies/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update pharmacy');
+      }
+      
+      setSuccessMessage('Pharmacie mise à jour avec succès');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      await refetch();
+      
+    } catch (error) {
+      console.error('Error updating pharmacy:', error);
+      setSuccessMessage('Erreur lors de la mise à jour');
+      setTimeout(() => setSuccessMessage(null), 3000);
     }
-    
-    // Afficher message de succès
-    setSuccessMessage('Pharmacie mise à jour avec succès');
-    setTimeout(() => setSuccessMessage(null), 3000);
-    
-    // Rafraîchir la liste après mise à jour
-    await refetch();
   }, [refetch]);
-  
-  // Gestion de la pagination
+
+  // === HANDLERS UTILISATEURS ===
+  const handleCreateUser = () => {
+    setIsUserCreateModalOpen(true);
+  };
+
+  const handleCloseUserModal = () => {
+    setIsUserCreateModalOpen(false);
+  };
+
+  const handleUserCreateSuccess = () => {
+    setSuccessMessage('Utilisateur créé avec succès');
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  // === HANDLERS PAGINATION ===
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -84,7 +109,8 @@ export default function PharmaciesAdminPage() {
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1600px] mx-auto">
-        {/* Header avec bouton retour */}
+        
+        {/* === HEADER AVEC ACTIONS === */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -96,34 +122,46 @@ export default function PharmaciesAdminPage() {
                 Gestion des Pharmacies
               </h1>
               <p className="mt-2 text-sm text-gray-600">
-                Vue administrative complète de toutes les pharmacies
+                Administration des pharmacies et création d'utilisateurs
               </p>
             </div>
             
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-            >
-              <svg 
-                className="mr-2 h-4 w-4" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+            {/* Actions principales */}
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18" 
-                />
-              </svg>
-              Retour au Dashboard
-            </button>
+                <svg 
+                  className="mr-2 h-4 w-4" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18" 
+                  />
+                </svg>
+                Retour Dashboard
+              </button>
+              
+              {/* Bouton création utilisateur */}
+              <button
+                onClick={handleCreateUser}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Créer un utilisateur
+              </button>
+            </div>
           </div>
           
-          {/* Statistiques */}
+          {/* === STATISTIQUES === */}
           {data && data.pagination && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -159,11 +197,35 @@ export default function PharmaciesAdminPage() {
                   {data.pharmacies.length}
                 </div>
               </motion.div>
+
+              {/* Nouvelle statistique - Actions rapides */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4"
+              >
+                <div className="text-sm font-medium text-blue-600">Actions Rapides</div>
+                <div className="mt-2 flex items-center space-x-2">
+                  <button
+                    onClick={handleCreateUser}
+                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-200 transition-colors"
+                  >
+                    + Utilisateur
+                  </button>
+                  <button
+                    onClick={() => refetch()}
+                    className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    ↻ Actualiser
+                  </button>
+                </div>
+              </motion.div>
             </div>
           )}
         </motion.div>
         
-        {/* Barre de recherche */}
+        {/* === BARRE DE RECHERCHE === */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -204,7 +266,7 @@ export default function PharmaciesAdminPage() {
           </div>
         </motion.div>
         
-        {/* Message de succès */}
+        {/* === MESSAGES === */}
         {successMessage && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -221,7 +283,6 @@ export default function PharmaciesAdminPage() {
           </motion.div>
         )}
         
-        {/* Message d'erreur */}
         {error && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -237,7 +298,7 @@ export default function PharmaciesAdminPage() {
           </motion.div>
         )}
         
-        {/* Table des pharmacies */}
+        {/* === TABLE DES PHARMACIES === */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -250,7 +311,7 @@ export default function PharmaciesAdminPage() {
           />
         </motion.div>
         
-        {/* Pagination */}
+        {/* === PAGINATION === */}
         {data && data.pagination && data.pagination.totalPages > 1 && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -346,12 +407,18 @@ export default function PharmaciesAdminPage() {
         )}
       </div>
       
-      {/* Modal d'édition */}
+      {/* === MODALS === */}
       <PharmacyEditModal
         isOpen={isEditModalOpen}
         onClose={handleCloseModal}
         pharmacy={selectedPharmacy}
         onSave={handleSavePharmacy}
+      />
+
+      <UserCreateModal
+        isOpen={isUserCreateModalOpen}
+        onClose={handleCloseUserModal}
+        onSuccess={handleUserCreateSuccess}
       />
     </div>
   );

@@ -2,7 +2,6 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { Header } from '@/components/organisms/Header/Header';
 
 
@@ -24,7 +23,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20">
-      <AnimatedBackground />
+      {/* <AnimatedBackground /> */}
       <Header />
       <div className="pt-16">
         {children}
