@@ -14,7 +14,8 @@ import {
   Package2, 
   ChevronDown, 
   LogOut, 
-  GitCompareArrows
+  GitCompareArrows,
+  Loader2
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -29,7 +30,7 @@ const navigationItems: NavigationItem[] = [
   { name: 'Ventes', href: '/ventes', icon: <ShoppingCart className="w-full h-full" />, badgeVariant: 'gradient-green' },
   { name: 'Prix', href: '/prix', icon: <Euro className="w-full h-full" />, badgeVariant: 'gradient-purple' },
   { name: 'Stock', href: '/stock', icon: <Package2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
-  { name: 'Comparaison', href: '/comparaisons', icon: <GitCompareArrows  className="w-full h-full" />, badgeVariant: 'gradient-pink' },
+  { name: 'Comparaison', href: '/comparaisons', icon: <GitCompareArrows className="w-full h-full" />, badgeVariant: 'gradient-pink' },
 ];
 
 interface DashboardHeaderProps {
@@ -37,7 +38,12 @@ interface DashboardHeaderProps {
 }
 
 /**
- * Dashboard Header - Header avec FilterBar intégrée
+ * Dashboard Header OPTIMISÉ avec Loading States
+ * 
+ * SOLUTION : Feedback visuel immédiat sur navigation
+ * - Loading spinner pendant navigation
+ * - Indication visuelle du changement
+ * - Prefetch pour accélération
  */
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = '' }) => {
   const { data: session } = useSession();
@@ -46,15 +52,45 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [targetRoute, setTargetRoute] = useState<string | null>(null);
 
   const toggleMobileMenu = (): void => {
     setIsMobileMenuOpen(prev => !prev);
   };
 
-  const handleNavigation = (href: string): void => {
-    router.push(href);
-    setIsMobileMenuOpen(false);
+  const handleNavigation = async (href: string): Promise<void> => {
+    // Si déjà sur cette page, ne rien faire
+    if (pathname === href) return;
+    
+    try {
+      // FEEDBACK IMMÉDIAT : Loading state
+      setIsNavigating(true);
+      setTargetRoute(href);
+      setIsMobileMenuOpen(false);
+      
+      // OPTIMISATION : Prefetch puis navigate
+      await router.prefetch(href);
+      router.push(href);
+      
+      // Timeout sécurité pour reset loading
+      setTimeout(() => {
+        setIsNavigating(false);
+        setTargetRoute(null);
+      }, 5000);
+      
+    } catch (error) {
+      console.error('Navigation error:', error);
+      setIsNavigating(false);
+      setTargetRoute(null);
+    }
   };
+
+  // Reset loading state when pathname changes
+  React.useEffect(() => {
+    setIsNavigating(false);
+    setTargetRoute(null);
+  }, [pathname]);
 
   const handleLogout = async (): Promise<void> => {
     await signOut({ callbackUrl: '/' });
@@ -100,27 +136,50 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
               </motion.div>
             </div>
 
-            {/* Navigation Desktop */}
+            {/* Navigation Desktop AVEC LOADING */}
             <nav className="hidden md:flex items-center space-x-8">
-              {navigationItems.map((item) => (
-                <motion.button
-                  key={item.name}
-                  onClick={() => handleNavigation(item.href)}
-                  className={`
-                    flex items-center space-x-2 px-3 py-2 rounded-lg
-                    transition-colors duration-200
-                    ${pathname === item.href || pathname.startsWith(item.href + '/') 
-                      ? 'text-blue-600 bg-blue-50' 
-                      : 'text-gray-700 hover:text-blue-600'
-                    }
-                  `}
-                  whileHover={{ scale: 1.05, y: -1 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <span className="w-4 h-4">{item.icon}</span>
-                  <span className="text-sm font-medium">{item.name}</span>
-                </motion.button>
-              ))}
+              {navigationItems.map((item) => {
+                const isCurrentPage = pathname === item.href || pathname.startsWith(item.href + '/');
+                const isLoadingThis = isNavigating && targetRoute === item.href;
+                
+                return (
+                  <motion.button
+                    key={item.name}
+                    onClick={() => handleNavigation(item.href)}
+                    onMouseEnter={() => router.prefetch(item.href)} // PREFETCH au hover
+                    disabled={isNavigating}
+                    className={`
+                      flex items-center space-x-2 px-3 py-2 rounded-lg
+                      transition-all duration-200 relative
+                      ${isCurrentPage
+                        ? 'text-blue-600 bg-blue-50 border border-blue-200' 
+                        : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                      }
+                      ${isNavigating ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
+                    whileHover={!isNavigating ? { scale: 1.05, y: -1 } : {}}
+                    whileTap={!isNavigating ? { scale: 0.95 } : {}}
+                  >
+                    {/* LOADING SPINNER pendant navigation */}
+                    {isLoadingThis ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <span className="w-4 h-4">{item.icon}</span>
+                    )}
+                    <span className="text-sm font-medium">{item.name}</span>
+                    
+                    {/* INDICATEUR LOADING */}
+                    {isLoadingThis && (
+                      <motion.div
+                        className="absolute inset-0 bg-blue-100 rounded-lg -z-10"
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+                  </motion.button>
+                );
+              })}
             </nav>
 
             {/* Actions Desktop */}
@@ -252,7 +311,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
             </div>
           </div>
 
-          {/* Menu Mobile */}
+          {/* Menu Mobile AVEC LOADING */}
           <AnimatePresence>
             {isMobileMenuOpen && (
               <motion.div
@@ -264,25 +323,36 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
               >
                 <div className="py-4 space-y-2">
                   {/* Navigation Mobile */}
-                  {navigationItems.map((item) => (
-                    <motion.button
-                      key={item.name}
-                      onClick={() => handleNavigation(item.href)}
-                      className={`
-                        w-full flex items-center space-x-3 px-4 py-3 rounded-lg
-                        transition-colors duration-200 text-left
-                        ${pathname === item.href || pathname.startsWith(item.href + '/') 
-                          ? 'bg-blue-50 text-blue-600' 
-                          : 'text-gray-700 hover:bg-white/50 hover:text-blue-600'
-                        }
-                      `}
-                      whileHover={{ x: 4 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <span className="w-5 h-5">{item.icon}</span>
-                      <span className="font-medium">{item.name}</span>
-                    </motion.button>
-                  ))}
+                  {navigationItems.map((item) => {
+                    const isCurrentPage = pathname === item.href || pathname.startsWith(item.href + '/');
+                    const isLoadingThis = isNavigating && targetRoute === item.href;
+                    
+                    return (
+                      <motion.button
+                        key={item.name}
+                        onClick={() => handleNavigation(item.href)}
+                        disabled={isNavigating}
+                        className={`
+                          w-full flex items-center space-x-3 px-4 py-3 rounded-lg
+                          transition-colors duration-200 text-left relative
+                          ${isCurrentPage 
+                            ? 'bg-blue-50 text-blue-600' 
+                            : 'text-gray-700 hover:bg-white/50 hover:text-blue-600'
+                          }
+                          ${isNavigating ? 'opacity-50' : ''}
+                        `}
+                        whileHover={!isNavigating ? { x: 4 } : {}}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {isLoadingThis ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <span className="w-5 h-5">{item.icon}</span>
+                        )}
+                        <span className="font-medium">{item.name}</span>
+                      </motion.button>
+                    );
+                  })}
 
                   {/* User Actions Mobile */}
                   {session?.user && (
@@ -322,6 +392,49 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
             )}
           </AnimatePresence>
         </div>
+
+        {/* OVERLAY GLOBAL pendant navigation */}
+        <AnimatePresence>
+          {isNavigating && (
+            <motion.div
+              className="fixed top-[200px] inset-0 bg-gray-900/20 backdrop-blur-md z-50 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <motion.div
+                className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 max-w-md mx-4"
+                initial={{ scale: 0.8, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.8, y: 20 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              >
+                <div className="text-center">
+                  <div className="mb-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Chargement des {navigationItems.find(item => item.href === targetRoute)?.name?.toLowerCase()}
+                  </h3>
+                  
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    Vos données seront disponibles dans quelques instants.
+                    <br />
+                    Merci de patienter pendant le traitement...
+                  </p>
+                  
+                  <div className="mt-4 flex items-center justify-center space-x-1">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.header>
 
       {/* Filter Bar */}
