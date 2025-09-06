@@ -23,9 +23,9 @@ interface PresetOption {
 const analysisPresets: PresetOption[] = [
   { id: 'current-month', label: 'Mois en cours', description: 'Du 1er au jour actuel' },
   { id: 'last-month', label: 'Mois dernier', description: 'Mois précédent complet' },
-  { id: 'current-year', label: 'Année en cours', description: 'Du 1er janvier au jour actuel' },
+  { id: 'current-year', label: 'Année en cours', description: 'Du 1er janvier au dernier jour du mois actuel' },
   { id: 'last-year', label: 'Année dernière', description: 'Année précédente complète' },
-  { id: 'last-12-months', label: '12 derniers mois', description: '365 jours glissants' },
+  { id: 'last-12-months', label: '12 derniers mois', description: '12 mois calendaires complets' },
 ];
 
 const comparisonPresets: PresetOption[] = [
@@ -34,12 +34,18 @@ const comparisonPresets: PresetOption[] = [
 ];
 
 /**
- * Conversion Date vers string avec protection TypeScript
+ * Conversion Date vers string SANS problème UTC
  */
 const toSafeDateString = (date: Date): string => {
   try {
-    const iso = date.toISOString();
-    return iso.split('T')[0] || '';
+    // CORRECTION : Utiliser les méthodes locales au lieu d'ISO
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    const dateString = `${year}-${month}-${day}`;
+    console.log(`🔧 [toSafeDateString] Input: ${date.toString()} -> Output: ${dateString}`);
+    return dateString;
   } catch {
     return '';
   }
@@ -47,12 +53,6 @@ const toSafeDateString = (date: Date): string => {
 
 /**
  * DateDrawer Component - AVEC PENDING STATE ET BOUTON APPLIQUER
- * 
- * Nouvelles fonctionnalités :
- * - Pending state : les modifications ne sont pas appliquées au store immédiatement
- * - Bouton "Appliquer" obligatoire pour valider les changements
- * - Bouton "Effacer dates" pour reset
- * - Cohérence visuelle avec les autres drawers
  */
 export const DateDrawer: React.FC<DateDrawerProps> = ({
   isOpen,
@@ -181,11 +181,14 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     return '';
   };
 
+  // 🔧 CORRECTION AVEC DEBUG - Logique de calcul des dates
   const calculateDateRange = (presetId: string, type: 'analysis' | 'comparison') => {
     console.log(`🧮 [DateDrawer] Calculating ${type} preset: ${presetId}`);
     setValidationError('');
     
     const today = new Date();
+    console.log(`📅 Today: ${today.toISOString().split('T')[0]} (Month: ${today.getMonth()}, Year: ${today.getFullYear()})`);
+    
     let startDate: Date;
     let endDate: Date;
     
@@ -193,35 +196,62 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
       if (type === 'analysis') {
         switch (presetId) {
           case 'current-month':
+            // Mois en cours : du 1er au jour actuel
             startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-            endDate = today;
+            endDate = new Date(today);
+            console.log(`✅ Current month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+            console.log(`🔍 Debug - Year: ${today.getFullYear()}, Month: ${today.getMonth()}, Day: 1`);
             break;
+          
           case 'last-month':
+            // Mois dernier : mois précédent complet
+            // CORRECTION SIMPLE: Utiliser directement les constructeurs Date
             startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            endDate = new Date(today.getFullYear(), today.getMonth(), 0); // Jour 0 = dernier jour du mois précédent
+            console.log(`✅ Last month: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+            console.log(`🔍 Debug - Start: Year=${today.getFullYear()}, Month=${today.getMonth() - 1}, Day=1`);
+            console.log(`🔍 Debug - End: Year=${today.getFullYear()}, Month=${today.getMonth()}, Day=0`);
             break;
+          
           case 'current-year':
-            startDate = new Date(today.getFullYear(), 0, 1);
-            endDate = today;
+            // Année en cours : du 1er janvier au dernier jour du mois actuel
+            startDate = new Date(today.getFullYear(), 0, 1); // 1er janvier
+            endDate = new Date(today.getFullYear(), today.getMonth(), 0); // Dernier jour du mois actuel
+            console.log(`✅ Current year: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+            console.log(`🔍 Debug - Start: Year=${today.getFullYear()}, Month=0, Day=1`);
+            console.log(`🔍 Debug - End: Year=${today.getFullYear()}, Month=${today.getMonth() + 1}, Day=0`);
             break;
+          
           case 'last-year':
+            // Année dernière : année précédente complète
             startDate = new Date(today.getFullYear() - 1, 0, 1);
             endDate = new Date(today.getFullYear() - 1, 11, 31);
+            console.log(`✅ Last year: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
             break;
+          
           case 'last-12-months':
-            startDate = new Date(today);
-            startDate.setFullYear(today.getFullYear() - 1);
-            endDate = today;
+            // 12 derniers mois calendaires complets
+            // CORRECTION: Prendre 12 mois avant le mois actuel
+            startDate = new Date(today.getFullYear() - 1, today.getMonth() + 1, 1); // Il y a exactement 12 mois
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Fin du mois actuel
+            console.log(`✅ Last 12 months: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+            console.log(`🔍 Debug - Start: Year=${today.getFullYear() - 1}, Month=${today.getMonth() + 1}, Day=1`);
+            console.log(`🔍 Debug - End: Year=${today.getFullYear()}, Month=${today.getMonth() + 1}, Day=0`);
             break;
+          
           default:
             console.warn(`Preset analysis inconnu: ${presetId}`);
             return;
         }
         
+        // VERIFICATION FINALE
+        console.log(`🎯 Final dates: ${toSafeDateString(startDate)} to ${toSafeDateString(endDate)}`);
+        
         setPendingAnalysisStart(toSafeDateString(startDate));
         setPendingAnalysisEnd(toSafeDateString(endDate));
         
       } else {
+        // Type comparison
         const analysisStart = pendingAnalysisStart || analysisDateRange.start;
         const analysisEnd = pendingAnalysisEnd || analysisDateRange.end;
         
@@ -285,7 +315,6 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
     setPendingComparisonEnd('');
     setValidationError('');
   };
-
 
   // NOUVEAU : Fonction pour appliquer les changements au store
   const applyFilters = () => {
@@ -564,7 +593,7 @@ export const DateDrawer: React.FC<DateDrawerProps> = ({
           )}
         </div>
 
-        {/* NOUVEAU : Action Buttons - MÊME STRUCTURE QUE LES AUTRES DRAWERS */}
+        {/* Action Buttons */}
         <div className="border-t border-gray-100 p-4 space-y-3">
           <div className="flex space-x-2">
             <button
