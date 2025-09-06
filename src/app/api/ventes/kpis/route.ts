@@ -65,6 +65,7 @@ interface SalesKpiMetricsResponse {
   } | undefined;
   readonly queryTime: number;
   readonly cached: boolean;
+  readonly usedMaterializedView?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<SalesKpiMetricsResponse | { error: string }>> {
@@ -135,7 +136,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<SalesKpiM
       ca_ttc: response.ca_ttc,
       part_marche_ca_pct: response.part_marche_ca_pct,
       queryTime: response.queryTime,
-      hasComparison: !!comparison
+      hasComparison: !!comparison,
+      usedMV: response.usedMaterializedView
     });
 
     return NextResponse.json(response);
@@ -148,7 +150,88 @@ export async function POST(request: NextRequest): Promise<NextResponse<SalesKpiM
   }
 }
 
-async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
+// DÉTECTION ÉLIGIBILITÉ MATERIALIZED VIEW
+function canUseMaterializedView(dateRange: { start: string; end: string }, hasProductFilter: boolean): boolean {
+  const startDate = new Date(dateRange.start);
+  const endDate = new Date(dateRange.end);
+  
+  // Vérifier si les dates sont alignées sur des mois complets
+  const isStartOfMonth = startDate.getDate() === 1;
+  const lastDayOfEndMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+  const isEndOfMonth = endDate.getDate() === lastDayOfEndMonth;
+  
+  // Vérifier si dans la plage de données MV
+  const isWithinMVRange = startDate >= new Date('2024-01-01');
+  
+  // Pas de filtres produits
+  const noProductFilters = !hasProductFilter;
+  
+  const eligible = isStartOfMonth && isEndOfMonth && isWithinMVRange && noProductFilters;
+  
+  console.log('🤔 [API] MV Eligibility Check:', {
+    isStartOfMonth,
+    isEndOfMonth,
+    isWithinMVRange,
+    noProductFilters,
+    eligible
+  });
+  
+  return eligible;
+}
+
+// REQUÊTE VIA MATERIALIZED VIEW
+async function fetchFromMaterializedView(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
+  const { dateRange, pharmacyIds } = request;
+  
+  const params: any[] = [
+    dateRange.start, 
+    dateRange.end
+  ];
+  
+  let pharmacyFilter = '';
+  if (pharmacyIds && pharmacyIds.length > 0) {
+    pharmacyFilter = 'AND pharmacy_id = ANY($3::uuid[])';
+    params.push(pharmacyIds);
+  }
+  
+  const query = `
+    SELECT 
+      SUM(quantite_vendue) as quantite_vendue,
+      SUM(ca_ttc) as ca_ttc,
+      100.0 as part_marche_ca_pct,
+      100.0 as part_marche_marge_pct,
+      SUM(nb_references_selection) as nb_references_selection,
+      0 as nb_references_80pct_ca,
+      SUM(montant_marge) as montant_marge,
+      CASE 
+        WHEN SUM(ca_ttc) > 0 
+        THEN (SUM(montant_marge) / SUM(ca_ttc)) * 100
+        ELSE 0
+      END as taux_marge_pct
+    FROM mv_sales_kpi_monthly
+    WHERE periode >= DATE_TRUNC('month', $1::date)
+      AND periode <= DATE_TRUNC('month', $2::date)
+      ${pharmacyFilter};
+  `;
+  
+  console.log('🚀 [API] Using Materialized View - Fast path');
+  
+  try {
+    const result = await db.query(query, params);
+    
+    if (result.length === 0) {
+      return getDefaultSalesKpiResponse(true);
+    }
+    
+    return formatSalesKpiResponse(result[0], true);
+  } catch (error) {
+    console.error('❌ [API] MV query failed:', error);
+    throw error;
+  }
+}
+
+// REQUÊTE VIA TABLES BRUTES (CODE ORIGINAL)
+async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
   const { dateRange, productCodes = [], laboratoryCodes = [], categoryCodes = [], pharmacyIds } = request;
 
   const allProductCodes = Array.from(new Set([
@@ -269,55 +352,69 @@ async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<
     LEFT JOIN pareto_80_analysis p80 ON true;
   `;
 
-  console.log('🔍 [API] Executing Sales KPI query:', {
-    dateRange,
-    productCodesLength: allProductCodes.length,
-    pharmacyIdsLength: pharmacyIds?.length || 0,
-    paramsLength: params.length,
-    hasProductFilter,
-    hasPharmacyFilter
-  });
+  console.log('🔍 [API] Using Raw Tables - Flexible path');
 
   try {
     const result = await db.query(query, params);
 
     if (result.length === 0) {
-      console.log('⚠️ [API] No Sales KPI data found');
-      return {
-        quantite_vendue: 0,
-        ca_ttc: 0,
-        part_marche_ca_pct: 0,
-        part_marche_marge_pct: 0,
-        nb_references_selection: 0,
-        nb_references_80pct_ca: 0,
-        montant_marge: 0,
-        taux_marge_pct: 0
-      };
+      return getDefaultSalesKpiResponse(false);
     }
 
-    const row = result[0];
-    console.log('📊 [API] Sales KPI metrics calculated:', {
-      quantite_vendue: Number(row.quantite_vendue) || 0,
-      ca_ttc: Number(row.ca_ttc) || 0,
-      part_marche_ca_pct: Number(row.part_marche_ca_pct) || 0,
-      part_marche_marge_pct: Number(row.part_marche_marge_pct) || 0,
-      nb_references_selection: Number(row.nb_references_selection) || 0,
-      nb_references_80pct_ca: Number(row.nb_references_80pct_ca) || 0
-    });
-
-    return {
-      quantite_vendue: Number(row.quantite_vendue) || 0,
-      ca_ttc: Number(row.ca_ttc) || 0,
-      part_marche_ca_pct: Number(row.part_marche_ca_pct) || 0,
-      part_marche_marge_pct: Number(row.part_marche_marge_pct) || 0,
-      nb_references_selection: Number(row.nb_references_selection) || 0,
-      nb_references_80pct_ca: Number(row.nb_references_80pct_ca) || 0,
-      montant_marge: Number(row.montant_marge) || 0,
-      taux_marge_pct: Number(row.taux_marge_pct) || 0
-    };
-
+    return formatSalesKpiResponse(result[0], false);
   } catch (error) {
     console.error('❌ [API] Database query failed:', error);
     throw error;
   }
+}
+
+// FONCTION PRINCIPALE AVEC ROUTAGE INTELLIGENT
+async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
+  const { productCodes = [], laboratoryCodes = [], categoryCodes = [] } = request;
+
+  const allProductCodes = Array.from(new Set([
+    ...productCodes,
+    ...laboratoryCodes,
+    ...categoryCodes
+  ]));
+
+  const hasProductFilter = allProductCodes.length > 0;
+
+  // DÉTECTION MV vs RAW TABLES
+  const canUseMV = canUseMaterializedView(request.dateRange, hasProductFilter);
+  
+  if (canUseMV) {
+    return await fetchFromMaterializedView(request);
+  } else {
+    return await fetchFromRawTables(request);
+  }
+}
+
+// FONCTIONS UTILITAIRES
+function getDefaultSalesKpiResponse(usedMV: boolean): Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
+  return {
+    quantite_vendue: 0,
+    ca_ttc: 0,
+    part_marche_ca_pct: 0,
+    part_marche_marge_pct: 0,
+    nb_references_selection: 0,
+    nb_references_80pct_ca: 0,
+    montant_marge: 0,
+    taux_marge_pct: 0,
+    usedMaterializedView: usedMV
+  };
+}
+
+function formatSalesKpiResponse(row: any, usedMV: boolean): Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
+  return {
+    quantite_vendue: Number(row.quantite_vendue) || 0,
+    ca_ttc: Number(row.ca_ttc) || 0,
+    part_marche_ca_pct: Number(row.part_marche_ca_pct) || 0,
+    part_marche_marge_pct: Number(row.part_marche_marge_pct) || 0,
+    nb_references_selection: Number(row.nb_references_selection) || 0,
+    nb_references_80pct_ca: Number(row.nb_references_80pct_ca) || 0,
+    montant_marge: Number(row.montant_marge) || 0,
+    taux_marge_pct: Number(row.taux_marge_pct) || 0,
+    usedMaterializedView: usedMV
+  };
 }
