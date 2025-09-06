@@ -223,7 +223,7 @@ async function executeAdminQuery(
     WITH period_sales AS (
       SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name,
+        MIN(ip.name) as product_name, -- Un seul nom par code EAN
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(ins.price_with_tax) as prix_vente_moyen_periode,
@@ -253,17 +253,18 @@ async function executeAdminQuery(
         AND ins.weighted_average_price > 0
         ${productFilter}
         ${finalPharmacyFilter}
-      GROUP BY ip.code_13_ref_id, ip.name, ${periodGrouping}
+      GROUP BY ip.code_13_ref_id, ${periodGrouping} -- Groupement uniquement par code EAN et période
       HAVING SUM(s.quantity) > 0
     ),
     product_info AS (
-      SELECT DISTINCT
+      SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name
+        MIN(ip.name) as product_name -- Un seul nom par code EAN
       FROM data_internalproduct ip
       WHERE 1=1
         ${productFilter}
         ${finalPharmacyFilter}
+      GROUP BY ip.code_13_ref_id
     ),
     selection_totals AS (
       SELECT 
@@ -274,44 +275,42 @@ async function executeAdminQuery(
     all_results AS (
       -- Résultats détaillés par période
       SELECT 
-        pi.product_name as nom,
-        pi.code_13_ref_id as code_ean,
+        ps.product_name as nom,
+        ps.code_13_ref_id as code_ean,
         ${periodFormat} as periode,
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
         
-        COALESCE(ps.quantite_vendue_periode, 0) as quantite_vendue,
-        ROUND(COALESCE(ps.prix_achat_moyen_periode, 0), 2) as prix_achat_moyen,
-        ROUND(COALESCE(ps.prix_vente_moyen_periode, 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(ps.taux_marge_moyen_periode, 0), 2) as taux_marge_moyen,
+        ps.quantite_vendue_periode as quantite_vendue,
+        ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
+        ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
+        ROUND(ps.taux_marge_moyen_periode, 2) as taux_marge_moyen,
         
         -- Parts de marché sur sélection
         CASE 
           WHEN st.total_quantite_selection > 0 
-          THEN ROUND((COALESCE(ps.quantite_vendue_periode, 0) * 100.0 / st.total_quantite_selection), 2)
+          THEN ROUND((ps.quantite_vendue_periode * 100.0 / st.total_quantite_selection), 2)
           ELSE 0 
         END as part_marche_quantite_pct,
         
         CASE 
           WHEN st.total_marge_selection > 0 
-          THEN ROUND((COALESCE(ps.montant_marge_total, 0) * 100.0 / st.total_marge_selection), 2)
+          THEN ROUND((ps.montant_marge_total * 100.0 / st.total_marge_selection), 2)
           ELSE 0 
         END as part_marche_marge_pct,
         
-        ROUND(COALESCE(ps.montant_ventes_ttc, 0), 2) as montant_ventes_ttc,
-        ROUND(COALESCE(ps.montant_marge_total, 0), 2) as montant_marge_total,
+        ROUND(ps.montant_ventes_ttc, 2) as montant_ventes_ttc,
+        ROUND(ps.montant_marge_total, 2) as montant_marge_total,
         
         ps.periode as sort_periode,
         1 as sort_order
         
-      FROM product_info pi
+      FROM period_sales ps
       CROSS JOIN selection_totals st
-      LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
-      WHERE ps.code_13_ref_id IS NOT NULL
       
       UNION ALL
       
-      -- Ligne synthèse par produit
+      -- Ligne synthèse par produit (agrégation par code EAN)
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
@@ -319,25 +318,25 @@ async function executeAdminQuery(
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
         
-        COALESCE(SUM(ps.quantite_vendue_periode), 0) as quantite_vendue,
-        ROUND(COALESCE(AVG(ps.prix_achat_moyen_periode), 0), 2) as prix_achat_moyen,
-        ROUND(COALESCE(AVG(ps.prix_vente_moyen_periode), 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(AVG(ps.taux_marge_moyen_periode), 0), 2) as taux_marge_moyen,
+        SUM(ps.quantite_vendue_periode) as quantite_vendue,
+        ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
+        ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
+        ROUND(AVG(ps.taux_marge_moyen_periode), 2) as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
-          THEN ROUND((COALESCE(SUM(ps.quantite_vendue_periode), 0) * 100.0 / st.total_quantite_selection), 2)
+          THEN ROUND((SUM(ps.quantite_vendue_periode) * 100.0 / st.total_quantite_selection), 2)
           ELSE 0 
         END as part_marche_quantite_pct,
         
         CASE 
           WHEN st.total_marge_selection > 0 
-          THEN ROUND((COALESCE(SUM(ps.montant_marge_total), 0) * 100.0 / st.total_marge_selection), 2)
+          THEN ROUND((SUM(ps.montant_marge_total) * 100.0 / st.total_marge_selection), 2)
           ELSE 0 
         END as part_marche_marge_pct,
         
-        ROUND(COALESCE(SUM(ps.montant_ventes_ttc), 0), 2) as montant_ventes_ttc,
-        ROUND(COALESCE(SUM(ps.montant_marge_total), 0), 2) as montant_marge_total,
+        ROUND(SUM(ps.montant_ventes_ttc), 2) as montant_ventes_ttc,
+        ROUND(SUM(ps.montant_marge_total), 2) as montant_marge_total,
         
         NULL as sort_periode,
         0 as sort_order
@@ -346,6 +345,7 @@ async function executeAdminQuery(
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
       GROUP BY pi.product_name, pi.code_13_ref_id, st.total_quantite_selection, st.total_marge_selection
+      HAVING SUM(ps.quantite_vendue_periode) > 0
     )
     SELECT 
       nom,
@@ -407,7 +407,7 @@ async function executeUserQuery(
     WITH period_sales AS (
       SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name,
+        MIN(ip.name) as product_name, -- Un seul nom par code EAN
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(ins.price_with_tax) as prix_vente_moyen_periode,
@@ -437,16 +437,17 @@ async function executeUserQuery(
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
-      GROUP BY ip.code_13_ref_id, ip.name, ${periodGrouping}
+      GROUP BY ip.code_13_ref_id, ${periodGrouping} -- Groupement uniquement par code EAN et période
       HAVING SUM(s.quantity) > 0
     ),
     product_info AS (
-      SELECT DISTINCT
+      SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name
+        MIN(ip.name) as product_name -- Un seul nom par code EAN
       FROM data_internalproduct ip
       WHERE ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
+      GROUP BY ip.code_13_ref_id
     ),
     selection_totals AS (
       SELECT 
@@ -457,43 +458,41 @@ async function executeUserQuery(
     all_results AS (
       -- Détails par période
       SELECT 
-        pi.product_name as nom,
-        pi.code_13_ref_id as code_ean,
+        ps.product_name as nom,
+        ps.code_13_ref_id as code_ean,
         ${periodFormat} as periode,
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
         
-        COALESCE(ps.quantite_vendue_periode, 0) as quantite_vendue,
-        ROUND(COALESCE(ps.prix_achat_moyen_periode, 0), 2) as prix_achat_moyen,
-        ROUND(COALESCE(ps.prix_vente_moyen_periode, 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(ps.taux_marge_moyen_periode, 0), 2) as taux_marge_moyen,
+        ps.quantite_vendue_periode as quantite_vendue,
+        ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
+        ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
+        ROUND(ps.taux_marge_moyen_periode, 2) as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
-          THEN ROUND((COALESCE(ps.quantite_vendue_periode, 0) * 100.0 / st.total_quantite_selection), 2)
+          THEN ROUND((ps.quantite_vendue_periode * 100.0 / st.total_quantite_selection), 2)
           ELSE 0 
         END as part_marche_quantite_pct,
         
         CASE 
           WHEN st.total_marge_selection > 0 
-          THEN ROUND((COALESCE(ps.montant_marge_total, 0) * 100.0 / st.total_marge_selection), 2)
+          THEN ROUND((ps.montant_marge_total * 100.0 / st.total_marge_selection), 2)
           ELSE 0 
         END as part_marche_marge_pct,
         
-        ROUND(COALESCE(ps.montant_ventes_ttc, 0), 2) as montant_ventes_ttc,
-        ROUND(COALESCE(ps.montant_marge_total, 0), 2) as montant_marge_total,
+        ROUND(ps.montant_ventes_ttc, 2) as montant_ventes_ttc,
+        ROUND(ps.montant_marge_total, 2) as montant_marge_total,
         
         ps.periode as sort_periode,
         1 as sort_order
         
-      FROM product_info pi
+      FROM period_sales ps
       CROSS JOIN selection_totals st
-      LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
-      WHERE ps.code_13_ref_id IS NOT NULL
       
       UNION ALL
       
-      -- Synthèse par produit
+      -- Synthèse par produit (agrégation par code EAN)
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
@@ -501,25 +500,25 @@ async function executeUserQuery(
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
         
-        COALESCE(SUM(ps.quantite_vendue_periode), 0) as quantite_vendue,
-        ROUND(COALESCE(AVG(ps.prix_achat_moyen_periode), 0), 2) as prix_achat_moyen,
-        ROUND(COALESCE(AVG(ps.prix_vente_moyen_periode), 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(AVG(ps.taux_marge_moyen_periode), 0), 2) as taux_marge_moyen,
+        SUM(ps.quantite_vendue_periode) as quantite_vendue,
+        ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
+        ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
+        ROUND(AVG(ps.taux_marge_moyen_periode), 2) as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
-          THEN ROUND((COALESCE(SUM(ps.quantite_vendue_periode), 0) * 100.0 / st.total_quantite_selection), 2)
+          THEN ROUND((SUM(ps.quantite_vendue_periode) * 100.0 / st.total_quantite_selection), 2)
           ELSE 0 
         END as part_marche_quantite_pct,
         
         CASE 
           WHEN st.total_marge_selection > 0 
-          THEN ROUND((COALESCE(SUM(ps.montant_marge_total), 0) * 100.0 / st.total_marge_selection), 2)
+          THEN ROUND((SUM(ps.montant_marge_total) * 100.0 / st.total_marge_selection), 2)
           ELSE 0 
         END as part_marche_marge_pct,
         
-        ROUND(COALESCE(SUM(ps.montant_ventes_ttc), 0), 2) as montant_ventes_ttc,
-        ROUND(COALESCE(SUM(ps.montant_marge_total), 0), 2) as montant_marge_total,
+        ROUND(SUM(ps.montant_ventes_ttc), 2) as montant_ventes_ttc,
+        ROUND(SUM(ps.montant_marge_total), 2) as montant_marge_total,
         
         NULL as sort_periode,
         0 as sort_order
@@ -528,6 +527,7 @@ async function executeUserQuery(
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
       GROUP BY pi.product_name, pi.code_13_ref_id, st.total_quantite_selection, st.total_marge_selection
+      HAVING SUM(ps.quantite_vendue_periode) > 0
     )
     SELECT 
       nom,

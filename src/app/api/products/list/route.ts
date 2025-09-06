@@ -235,7 +235,6 @@ async function executeAdminQuery(
         ${finalPharmacyFilter}
       GROUP BY ip.code_13_ref_id
     ),
-
     product_purchases AS (
       SELECT 
         ip.code_13_ref_id,
@@ -250,7 +249,7 @@ async function executeAdminQuery(
         FROM data_inventorysnapshot ins2
         WHERE ins2.product_id = po.product_id
           AND ins2.weighted_average_price > 0
-        ORDER BY ins2.date DESC  -- ✅ Suppression du filtre temporel
+        ORDER BY ins2.date DESC
         LIMIT 1
       ) closest_snap ON true
       WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
@@ -282,8 +281,7 @@ async function executeAdminQuery(
         AVG(ins.weighted_average_price) as avg_buy_price_ht
       FROM data_inventorysnapshot ins
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE ins.date >= $1 AND ins.date <= $2
-        AND ins.weighted_average_price > 0
+      WHERE ins.weighted_average_price > 0
         ${productFilter}
         ${finalPharmacyFilter}
       GROUP BY ip.code_13_ref_id
@@ -364,26 +362,26 @@ async function executeUserQuery(
       GROUP BY ip.code_13_ref_id
     ),
     product_purchases AS (
-    SELECT 
-      ip.code_13_ref_id,
-      SUM(po.qte) as total_quantity_bought,
-      SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
-      AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
-    FROM data_productorder po
-    INNER JOIN data_order o ON po.order_id = o.id
-    INNER JOIN data_internalproduct ip ON po.product_id = ip.id
-    LEFT JOIN LATERAL (
-      SELECT weighted_average_price
-      FROM data_inventorysnapshot ins2
-      WHERE ins2.product_id = po.product_id
-        AND ins2.weighted_average_price > 0
-      ORDER BY ins2.date DESC
-      LIMIT 1
-    ) closest_snap ON true
-    WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
-      ${productFilter}
-      AND ip.pharmacy_id = ${pharmacyParam}
-    GROUP BY ip.code_13_ref_id
+      SELECT 
+        ip.code_13_ref_id,
+        SUM(po.qte) as total_quantity_bought,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
+        ${productFilter}
+        AND ip.pharmacy_id = ${pharmacyParam}
+      GROUP BY ip.code_13_ref_id
     ),
     current_stock AS (
       SELECT 
@@ -408,8 +406,7 @@ async function executeUserQuery(
         AVG(ins.weighted_average_price) as avg_buy_price_ht
       FROM data_inventorysnapshot ins
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE ins.date >= $1 AND ins.date <= $2
-        AND ins.weighted_average_price > 0
+      WHERE ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       GROUP BY ip.code_13_ref_id
