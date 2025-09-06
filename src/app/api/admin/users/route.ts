@@ -7,6 +7,9 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import type { CreateUserResponse } from '@/types/user';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const CreateUserSchema = z.object({
   email: z.string().email('Email invalide').max(255),
   name: z.string().min(2, 'Nom trop court').max(255),

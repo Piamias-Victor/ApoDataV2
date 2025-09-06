@@ -5,6 +5,9 @@ import { db } from '@/lib/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,

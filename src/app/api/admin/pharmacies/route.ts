@@ -5,6 +5,9 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import type { Pharmacy } from '@/types/pharmacy';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * API Route - Liste des pharmacies pour admin
  * 

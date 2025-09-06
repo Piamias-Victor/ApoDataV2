@@ -1,7 +1,7 @@
 // src/app/login/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
@@ -30,9 +30,9 @@ interface NotificationState {
 }
 
 /**
- * Login Page - Authentification ApoData avec NextAuth et gestion returnUrl
+ * LoginContent - Composant principal avec logique login
  */
-export default function LoginPage(): JSX.Element {
+function LoginContent(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get('returnUrl') || '/dashboard';
@@ -133,10 +133,7 @@ export default function LoginPage(): JSX.Element {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20 relative overflow-hidden">
-      {/* Background animé */}
-      <AnimatedBackground />
-      
+    <>
       {/* Notification */}
       <div className="fixed top-4 right-4 z-50">
         <Notification
@@ -264,6 +261,29 @@ export default function LoginPage(): JSX.Element {
 
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * LoginPage - Page principale avec Suspense boundary
+ */
+export default function LoginPage(): JSX.Element {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20 relative overflow-hidden">
+      {/* Background animé */}
+      <AnimatedBackground />
+      
+      {/* Contenu avec Suspense pour useSearchParams */}
+      <Suspense 
+        fallback={
+          <div className="relative z-10 min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        }
+      >
+        <LoginContent />
+      </Suspense>
     </div>
   );
 }
