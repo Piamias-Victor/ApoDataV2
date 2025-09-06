@@ -1,11 +1,11 @@
 // src/app/login/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
 import { Input } from '@/components/atoms/Input/Input';
 import { Button } from '@/components/atoms/Button/Button';
@@ -30,10 +30,12 @@ interface NotificationState {
 }
 
 /**
- * Login Page - Authentification ApoData avec NextAuth
+ * Login Page - Authentification ApoData avec NextAuth et gestion returnUrl
  */
 export default function LoginPage(): JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
   
   const [formData, setFormData] = useState<LoginForm>({
     email: '',
@@ -48,6 +50,13 @@ export default function LoginPage(): JSX.Element {
     type: 'info',
     message: ''
   });
+
+  // Affichage message si redirection depuis route protégée
+  useEffect(() => {
+    if (returnUrl !== '/dashboard') {
+      showNotification('info', 'Connexion requise pour accéder à cette page');
+    }
+  }, [returnUrl]);
 
   const showNotification = (type: NotificationState['type'], message: string): void => {
     setNotification({ show: true, type, message });
@@ -112,7 +121,7 @@ export default function LoginPage(): JSX.Element {
       } else if (result?.ok) {
         showNotification('success', 'Connexion réussie ! Redirection...');
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(returnUrl);
         }, 1000);
       }
     } catch (error) {
@@ -124,122 +133,137 @@ export default function LoginPage(): JSX.Element {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20 relative overflow-hidden">
+      {/* Background animé */}
       <AnimatedBackground />
       
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
-        <header className="p-6">
-          <Link 
-            href="/"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour à l'accueil
-          </Link>
-        </header>
+      {/* Notification */}
+      <div className="fixed top-4 right-4 z-50">
+        <Notification
+          type={notification.type}
+          message={notification.message}
+          show={notification.show}
+          onClose={hideNotification}
+        />
+      </div>
 
-        {/* Main Content */}
-        <main className="flex-1 flex items-center justify-center px-4">
+      {/* Container principal */}
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          
+          {/* Card login */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="w-full max-w-md"
+            transition={{ duration: 0.8, ease: 'easeOut' }}
           >
-            <Card variant="glass" padding="xl">
-              <div className="space-y-6">
-                
-                {/* Header */}
-                <div className="text-center">
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                    ApoData Genesis
+            <Card className="p-8 bg-white/80 backdrop-blur-sm border-0 shadow-2xl">
+              
+              {/* Header */}
+              <div className="text-center mb-8">
+                <motion.div
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    Connexion
                   </h1>
                   <p className="text-gray-600">
-                    Connectez-vous à votre espace
+                    Accédez à votre dashboard ApoData Genesis
                   </p>
-                </div>
+                  {returnUrl !== '/dashboard' && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      Redirection vers : {decodeURIComponent(returnUrl)}
+                    </p>
+                  )}
+                </motion.div>
+              </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Formulaire */}
+              <motion.form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              >
+                
+                {/* Email */}
+                <div>
                   <Input
-                    variant="default"
-                    size="lg"
-                    label="Email"
                     type="email"
-                    placeholder="votre@email.com"
+                    placeholder="email@exemple.com"
                     value={formData.email}
                     onChange={handleInputChange('email')}
                     error={errors.email}
-                    iconLeft={<Mail className="w-5 h-5" />}
+                    iconLeft={<Mail className="w-4 h-4 text-gray-400" />}
                     disabled={isSubmitting}
-                    required
                   />
+                </div>
 
+                {/* Mot de passe */}
+                <div>
                   <Input
-                    variant="default"
-                    size="lg"
-                    label="Mot de passe"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
+                    placeholder="Mot de passe"
                     value={formData.password}
                     onChange={handleInputChange('password')}
                     error={errors.password}
-                    iconLeft={<Lock className="w-5 h-5" />}
+                    iconLeft={<Lock className="w-4 h-4 text-gray-400" />}
                     iconRight={
-                      <motion.button
+                      <button
                         type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowPassword(!showPassword);
-                        }}
-                        className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-md"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                        disabled={isSubmitting}
                       >
-                        {showPassword ? 
-                          <EyeOff className="w-5 h-5" /> : 
-                          <Eye className="w-5 h-5" />
-                        }
-                      </motion.button>
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
                     }
                     disabled={isSubmitting}
-                    required
                   />
-
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    type="submit"
-                    fullWidth
-                    loading={isSubmitting}
-                    loadingText="Connexion..."
-                    iconLeft={<LogIn className="w-5 h-5" />}
-                  >
-                    Se connecter
-                  </Button>
-                </form>
-
-                {/* Footer */}
-                <div className="text-center text-sm text-gray-500">
-                  Sécurisé et conforme RGPD
                 </div>
 
-              </div>
+                {/* Submit button */}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  disabled={isSubmitting}
+                  iconLeft={<LogIn className="w-4 h-4" />}
+                  className="w-full"
+                >
+                  {isSubmitting ? 'Connexion...' : 'Se connecter'}
+                </Button>
+
+              </motion.form>
+
+              {/* Lien retour accueil */}
+              <motion.div
+                className="mt-8 text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+              >
+                <Link
+                  href="/"
+                  className="inline-flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Retour à l'accueil</span>
+                </Link>
+              </motion.div>
+
             </Card>
           </motion.div>
-        </main>
-      </div>
 
-      {/* Notifications */}
-      <Notification
-        type={notification.type}
-        message={notification.message}
-        show={notification.show}
-        onClose={hideNotification}
-        position="top-center"
-      />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// src/app/api/daily-metrics/route.ts
+// src/app/api/daily-metrics/route.ts - VERSION OPTIMISÉE AVEC MV
 import { NextRequest, NextResponse } from 'next/server';
 import { getSecurityContext } from '@/lib/api-security';
 import { db } from '@/lib/db';
@@ -40,7 +40,254 @@ interface DailyMetricsResponse {
   data: DailyMetricsEntry[];
   queryTime: number;
   cached: boolean;
+  usedMaterializedView?: boolean;
 }
+
+// ===================================================================
+// FONCTIONS DE DÉTECTION MV ELIGIBILITY
+// ===================================================================
+
+function detectDailyMVEligibility(
+  dateRange: { start: string; end: string },
+  hasProductFilters: boolean,
+  hasSpecificPharmacy: boolean
+): boolean {
+  const startDate = new Date(dateRange.start);
+  const endDate = new Date(dateRange.end);
+  
+  // Critères d'éligibilité MV quotidienne
+  const isWithinMVRange = startDate >= new Date('2024-01-01') && endDate <= new Date();
+  const noProductFilters = !hasProductFilters;
+  const hasSinglePharmacy = hasSpecificPharmacy;
+  
+  console.log('🔍 [API] MV Eligibility Check:', {
+    isWithinMVRange,
+    noProductFilters,
+    hasSinglePharmacy,
+    eligible: isWithinMVRange && noProductFilters && hasSinglePharmacy
+  });
+  
+  return isWithinMVRange && noProductFilters && hasSinglePharmacy;
+}
+
+// ===================================================================
+// REQUÊTE OPTIMISÉE VIA MATERIALIZED VIEW QUOTIDIENNE
+// ===================================================================
+
+async function fetchFromDailyMaterializedView(
+  dateRange: { start: string; end: string },
+  pharmacyId: string
+): Promise<{ data: DailyMetricsEntry[]; usedMV: boolean }> {
+  
+  const query = `
+    SELECT 
+      date_jour as date,
+      quantite_vendue_jour,
+      ca_ttc_jour,
+      marge_jour,
+      quantite_achat_jour,
+      montant_achat_jour,
+      stock_jour,
+      cumul_quantite_vendue,
+      cumul_quantite_achetee,
+      cumul_ca_ttc,
+      cumul_montant_achat,
+      cumul_marge
+    FROM mv_kpi_daily
+    WHERE pharmacy_id = $1::uuid
+      AND date_jour >= $2::date 
+      AND date_jour <= $3::date
+    ORDER BY date_jour ASC;
+  `;
+  
+  const params = [pharmacyId, dateRange.start, dateRange.end];
+  
+  console.log('🚀 [API] Executing Daily MV query:', { 
+    dateRange, 
+    pharmacyId,
+    paramsLength: params.length 
+  });
+  
+  try {
+    const rawResults = await db.query<any>(query, params);
+    
+    const results: DailyMetricsEntry[] = rawResults.map(row => ({
+      date: typeof row.date === 'string' 
+        ? row.date 
+        : row.date instanceof Date 
+          ? row.date.toISOString().split('T')[0] 
+          : new Date().toISOString().split('T')[0],
+      quantite_vendue_jour: Number(row.quantite_vendue_jour || 0),
+      ca_ttc_jour: Number(row.ca_ttc_jour || 0),
+      marge_jour: Number(row.marge_jour || 0),
+      quantite_achat_jour: Number(row.quantite_achat_jour || 0),
+      montant_achat_jour: Number(row.montant_achat_jour || 0),
+      stock_jour: Number(row.stock_jour || 0),
+      cumul_quantite_vendue: Number(row.cumul_quantite_vendue || 0),
+      cumul_quantite_achetee: Number(row.cumul_quantite_achetee || 0),
+      cumul_ca_ttc: Number(row.cumul_ca_ttc || 0),
+      cumul_montant_achat: Number(row.cumul_montant_achat || 0),
+      cumul_marge: Number(row.cumul_marge || 0)
+    }));
+    
+    console.log('✅ [API] Daily MV query success:', {
+      resultsCount: results.length,
+      firstDate: results[0]?.date,
+      lastDate: results[results.length - 1]?.date
+    });
+    
+    return { data: results, usedMV: true };
+    
+  } catch (error) {
+    console.error('❌ [API] Daily MV query failed:', error);
+    throw error;
+  }
+}
+
+// ===================================================================
+// REQUÊTE CLASSIQUE VIA TABLES BRUTES (fallback)
+// ===================================================================
+
+async function fetchFromRawTablesDaily(
+  dateRange: { start: string; end: string },
+  productCodes: string[] | null,
+  pharmacyId: string | null
+): Promise<{ data: DailyMetricsEntry[]; usedMV: boolean }> {
+  
+  const params = [
+    dateRange.start,  // $1
+    dateRange.end,    // $2
+    productCodes,     // $3 (peut être null)
+    pharmacyId        // $4 (peut être null)
+  ];
+
+  const sqlQuery = `
+    WITH calendar_period AS (
+      SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date_jour
+    ),
+    daily_sales AS (
+      SELECT 
+        s.date,
+        SUM(s.quantity) as quantite_vendue_jour,
+        SUM(s.quantity * ins.price_with_tax) as ca_ttc_jour,
+        SUM(s.quantity * (
+          (ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_jour
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE 1=1
+        AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
+        AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
+        AND s.date >= $1::date AND s.date <= $2::date
+        AND ins.weighted_average_price > 0
+      GROUP BY s.date
+    ),
+    daily_purchases AS (
+      SELECT 
+        o.created_at::date as date_achat,
+        SUM(po.qte) as quantite_achetee_jour,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_jour
+      FROM data_productorder po
+      JOIN data_order o ON po.order_id = o.id
+      JOIN data_internalproduct ip ON po.product_id = ip.id
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE 1=1
+        AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
+        AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
+        AND o.created_at >= $1::date AND o.created_at <= $2::date
+      GROUP BY o.created_at::date
+    ),
+    daily_stock AS (
+      SELECT 
+        cal.date_jour,
+        SUM(latest_stock.stock) as stock_jour
+      FROM calendar_period cal
+      LEFT JOIN data_internalproduct ip ON ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
+        AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
+      LEFT JOIN LATERAL (
+        SELECT DISTINCT ON (ins.product_id)
+          ins.stock
+        FROM data_inventorysnapshot ins
+        WHERE ins.product_id = ip.id 
+          AND ins.date <= cal.date_jour
+        ORDER BY ins.product_id, ins.date DESC
+      ) latest_stock ON ip.id IS NOT NULL
+      WHERE ip.id IS NOT NULL
+      GROUP BY cal.date_jour
+    )
+    SELECT 
+      cal.date_jour as date,
+      COALESCE(ds.quantite_vendue_jour, 0) as quantite_vendue_jour,
+      COALESCE(ds.ca_ttc_jour, 0) as ca_ttc_jour,
+      COALESCE(ds.montant_marge_jour, 0) as marge_jour,
+      COALESCE(dp.quantite_achetee_jour, 0) as quantite_achat_jour,
+      COALESCE(dp.montant_achat_ht_jour, 0) as montant_achat_jour,
+      COALESCE(dst.stock_jour, 0) as stock_jour,
+      SUM(COALESCE(ds.quantite_vendue_jour, 0)) 
+        OVER (ORDER BY cal.date_jour) as cumul_quantite_vendue,
+      SUM(COALESCE(dp.quantite_achetee_jour, 0)) 
+        OVER (ORDER BY cal.date_jour) as cumul_quantite_achetee,
+      SUM(COALESCE(ds.ca_ttc_jour, 0)) 
+        OVER (ORDER BY cal.date_jour) as cumul_ca_ttc,
+      SUM(COALESCE(dp.montant_achat_ht_jour, 0)) 
+        OVER (ORDER BY cal.date_jour) as cumul_montant_achat,
+      SUM(COALESCE(ds.montant_marge_jour, 0)) 
+        OVER (ORDER BY cal.date_jour) as cumul_marge
+    FROM calendar_period cal
+    LEFT JOIN daily_sales ds ON cal.date_jour = ds.date
+    LEFT JOIN daily_purchases dp ON cal.date_jour = dp.date_achat
+    LEFT JOIN daily_stock dst ON cal.date_jour = dst.date_jour
+    ORDER BY cal.date_jour ASC;
+  `;
+
+  console.log('🔍 [API] Executing Raw Tables query (fallback):', {
+    dateRange,
+    productCodesLength: productCodes?.length || 0,
+    pharmacyId: pharmacyId || 'ALL_PHARMACIES',
+    paramsLength: params.length
+  });
+
+  try {
+    const rawResults = await db.query<any>(sqlQuery, params);
+    
+    const results: DailyMetricsEntry[] = rawResults.map(row => ({
+      date: typeof row.date === 'string' 
+        ? row.date 
+        : row.date instanceof Date 
+          ? row.date.toISOString().split('T')[0] 
+          : new Date().toISOString().split('T')[0],
+      quantite_vendue_jour: Number(row.quantite_vendue_jour || 0),
+      ca_ttc_jour: Number(row.ca_ttc_jour || 0),
+      marge_jour: Number(row.marge_jour || 0),
+      quantite_achat_jour: Number(row.quantite_achat_jour || 0),
+      montant_achat_jour: Number(row.montant_achat_jour || 0),
+      stock_jour: Number(row.stock_jour || 0),
+      cumul_quantite_vendue: Number(row.cumul_quantite_vendue || 0),
+      cumul_quantite_achetee: Number(row.cumul_quantite_achetee || 0),
+      cumul_ca_ttc: Number(row.cumul_ca_ttc || 0),
+      cumul_montant_achat: Number(row.cumul_montant_achat || 0),
+      cumul_marge: Number(row.cumul_marge || 0)
+    }));
+    
+    return { data: results, usedMV: false };
+    
+  } catch (error) {
+    console.error('❌ [API] Raw Tables query failed:', error);
+    throw error;
+  }
+}
+
+// ===================================================================
+// VALIDATION EXISTANTE
+// ===================================================================
 
 function validatePeriod(start: string, end: string): string | null {
   const startDate = new Date(start);
@@ -62,26 +309,23 @@ function validatePeriod(start: string, end: string): string | null {
   return null;
 }
 
+// ===================================================================
+// ENDPOINT PRINCIPAL OPTIMISÉ
+// ===================================================================
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   console.log('🔥 [API] Daily Metrics Request started');
 
   try {
-    // 1. Sécurité et validation
+    // 1. Sécurité et validation (IDENTIQUE)
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('🔐 [API] Security context:', {
-      userId: context.userId,
-      role: context.userRole,
-      isAdmin: context.isAdmin,
-      pharmacyId: context.pharmacyId
-    });
-
-    // 2. Parse et validation du body
+    // 2. Parse et validation du body (IDENTIQUE)
     let body: DailyMetricsRequest;
     try {
       body = await request.json();
@@ -91,7 +335,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    // 3. Validation des paramètres
+    // 3. Validation des paramètres (IDENTIQUE)
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API] Missing date range');
       return NextResponse.json({ error: 'Date range is required' }, { status: 400 });
@@ -103,7 +347,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: periodError }, { status: 400 });
     }
 
-    // 4. Déterminer pharmacyId selon sécurité
+    // 4. Déterminer pharmacyId selon sécurité (IDENTIQUE)
     let targetPharmacyId: string | null = null;
     if (context.isAdmin) {
       targetPharmacyId = body.pharmacyId || null;
@@ -113,7 +357,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('👤 [API] User mode - forced pharmacy:', targetPharmacyId);
     }
 
-    // 5. Gestion productCodes (array vide ou undefined = tous produits)
+    // 5. Gestion productCodes (IDENTIQUE)
     const productCodes = (body.productCodes && body.productCodes.length > 0) 
       ? body.productCodes 
       : null;
@@ -124,7 +368,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacyId: targetPharmacyId || 'ALL_PHARMACIES'
     });
 
-    // 6. Cache key generation
+    // 6. Cache key generation (IDENTIQUE)
     const cacheKey = `daily_metrics:${crypto
       .createHash('md5')
       .update(JSON.stringify({
@@ -134,7 +378,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }))
       .digest('hex')}`;
 
-    // 7. Vérification cache
+    // 7. Vérification cache (IDENTIQUE)
     if (CACHE_ENABLED) {
       try {
         const cached = await redis.get(cacheKey);
@@ -151,146 +395,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 8. Exécution requête SQL
+    // 8. NOUVEAU : DÉTECTION ET ROUTAGE MV vs RAW TABLES
     const queryStartTime = Date.now();
-    console.log('📊 [API] Executing SQL query...');
+    console.log('📊 [API] Starting query execution...');
 
-    const params = [
-      body.dateRange.start,  // $1
-      body.dateRange.end,    // $2
-      productCodes,          // $3 (peut être null)
-      targetPharmacyId       // $4 (peut être null)
-    ];
+    const hasProductFilters = productCodes !== null;
+    const hasSpecificPharmacy = targetPharmacyId !== null;
+    
+    // DÉTECTION MV ELIGIBILITY
+    const canUseDailyMV = detectDailyMVEligibility(
+      body.dateRange, 
+      hasProductFilters, 
+      hasSpecificPharmacy
+    );
+    
+    let queryResult: { data: DailyMetricsEntry[]; usedMV: boolean };
+    
+    if (canUseDailyMV) {
+      console.log('🚀 [API] Using Daily Materialized View - Fast path');
+      queryResult = await fetchFromDailyMaterializedView(body.dateRange, targetPharmacyId!);
+    } else {
+      console.log('🔍 [API] Using Raw Tables - Flexible path');
+      queryResult = await fetchFromRawTablesDaily(body.dateRange, productCodes, targetPharmacyId);
+    }
 
-    const sqlQuery = `
-      WITH calendar_period AS (
-        SELECT generate_series($1::date, $2::date, '1 day'::interval)::date as date_jour
-      ),
-      daily_sales AS (
-        SELECT 
-          s.date,
-          SUM(s.quantity) as quantite_vendue_jour,
-          SUM(s.quantity * ins.price_with_tax) as ca_ttc_jour,
-          SUM(s.quantity * (
-            (ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
-          )) as montant_marge_jour
-        FROM data_sales s
-        JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-        JOIN data_internalproduct ip ON ins.product_id = ip.id
-        WHERE 1=1
-          AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
-          AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
-          AND s.date >= $1::date AND s.date <= $2::date
-          AND ins.weighted_average_price > 0
-        GROUP BY s.date
-      ),
-      daily_purchases AS (
-        SELECT 
-          o.created_at::date as date_achat,
-          SUM(po.qte) as quantite_achetee_jour,
-          SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_jour
-        FROM data_productorder po
-        JOIN data_order o ON po.order_id = o.id
-        JOIN data_internalproduct ip ON po.product_id = ip.id
-        LEFT JOIN LATERAL (
-          SELECT weighted_average_price
-          FROM data_inventorysnapshot ins2
-          WHERE ins2.product_id = po.product_id
-            AND ins2.weighted_average_price > 0
-          ORDER BY ins2.date DESC  -- ✅ Utilise le dernier prix connu
-          LIMIT 1
-        ) closest_snap ON true
-        WHERE 1=1
-          AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
-          AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
-          AND o.created_at >= $1::date AND o.created_at <= $2::date
-        GROUP BY o.created_at::date
-),
-      daily_stock AS (
-        SELECT 
-          cal.date_jour,
-          SUM(latest_stock.stock) as stock_jour
-        FROM calendar_period cal
-        LEFT JOIN data_internalproduct ip ON ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
-          AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
-        LEFT JOIN LATERAL (
-          SELECT DISTINCT ON (ins.product_id)
-            ins.stock
-          FROM data_inventorysnapshot ins
-          WHERE ins.product_id = ip.id 
-            AND ins.date <= cal.date_jour
-          ORDER BY ins.product_id, ins.date DESC
-        ) latest_stock ON ip.id IS NOT NULL
-        WHERE ip.id IS NOT NULL
-        GROUP BY cal.date_jour
-      )
-      SELECT 
-        cal.date_jour as date,
-        COALESCE(ds.quantite_vendue_jour, 0) as quantite_vendue_jour,
-        COALESCE(ds.ca_ttc_jour, 0) as ca_ttc_jour,
-        COALESCE(ds.montant_marge_jour, 0) as marge_jour,
-        COALESCE(dp.quantite_achetee_jour, 0) as quantite_achat_jour,
-        COALESCE(dp.montant_achat_ht_jour, 0) as montant_achat_jour,
-        COALESCE(dst.stock_jour, 0) as stock_jour,
-        SUM(COALESCE(ds.quantite_vendue_jour, 0)) 
-          OVER (ORDER BY cal.date_jour) as cumul_quantite_vendue,
-        SUM(COALESCE(dp.quantite_achetee_jour, 0)) 
-          OVER (ORDER BY cal.date_jour) as cumul_quantite_achetee,
-        SUM(COALESCE(ds.ca_ttc_jour, 0)) 
-          OVER (ORDER BY cal.date_jour) as cumul_ca_ttc,
-        SUM(COALESCE(dp.montant_achat_ht_jour, 0)) 
-          OVER (ORDER BY cal.date_jour) as cumul_montant_achat,
-        SUM(COALESCE(ds.montant_marge_jour, 0)) 
-          OVER (ORDER BY cal.date_jour) as cumul_marge
-      FROM calendar_period cal
-      LEFT JOIN daily_sales ds ON cal.date_jour = ds.date
-      LEFT JOIN daily_purchases dp ON cal.date_jour = dp.date_achat
-      LEFT JOIN daily_stock dst ON cal.date_jour = dst.date_jour
-      ORDER BY cal.date_jour ASC;
-    `;
-
-    const rawResults = await db.query<any>(sqlQuery, params);
     const queryTime = Date.now() - queryStartTime;
 
     console.log('✅ [API] Query completed:', {
-      resultsCount: rawResults.length,
+      resultsCount: queryResult.data.length,
       queryTimeMs: queryTime,
-      firstEntry: rawResults[0] || null,
-      lastEntry: rawResults[rawResults.length - 1] || null
+      usedMV: queryResult.usedMV,
+      firstEntry: queryResult.data[0] || null,
+      lastEntry: queryResult.data[queryResult.data.length - 1] || null
     });
 
-    // 9. Formatage et validation des résultats
-    const results: DailyMetricsEntry[] = rawResults.map(row => ({
-      date: typeof row.date === 'string' 
-        ? row.date 
-        : row.date instanceof Date 
-          ? row.date.toISOString().split('T')[0] 
-          : new Date().toISOString().split('T')[0], // fallback sécurisé
-      quantite_vendue_jour: Number(row.quantite_vendue_jour || 0),
-      ca_ttc_jour: Number(row.ca_ttc_jour || 0),
-      marge_jour: Number(row.marge_jour || 0),
-      quantite_achat_jour: Number(row.quantite_achat_jour || 0),
-      montant_achat_jour: Number(row.montant_achat_jour || 0),
-      stock_jour: Number(row.stock_jour || 0),
-      cumul_quantite_vendue: Number(row.cumul_quantite_vendue || 0),
-      cumul_quantite_achetee: Number(row.cumul_quantite_achetee || 0),
-      cumul_ca_ttc: Number(row.cumul_ca_ttc || 0),
-      cumul_montant_achat: Number(row.cumul_montant_achat || 0),
-      cumul_marge: Number(row.cumul_marge || 0)
-    }));
-
+    // 9. Construction réponse finale
     const response: DailyMetricsResponse = {
-      data: results,
+      data: queryResult.data,
       queryTime: Date.now() - startTime,
-      cached: false
+      cached: false,
+      usedMaterializedView: queryResult.usedMV
     };
 
-    // 10. Mise en cache
+    // 10. Mise en cache (IDENTIQUE)
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify({
           data: response.data,
-          queryTime: response.queryTime
+          queryTime: response.queryTime,
+          usedMaterializedView: response.usedMaterializedView
         }));
         console.log('💾 [API] Result cached successfully');
       } catch (cacheError) {
