@@ -42,8 +42,7 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
         setLoading(true);
         setError(null);
         
-        // Essayer d'abord avec une limite très élevée
-        let response = await fetch('/api/admin/pharmacies?limit=10000&page=1', {
+        const response = await fetch('/api/admin/pharmacies?limit=10000&page=1', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include'
@@ -69,23 +68,28 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
           const totalPages = result.pagination.totalPages;
           
           for (let page = 2; page <= totalPages; page++) {
-            const pageResponse = await fetch(`/api/admin/pharmacies?limit=1000&page=${page}`, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include'
-            });
-            
-            if (pageResponse.ok) {
-              const pageResult = await pageResponse.json();
-              const pagePharmacies = (pageResult.pharmacies || [])
-                .filter((p: any) => p && p.id && p.name)
-                .map((p: any) => ({
-                  id: p.id,
-                  name: p.name || '',
-                  area: p.area || '',
-                  address: p.address || ''
-                }));
-              pharmacies = [...pharmacies, ...pagePharmacies];
+            try {
+              const pageResponse = await fetch(`/api/admin/pharmacies?limit=1000&page=${page}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+              });
+              
+              if (pageResponse.ok) {
+                const pageResult = await pageResponse.json();
+                const pagePharmacies = (pageResult.pharmacies || [])
+                  .filter((p: any) => p && p.id && p.name)
+                  .map((p: any) => ({
+                    id: p.id,
+                    name: p.name || '',
+                    area: p.area || '',
+                    address: p.address || ''
+                  }));
+                pharmacies = [...pharmacies, ...pagePharmacies];
+              }
+            } catch (pageError) {
+              console.warn(`Erreur page ${page}:`, pageError);
+              break;
             }
           }
         }
@@ -112,7 +116,7 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
     };
 
     loadAllPharmacies();
-  }, []);
+  }, [value]);
 
   // Mettre à jour l'affichage si la value change de l'extérieur
   useEffect(() => {
@@ -161,6 +165,8 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+    
+    return () => {};
   }, [isDropdownOpen]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,7 +237,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
       </label>
       
       <div className="relative">
-        {/* Input de recherche - même style que la page admin */}
         <input
           type="text"
           placeholder={loading ? 'Chargement des pharmacies...' : placeholder}
@@ -242,7 +247,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
           className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
         />
         
-        {/* Icône de recherche */}
         <svg
           className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400"
           fill="none"
@@ -257,7 +261,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
           />
         </svg>
         
-        {/* Bouton effacer */}
         {searchQuery && !loading && (
           <button
             onClick={handleClearSearch}
@@ -269,7 +272,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
           </button>
         )}
 
-        {/* Dropdown des résultats */}
         <AnimatePresence>
           {isDropdownOpen && !loading && allPharmacies.length > 0 && (
             <motion.div
@@ -279,7 +281,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
               transition={{ duration: 0.2 }}
               className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto"
             >
-              {/* Option Admin si pas required */}
               {!required && (
                 <button
                   onClick={() => handlePharmacyClick({ id: 'admin', name: 'Aucune pharmacie', area: 'Admin' } as Pharmacy)}
@@ -290,7 +291,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
                 </button>
               )}
               
-              {/* Liste des pharmacies filtrées */}
               {filteredPharmacies.length > 0 ? (
                 <>
                   {filteredPharmacies.slice(0, 50).map((pharmacy) => (
@@ -312,7 +312,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
                     </button>
                   ))}
                   
-                  {/* Message si trop de résultats */}
                   {filteredPharmacies.length > 50 && (
                     <div className="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-t">
                       {filteredPharmacies.length - 50} pharmacies supplémentaires. Affinez votre recherche.
@@ -340,7 +339,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Indicateur de chargement */}
         {loading && (
           <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -348,7 +346,6 @@ export const PharmacySelect: React.FC<PharmacySelectProps> = ({
         )}
       </div>
       
-      {/* Info debug en développement */}
       {process.env.NODE_ENV === 'development' && (
         <div className="text-xs text-gray-400">
           {allPharmacies.length} pharmacies chargées
