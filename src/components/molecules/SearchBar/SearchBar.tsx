@@ -1,7 +1,7 @@
 // src/components/molecules/SearchBar/SearchBar.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { useDebounce } from '@/hooks/shared/useDebounce';
 
@@ -29,21 +29,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   
-  // Debounce pour éviter requêtes excessives
-  const debouncedSearch = useDebounce((searchQuery: string) => {
-    onSearch(searchQuery);
-  }, 300);
+  // Valeur debouncée de la query
+  const debouncedQuery = useDebounce(query, 300);
+  
+  // Effect pour déclencher la recherche quand la valeur debouncée change
+  useEffect(() => {
+    onSearch(debouncedQuery);
+  }, [debouncedQuery, onSearch]);
 
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setQuery(value);
-    debouncedSearch(value);
-  }, [debouncedSearch]);
+  }, []);
 
   const handleClear = useCallback(() => {
     setQuery('');
-    onSearch('');
-  }, [onSearch]);
+  }, []);
 
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();

@@ -20,6 +20,7 @@ interface BulkSearchResponse {
   readonly found: Product[];
   readonly notFound: string[];
   readonly totalSearched: number;
+  readonly queryTime: number;
 }
 
 interface UseProductSearchReturn {
@@ -36,7 +37,7 @@ interface UseProductSearchReturn {
   readonly pendingProductCodes: Set<string>;
   readonly getSelectedProductsFromStore: () => SelectedProduct[];
   
-  // NOUVELLES FONCTIONS POUR IMPORT BULK
+  // FONCTIONS BULK OPTIMISÉES - API DÉDIÉE
   readonly bulkSearchProducts: (codes: string[]) => Promise<BulkSearchResponse>;
   readonly isBulkSearching: boolean;
   readonly bulkSelectProducts: (products: Product[]) => void;
@@ -137,79 +138,51 @@ export function useProductSearch(): UseProductSearchReturn {
     }
   }, []);
 
-  // NOUVELLE FONCTION : Recherche bulk de codes
+  // NOUVELLE FONCTION BULK - API DÉDIÉE ULTRA-RAPIDE
   const bulkSearchProducts = useCallback(async (codes: string[]): Promise<BulkSearchResponse> => {
-    console.log('🔍 [useProductSearch] Starting bulk search for', codes.length, 'codes');
+    console.log('🚀 [useProductSearch] Starting BULK API search for', codes.length, 'codes');
     setIsBulkSearching(true);
     setError(null);
     
-    const foundProducts: Product[] = [];
-    const notFoundCodes: string[] = [];
-    
     try {
-      // Rechercher chaque code individuellement
-      for (const code of codes) {
-        const cleanCode = code.trim();
-        if (!cleanCode) continue;
-        
-        try {
-          const response = await fetch('/api/products/search', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              query: cleanCode
-            }),
-          });
+      const cleanCodes = codes
+        .map(code => code.trim())
+        .filter(code => code.length > 0);
 
-          if (!response.ok) {
-            notFoundCodes.push(cleanCode);
-            continue;
-          }
-
-          const data: SearchResponse = await response.json();
-          
-          // Vérifier si on a trouvé exactement le bon produit
-          const exactMatch = data.products?.find(p => 
-            p.code_13_ref === cleanCode || 
-            p.code_13_ref.endsWith(cleanCode) ||
-            p.code_13_ref.startsWith(cleanCode)
-          );
-          
-          if (exactMatch) {
-            foundProducts.push(exactMatch);
-            console.log('✅ Found product:', exactMatch.name, '(', cleanCode, ')');
-          } else if (data.products && data.products.length > 0) {
-            // Prendre le premier résultat si pas de match exact
-            const firstProduct = data.products[0];
-            if (firstProduct) {
-              foundProducts.push(firstProduct);
-              console.log('⚠️ Partial match for', cleanCode, ':', firstProduct.name);
-            } else {
-              notFoundCodes.push(cleanCode);
-            }
-          } else {
-            notFoundCodes.push(cleanCode);
-            console.log('❌ Not found:', cleanCode);
-          }
-          
-        } catch (err) {
-          console.error('Error searching for code', cleanCode, ':', err);
-          notFoundCodes.push(cleanCode);
-        }
+      if (cleanCodes.length === 0) {
+        return {
+          found: [],
+          notFound: codes,
+          totalSearched: codes.length,
+          queryTime: 0
+        };
       }
+
+      console.log('📡 [useProductSearch] Sending bulk request for', cleanCodes.length, 'clean codes');
+
+      const response = await fetch('/api/products/bulk-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          codes: cleanCodes
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur ${response.status}: ${errorText}`);
+      }
+
+      const result: BulkSearchResponse = await response.json();
       
-      const result: BulkSearchResponse = {
-        found: foundProducts,
-        notFound: notFoundCodes,
-        totalSearched: codes.length
-      };
-      
-      console.log('📊 Bulk search complete:', {
-        found: foundProducts.length,
-        notFound: notFoundCodes.length,
-        total: codes.length
+      console.log('🎯 [useProductSearch] BULK API search complete:', {
+        found: result.found.length,
+        notFound: result.notFound.length,
+        total: result.totalSearched,
+        queryTime: `${result.queryTime}ms`,
+        performance: result.queryTime < 500 ? '🚀 EXCELLENT' : result.queryTime < 1000 ? '✅ GOOD' : '⚠️ SLOW'
       });
       
       return result;
@@ -223,7 +196,7 @@ export function useProductSearch(): UseProductSearchReturn {
     }
   }, []);
 
-  // NOUVELLE FONCTION : Sélectionner plusieurs produits d'un coup
+  // FONCTION : Sélectionner plusieurs produits d'un coup
   const bulkSelectProducts = useCallback((products: Product[]) => {
     console.log('✅ [useProductSearch] Bulk selecting', products.length, 'products');
     
@@ -235,7 +208,7 @@ export function useProductSearch(): UseProductSearchReturn {
       return newSet;
     });
     
-    // IMPORTANT : Ajouter aussi les produits trouvés à la liste products pour qu'ils soient disponibles dans applyFilters
+    // Ajouter les produits trouvés à la liste pour applyFilters
     setProducts(prevProducts => {
       const existingCodes = new Set(prevProducts.map(p => p.code_13_ref));
       const newProducts = products.filter(p => !existingCodes.has(p.code_13_ref));
@@ -344,7 +317,7 @@ export function useProductSearch(): UseProductSearchReturn {
     clearProductFilters,
     pendingProductCodes,
     getSelectedProductsFromStore,
-    // Nouvelles fonctions
+    // Fonctions bulk avec API dédiée
     bulkSearchProducts,
     isBulkSearching,
     bulkSelectProducts
