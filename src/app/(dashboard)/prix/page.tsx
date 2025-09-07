@@ -3,6 +3,7 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Info, TrendingUp, BarChart3, Target } from 'lucide-react';
 import { PriceEvolutionChart } from '@/components/organisms/PriceEvolutionChart/PriceEvolutionChart';
 import { CompetitiveTable } from '@/components/organisms/CompetitiveTable/CompetitiveTable';
 import { PriceEvolutionKpis } from '@/components/organisms/PriceEvolutionKpis/PriceEvolutionKpis';
@@ -10,13 +11,100 @@ import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useCompetitiveAnalysis } from '@/hooks/competitive/useCompetitiveAnalysis';
 
 /**
- * Page Prix SIMPLIFIÉE - Layout gère Header + FilterBar + Background
- * 
- * OPTIMISATIONS :
- * - Plus de DashboardHeader (dans layout partagé)
- * - Plus de FilterBar (dans layout partagé) 
- * - Plus d'AnimatedBackground (dans layout partagé)
- * - Bundle size réduit de 60%+
+ * Composant Tooltip réutilisable
+ */
+interface TooltipProps {
+  content: string;
+  children: React.ReactNode;
+  position?: 'top' | 'bottom' | 'left' | 'right';
+}
+
+const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }) => {
+  const [isVisible, setIsVisible] = React.useState(false);
+  
+  const positionClasses = {
+    top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-2',
+    bottom: 'top-full left-1/2 transform -translate-x-1/2 mt-2',
+    left: 'right-full top-1/2 transform -translate-y-1/2 mr-2',
+    right: 'left-full top-1/2 transform -translate-y-1/2 ml-2'
+  };
+
+  return (
+    <div 
+      className="relative inline-block"
+      onMouseEnter={() => setIsVisible(true)}
+      onMouseLeave={() => setIsVisible(false)}
+    >
+      {children}
+      {isVisible && (
+        <div className={`absolute z-50 ${positionClasses[position]}`}>
+          <div className="bg-white/95 backdrop-blur-lg text-gray-800 text-sm rounded-xl px-6 py-4 w-[600px] shadow-2xl border border-white/20">
+            <div className="whitespace-pre-line leading-relaxed">{content}</div>
+            {/* Flèche du tooltip */}
+            <div 
+              className={`absolute w-3 h-3 bg-white/95 border border-white/20 transform rotate-45 ${
+                position === 'top' ? 'top-full left-1/2 -translate-x-1/2 -mt-1.5' :
+                position === 'bottom' ? 'bottom-full left-1/2 -translate-x-1/2 -mb-1.5' :
+                position === 'left' ? 'left-full top-1/2 -translate-y-1/2 -ml-1.5' :
+                'right-full top-1/2 -translate-y-1/2 -mr-1.5'
+              }`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Composant Section avec description et tooltip
+ */
+interface SectionWithHelpProps {
+  title: string;
+  description: string;
+  tooltipContent: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
+  title,
+  description,
+  tooltipContent,
+  icon,
+  children,
+  className = ''
+}) => {
+  return (
+    <div className={`bg-white/50 backdrop-blur-sm rounded-2xl p-6 ${className}`}>
+      {/* Header avec titre, description et tooltip */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg">
+              {icon}
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+            <Tooltip content={tooltipContent} position="right">
+              <Info className="w-4 h-4 text-gray-400 hover:text-blue-600 cursor-help transition-colors" />
+            </Tooltip>
+          </div>
+        </div>
+        
+        {/* Description toujours visible */}
+        <p className="text-sm text-gray-700 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-2 border-l-4 border-blue-300 shadow-sm">
+          💡 {description}
+        </p>
+      </div>
+      
+      {children}
+    </div>
+  );
+};
+
+/**
+ * Page Prix AMÉLIORÉE avec descriptions + tooltips
  */
 export default function PrixPage() {
   // Récupération filtres store global
@@ -53,6 +141,35 @@ export default function PrixPage() {
     enabled: true
   });
 
+  // Contenu des tooltips
+  const tooltips = {
+    kpis: `Indicateurs d'évolution tarifaire :
+
+- Prix moyen : Évolution des tarifs sur la période
+- Écart marché : Positionnement vs concurrence
+- Volatilité : Stabilité de vos prix
+- Index compétitivité : Score global de positionnement
+
+Analysez votre stratégie pricing pour optimiser marges et compétitivité.`,
+
+    evolution: `Graphique d'évolution mensuelle des prix :
+
+- Visualisez les variations tarifaires dans le temps
+- Identifiez les hausses et baisses significatives
+- Comparez avec les tendances du marché
+- Détectez les anomalies de pricing
+
+Cliquez sur les courbes pour isoler des produits spécifiques.`,
+
+    competitive: `Analyse comparative avec le groupement :
+
+- Écart prix vs marché pour chaque produit
+- Positionnement concurrentiel détaillé
+- Opportunités d'optimisation tarifaire
+
+Triez par écart pour identifier les ajustements prioritaires.`
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -63,9 +180,17 @@ export default function PrixPage() {
       {/* Section titre */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Analyse des Prix et Concurrence
-          </h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Analyse des Prix et Concurrence
+            </h1>
+            <Tooltip 
+              content="Module d'analyse tarifaire pour optimiser vos prix, analyser la concurrence et maximiser votre compétitivité"
+              position="bottom"
+            >
+              <Info className="w-5 h-5 text-gray-400 hover:text-blue-600 cursor-help transition-colors" />
+            </Tooltip>
+          </div>
           <p className="text-gray-600 mt-1">
             Évolutions tarifaires, positionnement marché et analyse concurrentielle
           </p>
@@ -101,34 +226,41 @@ export default function PrixPage() {
         </div>
       </div>
 
-      {/* KPIs évolutions prix */}
-      <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+      {/* KPIs évolutions prix avec description + tooltip */}
+      <SectionWithHelp
+        title="Indicateurs d'Évolution Tarifaire"
+        description="Suivez l'évolution de vos prix moyens, écarts marché et indices de compétitivité pour optimiser votre stratégie pricing"
+        tooltipContent={tooltips.kpis}
+        icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
+      >
         <PriceEvolutionKpis />
-      </div>
+      </SectionWithHelp>
 
-      {/* Graphique évolution prix */}
-      <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Évolution des Prix Mensuels
-        </h2>
+      {/* Graphique évolution prix avec description + tooltip */}
+      <SectionWithHelp
+        title="Évolution des Prix Mensuels"
+        description="Visualisez les variations tarifaires dans le temps pour identifier tendances, hausses significatives et opportunités d'ajustement"
+        tooltipContent={tooltips.evolution}
+        icon={<BarChart3 className="w-5 h-5 text-green-600" />}
+      >
         <PriceEvolutionChart
           dateRange={analysisDateRange}
           filters={chartFilters}
           className="w-full"
         />
-      </div>
+      </SectionWithHelp>
       
-      {/* Analyse concurrentielle */}
-      <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">
+      {/* Analyse concurrentielle avec description + tooltip */}
+      <SectionWithHelp
+        title="Analyse Concurrentielle"
+        description="Comparez vos prix avec le groupement pour identifier produits sur/sous-tarifés et optimiser votre positionnement marché"
+        tooltipContent={tooltips.competitive}
+        icon={<Target className="w-5 h-5 text-purple-600" />}
+      >
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Analyse Concurrentielle
-            </h2>
-            <p className="text-gray-600 text-sm mt-1">
-              Comparaison de vos prix avec le groupement
-            </p>
-          </div>
+          <p className="text-gray-600 text-sm">
+            Comparaison de vos prix avec le groupement
+          </p>
           
           {/* Métriques résumé */}
           {hasCompetitiveData && (
@@ -164,7 +296,7 @@ export default function PrixPage() {
           onRefresh={refetchCompetitive}
           className="w-full"
         />
-      </div>
+      </SectionWithHelp>
     </motion.div>
   );
 }
