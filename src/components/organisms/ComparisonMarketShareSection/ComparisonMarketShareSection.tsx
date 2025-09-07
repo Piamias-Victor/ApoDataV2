@@ -798,51 +798,6 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
           </Button>
         </div>
       )}
-
-      {/* Résumé technique */}
-      {(hasDataA || hasDataB) && !isLoading && (
-        <Card variant="outlined" padding="md" className="bg-gray-50 border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            {hasDataA && dataA && (
-              <div>
-                <div className="flex items-center space-x-2 font-medium text-gray-900 mb-3">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span>{elementA.name}</span>
-                </div>
-                <div className="space-y-2 text-gray-600 pl-5">
-                  <div className="flex justify-between">
-                    <span>Segments trouvés:</span>
-                    <span className="font-medium">{dataA.segments.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Temps de calcul:</span>
-                    <span className="font-medium">{dataA.queryTime}ms</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {hasDataB && dataB && (
-              <div>
-                <div className="flex items-center space-x-2 font-medium text-gray-900 mb-3">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                  <span>{elementB.name}</span>
-                </div>
-                <div className="space-y-2 text-gray-600 pl-5">
-                  <div className="flex justify-between">
-                    <span>Segments trouvés:</span>
-                    <span className="font-medium">{dataB.segments.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Temps de calcul:</span>
-                    <span className="font-medium">{dataB.queryTime}ms</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
     </div>
   );
 };
