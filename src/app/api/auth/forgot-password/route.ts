@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     console.log('💾 [API] Reset token saved to database');
 
     // 5. Construction URL de reset
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const baseUrl = 'https://apo-data-v2.vercel.app/';
     const resetUrl = `${baseUrl}/auth/reset-password/${resetToken}`;
 
     console.log('🔗 [API] Reset URL generated:', resetUrl);
