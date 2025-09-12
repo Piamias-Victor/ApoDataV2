@@ -1,12 +1,13 @@
 // src/app/login/page.tsx
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { AnimatedBackground } from '@/components/atoms/AnimatedBackground/AnimatedBackground';
+import { Header } from '@/components/organisms/Header/Header';
 import { Input } from '@/components/atoms/Input/Input';
 import { Button } from '@/components/atoms/Button/Button';
 import { Card } from '@/components/atoms/Card/Card';
@@ -16,11 +17,13 @@ import { Mail, Lock, Eye, EyeOff, LogIn, ArrowLeft } from 'lucide-react';
 interface LoginForm {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 interface LoginErrors {
   email?: string;
   password?: string;
+  general?: string;
 }
 
 interface NotificationState {
@@ -29,17 +32,13 @@ interface NotificationState {
   message: string;
 }
 
-/**
- * LoginContent - Composant principal avec logique login
- */
-function LoginContent(): JSX.Element {
+export default function LoginPage(): JSX.Element {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
   
   const [formData, setFormData] = useState<LoginForm>({
     email: '',
-    password: ''
+    password: '',
+    rememberMe: false
   });
 
   const [errors, setErrors] = useState<LoginErrors>({});
@@ -50,13 +49,6 @@ function LoginContent(): JSX.Element {
     type: 'info',
     message: ''
   });
-
-  // Affichage message si redirection depuis route protégée
-  useEffect(() => {
-    if (returnUrl !== '/dashboard') {
-      showNotification('info', 'Connexion requise pour accéder à cette page');
-    }
-  }, [returnUrl]);
 
   const showNotification = (type: NotificationState['type'], message: string): void => {
     setNotification({ show: true, type, message });
@@ -69,12 +61,14 @@ function LoginContent(): JSX.Element {
   const handleInputChange = (field: keyof LoginForm) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    const value = field === 'rememberMe' ? event.target.checked : event.target.value;
+    
     setFormData(prev => ({
       ...prev,
-      [field]: event.target.value
+      [field]: value
     }));
     
-    if (errors[field]) {
+    if (field !== 'rememberMe' && errors[field as keyof LoginErrors]) {
       setErrors(prev => ({
         ...prev,
         [field]: undefined
@@ -111,179 +105,171 @@ function LoginContent(): JSX.Element {
     
     try {
       const result = await signIn('credentials', {
+        redirect: false,
         email: formData.email,
         password: formData.password,
-        redirect: false
       });
 
       if (result?.error) {
-        showNotification('error', 'Email ou mot de passe incorrect');
+        showNotification('error', 'Email ou mot de passe incorrect.');
+        setErrors({ general: 'Identifiants incorrects' });
       } else if (result?.ok) {
         showNotification('success', 'Connexion réussie ! Redirection...');
         setTimeout(() => {
-          router.push(returnUrl);
-        }, 1000);
+          router.push('/dashboard');
+        }, 1500);
+      } else {
+        showNotification('error', 'Une erreur inattendue est survenue.');
       }
     } catch (error) {
-      console.error('Erreur connexion:', error);
-      showNotification('error', 'Erreur technique. Veuillez réessayer.');
+      console.error('Erreur de connexion:', error);
+      showNotification('error', 'Erreur de connexion. Veuillez réessayer.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      {/* Notification */}
-      <div className="fixed top-4 right-4 z-50">
-        <Notification
-          type={notification.type}
-          message={notification.message}
-          show={notification.show}
-          onClose={hideNotification}
-        />
-      </div>
-
-      {/* Container principal */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          
-          {/* Card login */}
+    <div className="min-h-screen bg-gray-50 relative overflow-hidden">
+      <AnimatedBackground />
+      <Header />
+      
+      {/* CORRECTION: Utiliser 'show' au lieu de 'visible' et retirer autoClose/duration */}
+      <Notification
+        type={notification.type}
+        message={notification.message}
+        show={notification.show}
+        onClose={hideNotification}
+      />
+      
+      <main className="relative z-10 pt-16 pb-20">
+        <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center px-4">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
+            className="w-full max-w-md"
           >
-            <Card className="p-8 bg-white/80 backdrop-blur-sm border-0 shadow-2xl">
-              
-              {/* Header */}
-              <div className="text-center mb-8">
-                <motion.div
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                >
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                    Connexion
+            
+            <div className='mb-4'>
+              <Link 
+                href="/"
+                className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors duration-200"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour à l'accueil
+              </Link>
+            </div>
+
+            <Card variant="elevated" padding="xl">
+              <div className="space-y-6">
+                
+                <div className="text-center space-y-2">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Se connecter
                   </h1>
                   <p className="text-gray-600">
-                    Accédez à votre dashboard ApoData Genesis
+                    Accédez à votre dashboard ApoData
                   </p>
-                  {returnUrl !== '/dashboard' && (
-                    <p className="text-sm text-blue-600 mt-2">
-                      Redirection vers : {decodeURIComponent(returnUrl)}
-                    </p>
-                  )}
-                </motion.div>
-              </div>
+                </div>
 
-              {/* Formulaire */}
-              <motion.form
-                onSubmit={handleSubmit}
-                className="space-y-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-              >
-                
-                {/* Email */}
-                <div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  
                   <Input
+                    variant="default"
+                    size="lg"
+                    label="Email"
                     type="email"
-                    placeholder="email@exemple.com"
+                    placeholder="votre@email.com"
                     value={formData.email}
                     onChange={handleInputChange('email')}
                     error={errors.email}
-                    iconLeft={<Mail className="w-4 h-4 text-gray-400" />}
+                    iconLeft={<Mail />}
                     disabled={isSubmitting}
+                    required
                   />
-                </div>
 
-                {/* Mot de passe */}
-                <div>
                   <Input
+                    variant="default"
+                    size="lg"
+                    label="Mot de passe"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Mot de passe"
+                    placeholder="••••••••"
                     value={formData.password}
                     onChange={handleInputChange('password')}
                     error={errors.password}
-                    iconLeft={<Lock className="w-4 h-4 text-gray-400" />}
+                    iconLeft={<Lock />}
                     iconRight={
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                        disabled={isSubmitting}
+                        className="cursor-pointer hover:text-gray-600 transition-colors duration-200"
                       >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
+                        {showPassword ? <EyeOff /> : <Eye />}
                       </button>
                     }
                     disabled={isSubmitting}
+                    required
                   />
+
+                  {/* Remember me & Forgot password */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={formData.rememberMe}
+                        onChange={handleInputChange('rememberMe')}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        disabled={isSubmitting}
+                      />
+                      <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700 cursor-pointer">
+                        Se souvenir de moi
+                      </label>
+                    </div>
+                    
+                    <Link 
+                      href="/auth/forgot-password"
+                      className="text-sm text-blue-600 hover:text-blue-700 transition-colors duration-200"
+                    >
+                      Mot de passe oublié ?
+                    </Link>
+                  </div>
+
+                  {/* Error général */}
+                  {errors.general && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700">{errors.general}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    type="submit"
+                    fullWidth
+                    loading={isSubmitting}
+                    loadingText="Connexion..."
+                    iconRight={<LogIn />}
+                    disabled={isSubmitting}
+                  >
+                    Se connecter
+                  </Button>
+
+                </form>
+
+                <div className="text-center pt-4 border-t border-gray-200">
+                  <p className="text-xs text-gray-500">
+                    Connexion sécurisée • Données chiffrées • Conformité RGPD
+                  </p>
                 </div>
 
-                {/* Submit button */}
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  disabled={isSubmitting}
-                  iconLeft={<LogIn className="w-4 h-4" />}
-                  className="w-full"
-                >
-                  {isSubmitting ? 'Connexion...' : 'Se connecter'}
-                </Button>
-
-              </motion.form>
-
-              {/* Lien retour accueil */}
-              <motion.div
-                className="mt-8 text-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-              >
-                <Link
-                  href="/"
-                  className="inline-flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Retour à l'accueil</span>
-                </Link>
-              </motion.div>
-
+              </div>
             </Card>
+
           </motion.div>
-
         </div>
-      </div>
-    </>
-  );
-}
-
-/**
- * LoginPage - Page principale avec Suspense boundary
- */
-export default function LoginPage(): JSX.Element {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/20 relative overflow-hidden">
-      {/* Background animé */}
-      <AnimatedBackground />
-      
-      {/* Contenu avec Suspense pour useSearchParams */}
-      <Suspense 
-        fallback={
-          <div className="relative z-10 min-h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        }
-      >
-        <LoginContent />
-      </Suspense>
+      </main>
     </div>
   );
 }
