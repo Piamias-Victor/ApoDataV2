@@ -34,9 +34,13 @@ export const formatCurrency = (amount: number): string => {
 /**
  * Formate les pourcentages (1 décimale)
  */
-export const formatPercentage = (value: number): string => {
-  return `${value.toFixed(1).replace('.', ',')}%`;
-};
+export function formatPercentage(value: number | string | null | undefined, decimals: number = 1): string {
+  const numValue = Number(value);
+  if (value === null || value === undefined || isNaN(numValue)) {
+    return '0.0%';
+  }
+  return `${numValue.toFixed(decimals)}%`;
+}
 
 /**
  * Formate les jours de stock
