@@ -1,5 +1,7 @@
 // src/components/molecules/KpiCard/types.ts
 
+import type { ReactNode } from 'react';
+
 /**
  * Types pour KpiCard - Composant molecule pharmaceutique
  * Conformité interface API + design cohérent ProductsTable
@@ -26,6 +28,7 @@ export interface KpiCardProps {
   readonly loading?: boolean;
   readonly error?: string | null;
   readonly subtitle?: string;
+  readonly icon?: ReactNode;
   readonly className?: string;
 }
 

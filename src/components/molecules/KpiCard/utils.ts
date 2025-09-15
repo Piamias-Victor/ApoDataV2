@@ -60,20 +60,30 @@ export const formatNumber = (value: number): string => {
 /**
  * Formatter principal selon l'unité
  */
-export const formatKpiValue = (value: number, unit: KpiUnit): string => {
+export function formatKpiValue(
+  value: number | string | null | undefined,
+  unit: KpiUnit
+): string {
+  const numValue = Number(value);
+
+  if (value === null || value === undefined || isNaN(numValue)) {
+    return '0';
+  }
+
   switch (unit) {
     case 'currency':
-      return formatCurrency(value);
+      return formatCurrency(numValue);
     case 'percentage':
-      return formatPercentage(value);
+      return formatPercentage(numValue);
     case 'days':
-      return formatDays(value);
+      return formatDays(numValue);
     case 'number':
-      return formatNumber(value);
+      return formatNumber(numValue);
     default:
-      return value.toString();
+      return numValue.toString();
   }
-};
+}
+
 
 /**
  * Détermine la direction trend à partir d'un pourcentage

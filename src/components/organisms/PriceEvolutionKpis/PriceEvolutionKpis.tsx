@@ -2,7 +2,13 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { 
+  RotateCcw, 
+  TrendingUp, 
+  ShoppingBag, 
+  Percent, 
+  Target 
+} from 'lucide-react';
 import { usePriceEvolution } from '@/hooks/price/usePriceEvolution';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -18,11 +24,11 @@ interface PriceEvolutionKpisProps {
 }
 
 /**
- * PriceEvolutionKpis - Organism évolutions prix pharmaceutiques
+ * PriceEvolutionKpis - Organism évolutions prix pharmaceutiques avec icônes
  * Avec export CSV intégré
  * 
  * Features :
- * - 4 KPI cards évolutions prix/marges
+ * - 4 KPI cards évolutions prix/marges avec icônes
  * - Export CSV des métriques d'évolution
  * - Grille responsive 2x2 ou 4x1
  * - Hook usePriceEvolution intégration directe
@@ -30,6 +36,7 @@ interface PriceEvolutionKpisProps {
  * - Design compact et lisible
  * - Couleurs évolutions (vert hausse, rouge baisse)
  * - Type safety pour valeurs numériques
+ * - Icônes spécifiques pour chaque métrique
  */
 export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
   className = '',
@@ -164,7 +171,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Transformation métrique en KPI card avec couleurs évolutions + type safety
+  // Transformation métrique en KPI card avec couleurs évolutions + type safety + icônes
   const kpiCards = useMemo(() => {
     if (!metrics) return null;
 
@@ -189,28 +196,32 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
         value: safeMetrics.evolution_prix_vente_pct, // Garder le signe
         unit: 'percentage' as const,
         subtitle: 'Début → fin période',
-        comparison: undefined
+        comparison: undefined,
+        icon: <TrendingUp className="w-4 h-4 text-blue-600" />
       },
       {
         title: 'Évolution Prix Achat', 
         value: safeMetrics.evolution_prix_achat_pct, // Garder le signe
         unit: 'percentage' as const,
         subtitle: 'Début → fin période',
-        comparison: undefined
+        comparison: undefined,
+        icon: <ShoppingBag className="w-4 h-4 text-green-600" />
       },
       {
         title: 'Évolution Marge %',
         value: safeMetrics.evolution_marge_pct, // Garder le signe
         unit: 'percentage' as const,
         subtitle: 'Différence absolue',
-        comparison: undefined
+        comparison: undefined,
+        icon: <Percent className="w-4 h-4 text-orange-600" />
       },
       {
         title: 'Écart vs Marché',
         value: safeMetrics.ecart_prix_vs_marche_pct, // Garder le signe
         unit: 'percentage' as const,
         subtitle: 'Position concurrentielle',
-        comparison: undefined
+        comparison: undefined,
+        icon: <Target className="w-4 h-4 text-purple-600" />
       }
     ];
   }, [metrics]);
@@ -309,7 +320,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
           </>
         )}
         
-        {/* État Success : KPI cards évolutions */}
+        {/* État Success : KPI cards évolutions avec icônes */}
         {!isLoading && kpiCards && kpiCards.map((kpi, index) => (
           <KpiCard
             key={index}
@@ -318,6 +329,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
             unit={kpi.unit}
             comparison={kpi.comparison}
             subtitle={kpi.subtitle}
+            icon={kpi.icon}
           />
         ))}
         

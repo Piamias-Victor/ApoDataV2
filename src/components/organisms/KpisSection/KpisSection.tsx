@@ -3,7 +3,19 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { 
+  RotateCcw, 
+  ShoppingCart, 
+  TrendingUp, 
+  Package, 
+  DollarSign, 
+  BarChart3, 
+  Activity,
+  ShoppingBag,
+  Calendar,
+  Hash,
+  Percent
+} from 'lucide-react';
 import { useKpiMetrics } from '@/hooks/dashboard/useKpiMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
@@ -23,7 +35,7 @@ import {
 
 /**
  * KpisSection - Organism pour dashboard KPI pharmaceutiques
- * Avec export CSV intégré
+ * Avec export CSV intégré et icônes spécifiques par KPI
  */
 export const KpisSection: React.FC<KpisSectionProps> = ({
   dateRange,
@@ -362,13 +374,15 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
                 title: groupedKpis.caSales.main.title,
                 value: groupedKpis.caSales.main.value,
                 unit: groupedKpis.caSales.main.unit,
-                comparison: groupedKpis.caSales.main.comparison
+                comparison: groupedKpis.caSales.main.comparison,
+                icon: <ShoppingCart className="w-4 h-4 text-blue-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.caSales.secondary.title,
                 value: groupedKpis.caSales.secondary.value,
                 unit: groupedKpis.caSales.secondary.unit,
-                comparison: groupedKpis.caSales.secondary.comparison
+                comparison: groupedKpis.caSales.secondary.comparison,
+                icon: <Activity className="w-4 h-4 text-blue-500" />
               }}
             />
             
@@ -378,13 +392,15 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
                 title: groupedKpis.purchaseQuantity.main.title,
                 value: groupedKpis.purchaseQuantity.main.value,
                 unit: groupedKpis.purchaseQuantity.main.unit,
-                comparison: groupedKpis.purchaseQuantity.main.comparison
+                comparison: groupedKpis.purchaseQuantity.main.comparison,
+                icon: <TrendingUp className="w-4 h-4 text-green-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.purchaseQuantity.secondary.title,
                 value: groupedKpis.purchaseQuantity.secondary.value,
                 unit: groupedKpis.purchaseQuantity.secondary.unit,
-                comparison: groupedKpis.purchaseQuantity.secondary.comparison
+                comparison: groupedKpis.purchaseQuantity.secondary.comparison,
+                icon: <ShoppingBag className="w-4 h-4 text-green-500" />
               }}
             />
             
@@ -394,13 +410,15 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
                 title: groupedKpis.margin.main.title,
                 value: groupedKpis.margin.main.value,
                 unit: groupedKpis.margin.main.unit,
-                comparison: groupedKpis.margin.main.comparison
+                comparison: groupedKpis.margin.main.comparison,
+                icon: <DollarSign className="w-4 h-4 text-orange-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.margin.secondary.title,
                 value: groupedKpis.margin.secondary.value,
                 unit: groupedKpis.margin.secondary.unit,
-                comparison: groupedKpis.margin.secondary.comparison
+                comparison: groupedKpis.margin.secondary.comparison,
+                icon: <Percent className="w-4 h-4 text-orange-500" />
               }}
             />
             
@@ -410,13 +428,15 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
                 title: groupedKpis.stock.main.title,
                 value: groupedKpis.stock.main.value,
                 unit: groupedKpis.stock.main.unit,
-                comparison: groupedKpis.stock.main.comparison
+                comparison: groupedKpis.stock.main.comparison,
+                icon: <Package className="w-4 h-4 text-purple-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.stock.secondary.title,
                 value: groupedKpis.stock.secondary.value,
                 unit: groupedKpis.stock.secondary.unit,
-                comparison: groupedKpis.stock.secondary.comparison
+                comparison: groupedKpis.stock.secondary.comparison,
+                icon: <Hash className="w-4 h-4 text-purple-500" />
               }}
             />
             
@@ -428,6 +448,7 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
               comparison={groupedKpis.stockDays.comparison}
               variant={groupedKpis.stockDays.variant}
               subtitle={groupedKpis.stockDays.subtitle}
+              icon={<Calendar className="w-4 h-4 text-indigo-600" />}
             />
             
             {/* Card 6: Références (simple) */}
@@ -438,6 +459,7 @@ export const KpisSection: React.FC<KpisSectionProps> = ({
               comparison={groupedKpis.references.comparison}
               variant={groupedKpis.references.variant}
               subtitle={groupedKpis.references.subtitle}
+              icon={<BarChart3 className="w-4 h-4 text-teal-600" />}
             />
           </>
         )}

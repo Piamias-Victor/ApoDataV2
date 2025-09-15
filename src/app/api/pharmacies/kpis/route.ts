@@ -1,630 +1,415 @@
-// src/app/api/products/list/route.ts
+// src/app/api/pharmacies/kpis/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getSecurityContext, enforcePharmacySecurity } from '@/lib/api-security';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { Redis } from '@upstash/redis';
-import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+interface PharmaciesKpiRequest {
+  dateRange: { start: string; end: string; };
+  comparisonDateRange?: { start: string; end: string; };
+  productCodes?: string[];
+  laboratoryCodes?: string[];
+  categoryCodes?: string[];
+  pharmacyIds?: string[];
+}
 
-const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' && 
-                     process.env.UPSTASH_REDIS_REST_URL && 
-                     process.env.UPSTASH_REDIS_REST_TOKEN;
-const CACHE_TTL = 43200; // 12 heures
-
-interface ProductListRequest {
-  readonly dateRange: {
-    readonly start: string;
-    readonly end: string;
+interface PharmaciesKpiMetricsResponse {
+  readonly nb_pharmacies_vendeuses: number;
+  readonly pct_pharmacies_vendeuses_selection: number;
+  readonly nb_pharmacies_80pct_ca: number;
+  readonly pct_pharmacies_80pct_ca: number;
+  readonly ca_moyen_pharmacie: number;
+  readonly ca_median_pharmacie: number;
+  readonly quantite_moyenne_pharmacie: number;
+  readonly quantite_mediane_pharmacie: number;
+  readonly taux_penetration_produit_pct: number;
+  readonly pharmacies_avec_produit: number;
+  readonly total_pharmacies_reseau: number;
+  readonly ca_total: number;
+  readonly quantite_totale: number;
+  readonly nb_pharmacies_vendeuses_total: number;
+  readonly comparison?: {
+    readonly nb_pharmacies_vendeuses: number;
+    readonly pct_pharmacies_vendeuses_selection: number;
+    readonly nb_pharmacies_80pct_ca: number;
+    readonly pct_pharmacies_80pct_ca: number;
+    readonly ca_moyen_pharmacie: number;
+    readonly ca_median_pharmacie: number;
+    readonly quantite_moyenne_pharmacie: number;
+    readonly quantite_mediane_pharmacie: number;
+    readonly taux_penetration_produit_pct: number;
   };
-  readonly productCodes: string[];
-  readonly laboratoryCodes: string[];
-  readonly categoryCodes: string[];
-  readonly pharmacyIds?: string[];
+  readonly queryTime: number;
+  readonly cached: boolean;
 }
 
-interface ProductMetrics {
-  readonly product_name: string;
-  readonly code_ean: string;
-  readonly avg_sell_price_ttc: number;
-  readonly avg_buy_price_ht: number;
-  readonly tva_rate: number;
-  readonly avg_sell_price_ht: number;
-  readonly margin_rate_percent: number;
-  readonly unit_margin_ht: number;
-  readonly total_margin_ht: number;
-  readonly current_stock: number;
-  readonly quantity_sold: number;
-  readonly ca_ttc: number;
-  readonly quantity_bought: number;
-  readonly purchase_amount: number;
-}
-
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const startTime = Date.now();
+function validatePharmaciesKpiRequest(body: any): PharmaciesKpiRequest {
+  if (!body.dateRange?.start || !body.dateRange?.end) {
+    throw new Error('Date range is required');
+  }
   
-  try {
-    console.log('🔥 [API] Products list API called');
-    
-    // 1. Sécurité et validation
-    const context = await getSecurityContext();
-    if (!context) {
-      console.log('❌ [API] Unauthorized - no security context');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    console.log('🔐 [API] Security context:', {
-      userId: context.userId,
-      role: context.userRole,
-      isAdmin: context.isAdmin,
-      pharmacyId: context.pharmacyId
-    });
-
-    let body: ProductListRequest;
-    try {
-      body = await request.json();
-      console.log('📥 [API] Request body received:', body);
-    } catch (jsonError) {
-      console.log('💥 [API] JSON parsing error:', jsonError);
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
-    
-    // Validation des dates
-    if (!body.dateRange?.start || !body.dateRange?.end) {
-      console.log('❌ [API] Missing date range');
-      return NextResponse.json({ error: 'Date range required' }, { status: 400 });
-    }
-
-    // 2. Fusion des codes EAN sans doublons
-    const allProductCodes = Array.from(new Set([
-      ...(body.productCodes || []),
-      ...(body.laboratoryCodes || []),
-      ...(body.categoryCodes || [])
-    ]));
-
-    console.log('📦 [API] Product codes merged:', {
-      totalCodes: allProductCodes.length,
-      productCodes: body.productCodes?.length || 0,
-      laboratoryCodes: body.laboratoryCodes?.length || 0,
-      categoryCodes: body.categoryCodes?.length || 0
-    });
-
-    // Si aucun code EAN sélectionné, on fait sans restriction (tous les produits)
-    const hasProductFilter = allProductCodes.length > 0;
-    console.log('🎯 [API] Has product filter:', hasProductFilter);
-
-    // 3. Application sécurité pharmacie
-    const secureFilters = enforcePharmacySecurity({
-      dateRange: body.dateRange,
-      pharmacy: body.pharmacyIds || []
-    }, context);
-
-    console.log('🛡️ [API] Secure filters applied:', secureFilters);
-
-    // 4. DÉTECTION ÉLIGIBILITÉ MATERIALIZED VIEW
-    const canUseMV = detectMVEligibility(body.dateRange, hasProductFilter);
-    console.log('🤔 [API] MV Eligibility Check:', {
-      canUseMV,
-      hasProductFilter,
-      dateRange: body.dateRange
-    });
-
-    // 5. Génération clé cache (inclut usedMV)
-    const cacheKey = generateCacheKey({
-      dateRange: body.dateRange,
-      productCodes: allProductCodes,
-      pharmacyIds: secureFilters.pharmacy || [],
-      role: context.userRole,
-      hasProductFilter,
-      usedMV: canUseMV
-    });
-
-    console.log('🔑 [API] Cache key generated:', cacheKey);
-
-    // 6. Tentative cache
-    if (CACHE_ENABLED) {
-      console.log('💾 [API] Checking cache...');
-      try {
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-          console.log('✅ [API] Cache HIT - returning cached data');
-          return NextResponse.json({
-            ...(cached as any),
-            cached: true,
-            queryTime: Date.now() - startTime
-          });
-        } else {
-          console.log('❌ [API] Cache MISS - will query database');
-        }
-      } catch (cacheError) {
-        console.warn('⚠️ [API] Cache read error:', cacheError);
+  const startDate = new Date(body.dateRange.start);
+  const endDate = new Date(body.dateRange.end);
+  
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new Error('Invalid date format');
+  }
+  
+  return {
+    dateRange: {
+      start: body.dateRange.start,
+      end: body.dateRange.end
+    },
+    ...(body.comparisonDateRange?.start && body.comparisonDateRange?.end && {
+      comparisonDateRange: {
+        start: body.comparisonDateRange.start,
+        end: body.comparisonDateRange.end
       }
-    } else {
-      console.log('🚫 [API] Cache disabled');
+    }),
+    ...(body.productCodes && Array.isArray(body.productCodes) && { productCodes: body.productCodes }),
+    ...(body.laboratoryCodes && Array.isArray(body.laboratoryCodes) && { laboratoryCodes: body.laboratoryCodes }),
+    ...(body.categoryCodes && Array.isArray(body.categoryCodes) && { categoryCodes: body.categoryCodes }),
+    ...(body.pharmacyIds && Array.isArray(body.pharmacyIds) && { pharmacyIds: body.pharmacyIds })
+  };
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<PharmaciesKpiMetricsResponse | { error: string }>> {
+  const startTime = Date.now();
+  console.log('🔥 [API] Pharmacies KPI Request started');
+
+  try {
+    // Vérification sécurité admin
+    const session = await getServerSession(authOptions);
+    if (!session?.user || session.user.role !== 'admin') {
+      console.log('❌ [API] Unauthorized access attempt to pharmacies KPIs');
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin only' },
+        { status: 403 }
+      );
     }
 
-    // 7. EXÉCUTION REQUÊTE AVEC ROUTAGE MV vs RAW TABLES
-    console.log('🗃️ [API] Executing database query...');
+    const body = await request.json();
+    console.log('📝 [API] Request body received:', JSON.stringify(body, null, 2));
+
+    const validatedRequest = validatePharmaciesKpiRequest(body);
     
-    let products: ProductMetrics[];
-    let usedMaterializedView = false;
-
-    if (canUseMV) {
-      console.log('🚀 [API] Using Materialized View - Fast path');
-      products = context.isAdmin 
-        ? await executeAdminMVQuery(body.dateRange, secureFilters.pharmacy)
-        : await executeUserMVQuery(body.dateRange, context.pharmacyId!);
-      usedMaterializedView = true;
-    } else {
-      console.log('🔍 [API] Using Raw Tables - Flexible path');
-      products = context.isAdmin 
-        ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
-        : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
-      usedMaterializedView = false;
-    }
-
-    console.log('📈 [API] Query completed:', {
-      productsFound: products.length,
-      queryTimeMs: Date.now() - startTime,
-      usedMV: usedMaterializedView
+    console.log('✅ [API] Request validated:', {
+      dateRange: validatedRequest.dateRange,
+      hasComparison: !!validatedRequest.comparisonDateRange,
+      filtersCount: {
+        products: validatedRequest.productCodes?.length || 0,
+        laboratories: validatedRequest.laboratoryCodes?.length || 0,
+        categories: validatedRequest.categoryCodes?.length || 0,
+        pharmacies: validatedRequest.pharmacyIds?.length || 0
+      }
     });
 
-    if (products.length > 0) {
-      console.log('🔍 [API] Sample product:', products[0]);
+    const pharmaciesMetrics = await calculatePharmaciesKpiMetrics(validatedRequest);
+    
+    let comparison: {
+      readonly nb_pharmacies_vendeuses: number;
+      readonly pct_pharmacies_vendeuses_selection: number;
+      readonly nb_pharmacies_80pct_ca: number;
+      readonly pct_pharmacies_80pct_ca: number;
+      readonly ca_moyen_pharmacie: number;
+      readonly ca_median_pharmacie: number;
+      readonly quantite_moyenne_pharmacie: number;
+      readonly quantite_mediane_pharmacie: number;
+      readonly taux_penetration_produit_pct: number;
+    } | undefined;
+    
+    if (validatedRequest.comparisonDateRange) {
+      console.log('📊 [API] Calculating comparison period metrics');
+      const comparisonRequest: PharmaciesKpiRequest = {
+        dateRange: validatedRequest.comparisonDateRange,
+        ...(validatedRequest.productCodes && { productCodes: validatedRequest.productCodes }),
+        ...(validatedRequest.laboratoryCodes && { laboratoryCodes: validatedRequest.laboratoryCodes }),
+        ...(validatedRequest.categoryCodes && { categoryCodes: validatedRequest.categoryCodes }),
+        ...(validatedRequest.pharmacyIds && { pharmacyIds: validatedRequest.pharmacyIds })
+      };
+      const comparisonMetrics = await calculatePharmaciesKpiMetrics(comparisonRequest);
+      comparison = {
+        nb_pharmacies_vendeuses: comparisonMetrics.nb_pharmacies_vendeuses,
+        pct_pharmacies_vendeuses_selection: comparisonMetrics.pct_pharmacies_vendeuses_selection,
+        nb_pharmacies_80pct_ca: comparisonMetrics.nb_pharmacies_80pct_ca,
+        pct_pharmacies_80pct_ca: comparisonMetrics.pct_pharmacies_80pct_ca,
+        ca_moyen_pharmacie: comparisonMetrics.ca_moyen_pharmacie,
+        ca_median_pharmacie: comparisonMetrics.ca_median_pharmacie,
+        quantite_moyenne_pharmacie: comparisonMetrics.quantite_moyenne_pharmacie,
+        quantite_mediane_pharmacie: comparisonMetrics.quantite_mediane_pharmacie,
+        taux_penetration_produit_pct: comparisonMetrics.taux_penetration_produit_pct
+      };
     }
 
-    const result = {
-      products,
-      count: products.length,
+    const response: PharmaciesKpiMetricsResponse = {
+      ...pharmaciesMetrics,
       queryTime: Date.now() - startTime,
       cached: false,
-      usedMaterializedView
+      ...(comparison && { comparison })
     };
+    
+    console.log('✅ [API] Pharmacies KPI calculation completed', {
+      nb_pharmacies_vendeuses: response.nb_pharmacies_vendeuses,
+      ca_median_pharmacie: response.ca_median_pharmacie,
+      queryTime: response.queryTime,
+      hasComparison: !!comparison
+    });
 
-    // 8. Mise en cache
-    if (CACHE_ENABLED) {
-      try {
-        await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
-        console.log('💾 [API] Result cached successfully');
-      } catch (cacheError) {
-        console.warn('⚠️ [API] Cache write error:', cacheError);
-      }
-    }
-
-    console.log('🎉 [API] Success - returning result');
-    return NextResponse.json(result);
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error('💥 [API] Products list API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', queryTime: Date.now() - startTime },
-      { status: 500 }
-    );
+    console.error('❌ [API] Pharmacies KPI calculation failed:', error);
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: 500 });
   }
 }
 
-// ===================================================================
-// FONCTIONS DE DÉTECTION MV ELIGIBILITY
-// ===================================================================
+async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Promise<Omit<PharmaciesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
+  const { dateRange, productCodes = [], laboratoryCodes = [], categoryCodes = [], pharmacyIds } = request;
 
-function detectMVEligibility(
-  dateRange: { start: string; end: string },
-  hasProductFilter: boolean
-): boolean {
-  const startDate = new Date(dateRange.start);
-  const endDate = new Date(dateRange.end);
-  
-  // Critères d'éligibilité MV
-  const isStartOfMonth = startDate.getDate() === 1;
-  const lastDayOfEndMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
-  const isEndOfMonth = endDate.getDate() === lastDayOfEndMonth;
-  const isMonthlyAligned = isStartOfMonth && isEndOfMonth;
-  
-  const isWithinMVRange = startDate >= new Date('2024-01-01');
-  const noProductFilters = !hasProductFilter;
-  
-  const eligible = isMonthlyAligned && isWithinMVRange && noProductFilters;
-  
-  console.log('🔍 [API] MV Eligibility Details:', {
-    isStartOfMonth,
-    isEndOfMonth,
-    isMonthlyAligned,
-    isWithinMVRange,
-    noProductFilters,
-    eligible
+  const allProductCodes = Array.from(new Set([
+    ...productCodes,
+    ...laboratoryCodes,
+    ...categoryCodes
+  ]));
+
+  const hasProductFilter = allProductCodes.length > 0;
+  const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
+
+  // SUPPRESSION de la protection contre requêtes larges
+  // Les admins peuvent analyser tous les produits de toutes les pharmacies
+  console.log('🎯 [API] Pharmacies analysis scope:', {
+    hasProductFilter,
+    hasPharmacyFilter,
+    productScope: hasProductFilter ? 'Produits filtrés' : 'Tous les produits',
+    pharmacyScope: hasPharmacyFilter ? 'Pharmacies filtrées' : 'Toutes les pharmacies'
   });
-  
-  return eligible;
-}
 
-// ===================================================================
-// REQUÊTES OPTIMISÉES VIA MATERIALIZED VIEW
-// ===================================================================
+  // Construction des filtres dynamiques - SEULEMENT si des filtres sont appliqués
+  const buildFilters = (prefix: string, paramIndex: number) => {
+    let filters = '';
+    let paramCount = paramIndex;
+    
+    if (hasProductFilter) {
+      filters += ` AND ${prefix}.code_13_ref_id = ANY($${paramCount}::text[])`;
+      paramCount++;
+    }
+    
+    if (hasPharmacyFilter) {
+      filters += ` AND ${prefix}.pharmacy_id = ANY($${paramCount}::uuid[])`;
+    }
+    
+    return filters;
+  };
 
-async function executeAdminMVQuery(
-  dateRange: { start: string; end: string },
-  pharmacyIds?: string[]
-): Promise<ProductMetrics[]> {
-  
+  const productFilterSales = buildFilters('ip', 3);
+  const productFilterStock = hasProductFilter ? 'AND ip.code_13_ref_id = ANY($3::text[])' : '';
+  const pharmacyFilterStock = hasPharmacyFilter ? 
+    (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : '';
+
+  // Construction des paramètres conditionnelle
   const params: any[] = [dateRange.start, dateRange.end];
-  let pharmacyFilter = '';
-  
-  if (pharmacyIds && pharmacyIds.length > 0) {
-    pharmacyFilter = 'AND pharmacy_id = ANY($3::uuid[])';
-    params.push(pharmacyIds);
-  }
-  
-  const query = `
-    SELECT 
-      product_name,
-      code_13_ref_id as code_ean,
-      avg_sell_price_ttc,
-      avg_buy_price_ht,
-      tva_rate,
-      avg_sell_price_ht,
-      margin_rate_percent,
-      unit_margin_ht,
-      total_margin_ht,
-      current_stock,
-      quantity_sold,
-      ca_ttc,
-      quantity_bought,
-      purchase_amount
-    FROM mv_products_monthly_top1000
-    WHERE periode >= DATE_TRUNC('month', $1::date)
-      AND periode <= DATE_TRUNC('month', $2::date)
-      ${pharmacyFilter}
-    ORDER BY quantity_sold DESC, ca_ttc DESC
-    LIMIT 1000;
-  `;
-  
-  console.log('🚀 [API] Executing Admin MV query:', { 
-    dateRange, 
-    hasPharmacyFilter: !!pharmacyFilter,
-    paramsLength: params.length 
-  });
-  
-  return await db.query(query, params);
-}
-
-async function executeUserMVQuery(
-  dateRange: { start: string; end: string },
-  pharmacyId: string
-): Promise<ProductMetrics[]> {
-  
-  const query = `
-    SELECT 
-      product_name,
-      code_13_ref_id as code_ean,
-      avg_sell_price_ttc,
-      avg_buy_price_ht,
-      tva_rate,
-      avg_sell_price_ht,
-      margin_rate_percent,
-      unit_margin_ht,
-      total_margin_ht,
-      current_stock,
-      quantity_sold,
-      ca_ttc,
-      quantity_bought,
-      purchase_amount
-    FROM mv_products_monthly_top1000
-    WHERE periode >= DATE_TRUNC('month', $1::date)
-      AND periode <= DATE_TRUNC('month', $2::date)
-      AND pharmacy_id = $3::uuid
-    ORDER BY quantity_sold DESC, ca_ttc DESC
-    LIMIT 1000;
-  `;
-  
-  const params = [dateRange.start, dateRange.end, pharmacyId];
-  
-  console.log('🚀 [API] Executing User MV query:', { 
-    dateRange, 
-    pharmacyId,
-    paramsLength: params.length 
-  });
-  
-  return await db.query(query, params);
-}
-
-// ===================================================================
-// REQUÊTES CLASSIQUES VIA TABLES BRUTES (code existant)
-// ===================================================================
-
-async function executeAdminQuery(
-  dateRange: { start: string; end: string },
-  productCodes: string[],
-  pharmacyIds?: string[],
-  hasProductFilter: boolean = true
-): Promise<ProductMetrics[]> {
-  const pharmacyFilter = pharmacyIds && pharmacyIds.length > 0
-    ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
-    : '';
-
-  const productFilter = hasProductFilter 
-    ? 'AND ip.code_13_ref_id = ANY($3::text[])'
-    : '';
-
-  const params = [];
-  let paramIndex = 1;
-  
-  params.push(dateRange.start); // $1
-  params.push(dateRange.end);   // $2
   
   if (hasProductFilter) {
-    params.push(productCodes);  // $3
-    paramIndex = 4;
-  } else {
-    paramIndex = 3;
+    params.push(allProductCodes);
   }
   
-  if (pharmacyIds && pharmacyIds.length > 0) {
-    params.push(pharmacyIds);   // $4 ou $3 selon hasProductFilter
+  if (hasPharmacyFilter) {
+    params.push(pharmacyIds);
   }
 
-  const finalPharmacyFilter = pharmacyFilter.replace('$4', `$${paramIndex}`);
-
   const query = `
-    WITH product_sales AS (
+    WITH 
+    -- 1. BASE : PHARMACIES ET PRODUITS (filtrés ou tous)
+    pharmacies_base AS (
+      SELECT DISTINCT ip.pharmacy_id
+      FROM data_internalproduct ip
+      WHERE 1=1 ${productFilterStock} ${pharmacyFilterStock}
+    ),
+
+    -- 2. PHARMACIES VENDEUSES ACTIVES  
+    pharmacies_vendeuses AS (
       SELECT 
-        ip.code_13_ref_id,
-        SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
-        AVG(ip."TVA") as avg_tva_rate
+        COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendeuses
       FROM data_sales s
-      INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= $1 AND s.date <= $2
-        ${productFilter}
-        ${finalPharmacyFilter}
-      GROUP BY ip.code_13_ref_id
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
+        AND s.quantity > 0
+        ${productFilterSales}
     ),
-    product_purchases AS (
-      SELECT 
-        ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
-        AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
-      FROM data_productorder po
-      INNER JOIN data_order o ON po.order_id = o.id
-      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
-      LEFT JOIN LATERAL (
-        SELECT weighted_average_price
-        FROM data_inventorysnapshot ins2
-        WHERE ins2.product_id = po.product_id
-          AND ins2.weighted_average_price > 0
-        ORDER BY ins2.date DESC
-        LIMIT 1
-      ) closest_snap ON true
-      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
-        ${productFilter}
-        ${finalPharmacyFilter}
-      GROUP BY ip.code_13_ref_id
+
+    -- 3. TOTAL PHARMACIES AVEC PRODUITS (pour calcul %)
+    total_pharmacies_produits AS (
+      SELECT COUNT(*) as total_pharmacies
+      FROM pharmacies_base
     ),
-    current_stock AS (
+
+    -- 4. ANALYSE CONCENTRATION VENTES (Pareto 80/20)
+    pharmacies_ca_detail AS (
       SELECT 
-        code_13_ref_id,
-        SUM(stock) as current_stock_qty
+        ip.pharmacy_id,
+        dp.name as pharmacy_name,
+        SUM(s.quantity * ins.price_with_tax) as ca_ttc_pharmacie,
+        SUM(s.quantity) as quantite_vendue_pharmacie
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_pharmacy dp ON ip.pharmacy_id = dp.id
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
+        AND s.quantity > 0
+        ${productFilterSales}
+      GROUP BY ip.pharmacy_id, dp.name
+      HAVING SUM(s.quantity * ins.price_with_tax) > 0
+    ),
+
+    -- 5. CALCUL CONCENTRATION 80% CA
+    concentration_80pct AS (
+      SELECT 
+        COUNT(*) as nb_pharmacies_80pct_ca
       FROM (
-        SELECT DISTINCT ON (internal_prod.id)
-          internal_prod.id,
-          internal_prod.code_13_ref_id,
-          ins.stock
-        FROM data_inventorysnapshot ins
-        INNER JOIN data_internalproduct internal_prod ON ins.product_id = internal_prod.id
-        WHERE 1=1
-          ${productFilter.replace('ip.', 'internal_prod.')}
-          ${finalPharmacyFilter.replace('ip.', 'internal_prod.')}
-        ORDER BY internal_prod.id, ins.date DESC
-      ) latest_stocks
-      GROUP BY code_13_ref_id
+        SELECT 
+          pharmacy_id,
+          ca_ttc_pharmacie,
+          SUM(ca_ttc_pharmacie) OVER (
+            ORDER BY ca_ttc_pharmacie DESC 
+            ROWS UNBOUNDED PRECEDING
+          ) as ca_cumule
+        FROM pharmacies_ca_detail
+      ) cumul
+      WHERE ca_cumule <= (
+        SELECT SUM(ca_ttc_pharmacie) * 0.8 
+        FROM pharmacies_ca_detail
+      )
     ),
-    avg_buy_price AS (
+
+    -- 6. MÉTRIQUES CENTRALES
+    metriques_centrales AS (
       SELECT 
-        ip.code_13_ref_id,
-        AVG(ins.weighted_average_price) as avg_buy_price_ht
-      FROM data_inventorysnapshot ins
-      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE ins.weighted_average_price > 0
-        ${productFilter}
-        ${finalPharmacyFilter}
-      GROUP BY ip.code_13_ref_id
+        AVG(ca_ttc_pharmacie) as ca_moyen_pharmacie,
+        AVG(quantite_vendue_pharmacie) as quantite_moyenne_pharmacie,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ca_ttc_pharmacie) as ca_median_pharmacie,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY quantite_vendue_pharmacie) as quantite_mediane_pharmacie,
+        SUM(ca_ttc_pharmacie) as ca_total,
+        SUM(quantite_vendue_pharmacie) as quantite_totale,
+        COUNT(*) as nb_pharmacies_total
+      FROM pharmacies_ca_detail
+    ),
+
+    -- 7. TAUX PÉNÉTRATION (toutes pharmacies réseau)
+    taux_penetration AS (
+      SELECT 
+        (SELECT COUNT(*) FROM pharmacies_base) as pharmacies_avec_produit,
+        (SELECT COUNT(*) FROM data_pharmacy) as total_pharmacies_reseau
     )
+
+    -- RÉSULTAT FINAL
     SELECT 
-      gp.name as product_name,
-      gp.code_13_ref as code_ean,
-      COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
-      COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
-      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
-      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
-        ELSE 0 
-      END as margin_rate_percent,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
-        ELSE 0 
-      END as unit_margin_ht,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) * ps.total_quantity_sold
-        ELSE 0 
-      END as total_margin_ht,
-      COALESCE(cs.current_stock_qty, 0) as current_stock,
-      COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
-      COALESCE(ps.total_ca_ttc, 0) as ca_ttc,
-      COALESCE(pp.total_quantity_bought, 0) as quantity_bought,
-      COALESCE(pp.total_purchase_amount, 0) as purchase_amount
-    FROM data_globalproduct gp
-    LEFT JOIN product_sales ps ON gp.code_13_ref = ps.code_13_ref_id
-    LEFT JOIN product_purchases pp ON gp.code_13_ref = pp.code_13_ref_id
-    LEFT JOIN current_stock cs ON gp.code_13_ref = cs.code_13_ref_id
-    LEFT JOIN avg_buy_price abp ON gp.code_13_ref = abp.code_13_ref_id
-    WHERE 1=1
-      ${hasProductFilter ? 'AND gp.code_13_ref = ANY($3::text[])' : ''}
-    ORDER BY ps.total_quantity_sold DESC NULLS LAST
-    LIMIT 1000;
+      -- Pharmacies vendeuses
+      COALESCE(pv.nb_pharmacies_vendeuses, 0) as nb_pharmacies_vendeuses,
+      ROUND(
+        COALESCE(pv.nb_pharmacies_vendeuses, 0) * 100.0 / 
+        NULLIF(COALESCE(tpp.total_pharmacies, 1), 0), 1
+      ) as pct_pharmacies_vendeuses_selection,
+      
+      -- Concentration Pareto
+      COALESCE(c80.nb_pharmacies_80pct_ca, 0) as nb_pharmacies_80pct_ca,
+      ROUND(
+        COALESCE(c80.nb_pharmacies_80pct_ca, 0) * 100.0 / 
+        NULLIF(COALESCE(mc.nb_pharmacies_total, 1), 0), 1
+      ) as pct_pharmacies_80pct_ca,
+      
+      -- CA métriques
+      ROUND(COALESCE(mc.ca_moyen_pharmacie, 0)::numeric, 2) as ca_moyen_pharmacie,
+      ROUND(COALESCE(mc.ca_median_pharmacie, 0)::numeric, 2) as ca_median_pharmacie,
+      
+      -- Quantités métriques
+      ROUND(COALESCE(mc.quantite_moyenne_pharmacie, 0)::numeric, 0) as quantite_moyenne_pharmacie,
+      ROUND(COALESCE(mc.quantite_mediane_pharmacie, 0)::numeric, 0) as quantite_mediane_pharmacie,
+      
+      -- Taux pénétration
+      ROUND(
+        COALESCE(tp.pharmacies_avec_produit, 0) * 100.0 / 
+        NULLIF(COALESCE(tp.total_pharmacies_reseau, 1), 0), 1
+      ) as taux_penetration_produit_pct,
+      COALESCE(tp.pharmacies_avec_produit, 0) as pharmacies_avec_produit,
+      COALESCE(tp.total_pharmacies_reseau, 0) as total_pharmacies_reseau,
+      
+      -- Totaux
+      ROUND(COALESCE(mc.ca_total, 0), 2) as ca_total,
+      COALESCE(mc.quantite_totale, 0) as quantite_totale,
+      COALESCE(mc.nb_pharmacies_total, 0) as nb_pharmacies_vendeuses_total
+
+    FROM pharmacies_vendeuses pv
+    CROSS JOIN total_pharmacies_produits tpp
+    FULL OUTER JOIN concentration_80pct c80 ON true
+    FULL OUTER JOIN metriques_centrales mc ON true
+    FULL OUTER JOIN taux_penetration tp ON true;
   `;
 
-  return await db.query(query, params);
-}
-
-async function executeUserQuery(
-  dateRange: { start: string; end: string },
-  productCodes: string[],
-  pharmacyId: string,
-  hasProductFilter: boolean = true
-): Promise<ProductMetrics[]> {
-  
-  const productFilter = hasProductFilter 
-    ? 'AND ip.code_13_ref_id = ANY($3::text[])'
-    : '';
-
-  const params = hasProductFilter
-    ? [dateRange.start, dateRange.end, productCodes, pharmacyId]
-    : [dateRange.start, dateRange.end, pharmacyId];
-
-  const pharmacyParam = hasProductFilter ? '$4::uuid' : '$3::uuid';
-
-  const query = `
-    WITH product_sales AS (
-      SELECT 
-        ip.code_13_ref_id,
-        SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
-        AVG(ip."TVA") as avg_tva_rate
-      FROM data_sales s
-      INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= $1 AND s.date <= $2
-        ${productFilter}
-        AND ip.pharmacy_id = ${pharmacyParam}
-      GROUP BY ip.code_13_ref_id
-    ),
-    product_purchases AS (
-      SELECT 
-        ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
-        AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
-      FROM data_productorder po
-      INNER JOIN data_order o ON po.order_id = o.id
-      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
-      LEFT JOIN LATERAL (
-        SELECT weighted_average_price
-        FROM data_inventorysnapshot ins2
-        WHERE ins2.product_id = po.product_id
-          AND ins2.weighted_average_price > 0
-        ORDER BY ins2.date DESC
-        LIMIT 1
-      ) closest_snap ON true
-      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
-        ${productFilter}
-        AND ip.pharmacy_id = ${pharmacyParam}
-      GROUP BY ip.code_13_ref_id
-    ),
-    current_stock AS (
-      SELECT 
-        code_13_ref_id,
-        SUM(stock) as current_stock_qty
-      FROM (
-        SELECT DISTINCT ON (internal_prod.id)
-          internal_prod.id,
-          internal_prod.code_13_ref_id,
-          ins.stock
-        FROM data_inventorysnapshot ins
-        INNER JOIN data_internalproduct internal_prod ON ins.product_id = internal_prod.id
-        WHERE internal_prod.pharmacy_id = ${pharmacyParam}
-          ${productFilter.replace('ip.', 'internal_prod.')}
-        ORDER BY internal_prod.id, ins.date DESC
-      ) latest_stocks
-      GROUP BY code_13_ref_id
-    ),
-    avg_buy_price AS (
-      SELECT 
-        ip.code_13_ref_id,
-        AVG(ins.weighted_average_price) as avg_buy_price_ht
-      FROM data_inventorysnapshot ins
-      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE ins.weighted_average_price > 0
-        AND ip.pharmacy_id = ${pharmacyParam}
-        ${productFilter}
-      GROUP BY ip.code_13_ref_id
-    )
-    SELECT 
-      ip.name as product_name,
-      ip.code_13_ref_id as code_ean,
-      COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
-      COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
-      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
-      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
-        ELSE 0 
-      END as margin_rate_percent,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
-        ELSE 0 
-      END as unit_margin_ht,
-      CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) * ps.total_quantity_sold
-        ELSE 0 
-      END as total_margin_ht,
-      COALESCE(cs.current_stock_qty, 0) as current_stock,
-      COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
-      COALESCE(ps.total_ca_ttc, 0) as ca_ttc,
-      COALESCE(pp.total_quantity_bought, 0) as quantity_bought,
-      COALESCE(pp.total_purchase_amount, 0) as purchase_amount
-    FROM data_internalproduct ip
-    LEFT JOIN product_sales ps ON ip.code_13_ref_id = ps.code_13_ref_id
-    LEFT JOIN product_purchases pp ON ip.code_13_ref_id = pp.code_13_ref_id
-    LEFT JOIN current_stock cs ON ip.code_13_ref_id = cs.code_13_ref_id
-    LEFT JOIN avg_buy_price abp ON ip.code_13_ref_id = abp.code_13_ref_id
-    WHERE ip.pharmacy_id = ${pharmacyParam}
-      ${hasProductFilter ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-    ORDER BY ps.total_quantity_sold DESC NULLS LAST
-    LIMIT 1000;
-  `;
-
-  return await db.query(query, params);
-}
-
-// ===================================================================
-// GÉNÉRATION CLÉ CACHE MISE À JOUR
-// ===================================================================
-
-function generateCacheKey(params: {
-  dateRange: { start: string; end: string };
-  productCodes: string[];
-  pharmacyIds: string[];
-  role: string;
-  hasProductFilter: boolean;
-  usedMV: boolean;
-}): string {
-  const data = JSON.stringify({
-    dateRange: params.dateRange,
-    productCodes: params.hasProductFilter ? params.productCodes.sort() : [],
-    pharmacyIds: params.pharmacyIds.sort(),
-    role: params.role,
-    hasProductFilter: params.hasProductFilter,
-    usedMV: params.usedMV
+  console.log('🔍 [API] Executing Pharmacies KPI query:', {
+    dateRange,
+    productCodesLength: allProductCodes.length,
+    pharmacyIdsLength: pharmacyIds?.length || 0,
+    paramsLength: params.length,
+    hasProductFilter,
+    hasPharmacyFilter
   });
-  
-  const hash = crypto.createHash('md5').update(data).digest('hex');
-  return `products:list:${hash}`;
+
+  try {
+    const result = await db.query(query, params);
+
+    if (result.length === 0) {
+      return getDefaultPharmaciesKpiResponse();
+    }
+
+    return formatPharmaciesKpiResponse(result[0]);
+  } catch (error) {
+    console.error('❌ [API] Database query failed:', error);
+    throw error;
+  }
+}
+
+function getDefaultPharmaciesKpiResponse(): Omit<PharmaciesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
+  return {
+    nb_pharmacies_vendeuses: 0,
+    pct_pharmacies_vendeuses_selection: 0,
+    nb_pharmacies_80pct_ca: 0,
+    pct_pharmacies_80pct_ca: 0,
+    ca_moyen_pharmacie: 0,
+    ca_median_pharmacie: 0,
+    quantite_moyenne_pharmacie: 0,
+    quantite_mediane_pharmacie: 0,
+    taux_penetration_produit_pct: 0,
+    pharmacies_avec_produit: 0,
+    total_pharmacies_reseau: 0,
+    ca_total: 0,
+    quantite_totale: 0,
+    nb_pharmacies_vendeuses_total: 0
+  };
+}
+
+function formatPharmaciesKpiResponse(row: any): Omit<PharmaciesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
+  return {
+    nb_pharmacies_vendeuses: Number(row.nb_pharmacies_vendeuses) || 0,
+    pct_pharmacies_vendeuses_selection: Number(row.pct_pharmacies_vendeuses_selection) || 0,
+    nb_pharmacies_80pct_ca: Number(row.nb_pharmacies_80pct_ca) || 0,
+    pct_pharmacies_80pct_ca: Number(row.pct_pharmacies_80pct_ca) || 0,
+    ca_moyen_pharmacie: Number(row.ca_moyen_pharmacie) || 0,
+    ca_median_pharmacie: Number(row.ca_median_pharmacie) || 0,
+    quantite_moyenne_pharmacie: Number(row.quantite_moyenne_pharmacie) || 0,
+    quantite_mediane_pharmacie: Number(row.quantite_mediane_pharmacie) || 0,
+    taux_penetration_produit_pct: Number(row.taux_penetration_produit_pct) || 0,
+    pharmacies_avec_produit: Number(row.pharmacies_avec_produit) || 0,
+    total_pharmacies_reseau: Number(row.total_pharmacies_reseau) || 0,
+    ca_total: Number(row.ca_total) || 0,
+    quantite_totale: Number(row.quantite_totale) || 0,
+    nb_pharmacies_vendeuses_total: Number(row.nb_pharmacies_vendeuses_total) || 0
+  };
 }

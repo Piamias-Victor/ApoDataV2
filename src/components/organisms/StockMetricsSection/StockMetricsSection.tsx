@@ -3,7 +3,14 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { RotateCcw, Package, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
+import { 
+  RotateCcw, 
+  Package, 
+  TrendingUp, 
+  Calendar, 
+  DollarSign, 
+  Hash 
+} from 'lucide-react';
 import { useStockMetrics } from '@/hooks/dashboard/useStockMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
@@ -41,7 +48,7 @@ interface StockKpiCard {
 }
 
 /**
- * StockMetricsSection - Organism pour métriques de stock pharmaceutiques
+ * StockMetricsSection - Organism pour métriques de stock pharmaceutiques avec icônes
  * Avec export CSV intégré
  * 
  * Features complètes :
@@ -53,6 +60,7 @@ interface StockKpiCard {
  * - Refresh manuel avec indicateur visuel
  * - Performance optimisée React.memo + useMemo
  * - Filtres identiques aux autres sections
+ * - Icônes spécifiques pour chaque métrique de stock
  */
 export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
   dateRange,
@@ -232,7 +240,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
     });
   }, [prepareStockMetricsDataForExport, exportToCsv]);
 
-  // Transformation données en KPI Cards avec calcul comparaisons
+  // Transformation données en KPI Cards avec calcul comparaisons et icônes
   const stockKpis = useMemo((): StockKpiCard[] | null => {
     if (!data) return null;
 
@@ -262,7 +270,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
         ),
         variant: (data.quantite_stock_actuel_total > 0 ? 'primary' : 'warning'),
         subtitle: `${data.nb_references_produits} références`,
-        icon: <Package className="w-5 h-5" />
+        icon: <Hash className="w-4 h-4 text-blue-600" />
       },
       {
         title: 'Valeur Stock Actuel',
@@ -274,7 +282,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
         ),
         variant: (data.montant_stock_actuel_total > 0 ? 'success' : 'warning'),
         subtitle: `${data.nb_pharmacies} pharmacie${data.nb_pharmacies > 1 ? 's' : ''}`,
-        icon: <BarChart3 className="w-5 h-5" />
+        icon: <DollarSign className="w-4 h-4 text-green-600" />
       },
       {
         title: 'Stock Moyen 12 Mois',
@@ -286,7 +294,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
         ),
         variant: 'secondary',
         subtitle: 'Moyenne historique',
-        icon: <TrendingUp className="w-5 h-5" />
+        icon: <TrendingUp className="w-4 h-4 text-purple-600" />
       },
       {
         title: 'Jours de Stock',
@@ -303,7 +311,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
           'Calcul impossible' : 
           data.jours_de_stock_actuels > 90 ? 'Stock élevé' :
           data.jours_de_stock_actuels > 30 ? 'Stock normal' : 'Stock faible',
-        icon: <Calendar className="w-5 h-5" />
+        icon: <Calendar className="w-4 h-4 text-orange-600" />
       }
     ];
   }, [data]);
@@ -430,7 +438,7 @@ export const StockMetricsSection: React.FC<StockMetricsSectionProps> = ({
           </>
         )}
         
-        {/* État Success : Stock KPI cards avec validation complète */}
+        {/* État Success : Stock KPI cards avec validation complète et icônes */}
         {!isLoading && stockKpis && (
           <>
             {stockKpis.map((kpi, index) => (

@@ -3,7 +3,17 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { 
+  RotateCcw, 
+  Activity, 
+  ShoppingCart, 
+  Target, 
+  TrendingUp, 
+  BarChart3, 
+  Hash, 
+  DollarSign, 
+  Percent 
+} from 'lucide-react';
 import { useSalesKpiMetrics } from '@/hooks/ventes/useSalesKpiMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
@@ -21,7 +31,7 @@ import {
 } from './utils';
 
 /**
- * SalesKpisSection - KPI spécialisés page ventes
+ * SalesKpisSection - KPI spécialisés page ventes avec icônes
  * Avec export CSV intégré
  * 
  * Features :
@@ -31,6 +41,7 @@ import {
  * - Design identique KpisSection
  * - Performance optimisée React.memo + useMemo
  * - Export CSV complet avec données de comparaison
+ * - Icônes spécifiques pour chaque KPI
  */
 export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
   dateRange,
@@ -342,13 +353,15 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
                 title: groupedKpis.quantityCa.main.title,
                 value: groupedKpis.quantityCa.main.value,
                 unit: groupedKpis.quantityCa.main.unit,
-                comparison: groupedKpis.quantityCa.main.comparison
+                comparison: groupedKpis.quantityCa.main.comparison,
+                icon: <Activity className="w-4 h-4 text-blue-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.quantityCa.secondary.title,
                 value: groupedKpis.quantityCa.secondary.value,
                 unit: groupedKpis.quantityCa.secondary.unit,
-                comparison: groupedKpis.quantityCa.secondary.comparison
+                comparison: groupedKpis.quantityCa.secondary.comparison,
+                icon: <ShoppingCart className="w-4 h-4 text-blue-500" />
               }}
             />
             
@@ -358,13 +371,15 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
                 title: groupedKpis.marketShare.main.title,
                 value: groupedKpis.marketShare.main.value,
                 unit: groupedKpis.marketShare.main.unit,
-                comparison: groupedKpis.marketShare.main.comparison
+                comparison: groupedKpis.marketShare.main.comparison,
+                icon: <Target className="w-4 h-4 text-purple-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.marketShare.secondary.title,
                 value: groupedKpis.marketShare.secondary.value,
                 unit: groupedKpis.marketShare.secondary.unit,
-                comparison: groupedKpis.marketShare.secondary.comparison
+                comparison: groupedKpis.marketShare.secondary.comparison,
+                icon: <TrendingUp className="w-4 h-4 text-purple-500" />
               }}
             />
             
@@ -374,13 +389,15 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
                 title: groupedKpis.references.main.title,
                 value: groupedKpis.references.main.value,
                 unit: groupedKpis.references.main.unit,
-                comparison: groupedKpis.references.main.comparison
+                comparison: groupedKpis.references.main.comparison,
+                icon: <BarChart3 className="w-4 h-4 text-teal-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.references.secondary.title,
                 value: groupedKpis.references.secondary.value,
                 unit: groupedKpis.references.secondary.unit,
-                comparison: groupedKpis.references.secondary.comparison
+                comparison: groupedKpis.references.secondary.comparison,
+                icon: <Hash className="w-4 h-4 text-teal-500" />
               }}
             />
             
@@ -390,13 +407,15 @@ export const SalesKpisSection: React.FC<SalesKpisSectionProps> = ({
                 title: groupedKpis.margin.main.title,
                 value: groupedKpis.margin.main.value,
                 unit: groupedKpis.margin.main.unit,
-                comparison: groupedKpis.margin.main.comparison
+                comparison: groupedKpis.margin.main.comparison,
+                icon: <DollarSign className="w-4 h-4 text-orange-600" />
               }}
               secondaryKpi={{
                 title: groupedKpis.margin.secondary.title,
                 value: groupedKpis.margin.secondary.value,
                 unit: groupedKpis.margin.secondary.unit,
-                comparison: groupedKpis.margin.secondary.comparison
+                comparison: groupedKpis.margin.secondary.comparison,
+                icon: <Percent className="w-4 h-4 text-orange-500" />
               }}
             />
           </>

@@ -2,7 +2,14 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { RotateCcw, Building2 } from 'lucide-react';
+import { 
+  RotateCcw, 
+  Building2, 
+  TrendingUp, 
+  BarChart3, 
+  Hash, 
+  Target 
+} from 'lucide-react';
 import { usePharmaciesKpiMetrics } from '@/hooks/pharmacies/usePharmaciesKpiMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
@@ -26,8 +33,16 @@ interface PharmaciesKpisSectionProps {
 }
 
 /**
- * PharmaciesKpisSection - Organism pour KPIs analyse pharmacies
+ * PharmaciesKpisSection - Organism pour KPIs analyse pharmacies avec icônes
  * Accessible uniquement aux admins
+ * 
+ * Features :
+ * - 5 KPI cards : Pharmacies vendeuses, Concentration, CA médian, Quantité médiane, Taux pénétration
+ * - Export CSV complet avec données de comparaison
+ * - Grille responsive 5 colonnes
+ * - Hook usePharmaciesKpiMetrics intégration directe
+ * - États loading/error/empty cohérents ApoData
+ * - Icônes spécifiques pour chaque KPI pharmacie
  */
 export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
   dateRange,
@@ -301,7 +316,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
           </>
         )}
         
-        {/* État Success : KPI cards pharmacies */}
+        {/* État Success : KPI cards pharmacies avec icônes */}
         {!isLoading && data && (
           <>
             {/* Card 1: Pharmacies vendeuses */}
@@ -316,6 +331,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
               } : undefined}
               variant="primary"
               subtitle={`${data.pct_pharmacies_vendeuses_selection}% de la sélection`}
+              icon={<Building2 className="w-4 h-4 text-blue-600" />}
             />
             
             {/* Card 2: Concentration Pareto */}
@@ -330,6 +346,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
               } : undefined}
               variant="warning"
               subtitle={`${data.pct_pharmacies_80pct_ca}% du réseau vendeur`}
+              icon={<Target className="w-4 h-4 text-orange-600" />}
             />
             
             {/* Card 3: CA Médian */}
@@ -344,6 +361,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
               } : undefined}
               variant="success"
               subtitle={`Moy: ${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(data.ca_moyen_pharmacie)}`}
+              icon={<TrendingUp className="w-4 h-4 text-green-600" />}
             />
             
             {/* Card 4: Quantité Médiane */}
@@ -358,6 +376,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
               } : undefined}
               variant="primary"
               subtitle={`Moy: ${new Intl.NumberFormat('fr-FR').format(data.quantite_moyenne_pharmacie)}`}
+              icon={<Hash className="w-4 h-4 text-purple-600" />}
             />
             
             {/* Card 5: Taux de Pénétration */}
@@ -372,6 +391,7 @@ export const PharmaciesKpisSection: React.FC<PharmaciesKpisSectionProps> = ({
               } : undefined}
               variant={data.taux_penetration_produit_pct > 50 ? 'success' : 'warning'}
               subtitle={`${data.pharmacies_avec_produit}/${data.total_pharmacies_reseau} pharmacies`}
+              icon={<BarChart3 className="w-4 h-4 text-teal-600" />}
             />
           </>
         )}

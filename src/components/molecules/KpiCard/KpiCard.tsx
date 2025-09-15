@@ -12,13 +12,14 @@ import {
 } from './utils';
 
 /**
- * KpiCard - Design repensé compact et moderne
+ * KpiCard - Design repensé compact et moderne avec icônes
  * 
  * Nouveau design :
  * - Taille réduite et lisible
  * - Typographie hiérarchisée
  * - Espacement optimisé
  * - Style aéré et moderne
+ * - Icône intégrée dans le header
  */
 export const KpiCard: React.FC<any> = ({
   title,
@@ -28,6 +29,7 @@ export const KpiCard: React.FC<any> = ({
   loading = false,
   error = null,
   subtitle,
+  icon,
   className = ''
 }) => {
   // Loading state
@@ -86,11 +88,18 @@ export const KpiCard: React.FC<any> = ({
       padding="md"
       className={`transition-all duration-200 hover:shadow-md border-gray-200 bg-white ${className}`}
     >
-      {/* Header compact */}
+      {/* Header compact avec icône */}
       <div className="mb-3">
-        <h3 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-          {title}
-        </h3>
+        <div className="flex items-center space-x-2 mb-1">
+          {icon && (
+            <div className="flex-shrink-0">
+              {icon}
+            </div>
+          )}
+          <h3 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            {title}
+          </h3>
+        </div>
         {subtitle && (
           <p className="text-xs text-gray-500 mt-1">
             {subtitle}

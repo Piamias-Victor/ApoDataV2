@@ -13,13 +13,14 @@ import {
 } from '../KpiCard/utils';
 
 /**
- * DualKpiCard - Design repensé compact et fluide
+ * DualKpiCard - Design repensé compact et fluide avec icônes
  * 
  * Nouveau design :
  * - Tailles réduites et plus lisibles
  * - Espacement optimisé
  * - Typographie hiérarchisée
  * - Style moderne et aéré
+ * - Icônes intégrées dans le header
  */
 export const DualKpiCard: React.FC<DualKpiCardProps> = ({
   mainKpi,
@@ -104,11 +105,29 @@ export const DualKpiCard: React.FC<DualKpiCardProps> = ({
       padding="md"
       className={`transition-all duration-200 hover:shadow-md border-gray-200 bg-white ${className}`}
     >
-      {/* Header compact */}
-      <div className="mb-3">
-        <h3 className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-          {mainKpi.title} / {secondaryKpi.title}
-        </h3>
+      {/* Header compact avec icônes */}
+      <div className="mb-3 flex items-center space-x-2">
+        <div className="flex items-center space-x-1">
+          {mainKpi.icon && (
+            <div className="flex-shrink-0">
+              {mainKpi.icon}
+            </div>
+          )}
+          <h3 className="text-xs font-medium text-gray-600 uppercase tracking-wide truncate">
+            {mainKpi.title}
+          </h3>
+        </div>
+        <span className="text-xs text-gray-400">/</span>
+        <div className="flex items-center space-x-1">
+          {secondaryKpi.icon && (
+            <div className="flex-shrink-0">
+              {secondaryKpi.icon}
+            </div>
+          )}
+          <h3 className="text-xs font-medium text-gray-600 uppercase tracking-wide truncate">
+            {secondaryKpi.title}
+          </h3>
+        </div>
       </div>
       
       {/* KPI Principal - Design compact */}

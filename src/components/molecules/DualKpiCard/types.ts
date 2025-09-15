@@ -1,5 +1,7 @@
 // src/components/molecules/DualKpiCard/types.ts
 
+import type { ReactNode } from 'react';
+
 /**
  * Types pour DualKpiCard - Composant KPI avec 2 valeurs
  */
@@ -21,6 +23,7 @@ export interface DualKpiValue {
   readonly value: number;
   readonly unit: DualKpiUnit;
   readonly comparison?: DualKpiComparison | undefined;
+  readonly icon?: ReactNode;
 }
 
 export interface DualKpiCardProps {
