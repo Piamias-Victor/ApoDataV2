@@ -32,6 +32,7 @@ interface UseComparisonMarketShareOptions {
   readonly enabled?: boolean;
   readonly elementA: ComparisonElement | null;
   readonly elementB: ComparisonElement | null;
+  readonly elementC?: ComparisonElement | null;
   readonly hierarchyLevel: 'universe' | 'category' | 'family';
   readonly page?: number;
   readonly limit?: number;
@@ -40,12 +41,14 @@ interface UseComparisonMarketShareOptions {
 interface UseComparisonMarketShareReturn {
   readonly dataA: MarketShareResponse | null;
   readonly dataB: MarketShareResponse | null;
+  readonly dataC: MarketShareResponse | null;
   readonly isLoading: boolean;
   readonly error: string | null;
   readonly isError: boolean;
   readonly refetch: () => Promise<void>;
   readonly hasDataA: boolean;
   readonly hasDataB: boolean;
+  readonly hasDataC: boolean;
   readonly currentPage: number;
   readonly totalPages: number;
   readonly canPreviousPage: boolean;
@@ -61,6 +64,7 @@ export function useComparisonMarketShare(
     enabled = true,
     elementA,
     elementB,
+    elementC = null,
     hierarchyLevel,
     page = 1,
     limit = 5
@@ -123,6 +127,25 @@ export function useComparisonMarketShare(
     return standardFilters;
   }, [elementB, hierarchyLevel, currentPage, limit, pharmacyFilter, mapElementToProductCodes]);
 
+  // Filtres pour l'élément C
+  const filtersC = useMemo(() => {
+    const productCodes = mapElementToProductCodes(elementC);
+    const standardFilters: StandardFilters & Record<string, any> = {
+      productCodes,
+      laboratoryCodes: [],
+      categoryCodes: [],
+      hierarchyLevel,
+      page: currentPage,
+      limit
+    };
+    
+    if (pharmacyFilter.length > 0) {
+      standardFilters.pharmacyIds = pharmacyFilter;
+    }
+    
+    return standardFilters;
+  }, [elementC, hierarchyLevel, currentPage, limit, pharmacyFilter, mapElementToProductCodes]);
+
   // Hook pour l'élément A
   const resultA = useStandardFetch<MarketShareResponse>('/api/ventes/market-share-hierarchy', {
     enabled: enabled && !!elementA && mapElementToProductCodes(elementA).length > 0,
@@ -137,15 +160,23 @@ export function useComparisonMarketShare(
     filters: filtersB
   });
 
+  // Hook pour l'élément C
+  const resultC = useStandardFetch<MarketShareResponse>('/api/ventes/market-share-hierarchy', {
+    enabled: enabled && !!elementC && mapElementToProductCodes(elementC).length > 0,
+    dateRange: analysisDateRange,
+    filters: filtersC
+  });
+
   // États combinés
-  const isLoading = resultA.isLoading || resultB.isLoading;
-  const error = resultA.error || resultB.error;
-  const isError = resultA.isError || resultB.isError;
+  const isLoading = resultA.isLoading || resultB.isLoading || resultC.isLoading;
+  const error = resultA.error || resultB.error || resultC.error;
+  const isError = resultA.isError || resultB.isError || resultC.isError;
 
   // Pagination
   const totalPages = Math.max(
     resultA.data?.pagination.totalPages || 0,
-    resultB.data?.pagination.totalPages || 0
+    resultB.data?.pagination.totalPages || 0,
+    resultC.data?.pagination.totalPages || 0
   );
 
   const canPreviousPage = currentPage > 1;
@@ -174,19 +205,24 @@ export function useComparisonMarketShare(
     if (elementB && mapElementToProductCodes(elementB).length > 0) {
       promises.push(resultB.refetch());
     }
+    if (elementC && mapElementToProductCodes(elementC).length > 0) {
+      promises.push(resultC.refetch());
+    }
     
     await Promise.all(promises);
-  }, [elementA, elementB, resultA.refetch, resultB.refetch, mapElementToProductCodes]);
+  }, [elementA, elementB, elementC, resultA.refetch, resultB.refetch, resultC.refetch, mapElementToProductCodes]);
 
   return {
     dataA: resultA.data,
     dataB: resultB.data,
+    dataC: resultC.data,
     isLoading,
     error,
     isError,
     refetch,
     hasDataA: resultA.hasData,
     hasDataB: resultB.hasData,
+    hasDataC: resultC.hasData,
     currentPage,
     totalPages,
     canPreviousPage,

@@ -25,15 +25,15 @@ const HIERARCHY_LABELS: Record<HierarchyLevel, string> = {
 };
 
 /**
- * ComparisonMarketShareSection - Analyse parts de marché A vs B par hiérarchie
+ * ComparisonMarketShareSection - Analyse parts de marché A vs B vs C par hiérarchie
  * Avec export CSV intégré
  * 
  * Fonctionnalités :
- * - Comparaison side-by-side des parts de marché A vs B
+ * - Comparaison side-by-side des parts de marché A vs B vs C
  * - 3 niveaux hiérarchiques : Univers, Catégories, Familles
  * - Export CSV complet avec tous les segments et métriques
  * - Barres de progression avec CA + Marge pour chaque élément
- * - Pagination synchronisée entre A et B
+ * - Pagination synchronisée entre A, B et C
  * - Top 3 laboratoires par segment
  * - Design glassmorphism cohérent avec autres sections
  * - États loading/empty/error harmonisés
@@ -43,7 +43,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
   onRefresh
 }) => {
   // Store comparison pour éléments sélectionnés
-  const { elementA, elementB } = useComparisonStore();
+  const { elementA, elementB, elementC } = useComparisonStore();
 
   // État niveau hiérarchique
   const [activeLevel, setActiveLevel] = useState<HierarchyLevel>('category');
@@ -55,11 +55,13 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
   const { 
     dataA, 
     dataB, 
+    dataC,
     isLoading, 
     error, 
     refetch,
     hasDataA,
     hasDataB,
+    hasDataC,
     currentPage,
     canPreviousPage,
     canNextPage,
@@ -69,6 +71,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
     enabled: true,
     elementA,
     elementB,
+    elementC,
     hierarchyLevel: activeLevel
   });
 
@@ -85,6 +88,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       'Type': 'Contexte Export',
       'Élément A': elementA?.name || 'Non sélectionné',
       'Élément B': elementB?.name || 'Non sélectionné',
+      'Élément C': elementC?.name || 'Non sélectionné',
       'Niveau Hiérarchique': levelLabel,
       'Date Export': currentDate,
       'Page Actuelle': currentPage.toString(),
@@ -92,31 +96,37 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       'Métrique': 'Configuration',
       'Valeur A': hasDataA ? 'Données disponibles' : 'Aucune donnée',
       'Valeur B': hasDataB ? 'Données disponibles' : 'Aucune donnée',
+      'Valeur C': hasDataC ? 'Données disponibles' : 'Aucune donnée',
       'Unité': 'État',
       'Top Labs A': dataA ? `${dataA.segments.length} segments` : '0',
-      'Top Labs B': dataB ? `${dataB.segments.length} segments` : '0'
+      'Top Labs B': dataB ? `${dataB.segments.length} segments` : '0',
+      'Top Labs C': dataC ? `${dataC.segments.length} segments` : '0'
     });
     
     // Segments alignés pour comparaison
     const segmentsA = dataA?.segments || [];
     const segmentsB = dataB?.segments || [];
+    const segmentsC = dataC?.segments || [];
     
     // Union des noms de segments
     const allSegmentNames = new Set([
       ...segmentsA.map(s => s.segment_name),
-      ...segmentsB.map(s => s.segment_name)
+      ...segmentsB.map(s => s.segment_name),
+      ...segmentsC.map(s => s.segment_name)
     ]);
     
     // Export détaillé par segment
     Array.from(allSegmentNames).forEach(segmentName => {
       const segmentA = segmentsA.find(s => s.segment_name === segmentName);
       const segmentB = segmentsB.find(s => s.segment_name === segmentName);
+      const segmentC = segmentsC.find(s => s.segment_name === segmentName);
       
       // Part de marché CA
       exportData.push({
         'Type': 'Part de Marché CA',
         'Élément A': elementA?.name || 'Non sélectionné',
         'Élément B': elementB?.name || 'Non sélectionné',
+        'Élément C': elementC?.name || 'Non sélectionné',
         'Niveau Hiérarchique': levelLabel,
         'Date Export': currentDate,
         'Page Actuelle': currentPage.toString(),
@@ -124,17 +134,20 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
         'Métrique': 'Part de Marché CA (%)',
         'Valeur A': segmentA ? segmentA.part_marche_ca_pct.toFixed(2) + ' %' : 'N/A',
         'Valeur B': segmentB ? segmentB.part_marche_ca_pct.toFixed(2) + ' %' : 'N/A',
+        'Valeur C': segmentC ? segmentC.part_marche_ca_pct.toFixed(2) + ' %' : 'N/A',
         'Unité': 'Pourcentage',
         'Top Labs A': segmentA ? segmentA.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A',
-        'Top Labs B': segmentB ? segmentB.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A'
+        'Top Labs B': segmentB ? segmentB.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A',
+        'Top Labs C': segmentC ? segmentC.ca_selection.toFixed(0) + ' € (sélection)' : 'N/A'
       });
       
       // CA détaillés
-      if (segmentA || segmentB) {
+      if (segmentA || segmentB || segmentC) {
         exportData.push({
           'Type': 'Détail CA',
           'Élément A': elementA?.name || 'Non sélectionné',
           'Élément B': elementB?.name || 'Non sélectionné',
+          'Élément C': elementC?.name || 'Non sélectionné',
           'Niveau Hiérarchique': levelLabel,
           'Date Export': currentDate,
           'Page Actuelle': currentPage.toString(),
@@ -142,9 +155,11 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
           'Métrique': 'CA Sélection vs CA Total',
           'Valeur A': segmentA ? segmentA.ca_selection.toFixed(0) + ' €' : 'N/A',
           'Valeur B': segmentB ? segmentB.ca_selection.toFixed(0) + ' €' : 'N/A',
+          'Valeur C': segmentC ? segmentC.ca_selection.toFixed(0) + ' €' : 'N/A',
           'Unité': 'Euros',
           'Top Labs A': segmentA ? segmentA.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A',
-          'Top Labs B': segmentB ? segmentB.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A'
+          'Top Labs B': segmentB ? segmentB.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A',
+          'Top Labs C': segmentC ? segmentC.ca_total_segment.toFixed(0) + ' € (total segment)' : 'N/A'
         });
       }
       
@@ -153,6 +168,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
         'Type': 'Part de Marché Marge',
         'Élément A': elementA?.name || 'Non sélectionné',
         'Élément B': elementB?.name || 'Non sélectionné',
+        'Élément C': elementC?.name || 'Non sélectionné',
         'Niveau Hiérarchique': levelLabel,
         'Date Export': currentDate,
         'Page Actuelle': currentPage.toString(),
@@ -160,9 +176,11 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
         'Métrique': 'Part de Marché Marge (%)',
         'Valeur A': segmentA ? segmentA.part_marche_marge_pct.toFixed(2) + ' %' : 'N/A',
         'Valeur B': segmentB ? segmentB.part_marche_marge_pct.toFixed(2) + ' %' : 'N/A',
+        'Valeur C': segmentC ? segmentC.part_marche_marge_pct.toFixed(2) + ' %' : 'N/A',
         'Unité': 'Pourcentage',
         'Top Labs A': segmentA ? segmentA.marge_selection.toFixed(0) + ' € (marge)' : 'N/A',
-        'Top Labs B': segmentB ? segmentB.marge_selection.toFixed(0) + ' € (marge)' : 'N/A'
+        'Top Labs B': segmentB ? segmentB.marge_selection.toFixed(0) + ' € (marge)' : 'N/A',
+        'Top Labs C': segmentC ? segmentC.marge_selection.toFixed(0) + ' € (marge)' : 'N/A'
       });
       
       // Top laboratoires A
@@ -172,6 +190,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
             'Type': 'Top Laboratoires A',
             'Élément A': elementA?.name || 'Non sélectionné',
             'Élément B': elementB?.name || 'Non sélectionné',
+            'Élément C': elementC?.name || 'Non sélectionné',
             'Niveau Hiérarchique': levelLabel,
             'Date Export': currentDate,
             'Page Actuelle': currentPage.toString(),
@@ -179,9 +198,11 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
             'Métrique': `Top Lab ${labIndex + 1}`,
             'Valeur A': lab.brand_lab,
             'Valeur B': 'N/A',
+            'Valeur C': 'N/A',
             'Unité': 'Nom laboratoire',
             'Top Labs A': lab.ca_brand_lab.toFixed(0) + ' €',
-            'Top Labs B': 'N/A'
+            'Top Labs B': 'N/A',
+            'Top Labs C': 'N/A'
           });
         });
       }
@@ -193,6 +214,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
             'Type': 'Top Laboratoires B',
             'Élément A': elementA?.name || 'Non sélectionné',
             'Élément B': elementB?.name || 'Non sélectionné',
+            'Élément C': elementC?.name || 'Non sélectionné',
             'Niveau Hiérarchique': levelLabel,
             'Date Export': currentDate,
             'Page Actuelle': currentPage.toString(),
@@ -200,77 +222,46 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
             'Métrique': `Top Lab ${labIndex + 1}`,
             'Valeur A': 'N/A',
             'Valeur B': lab.brand_lab,
+            'Valeur C': 'N/A',
             'Unité': 'Nom laboratoire',
             'Top Labs A': 'N/A',
-            'Top Labs B': lab.ca_brand_lab.toFixed(0) + ' €'
+            'Top Labs B': lab.ca_brand_lab.toFixed(0) + ' €',
+            'Top Labs C': 'N/A'
+          });
+        });
+      }
+      
+      // Top laboratoires C
+      if (segmentC && segmentC.top_brand_labs && segmentC.top_brand_labs.length > 0) {
+        segmentC.top_brand_labs.slice(0, 3).forEach((lab, labIndex) => {
+          exportData.push({
+            'Type': 'Top Laboratoires C',
+            'Élément A': elementA?.name || 'Non sélectionné',
+            'Élément B': elementB?.name || 'Non sélectionné',
+            'Élément C': elementC?.name || 'Non sélectionné',
+            'Niveau Hiérarchique': levelLabel,
+            'Date Export': currentDate,
+            'Page Actuelle': currentPage.toString(),
+            'Segment': segmentName,
+            'Métrique': `Top Lab ${labIndex + 1}`,
+            'Valeur A': 'N/A',
+            'Valeur B': 'N/A',
+            'Valeur C': lab.brand_lab,
+            'Unité': 'Nom laboratoire',
+            'Top Labs A': 'N/A',
+            'Top Labs B': 'N/A',
+            'Top Labs C': lab.ca_brand_lab.toFixed(0) + ' €'
           });
         });
       }
     });
     
-    // Résumé statistiques si les deux éléments ont des données
-    if (hasDataA && hasDataB && dataA && dataB) {
-      exportData.push({
-        'Type': 'Résumé Statistiques',
-        'Élément A': elementA?.name || 'Non sélectionné',
-        'Élément B': elementB?.name || 'Non sélectionné',
-        'Niveau Hiérarchique': levelLabel,
-        'Date Export': currentDate,
-        'Page Actuelle': currentPage.toString(),
-        'Segment': 'Résumé Global',
-        'Métrique': 'Temps de calcul',
-        'Valeur A': dataA.queryTime + ' ms',
-        'Valeur B': dataB.queryTime + ' ms',
-        'Unité': 'Millisecondes',
-        'Top Labs A': dataA.segments.length + ' segments',
-        'Top Labs B': dataB.segments.length + ' segments'
-      });
-      
-      // Calculs de moyennes pour résumé
-      const avgMarketShareCA_A = dataA.segments.reduce((sum, s) => sum + s.part_marche_ca_pct, 0) / dataA.segments.length;
-      const avgMarketShareCA_B = dataB.segments.reduce((sum, s) => sum + s.part_marche_ca_pct, 0) / dataB.segments.length;
-      const avgMarketShareMarge_A = dataA.segments.reduce((sum, s) => sum + s.part_marche_marge_pct, 0) / dataA.segments.length;
-      const avgMarketShareMarge_B = dataB.segments.reduce((sum, s) => sum + s.part_marche_marge_pct, 0) / dataB.segments.length;
-      
-      exportData.push({
-        'Type': 'Résumé Moyennes',
-        'Élément A': elementA?.name || 'Non sélectionné',
-        'Élément B': elementB?.name || 'Non sélectionné',
-        'Niveau Hiérarchique': levelLabel,
-        'Date Export': currentDate,
-        'Page Actuelle': currentPage.toString(),
-        'Segment': 'Moyennes Calculées',
-        'Métrique': 'Part de Marché CA Moyenne',
-        'Valeur A': avgMarketShareCA_A.toFixed(2) + ' %',
-        'Valeur B': avgMarketShareCA_B.toFixed(2) + ' %',
-        'Unité': 'Pourcentage moyen',
-        'Top Labs A': 'Écart: ' + (avgMarketShareCA_A - avgMarketShareCA_B).toFixed(2) + ' %',
-        'Top Labs B': avgMarketShareCA_A > avgMarketShareCA_B ? 'Avantage A' : 'Avantage B'
-      });
-      
-      exportData.push({
-        'Type': 'Résumé Moyennes',
-        'Élément A': elementA?.name || 'Non sélectionné',
-        'Élément B': elementB?.name || 'Non sélectionné',
-        'Niveau Hiérarchique': levelLabel,
-        'Date Export': currentDate,
-        'Page Actuelle': currentPage.toString(),
-        'Segment': 'Moyennes Calculées',
-        'Métrique': 'Part de Marché Marge Moyenne',
-        'Valeur A': avgMarketShareMarge_A.toFixed(2) + ' %',
-        'Valeur B': avgMarketShareMarge_B.toFixed(2) + ' %',
-        'Unité': 'Pourcentage moyen',
-        'Top Labs A': 'Écart: ' + (avgMarketShareMarge_A - avgMarketShareMarge_B).toFixed(2) + ' %',
-        'Top Labs B': avgMarketShareMarge_A > avgMarketShareMarge_B ? 'Avantage A' : 'Avantage B'
-      });
-    }
-    
     return exportData;
-  }, [elementA, elementB, activeLevel, currentPage, dataA, dataB, hasDataA, hasDataB]);
+  }, [elementA, elementB, elementC, activeLevel, currentPage, dataA, dataB, dataC, hasDataA, hasDataB, hasDataC]);
 
   // Handler export avec vérifications
   const handleExport = useCallback(() => {
-    if (!elementA && !elementB) {
+    if (!elementA && !elementB && !elementC) {
       console.warn('Aucun élément sélectionné pour export');
       return;
     }
@@ -282,29 +273,31 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       return;
     }
     
-    // Nom de fichier avec niveau hiérarchique et éléments
-    const levelName = activeLevel;
-    const elementNames = [
-      elementA?.name?.replace(/\s+/g, '_') || 'vide',
-      elementB?.name?.replace(/\s+/g, '_') || 'vide'
-    ].join('_vs_');
-    
-    const filename = CsvExporter.generateFilename(`apodata_parts_marche_${levelName}_${elementNames}`);
-    
-    // Vérification headers
-    if (!exportData[0]) {
+    // Vérification ajoutée ici
+    const firstRow = exportData[0];
+    if (!firstRow) {
       console.error('Données export invalides');
       return;
     }
     
-    const headers = Object.keys(exportData[0]);
+    // Nom de fichier avec niveau hiérarchique et éléments
+    const levelName = activeLevel;
+    const elementNames = [
+      elementA?.name?.replace(/\s+/g, '_') || 'vide',
+      elementB?.name?.replace(/\s+/g, '_') || 'vide',
+      elementC?.name?.replace(/\s+/g, '_') || 'vide'
+    ].filter(name => name !== 'vide').join('_vs_');
+    
+    const filename = CsvExporter.generateFilename(`apodata_parts_marche_${levelName}_${elementNames}`);
+    
+    const headers = Object.keys(firstRow);
     
     exportToCsv({
       filename,
       headers,
       data: exportData
     });
-  }, [elementA, elementB, activeLevel, prepareMarketShareDataForExport, exportToCsv]);
+  }, [elementA, elementB, elementC, activeLevel, prepareMarketShareDataForExport, exportToCsv]);
 
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
@@ -339,31 +332,35 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
 
   // Segments alignés pour comparaison (par nom de segment)
   const alignedSegments = useMemo(() => {
-    if (!dataA && !dataB) return [];
+    if (!dataA && !dataB && !dataC) return [];
 
     const segmentsA = dataA?.segments || [];
     const segmentsB = dataB?.segments || [];
+    const segmentsC = dataC?.segments || [];
 
     // Union des noms de segments (ordre A prioritaire)
     const allSegmentNames = new Set([
       ...segmentsA.map(s => s.segment_name),
-      ...segmentsB.map(s => s.segment_name)
+      ...segmentsB.map(s => s.segment_name),
+      ...segmentsC.map(s => s.segment_name)
     ]);
 
     return Array.from(allSegmentNames).map(segmentName => {
       const segmentA = segmentsA.find(s => s.segment_name === segmentName);
       const segmentB = segmentsB.find(s => s.segment_name === segmentName);
+      const segmentC = segmentsC.find(s => s.segment_name === segmentName);
 
       return {
         segment_name: segmentName,
         segmentA,
-        segmentB
+        segmentB,
+        segmentC
       };
     });
-  }, [dataA, dataB]);
+  }, [dataA, dataB, dataC]);
 
   // État aucun élément sélectionné
-  if (!elementA && !elementB) {
+  if (!elementA && !elementB && !elementC) {
     return (
       <div className={`space-y-6 ${className}`}>
         <div className="flex items-center justify-between">
@@ -386,7 +383,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
               Sélectionnez des éléments à comparer
             </h3>
             <p className="text-gray-600 max-w-md mx-auto leading-relaxed">
-              Choisissez deux produits, laboratoires ou catégories ci-dessus pour analyser 
+              Choisissez au moins deux produits, laboratoires ou catégories ci-dessus pour analyser 
               leurs parts de marché respectives par niveau hiérarchique.
             </p>
           </div>
@@ -395,11 +392,13 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
     );
   }
 
+  // Compter les éléments sélectionnés
+  const selectedElements = [elementA, elementB, elementC].filter(Boolean);
+  
   // État un seul élément sélectionné
-  if (!elementA || !elementB) {
-    const selectedElement = elementA || elementB;
-    const position = elementA ? 'A' : 'B';
-    const missing = elementA ? 'B' : 'A';
+  if (selectedElements.length === 1) {
+    const selectedElement = selectedElements[0];
+    const position = elementA ? 'A' : elementB ? 'B' : 'C';
 
     return (
       <div className={`space-y-6 ${className}`}>
@@ -413,7 +412,6 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
             </p>
           </div>
           
-          {/* Export partiel disponible */}
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
@@ -432,10 +430,13 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
               Comparaison en attente
             </h3>
             <p className="text-gray-600 mb-4">
-              Ajoutez un élément {missing} pour comparer les parts de marché par hiérarchie
+              Ajoutez au moins un autre élément pour comparer les parts de marché par hiérarchie
             </p>
             <div className="inline-flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
-              <span className={`w-2 h-2 rounded-full ${position === 'A' ? 'bg-blue-500' : 'bg-purple-500'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${
+                position === 'A' ? 'bg-blue-500' : 
+                position === 'B' ? 'bg-purple-500' : 'bg-orange-500'
+              }`}></span>
               <span className="text-sm font-medium text-gray-700">{selectedElement?.name}</span>
             </div>
           </div>
@@ -443,6 +444,9 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       </div>
     );
   }
+
+  // Déterminer la grille selon le nombre d'éléments
+  const gridCols = selectedElements.length === 3 ? 'grid-cols-1 xl:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2';
 
   return (
     <div className={`space-y-8 ${className}`}>
@@ -454,20 +458,37 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
           </h2>
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
-                  {elementA.name}
-                </span>
-              </div>
-              <ArrowLeftRight className="w-4 h-4 text-gray-400" />
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
-                  {elementB.name}
-                </span>
-              </div>
+            <div className="flex items-center space-x-3 flex-wrap">
+              {elementA && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                    {elementA.name}
+                  </span>
+                </div>
+              )}
+              
+              {elementA && elementB && <ArrowLeftRight className="w-4 h-4 text-gray-400" />}
+              
+              {elementB && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                    {elementB.name}
+                  </span>
+                </div>
+              )}
+              
+              {elementB && elementC && <ArrowLeftRight className="w-4 h-4 text-gray-400" />}
+              
+              {elementC && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                    {elementC.name}
+                  </span>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">
@@ -484,7 +505,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
-            disabled={isLoading || (!hasDataA && !hasDataB)}
+            disabled={isLoading || (!hasDataA && !hasDataB && !hasDataC)}
             label="Export Parts de Marché"
             size="sm"
           />
@@ -543,30 +564,24 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       {isLoading && (
         <div className="space-y-4">
           {[...Array(5)].map((_, index) => (
-            <div key={index} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-gray-50 rounded-lg p-4 animate-pulse">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="h-4 bg-gray-300 rounded w-32"></div>
-                  <div className="h-4 bg-gray-300 rounded w-20"></div>
+            <div key={index} className={`grid ${gridCols} gap-6`}>
+              {selectedElements.map((_, elemIndex) => (
+                <div key={elemIndex} className="bg-gray-50 rounded-lg p-4 animate-pulse">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="h-4 bg-gray-300 rounded w-32"></div>
+                    <div className="h-4 bg-gray-300 rounded w-20"></div>
+                  </div>
+                  <div className="h-3 bg-gray-300 rounded mb-2"></div>
+                  <div className="h-3 bg-gray-300 rounded mb-2"></div>
                 </div>
-                <div className="h-3 bg-gray-300 rounded mb-2"></div>
-                <div className="h-3 bg-gray-300 rounded mb-2"></div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 animate-pulse">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="h-4 bg-gray-300 rounded w-32"></div>
-                  <div className="h-4 bg-gray-300 rounded w-20"></div>
-                </div>
-                <div className="h-3 bg-gray-300 rounded mb-2"></div>
-                <div className="h-3 bg-gray-300 rounded mb-2"></div>
-              </div>
+              ))}
             </div>
           ))}
         </div>
       )}
 
       {/* Données comparaison par segments */}
-      {!isLoading && (hasDataA || hasDataB) && alignedSegments.length > 0 && (
+      {!isLoading && (hasDataA || hasDataB || hasDataC) && alignedSegments.length > 0 && (
         <>
           <div className="space-y-6">
             {alignedSegments.map((aligned, index) => (
@@ -579,168 +594,251 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
                   </h3>
                 </div>
 
-                {/* Comparaison A vs B */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Comparaison A vs B vs C */}
+                <div className={`grid ${gridCols} gap-6`}>
                   {/* Élément A */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <h4 className="font-medium text-gray-900">{elementA.name}</h4>
-                      </div>
-                    </div>
-
-                    {aligned.segmentA ? (
-                      <>
-                        <div className="space-y-3">
-                          {/* CA Section */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
-                              <span className="text-sm font-semibold text-blue-600">
-                                {formatPercentage(aligned.segmentA.part_marche_ca_pct)}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className="bg-blue-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                                style={{ 
-                                  width: `${Math.min(100, Math.max(0, aligned.segmentA.part_marche_ca_pct))}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>CA Sélection: {formatCurrency(aligned.segmentA.ca_selection)}</span>
-                              <span>CA Total: {formatCurrency(aligned.segmentA.ca_total_segment)}</span>
-                            </div>
-                          </div>
-
-                          {/* Marge Section */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
-                              <span className="text-sm font-semibold text-green-600">
-                                {formatPercentage(aligned.segmentA.part_marche_marge_pct)}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                                style={{ 
-                                  width: `${Math.min(100, Math.max(0, aligned.segmentA.part_marche_marge_pct))}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>Marge: {formatCurrency(aligned.segmentA.marge_selection)}</span>
-                            </div>
-                          </div>
+                  {elementA && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <h4 className="font-medium text-gray-900">{elementA.name}</h4>
                         </div>
+                      </div>
 
-                        {/* Top Labs A */}
-                        {aligned.segmentA.top_brand_labs && aligned.segmentA.top_brand_labs.length > 0 && (
-                          <div className="mt-4 pt-3 border-t border-gray-100">
-                            <h5 className="text-xs font-medium text-gray-700 mb-2">Top 3 Laboratoires</h5>
-                            <div className="space-y-1">
-                              {aligned.segmentA.top_brand_labs.slice(0, 3).map((lab, labIndex) => (
-                                <div key={labIndex} className="text-xs text-gray-600">
-                                  <span className="font-medium">{lab.brand_lab}</span> - {formatCurrency(lab.ca_brand_lab)}
-                                </div>
-                              ))}
+                      {aligned.segmentA ? (
+                        <>
+                          <div className="space-y-3">
+                            {/* CA Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
+                                <span className="text-sm font-semibold text-blue-600">
+                                  {formatPercentage(aligned.segmentA.part_marche_ca_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-blue-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentA.part_marche_ca_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>CA Sélection: {formatCurrency(aligned.segmentA.ca_selection)}</span>
+                                <span>CA Total: {formatCurrency(aligned.segmentA.ca_total_segment)}</span>
+                              </div>
+                            </div>
+
+                            {/* Marge Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  {formatPercentage(aligned.segmentA.part_marche_marge_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentA.part_marche_marge_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Marge: {formatCurrency(aligned.segmentA.marge_selection)}</span>
+                              </div>
                             </div>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-center py-8 text-gray-400">
-                        <p className="text-sm">Pas de données pour ce segment</p>
-                      </div>
-                    )}
-                  </div>
+
+                          {/* Top Labs A */}
+                          {aligned.segmentA.top_brand_labs && aligned.segmentA.top_brand_labs.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-gray-100">
+                              <h5 className="text-xs font-medium text-gray-700 mb-2">Top 3 Laboratoires</h5>
+                              <div className="space-y-1">
+                                {aligned.segmentA.top_brand_labs.slice(0, 3).map((lab, labIndex) => (
+                                  <div key={labIndex} className="text-xs text-gray-600">
+                                    <span className="font-medium">{lab.brand_lab}</span> - {formatCurrency(lab.ca_brand_lab)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400">
+                          <p className="text-sm">Pas de données pour ce segment</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Élément B */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                        <h4 className="font-medium text-gray-900">{elementB.name}</h4>
-                      </div>
-                    </div>
-
-                    {aligned.segmentB ? (
-                      <>
-                        <div className="space-y-3">
-                          {/* CA Section */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
-                              <span className="text-sm font-semibold text-purple-600">
-                                {formatPercentage(aligned.segmentB.part_marche_ca_pct)}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className="bg-purple-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                                style={{ 
-                                  width: `${Math.min(100, Math.max(0, aligned.segmentB.part_marche_ca_pct))}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>CA Sélection: {formatCurrency(aligned.segmentB.ca_selection)}</span>
-                              <span>CA Total: {formatCurrency(aligned.segmentB.ca_total_segment)}</span>
-                            </div>
-                          </div>
-
-                          {/* Marge Section */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
-                              <span className="text-sm font-semibold text-green-600">
-                                {formatPercentage(aligned.segmentB.part_marche_marge_pct)}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                              <div 
-                                className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                                style={{ 
-                                  width: `${Math.min(100, Math.max(0, aligned.segmentB.part_marche_marge_pct))}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
-                              <span>Marge: {formatCurrency(aligned.segmentB.marge_selection)}</span>
-                            </div>
-                          </div>
+                  {elementB && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <h4 className="font-medium text-gray-900">{elementB.name}</h4>
                         </div>
+                      </div>
 
-                        {/* Top Labs B */}
-                        {aligned.segmentB.top_brand_labs && aligned.segmentB.top_brand_labs.length > 0 && (
-                          <div className="mt-4 pt-3 border-t border-gray-100">
-                            <h5 className="text-xs font-medium text-gray-700 mb-2">Top 3 Laboratoires</h5>
-                            <div className="space-y-1">
-                              {aligned.segmentB.top_brand_labs.slice(0, 3).map((lab, labIndex) => (
-                                <div key={labIndex} className="text-xs text-gray-600">
-                                  <span className="font-medium">{lab.brand_lab}</span> - {formatCurrency(lab.ca_brand_lab)}
-                                </div>
-                              ))}
+                      {aligned.segmentB ? (
+                        <>
+                          <div className="space-y-3">
+                            {/* CA Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
+                                <span className="text-sm font-semibold text-purple-600">
+                                  {formatPercentage(aligned.segmentB.part_marche_ca_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-purple-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentB.part_marche_ca_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>CA Sélection: {formatCurrency(aligned.segmentB.ca_selection)}</span>
+                                <span>CA Total: {formatCurrency(aligned.segmentB.ca_total_segment)}</span>
+                              </div>
+                            </div>
+
+                            {/* Marge Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  {formatPercentage(aligned.segmentB.part_marche_marge_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentB.part_marche_marge_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Marge: {formatCurrency(aligned.segmentB.marge_selection)}</span>
+                              </div>
                             </div>
                           </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-center py-8 text-gray-400">
-                        <p className="text-sm">Pas de données pour ce segment</p>
+
+                          {/* Top Labs B */}
+                          {aligned.segmentB.top_brand_labs && aligned.segmentB.top_brand_labs.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-gray-100">
+                              <h5 className="text-xs font-medium text-gray-700 mb-2">Top 3 Laboratoires</h5>
+                              <div className="space-y-1">
+                                {aligned.segmentB.top_brand_labs.slice(0, 3).map((lab, labIndex) => (
+                                  <div key={labIndex} className="text-xs text-gray-600">
+                                    <span className="font-medium">{lab.brand_lab}</span> - {formatCurrency(lab.ca_brand_lab)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400">
+                          <p className="text-sm">Pas de données pour ce segment</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Élément C */}
+                  {elementC && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                          <h4 className="font-medium text-gray-900">{elementC.name}</h4>
+                        </div>
                       </div>
-                    )}
-                  </div>
+
+                      {aligned.segmentC ? (
+                        <>
+                          <div className="space-y-3">
+                            {/* CA Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
+                                <span className="text-sm font-semibold text-orange-600">
+                                  {formatPercentage(aligned.segmentC.part_marche_ca_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-orange-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentC.part_marche_ca_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>CA Sélection: {formatCurrency(aligned.segmentC.ca_selection)}</span>
+                                <span>CA Total: {formatCurrency(aligned.segmentC.ca_total_segment)}</span>
+                              </div>
+                            </div>
+
+                            {/* Marge Section */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  {formatPercentage(aligned.segmentC.part_marche_marge_pct)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                  className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, aligned.segmentC.part_marche_marge_pct))}%` 
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Marge: {formatCurrency(aligned.segmentC.marge_selection)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Top Labs C */}
+                          {aligned.segmentC.top_brand_labs && aligned.segmentC.top_brand_labs.length > 0 && (
+                            <div className="mt-4 pt-3 border-t border-gray-100">
+                              <h5 className="text-xs font-medium text-gray-700 mb-2">Top 3 Laboratoires</h5>
+                              <div className="space-y-1">
+                                {aligned.segmentC.top_brand_labs.slice(0, 3).map((lab, labIndex) => (
+                                  <div key={labIndex} className="text-xs text-gray-600">
+                                    <span className="font-medium">{lab.brand_lab}</span> - {formatCurrency(lab.ca_brand_lab)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400">
+                          <p className="text-sm">Pas de données pour ce segment</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
 
           {/* Pagination */}
-          {(dataA?.pagination.totalPages || 0) > 1 || (dataB?.pagination.totalPages || 0) > 1 && (
+          {((dataA?.pagination.totalPages || 0) > 1 || (dataB?.pagination.totalPages || 0) > 1 || (dataC?.pagination.totalPages || 0) > 1) && (
             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
               <div className="text-sm text-gray-600">
                 Page {currentPage} • {alignedSegments.length} segments comparés
@@ -773,7 +871,7 @@ export const ComparisonMarketShareSection: React.FC<ComparisonMarketShareSection
       )}
 
       {/* État Empty */}
-      {!isLoading && alignedSegments.length === 0 && (hasDataA || hasDataB) && (
+      {!isLoading && alignedSegments.length === 0 && (hasDataA || hasDataB || hasDataC) && (
         <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-gray-200">
           <div className="text-gray-400 mb-4">
             <BarChart3 className="w-12 h-12 mx-auto" />
