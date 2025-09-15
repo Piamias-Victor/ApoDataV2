@@ -18,7 +18,7 @@ interface ComparisonPricingSectionProps {
 
 interface PriceComparisonData {
   readonly elementName: string;
-  readonly position: 'A' | 'B';
+  readonly position: 'A' | 'B' | 'C';
   readonly products: any[];
   readonly summary: {
     readonly avgSellingPrice: number;
@@ -31,13 +31,13 @@ interface PriceComparisonData {
 }
 
 /**
- * ComparisonPricingSection - Analyse comparative des prix A vs B
+ * ComparisonPricingSection - Analyse comparative des prix A vs B vs C
  * Avec export CSV intégré
  * 
  * Features :
  * - Utilise API /api/competitive-analysis existante
- * - 2 requêtes parallèles avec productCodes A et B
- * - Tableau side-by-side résumés prix/marges
+ * - 3 requêtes parallèles avec productCodes A, B et C
+ * - Grid 3 colonnes responsive
  * - Export CSV complet avec comparaisons
  * - Indicateurs écarts concurrentiels 
  * - États vides engageants
@@ -48,7 +48,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
   onRefresh
 }) => {
   // Store comparison pour les éléments sélectionnés
-  const { elementA, elementB } = useComparisonStore();
+  const { elementA, elementB, elementC } = useComparisonStore();
 
   // Hook export CSV
   const { exportToCsv, isExporting } = useExportCsv();
@@ -57,348 +57,195 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
   const { 
     productsA, 
     productsB,
+    productsC,
     isLoading, 
     error,
     refetch,
     hasDataA,
-    hasDataB 
+    hasDataB,
+    hasDataC
   } = useComparisonPricing({
     enabled: true,
     elementA,
-    elementB
+    elementB,
+    elementC
   });
 
+  // Fonction générique pour calculer les données de comparaison
+  const createComparisonData = useCallback((
+    element: typeof elementA, 
+    products: any[], 
+    position: 'A' | 'B' | 'C',
+    hasData: boolean
+  ): PriceComparisonData | null => {
+    if (!element || !hasData || products.length === 0) return null;
+
+    const validProducts = products.filter(p => {
+      const priceSelection = parseFloat(String(p.prix_vente_moyen_selection));
+      const marginRate = parseFloat(String(p.taux_marge_moyen_selection));
+      const marketGap = parseFloat(String(p.ecart_prix_vs_marche_pct));
+      
+      return (
+        priceSelection > 0 &&
+        !isNaN(priceSelection) &&
+        marginRate > 0 &&
+        !isNaN(marginRate) &&
+        !isNaN(marketGap)
+      );
+    });
+
+    if (validProducts.length === 0) {
+      return {
+        elementName: element.name,
+        position,
+        products,
+        summary: {
+          avgSellingPrice: 0,
+          minMarketPrice: Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0)),
+          maxMarketPrice: Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global)))),
+          avgMarginRate: 0,
+          marketGap: 0,
+          totalProducts: products.length
+        }
+      };
+    }
+
+    const avgSellingPrice = validProducts.reduce((sum, p) => sum + parseFloat(String(p.prix_vente_moyen_selection)), 0) / validProducts.length;
+    const minMarketPrice = Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0));
+    const maxMarketPrice = Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global))));
+    const avgMarginRate = validProducts.reduce((sum, p) => sum + parseFloat(String(p.taux_marge_moyen_selection)), 0) / validProducts.length;
+    const marketGap = validProducts.reduce((sum, p) => sum + parseFloat(String(p.ecart_prix_vs_marche_pct)), 0) / validProducts.length;
+
+    return {
+      elementName: element.name,
+      position,
+      products,
+      summary: {
+        avgSellingPrice,
+        minMarketPrice,
+        maxMarketPrice,
+        avgMarginRate,
+        marketGap,
+        totalProducts: products.length
+      }
+    };
+  }, []);
+
   // Calcul données comparaison pour chaque élément
-  const comparisonDataA = useMemo((): PriceComparisonData | null => {
-    if (!elementA || !hasDataA) return null;
+  const comparisonDataA = useMemo(() => 
+    createComparisonData(elementA, productsA, 'A', hasDataA),
+    [elementA, productsA, hasDataA, createComparisonData]
+  );
 
-    const products = productsA;
-    const totalProducts = products.length;
-    
-    if (totalProducts === 0) return null;
+  const comparisonDataB = useMemo(() => 
+    createComparisonData(elementB, productsB, 'B', hasDataB),
+    [elementB, productsB, hasDataB, createComparisonData]
+  );
 
-    // Filtrer produits avec données valides pour moyennes (seulement ceux vendus)
-    const validProducts = products.filter(p => {
-      const priceSelection = parseFloat(String(p.prix_vente_moyen_selection));
-      const marginRate = parseFloat(String(p.taux_marge_moyen_selection));
-      const marketGap = parseFloat(String(p.ecart_prix_vs_marche_pct));
-      
-      return (
-        priceSelection > 0 &&
-        !isNaN(priceSelection) &&
-        marginRate > 0 &&
-        !isNaN(marginRate) &&
-        !isNaN(marketGap)
-      );
-    });
-
-    if (validProducts.length === 0) {
-      // Aucun produit vendu dans votre pharmacie pour ce laboratoire/catégorie
-      return {
-        elementName: elementA.name,
-        position: 'A',
-        products,
-        summary: {
-          avgSellingPrice: 0,
-          minMarketPrice: Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0)),
-          maxMarketPrice: Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global)))),
-          avgMarginRate: 0,
-          marketGap: 0,
-          totalProducts
-        }
-      };
-    }
-
-    const avgSellingPrice = validProducts.reduce((sum, p) => sum + parseFloat(String(p.prix_vente_moyen_selection)), 0) / validProducts.length;
-    const minMarketPrice = Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0));
-    const maxMarketPrice = Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global))));
-    const avgMarginRate = validProducts.reduce((sum, p) => sum + parseFloat(String(p.taux_marge_moyen_selection)), 0) / validProducts.length;
-    const marketGap = validProducts.reduce((sum, p) => sum + parseFloat(String(p.ecart_prix_vs_marche_pct)), 0) / validProducts.length;
-
-    return {
-      elementName: elementA.name,
-      position: 'A',
-      products,
-      summary: {
-        avgSellingPrice,
-        minMarketPrice,
-        maxMarketPrice,
-        avgMarginRate,
-        marketGap,
-        totalProducts
-      }
-    };
-  }, [elementA, hasDataA, productsA]);
-
-  const comparisonDataB = useMemo((): PriceComparisonData | null => {
-    if (!elementB || !hasDataB) return null;
-
-    const products = productsB;
-    const totalProducts = products.length;
-    
-    if (totalProducts === 0) return null;
-
-    // Filtrer produits avec données valides pour moyennes (seulement ceux vendus)
-    const validProducts = products.filter(p => {
-      const priceSelection = parseFloat(String(p.prix_vente_moyen_selection));
-      const marginRate = parseFloat(String(p.taux_marge_moyen_selection));
-      const marketGap = parseFloat(String(p.ecart_prix_vs_marche_pct));
-      
-      return (
-        priceSelection > 0 &&
-        !isNaN(priceSelection) &&
-        marginRate > 0 &&
-        !isNaN(marginRate) &&
-        !isNaN(marketGap)
-      );
-    });
-
-    if (validProducts.length === 0) {
-      // Aucun produit vendu dans votre pharmacie pour ce laboratoire/catégorie
-      return {
-        elementName: elementB.name,
-        position: 'B',
-        products,
-        summary: {
-          avgSellingPrice: 0,
-          minMarketPrice: Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0)),
-          maxMarketPrice: Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global)))),
-          avgMarginRate: 0,
-          marketGap: 0,
-          totalProducts
-        }
-      };
-    }
-
-    const avgSellingPrice = validProducts.reduce((sum, p) => sum + parseFloat(String(p.prix_vente_moyen_selection)), 0) / validProducts.length;
-    const minMarketPrice = Math.min(...products.map(p => parseFloat(String(p.prix_vente_min_global))).filter(p => p > 0));
-    const maxMarketPrice = Math.max(...products.map(p => parseFloat(String(p.prix_vente_max_global))));
-    const avgMarginRate = validProducts.reduce((sum, p) => sum + parseFloat(String(p.taux_marge_moyen_selection)), 0) / validProducts.length;
-    const marketGap = validProducts.reduce((sum, p) => sum + parseFloat(String(p.ecart_prix_vs_marche_pct)), 0) / validProducts.length;
-
-    return {
-      elementName: elementB.name,
-      position: 'B',
-      products,
-      summary: {
-        avgSellingPrice,
-        minMarketPrice,
-        maxMarketPrice,
-        avgMarginRate,
-        marketGap,
-        totalProducts
-      }
-    };
-  }, [elementB, hasDataB, productsB]);
+  const comparisonDataC = useMemo(() => 
+    createComparisonData(elementC, productsC, 'C', hasDataC),
+    [elementC, productsC, hasDataC, createComparisonData]
+  );
 
   // Préparation données pour export CSV
   const prepareComparisonDataForExport = useCallback(() => {
     const exportData = [];
-    
-    // Métadonnées de la comparaison
     const currentDate = new Date().toLocaleDateString('fr-FR');
     
-    // Section résumé comparatif si les deux éléments existent
-    if (comparisonDataA && comparisonDataB) {
+    const activeComparisons = [comparisonDataA, comparisonDataB, comparisonDataC].filter(Boolean);
+    
+    if (activeComparisons.length >= 2) {
+      // Résumé comparatif global
       exportData.push({
-        'Type': 'Résumé Comparatif',
-        'Élément A': comparisonDataA.elementName,
-        'Élément B': comparisonDataB.elementName,
+        'Type': 'Résumé Comparatif Global',
+        'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
+        'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
+        'Élément C': comparisonDataC?.elementName || 'Non sélectionné',
         'Date Export': currentDate,
         'Métrique': 'Comparaison Générale',
-        'Valeur A': '',
-        'Valeur B': '',
-        'Écart': '',
-        'Avantage': '',
-        'Statut A': comparisonDataA.summary.avgSellingPrice > 0 ? 'Données disponibles' : 'Aucune vente',
-        'Statut B': comparisonDataB.summary.avgSellingPrice > 0 ? 'Données disponibles' : 'Aucune vente'
+        'Valeur A': (comparisonDataA?.summary.avgSellingPrice ?? 0) > 0 ? 'Données disponibles' : 'Aucune vente',
+        'Valeur B': (comparisonDataB?.summary.avgSellingPrice ?? 0) > 0 ? 'Données disponibles' : 'Aucune vente',
+        'Valeur C': (comparisonDataC?.summary.avgSellingPrice ?? 0) > 0 ? 'Données disponibles' : 'Aucune vente'
       });
+
+      // Comparaisons détaillées si au moins 2 éléments ont des ventes
+      const elementsWithSales = activeComparisons.filter(comp => comp?.summary.avgSellingPrice && comp.summary.avgSellingPrice > 0);
       
-      // Comparaisons détaillées uniquement si les deux ont des ventes
-      if (comparisonDataA.summary.avgSellingPrice > 0 && comparisonDataB.summary.avgSellingPrice > 0) {
-        // Prix de vente moyen
-        const priceDiff = comparisonDataA.summary.avgSellingPrice - comparisonDataB.summary.avgSellingPrice;
+      if (elementsWithSales.length >= 2) {
+        // Prix de vente comparaison
         exportData.push({
-          'Type': 'Comparaison Détaillée',
-          'Élément A': comparisonDataA.elementName,
-          'Élément B': comparisonDataB.elementName,
+          'Type': 'Comparaison Prix',
+          'Élément A': comparisonDataA?.elementName || '',
+          'Élément B': comparisonDataB?.elementName || '',
+          'Élément C': comparisonDataC?.elementName || '',
           'Date Export': currentDate,
           'Métrique': 'Prix de vente moyen',
-          'Valeur A': comparisonDataA.summary.avgSellingPrice.toFixed(2) + ' €',
-          'Valeur B': comparisonDataB.summary.avgSellingPrice.toFixed(2) + ' €',
-          'Écart': Math.abs(priceDiff).toFixed(2) + ' €',
-          'Avantage': priceDiff > 0 ? 'B (prix plus bas)' : priceDiff < 0 ? 'A (prix plus bas)' : 'Égal',
-          'Statut A': 'Actif',
-          'Statut B': 'Actif'
+          'Valeur A': comparisonDataA?.summary.avgSellingPrice ? comparisonDataA.summary.avgSellingPrice.toFixed(2) + ' €' : '',
+          'Valeur B': comparisonDataB?.summary.avgSellingPrice ? comparisonDataB.summary.avgSellingPrice.toFixed(2) + ' €' : '',
+          'Valeur C': comparisonDataC?.summary.avgSellingPrice ? comparisonDataC.summary.avgSellingPrice.toFixed(2) + ' €' : ''
         });
-        
-        // Taux de marge
-        const marginDiff = comparisonDataA.summary.avgMarginRate - comparisonDataB.summary.avgMarginRate;
+
+        // Taux de marge comparaison
         exportData.push({
-          'Type': 'Comparaison Détaillée',
-          'Élément A': comparisonDataA.elementName,
-          'Élément B': comparisonDataB.elementName,
+          'Type': 'Comparaison Marge',
+          'Élément A': comparisonDataA?.elementName || '',
+          'Élément B': comparisonDataB?.elementName || '',
+          'Élément C': comparisonDataC?.elementName || '',
           'Date Export': currentDate,
           'Métrique': 'Taux de marge moyen',
-          'Valeur A': comparisonDataA.summary.avgMarginRate.toFixed(1) + ' %',
-          'Valeur B': comparisonDataB.summary.avgMarginRate.toFixed(1) + ' %',
-          'Écart': Math.abs(marginDiff).toFixed(1) + ' %',
-          'Avantage': marginDiff > 0 ? 'A (marge supérieure)' : marginDiff < 0 ? 'B (marge supérieure)' : 'Égal',
-          'Statut A': 'Actif',
-          'Statut B': 'Actif'
-        });
-        
-        // Écart vs marché
-        const marketGapDiff = comparisonDataA.summary.marketGap - comparisonDataB.summary.marketGap;
-        exportData.push({
-          'Type': 'Comparaison Détaillée',
-          'Élément A': comparisonDataA.elementName,
-          'Élément B': comparisonDataB.elementName,
-          'Date Export': currentDate,
-          'Métrique': 'Écart vs marché',
-          'Valeur A': (comparisonDataA.summary.marketGap >= 0 ? '+' : '') + comparisonDataA.summary.marketGap.toFixed(1) + ' %',
-          'Valeur B': (comparisonDataB.summary.marketGap >= 0 ? '+' : '') + comparisonDataB.summary.marketGap.toFixed(1) + ' %',
-          'Écart': Math.abs(marketGapDiff).toFixed(1) + ' %',
-          'Avantage': marketGapDiff > 0 ? 'A (meilleur positionnement)' : marketGapDiff < 0 ? 'B (meilleur positionnement)' : 'Égal',
-          'Statut A': 'Actif',
-          'Statut B': 'Actif'
+          'Valeur A': comparisonDataA?.summary.avgMarginRate ? comparisonDataA.summary.avgMarginRate.toFixed(1) + ' %' : '',
+          'Valeur B': comparisonDataB?.summary.avgMarginRate ? comparisonDataB.summary.avgMarginRate.toFixed(1) + ' %' : '',
+          'Valeur C': comparisonDataC?.summary.avgMarginRate ? comparisonDataC.summary.avgMarginRate.toFixed(1) + ' %' : ''
         });
       }
     }
-    
-    // Données détaillées élément A
-    if (comparisonDataA) {
-      exportData.push({
-        'Type': 'Détail Élément A',
-        'Élément A': comparisonDataA.elementName,
-        'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
-        'Date Export': currentDate,
-        'Métrique': 'Nombre total produits',
-        'Valeur A': comparisonDataA.summary.totalProducts.toString(),
-        'Valeur B': '',
-        'Écart': '',
-        'Avantage': '',
-        'Statut A': 'Référencé',
-        'Statut B': ''
-      });
-      
-      if (comparisonDataA.summary.avgSellingPrice > 0) {
+
+    // Détails par élément
+    [comparisonDataA, comparisonDataB, comparisonDataC].forEach((data, index) => {
+      if (data) {
+        const position = ['A', 'B', 'C'][index];
         exportData.push({
-          'Type': 'Détail Élément A',
-          'Élément A': comparisonDataA.elementName,
-          'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
+          'Type': `Détail Élément ${position}`,
+          'Élément A': position === 'A' ? data.elementName : '',
+          'Élément B': position === 'B' ? data.elementName : '',
+          'Élément C': position === 'C' ? data.elementName : '',
           'Date Export': currentDate,
-          'Métrique': 'Prix vente moyen',
-          'Valeur A': comparisonDataA.summary.avgSellingPrice.toFixed(2) + ' €',
-          'Valeur B': '',
-          'Écart': '',
-          'Avantage': '',
-          'Statut A': 'Vendu',
-          'Statut B': ''
-        });
-        
-        exportData.push({
-          'Type': 'Détail Élément A',
-          'Élément A': comparisonDataA.elementName,
-          'Élément B': comparisonDataB?.elementName || 'Non sélectionné',
-          'Date Export': currentDate,
-          'Métrique': 'Fourchette marché',
-          'Valeur A': comparisonDataA.summary.minMarketPrice.toFixed(2) + ' € - ' + comparisonDataA.summary.maxMarketPrice.toFixed(2) + ' €',
-          'Valeur B': '',
-          'Écart': '',
-          'Avantage': '',
-          'Statut A': 'Référence marché',
-          'Statut B': ''
+          'Métrique': 'Nombre total produits',
+          'Valeur A': position === 'A' ? data.summary.totalProducts.toString() : '',
+          'Valeur B': position === 'B' ? data.summary.totalProducts.toString() : '',
+          'Valeur C': position === 'C' ? data.summary.totalProducts.toString() : ''
         });
       }
-    }
-    
-    // Données détaillées élément B
-    if (comparisonDataB) {
-      exportData.push({
-        'Type': 'Détail Élément B',
-        'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
-        'Élément B': comparisonDataB.elementName,
-        'Date Export': currentDate,
-        'Métrique': 'Nombre total produits',
-        'Valeur A': '',
-        'Valeur B': comparisonDataB.summary.totalProducts.toString(),
-        'Écart': '',
-        'Avantage': '',
-        'Statut A': '',
-        'Statut B': 'Référencé'
-      });
-      
-      if (comparisonDataB.summary.avgSellingPrice > 0) {
-        exportData.push({
-          'Type': 'Détail Élément B',
-          'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
-          'Élément B': comparisonDataB.elementName,
-          'Date Export': currentDate,
-          'Métrique': 'Prix vente moyen',
-          'Valeur A': '',
-          'Valeur B': comparisonDataB.summary.avgSellingPrice.toFixed(2) + ' €',
-          'Écart': '',
-          'Avantage': '',
-          'Statut A': '',
-          'Statut B': 'Vendu'
-        });
-        
-        exportData.push({
-          'Type': 'Détail Élément B',
-          'Élément A': comparisonDataA?.elementName || 'Non sélectionné',
-          'Élément B': comparisonDataB.elementName,
-          'Date Export': currentDate,
-          'Métrique': 'Fourchette marché',
-          'Valeur A': '',
-          'Valeur B': comparisonDataB.summary.minMarketPrice.toFixed(2) + ' € - ' + comparisonDataB.summary.maxMarketPrice.toFixed(2) + ' €',
-          'Écart': '',
-          'Avantage': '',
-          'Statut A': '',
-          'Statut B': 'Référence marché'
-        });
-      }
-    }
+    });
     
     return exportData;
-  }, [comparisonDataA, comparisonDataB]);
+  }, [comparisonDataA, comparisonDataB, comparisonDataC]);
 
-  // Handler export avec vérifications
+  // Handler export avec vérifications pour 3 éléments
   const handleExport = useCallback(() => {
-    if (!elementA && !elementB) {
+    const selectedElements = [elementA, elementB, elementC].filter(Boolean);
+    if (selectedElements.length === 0) {
       console.warn('Aucun élément sélectionné pour export');
       return;
     }
     
     const exportData = prepareComparisonDataForExport();
-    
     if (exportData.length === 0) {
       console.warn('Aucune donnée à exporter');
       return;
     }
     
-    // Nom de fichier avec éléments comparés
-    const elementNames = [
-      elementA?.name || 'vide',
-      elementB?.name || 'vide'
-    ].join('_vs_');
-    
+    const elementNames = selectedElements.map(el => el?.name || 'vide').join('_vs_');
     const filename = CsvExporter.generateFilename(`apodata_comparaison_prix_${elementNames}`);
     
-    // Vérification headers
     if (!exportData[0]) {
       console.error('Données export invalides');
       return;
     }
     
     const headers = Object.keys(exportData[0]);
-    
-    exportToCsv({
-      filename,
-      headers,
-      data: exportData
-    });
-  }, [elementA, elementB, prepareComparisonDataForExport, exportToCsv]);
+    exportToCsv({ filename, headers, data: exportData });
+  }, [elementA, elementB, elementC, prepareComparisonDataForExport, exportToCsv]);
 
   // Handler refresh avec callback externe
   const handleRefresh = useCallback(async () => {
@@ -406,7 +253,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Format currency - accepte number ou string
+  // Format currency
   const formatCurrency = useCallback((value: number | string) => {
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
     return new Intl.NumberFormat('fr-FR', {
@@ -422,8 +269,11 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
     return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   }, []);
 
-  // États conditionnels
-  if (!elementA && !elementB) {
+  // États conditionnels optimisés
+  const selectedElementsCount = [elementA, elementB, elementC].filter(Boolean).length;
+  const selectedElementsWithData = [comparisonDataA, comparisonDataB, comparisonDataC].filter(Boolean).length;
+
+  if (selectedElementsCount === 0) {
     return (
       <div className={`space-y-6 ${className}`}>
         <div className="flex items-center justify-between">
@@ -436,7 +286,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
             </p>
           </div>
         </div>
-
         <Card variant="interactive" padding="xl" className="text-center">
           <div className="py-12">
             <div className="w-20 h-20 bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl mx-auto mb-6 flex items-center justify-center">
@@ -446,7 +295,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               Analyse tarifaire en attente
             </h3>
             <p className="text-gray-600 max-w-md mx-auto leading-relaxed">
-              Sélectionnez deux éléments ci-dessus pour découvrir leurs positionnements 
+              Sélectionnez au moins deux éléments ci-dessus pour découvrir leurs positionnements 
               prix et analyser leur compétitivité sur le marché.
             </p>
           </div>
@@ -455,11 +304,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
     );
   }
 
-  if (!elementA || !elementB) {
-    const selectedElement = elementA || elementB;
-    const position = elementA ? 'A' : 'B';
-    const missing = elementA ? 'B' : 'A';
-
+  if (selectedElementsCount === 1) {
     return (
       <div className={`space-y-6 ${className}`}>
         <div className="flex items-center justify-between">
@@ -468,11 +313,9 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               Analyse comparative des prix
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Élément {position} : {selectedElement?.name}
+              1 élément sélectionné
             </p>
           </div>
-          
-          {/* Export partiel disponible */}
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
@@ -481,7 +324,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
             size="sm"
           />
         </div>
-
         <Card variant="outlined" padding="xl" className="text-center">
           <div className="py-8">
             <div className="w-16 h-16 bg-orange-100 rounded-xl mx-auto mb-4 flex items-center justify-center">
@@ -491,12 +333,8 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               Comparaison prix en attente
             </h3>
             <p className="text-gray-600 mb-4">
-              Ajoutez un élément {missing} pour comparer les positionnements tarifaires
+              Ajoutez au moins un autre élément pour comparer les positionnements tarifaires
             </p>
-            <div className="inline-flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
-              <span className={`w-2 h-2 rounded-full ${position === 'A' ? 'bg-blue-500' : 'bg-purple-500'}`}></span>
-              <span className="text-sm font-medium text-gray-700">{selectedElement?.name}</span>
-            </div>
           </div>
         </Card>
       </div>
@@ -514,26 +352,45 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
-                  {elementA.name}
-                </span>
-              </div>
-              <ArrowLeftRight className="w-4 h-4 text-gray-400" />
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
-                  {elementB.name}
-                </span>
-              </div>
+              {elementA && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                    {elementA.name}
+                  </span>
+                </div>
+              )}
+              {elementB && (
+                <>
+                  {elementA && <ArrowLeftRight className="w-4 h-4 text-gray-400" />}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                      {elementB.name}
+                    </span>
+                  </div>
+                </>
+              )}
+              {elementC && (
+                <>
+                  {(elementA || elementB) && <ArrowLeftRight className="w-4 h-4 text-gray-400" />}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+                      {elementC.name}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
             
-            {comparisonDataA && comparisonDataB && !isLoading && (
+            {selectedElementsWithData > 0 && !isLoading && (
               <div className="flex items-center space-x-2">
                 <DollarSign className="w-4 h-4 text-emerald-600" />
                 <span className="text-sm text-gray-600">
-                  {comparisonDataA.summary.totalProducts + comparisonDataB.summary.totalProducts} produits analysés
+                  {(comparisonDataA?.summary.totalProducts || 0) + 
+                   (comparisonDataB?.summary.totalProducts || 0) + 
+                   (comparisonDataC?.summary.totalProducts || 0)} produits analysés
                 </span>
               </div>
             )}
@@ -545,7 +402,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
-            disabled={isLoading || (!comparisonDataA && !comparisonDataB)}
+            disabled={isLoading || selectedElementsWithData === 0}
             label="Export Comparaison"
             size="sm"
           />
@@ -579,17 +436,14 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
         </Card>
       )}
 
-      {/* Tableau comparatif side-by-side */}
-      {(comparisonDataA || comparisonDataB) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Colonne A */}
+      {/* Grid colonnes responsive - utilise la structure existante */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Colonne A */}
+        {elementA && (
           <div>
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {elementA.name}
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900">{elementA.name}</h3>
               {comparisonDataA && (
                 <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
                   {comparisonDataA.summary.totalProducts} produits
@@ -608,14 +462,11 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
             ) : comparisonDataA ? (
               <Card variant="elevated" padding="lg">
                 {comparisonDataA.summary.avgSellingPrice === 0 ? (
-                  // Cas où aucun produit du laboratoire/catégorie n'est vendu
                   <div className="text-center py-6">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
                       <DollarSign className="w-6 h-6 text-gray-400" />
                     </div>
-                    <p className="text-sm font-medium text-gray-900 mb-2">
-                      Aucune vente enregistrée
-                    </p>
+                    <p className="text-sm font-medium text-gray-900 mb-2">Aucune vente enregistrée</p>
                     <p className="text-xs text-gray-500">
                       Vous ne vendez actuellement aucun produit {elementA.type === 'laboratory' ? 'de ce laboratoire' : 'de cette catégorie'} 
                       sur la période sélectionnée.
@@ -635,15 +486,12 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Prix de vente moyen */}
                     <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                       <span className="text-sm font-medium text-gray-600">Votre prix de vente</span>
                       <span className="text-lg font-bold text-gray-900">
                         {formatCurrency(comparisonDataA.summary.avgSellingPrice)}
                       </span>
                     </div>
-                    
-                    {/* Fourchette marché */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-600">Prix marché min</span>
@@ -658,8 +506,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                         </span>
                       </div>
                     </div>
-                    
-                    {/* Taux de marge */}
                     <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                       <span className="text-sm font-medium text-gray-600">Taux de marge moyen</span>
                       <span className={`text-sm font-bold px-2 py-1 rounded-md ${
@@ -672,8 +518,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                         {comparisonDataA.summary.avgMarginRate.toFixed(1)}%
                       </span>
                     </div>
-                    
-                    {/* Écart vs marché */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
                       <div className="flex items-center space-x-2">
@@ -698,21 +542,19 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               <Card variant="outlined" padding="lg" className="text-center">
                 <div className="py-6">
                   <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">
-                    Aucune donnée tarifaire disponible
-                  </p>
+                  <p className="text-sm text-gray-500">Aucune donnée tarifaire disponible</p>
                 </div>
               </Card>
             )}
           </div>
-          
-          {/* Colonne B */}
+        )}
+
+        {/* Colonne B */}
+        {elementB && (
           <div>
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                {elementB.name}
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900">{elementB.name}</h3>
               {comparisonDataB && (
                 <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
                   {comparisonDataB.summary.totalProducts} produits
@@ -720,6 +562,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               )}
             </div>
             
+            {/* Structure identique à A avec couleurs purple */}
             {isLoading && !comparisonDataB ? (
               <Card variant="outlined" padding="lg">
                 <div className="animate-pulse space-y-4">
@@ -731,14 +574,11 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
             ) : comparisonDataB ? (
               <Card variant="elevated" padding="lg">
                 {comparisonDataB.summary.avgSellingPrice === 0 ? (
-                  // Cas où aucun produit du laboratoire/catégorie n'est vendu
                   <div className="text-center py-6">
                     <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
                       <DollarSign className="w-6 h-6 text-gray-400" />
                     </div>
-                    <p className="text-sm font-medium text-gray-900 mb-2">
-                      Aucune vente enregistrée
-                    </p>
+                    <p className="text-sm font-medium text-gray-900 mb-2">Aucune vente enregistrée</p>
                     <p className="text-xs text-gray-500">
                       Vous ne vendez actuellement aucun produit {elementB.type === 'laboratory' ? 'de ce laboratoire' : 'de cette catégorie'} 
                       sur la période sélectionnée.
@@ -758,15 +598,12 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Prix de vente moyen */}
                     <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                       <span className="text-sm font-medium text-gray-600">Votre prix de vente</span>
                       <span className="text-lg font-bold text-gray-900">
                         {formatCurrency(comparisonDataB.summary.avgSellingPrice)}
                       </span>
                     </div>
-                    
-                    {/* Fourchette marché */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-600">Prix marché min</span>
@@ -781,8 +618,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                         </span>
                       </div>
                     </div>
-                    
-                    {/* Taux de marge */}
                     <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                       <span className="text-sm font-medium text-gray-600">Taux de marge moyen</span>
                       <span className={`text-sm font-bold px-2 py-1 rounded-md ${
@@ -795,8 +630,6 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                         {comparisonDataB.summary.avgMarginRate.toFixed(1)}%
                       </span>
                     </div>
-                    
-                    {/* Écart vs marché */}
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
                       <div className="flex items-center space-x-2">
@@ -821,99 +654,224 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               <Card variant="outlined" padding="lg" className="text-center">
                 <div className="py-6">
                   <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">
-                    Aucune donnée tarifaire disponible
-                  </p>
+                  <p className="text-sm text-gray-500">Aucune donnée tarifaire disponible</p>
                 </div>
               </Card>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Résumé comparatif si les deux éléments ont des données */}
-      {comparisonDataA && comparisonDataB && !isLoading && (
-        comparisonDataA.summary.avgSellingPrice > 0 && comparisonDataB.summary.avgSellingPrice > 0 ? (
-          <Card variant="elevated" padding="lg" className="bg-gradient-to-r from-blue-50 to-purple-50 border-none">
-            <div className="text-center">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">
-                Résumé comparatif
-              </h4>
+        {/* Colonne C */}
+        {elementC && (
+          <div>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-4 h-4 bg-emerald-500 rounded-full"></div>
+              <h3 className="text-lg font-semibold text-gray-900">{elementC.name}</h3>
+              {comparisonDataC && (
+                <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">
+                  {comparisonDataC.summary.totalProducts} produits
+                </span>
+              )}
+            </div>
+            
+            {/* Structure identique avec couleurs emerald */}
+            {isLoading && !comparisonDataC ? (
+              <Card variant="outlined" padding="lg">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                </div>
+              </Card>
+            ) : comparisonDataC ? (
+              <Card variant="elevated" padding="lg">
+                {comparisonDataC.summary.avgSellingPrice === 0 ? (
+                  <div className="text-center py-6">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 mb-2">Aucune vente enregistrée</p>
+                    <p className="text-xs text-gray-500">
+                      Vous ne vendez actuellement aucun produit {elementC.type === 'laboratory' ? 'de ce laboratoire' : 'de cette catégorie'} 
+                      sur la période sélectionnée.
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Produits disponibles :</span>
+                        <span className="font-medium">{comparisonDataC.summary.totalProducts}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Prix marché :</span>
+                        <span className="font-medium">
+                          {formatCurrency(comparisonDataC.summary.minMarketPrice)} - {formatCurrency(comparisonDataC.summary.maxMarketPrice)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                      <span className="text-sm font-medium text-gray-600">Votre prix de vente</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {formatCurrency(comparisonDataC.summary.avgSellingPrice)}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Prix marché min</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(comparisonDataC.summary.minMarketPrice)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">Prix marché max</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(comparisonDataC.summary.maxMarketPrice)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                      <span className="text-sm font-medium text-gray-600">Taux de marge moyen</span>
+                      <span className={`text-sm font-bold px-2 py-1 rounded-md ${
+                        comparisonDataC.summary.avgMarginRate >= 30 
+                          ? 'text-green-700 bg-green-100'
+                          : comparisonDataC.summary.avgMarginRate >= 20
+                          ? 'text-orange-600 bg-orange-100'
+                          : 'text-red-600 bg-red-100'
+                      }`}>
+                        {comparisonDataC.summary.avgMarginRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
+                      <div className="flex items-center space-x-2">
+                        {comparisonDataC.summary.marketGap >= 0 ? (
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 text-red-500" />
+                        )}
+                        <span className={`text-sm font-bold ${
+                          comparisonDataC.summary.marketGap >= 0 
+                            ? 'text-emerald-600' 
+                            : 'text-red-500'
+                        }`}>
+                          {formatPercentage(comparisonDataC.summary.marketGap)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ) : (
+              <Card variant="outlined" padding="lg" className="text-center">
+                <div className="py-6">
+                  <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">Aucune donnée tarifaire disponible</p>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Placeholder si aucun élément pour maintenir la grid */}
+        {!elementA && !elementB && !elementC && (
+          <div className="col-span-3">
+            <Card variant="outlined" padding="lg" className="text-center">
+              <div className="py-6">
+                <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-sm text-gray-500">Aucun élément sélectionné</p>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Résumé comparatif global si au moins 2 éléments ont des données */}
+      {selectedElementsWithData >= 2 && !isLoading && (
+        <Card variant="elevated" padding="lg" className="bg-gradient-to-r from-blue-50 via-purple-50 to-emerald-50 border-none">
+          <div className="text-center">
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">
+              Résumé comparatif global
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Prix moyen */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600 mb-2">Prix de vente moyen</p>
+                <div className="space-y-1">
+                  {(comparisonDataA?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-blue-600 font-medium">A: </span>
+                      {formatCurrency(comparisonDataA?.summary.avgSellingPrice ?? 0)}
+                    </div>
+                  )}
+                  {(comparisonDataB?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-purple-600 font-medium">B: </span>
+                      {formatCurrency(comparisonDataB?.summary.avgSellingPrice ?? 0)}
+                    </div>
+                  )}
+                  {(comparisonDataC?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-emerald-600 font-medium">C: </span>
+                      {formatCurrency(comparisonDataC?.summary.avgSellingPrice ?? 0)}
+                    </div>
+                  )}
+                </div>
+              </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Prix moyen */}
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Votre prix de vente</p>
-                  <div className="space-y-1">
-                    <div className={`text-lg font-bold ${
-                      comparisonDataA.summary.avgSellingPrice > comparisonDataB.summary.avgSellingPrice 
-                        ? 'text-red-600' : 'text-emerald-600'
-                    }`}>
-                      {comparisonDataA.summary.avgSellingPrice > comparisonDataB.summary.avgSellingPrice ? 'A > B' : 'A < B'}
+              {/* Marge */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600 mb-2">Taux de marge moyen</p>
+                <div className="space-y-1">
+                  {(comparisonDataA?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-blue-600 font-medium">A: </span>
+                      {comparisonDataA?.summary.avgMarginRate.toFixed(1)}%
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Écart: {formatCurrency(Math.abs(comparisonDataA.summary.avgSellingPrice - comparisonDataB.summary.avgSellingPrice))}
-                    </p>
-                  </div>
+                  )}
+                  {(comparisonDataB?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-purple-600 font-medium">B: </span>
+                      {comparisonDataB?.summary.avgMarginRate.toFixed(1)}%
+                    </div>
+                  )}
+                  {(comparisonDataC?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-emerald-600 font-medium">C: </span>
+                      {comparisonDataC?.summary.avgMarginRate.toFixed(1)}%
+                    </div>
+                  )}
                 </div>
-                
-                {/* Marge */}
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Taux de marge moyen</p>
-                  <div className="space-y-1">
-                    <div className={`text-lg font-bold ${
-                      comparisonDataA.summary.avgMarginRate > comparisonDataB.summary.avgMarginRate 
-                        ? 'text-emerald-600' : 'text-red-600'
-                    }`}>
-                      {comparisonDataA.summary.avgMarginRate > comparisonDataB.summary.avgMarginRate ? 'A > B' : 'A < B'}
+              </div>
+              
+              {/* Écart marché */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600 mb-2">Écart vs marché</p>
+                <div className="space-y-1">
+                  {(comparisonDataA?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-blue-600 font-medium">A: </span>
+                      {formatPercentage(comparisonDataA?.summary.marketGap ?? 0)}
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Écart: {Math.abs(comparisonDataA.summary.avgMarginRate - comparisonDataB.summary.avgMarginRate).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Écart marché */}
-                <div className="text-center">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Écart vs marché</p>
-                  <div className="space-y-1">
-                    <div className={`text-lg font-bold ${
-                      comparisonDataA.summary.marketGap > comparisonDataB.summary.marketGap 
-                        ? 'text-emerald-600' : 'text-red-600'
-                    }`}>
-                      {comparisonDataA.summary.marketGap > comparisonDataB.summary.marketGap ? 'A > B' : 'A < B'}
+                  )}
+                  {(comparisonDataB?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-purple-600 font-medium">B: </span>
+                      {formatPercentage(comparisonDataB?.summary.marketGap ?? 0)}
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Écart: {Math.abs(comparisonDataA.summary.marketGap - comparisonDataB.summary.marketGap).toFixed(1)}%
-                    </p>
-                  </div>
+                  )}
+                  {(comparisonDataC?.summary.avgSellingPrice ?? 0) > 0 && (
+                    <div className="text-sm">
+                      <span className="text-emerald-600 font-medium">C: </span>
+                      {formatPercentage(comparisonDataC?.summary.marketGap ?? 0)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </Card>
-        ) : (
-          <Card variant="outlined" padding="lg" className="bg-amber-50 border-amber-200">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-amber-100 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-amber-600" />
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                Comparaison limitée
-              </h4>
-              <p className="text-sm text-gray-600">
-                {comparisonDataA.summary.avgSellingPrice === 0 && comparisonDataB.summary.avgSellingPrice === 0 
-                  ? 'Vous ne vendez aucun produit de ces deux éléments sur la période sélectionnée.'
-                  : comparisonDataA.summary.avgSellingPrice === 0
-                  ? `Vous ne vendez aucun produit de ${elementA.name} sur cette période.`
-                  : `Vous ne vendez aucun produit de ${elementB.name} sur cette période.`
-                }
-              </p>
-              <p className="text-xs text-gray-500 mt-2">
-                Essayez de sélectionner des éléments que vous vendez activement ou étendez la période d'analyse.
-              </p>
-            </div>
-          </Card>
-        )
+          </div>
+        </Card>
       )}
     </div>
   );
