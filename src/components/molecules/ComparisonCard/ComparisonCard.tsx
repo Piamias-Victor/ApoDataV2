@@ -9,7 +9,7 @@ import { Button } from '@/components/atoms/Button/Button';
 import type { ComparisonElement, ComparisonType } from '@/types/comparison';
 
 interface ComparisonCardProps {
-  readonly position: 'A' | 'B';
+  readonly position: 'A' | 'B' | 'C';
   readonly element: ComparisonElement | null;
   readonly comparisonType: ComparisonType | null;
   readonly onSelect: () => void;
@@ -19,7 +19,7 @@ interface ComparisonCardProps {
 }
 
 /**
- * ComparisonCard - Card sélection élément A ou B
+ * ComparisonCard - Card sélection élément A, B ou C
  * 
  * États :
  * - Vide : Icône Plus + "Sélectionner [type]" + bouton primary
@@ -38,7 +38,9 @@ export const ComparisonCard: React.FC<ComparisonCardProps> = ({
   className = '',
 }) => {
   const isEmpty = !element;
-  const badgeVariant = position === 'A' ? 'primary' : 'gradient-purple';
+  const badgeVariant = position === 'A' ? 'primary' : 
+                      position === 'B' ? 'gradient-purple' : 
+                      'gradient-green';
   
   // Labels selon type
   const getTypeLabel = () => {
@@ -145,7 +147,7 @@ export const ComparisonCard: React.FC<ComparisonCardProps> = ({
               Sélectionner {getTypeLabel()}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Cliquer pour rechercher
+              {position === 'C' ? 'Optionnel' : 'Cliquer pour rechercher'}
             </p>
           </div>
         </div>

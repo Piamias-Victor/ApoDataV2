@@ -2,7 +2,7 @@
 
 /**
  * Types stricts pour interface comparaisons ApoData Genesis
- * Contraintes métier : comparaison 2 éléments identiques pour analyse CA/marge
+ * Contraintes métier : comparaison 2-3 éléments identiques pour analyse CA/marge
  */
 
 export type ComparisonType = 'products' | 'laboratories' | 'categories';
@@ -32,8 +32,9 @@ export interface ComparisonState {
   readonly comparisonType: ComparisonType | null;
   readonly elementA: ComparisonElement | null;
   readonly elementB: ComparisonElement | null;
+  readonly elementC: ComparisonElement | null;
   readonly isModalOpen: boolean;
-  readonly modalTarget: 'A' | 'B' | null;
+  readonly modalTarget: 'A' | 'B' | 'C' | null;
 }
 
 /**
@@ -43,10 +44,11 @@ export interface ComparisonActions {
   readonly setComparisonType: (type: ComparisonType | null) => void;
   readonly setElementA: (element: ComparisonElement | null) => void;
   readonly setElementB: (element: ComparisonElement | null) => void;
+  readonly setElementC: (element: ComparisonElement | null) => void;
   readonly swapElements: () => void;
   readonly clearAll: () => void;
-  readonly clearElement: (position: 'A' | 'B') => void;
-  readonly openModal: (target: 'A' | 'B') => void;
+  readonly clearElement: (position: 'A' | 'B' | 'C') => void;
+  readonly openModal: (target: 'A' | 'B' | 'C') => void;
   readonly closeModal: () => void;
   readonly canCompare: () => boolean;
   readonly getComparisonUrl: () => string | null;

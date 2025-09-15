@@ -2,28 +2,33 @@
 'use client';
 
 import React from 'react';
-import { TrendingUp, TrendingDown, Minus, ArrowRight, Trophy } from 'lucide-react';
+import { TrendingUp, Minus, Trophy } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
+
+// src/components/molecules/ComparisonKpiCard/ComparisonKpiCard.tsx
+// src/components/molecules/ComparisonKpiCard/ComparisonKpiCard.tsx
 
 interface ComparisonKpiCardProps {
   readonly title: string;
   readonly unit: 'currency' | 'percentage' | 'number' | 'days';
   readonly valueA: number;
   readonly valueB: number;
-  readonly elementAName: string;
-  readonly elementBName: string;
+  readonly valueC?: number | undefined;  // ← Explicit undefined
+  readonly elementAName?: string | undefined;  // ← Explicit undefined
+  readonly elementBName?: string | undefined;  // ← Explicit undefined 
+  readonly elementCName?: string | undefined;  // ← Explicit undefined
   readonly loading?: boolean;
   readonly className?: string;
 }
 
 /**
- * ComparisonKpiCard - Design intuitif Apple/Stripe inspiré
+ * ComparisonKpiCard - Design intuitif Apple/Stripe pour 2-3 éléments
  * 
  * Améliorations UX :
- * - Layout côte à côte plus visuel
+ * - Layout adaptatif pour 2 ou 3 éléments
  * - Indicateur de winner avec icône
  * - Barres de progression relatives
- * - Couleurs sémantiques intuitives
+ * - Couleurs sémantiques A=bleu, B=violet, C=vert
  * - Animations micro-interactives
  * - Meilleure hiérarchie visuelle
  */
@@ -32,8 +37,10 @@ export const ComparisonKpiCard: React.FC<ComparisonKpiCardProps> = ({
   unit,
   valueA,
   valueB,
+  valueC,
   elementAName,
   elementBName,
+  elementCName,
   loading = false,
   className = ''
 }) => {
@@ -70,31 +77,48 @@ export const ComparisonKpiCard: React.FC<ComparisonKpiCardProps> = ({
     }
   };
 
-  // Calcul différence et gagnant
-  const difference = valueB - valueA;
-  const percentageDifference = valueA !== 0 ? Math.abs(difference) / Math.abs(valueA) * 100 : 0;
-  const winner = valueB > valueA ? 'B' : valueA > valueB ? 'A' : 'tie';
-  const hasSignificantDifference = percentageDifference >= 5; // Seuil 5% pour affichage winner
-  
+  // Éléments actifs (non nulls)
+  const elements = [
+    { value: valueA, name: elementAName, key: 'A', color: 'blue' },
+    { value: valueB, name: elementBName, key: 'B', color: 'purple' },
+    ...(valueC !== undefined && elementCName ? [{ value: valueC, name: elementCName, key: 'C', color: 'green' }] : [])
+  ];
+
+  // Calcul du gagnant et statistiques
+  const maxValue = Math.max(...elements.map(e => Math.abs(e.value)));
+  const winner = elements.find(e => Math.abs(e.value) === maxValue);
+  const minValue = Math.min(...elements.map(e => Math.abs(e.value)));
+  const range = maxValue - minValue;
+  const hasSignificantDifference = maxValue > 0 && (range / maxValue) >= 0.05; // Seuil 5%
+
+  // Couleurs par élément
+  const getElementColors = (key: string, isWinner: boolean) => {
+    const baseColors = {
+      A: { 
+        dot: isWinner ? 'bg-blue-500' : 'bg-blue-300',
+        text: isWinner ? 'text-blue-700' : 'text-gray-900',
+        bar: isWinner ? 'bg-blue-500' : 'bg-blue-300',
+        badge: 'bg-blue-100 text-blue-700'
+      },
+      B: { 
+        dot: isWinner ? 'bg-purple-500' : 'bg-purple-300',
+        text: isWinner ? 'text-purple-700' : 'text-gray-900',
+        bar: isWinner ? 'bg-purple-500' : 'bg-purple-300',
+        badge: 'bg-purple-100 text-purple-700'
+      },
+      C: { 
+        dot: isWinner ? 'bg-green-500' : 'bg-green-300',
+        text: isWinner ? 'text-green-700' : 'text-gray-900',
+        bar: isWinner ? 'bg-green-500' : 'bg-green-300',
+        badge: 'bg-green-100 text-green-700'
+      }
+    };
+    return baseColors[key as keyof typeof baseColors];
+  };
+
   // Calcul des barres de progression relatives
-  const maxValue = Math.max(Math.abs(valueA), Math.abs(valueB));
-  const progressA = maxValue > 0 ? (Math.abs(valueA) / maxValue) * 100 : 0;
-  const progressB = maxValue > 0 ? (Math.abs(valueB) / maxValue) * 100 : 0;
-
-  const getTrendIcon = () => {
-    if (!hasSignificantDifference) return <Minus className="w-3.5 h-3.5" />;
-    return difference > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />;
-  };
-
-  const getTrendColor = () => {
-    if (!hasSignificantDifference) return 'text-gray-400';
-    return difference > 0 ? 'text-emerald-600' : 'text-red-500';
-  };
-
-  const formatDifference = () => {
-    const formattedAbsolute = formatValue(Math.abs(difference));
-    const sign = difference >= 0 ? '+' : '-';
-    return `${sign}${formattedAbsolute}`;
+  const getProgressWidth = (value: number) => {
+    return maxValue > 0 ? (Math.abs(value) / maxValue) * 100 : 0;
   };
 
   // Loading state
@@ -104,8 +128,9 @@ export const ComparisonKpiCard: React.FC<ComparisonKpiCardProps> = ({
         <div className="space-y-4">
           <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
           <div className="space-y-3">
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
+            {Array.from({ length: elements.length }).map((_, i) => (
+              <div key={i} className="h-8 bg-gray-200 rounded"></div>
+            ))}
           </div>
           <div className="h-6 bg-gray-200 rounded w-24 mx-auto"></div>
         </div>
@@ -125,112 +150,86 @@ export const ComparisonKpiCard: React.FC<ComparisonKpiCardProps> = ({
           <h3 className="text-sm font-semibold text-gray-900">
             {title}
           </h3>
-          {hasSignificantDifference && (
+          {hasSignificantDifference && winner && (
             <div className="flex items-center space-x-1">
               <Trophy className="w-4 h-4 text-amber-500" />
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                winner === 'A' ? 'bg-blue-100 text-blue-700' : 
-                winner === 'B' ? 'bg-purple-100 text-purple-700' : 
-                'bg-gray-100 text-gray-600'
+                getElementColors(winner.key, true).badge
               }`}>
-                {winner === 'A' ? 'A' : winner === 'B' ? 'B' : '='}
+                {winner.key}
               </span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Comparaison côte à côte avec barres de progression */}
-      <div className="space-y-4 mb-6">
-        
-        {/* Élément A */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${
-                winner === 'A' && hasSignificantDifference ? 'bg-blue-500' : 'bg-blue-300'
-              }`}></div>
-              <span className="text-xs font-medium text-gray-600 truncate max-w-[120px]" title={elementAName}>
-                {elementAName}
-              </span>
-            </div>
-            <span className={`text-lg font-bold ${
-              winner === 'A' && hasSignificantDifference ? 'text-blue-700' : 'text-gray-900'
-            }`}>
-              {formatValue(valueA)}
-            </span>
-          </div>
-          
-          {/* Barre de progression A */}
-          <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-700 ease-out ${
-                winner === 'A' && hasSignificantDifference ? 'bg-blue-500' : 'bg-blue-300'
-              }`}
-              style={{ width: `${progressA}%` }}
-            ></div>
-          </div>
-        </div>
+      {/* Comparaison éléments avec barres de progression */}
+      <div className={`space-y-3 mb-6`}>
+        {elements.map((element, index) => {
+          const isWinner = hasSignificantDifference && winner?.key === element.key;
+          const colors = getElementColors(element.key, isWinner);
+          const progressWidth = getProgressWidth(element.value);
 
-        {/* Flèche séparatrice */}
-        <div className="flex justify-center">
-          <ArrowRight className="w-4 h-4 text-gray-300" />
-        </div>
-
-        {/* Élément B */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${
-                winner === 'B' && hasSignificantDifference ? 'bg-purple-500' : 'bg-purple-300'
-              }`}></div>
-              <span className="text-xs font-medium text-gray-600 truncate max-w-[120px]" title={elementBName}>
-                {elementBName}
-              </span>
+          return (
+            <div key={element.key} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${colors.dot}`}></div>
+                  <span className="text-xs font-medium text-gray-600 truncate max-w-[100px]" title={element.name}>
+                    {element.name || `Élément ${element.key}`}
+                  </span>
+                </div>
+                <span className={`text-sm font-bold ${colors.text}`}>
+                  {formatValue(element.value)}
+                </span>
+              </div>
+              
+              {/* Barre de progression */}
+              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-700 ease-out ${colors.bar}`}
+                  style={{ 
+                    width: `${progressWidth}%`,
+                    transitionDelay: `${index * 100}ms`
+                  }}
+                ></div>
+              </div>
             </div>
-            <span className={`text-lg font-bold ${
-              winner === 'B' && hasSignificantDifference ? 'text-purple-700' : 'text-gray-900'
-            }`}>
-              {formatValue(valueB)}
-            </span>
-          </div>
-          
-          {/* Barre de progression B */}
-          <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-700 ease-out delay-100 ${
-                winner === 'B' && hasSignificantDifference ? 'bg-purple-500' : 'bg-purple-300'
-              }`}
-              style={{ width: `${progressB}%` }}
-            ></div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      {/* Footer avec différence */}
+      {/* Footer avec statistiques */}
       <div className="text-center pt-4 border-t border-gray-100">
-        <div className="flex items-center justify-center space-x-2">
-          <div className={`flex items-center space-x-1 ${getTrendColor()}`}>
-            {getTrendIcon()}
-            <span className="text-sm font-semibold">
-              {formatDifference()}
-            </span>
-          </div>
-          
-          {hasSignificantDifference && (
-            <>
+        {hasSignificantDifference ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="flex items-center space-x-1 text-emerald-600">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span className="text-sm font-semibold">
+                  {formatValue(range)} d'écart
+                </span>
+              </div>
+              
               <span className="text-gray-300">•</span>
-              <span className={`text-sm font-medium ${getTrendColor()}`}>
-                {percentageDifference.toFixed(0)}% d'écart
+              <span className="text-sm font-medium text-emerald-600">
+                {((range / maxValue) * 100).toFixed(0)}% de variation
               </span>
-            </>
-          )}
-        </div>
-        
-        {!hasSignificantDifference && (
-          <p className="text-xs text-gray-400 mt-1">
-            Valeurs similaires
-          </p>
+            </div>
+            
+            <p className="text-xs text-gray-500">
+              {winner?.name || `Élément ${winner?.key}`} en tête
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center space-x-1 text-gray-400">
+              <Minus className="w-3.5 h-3.5" />
+              <span className="text-sm font-semibold">
+                Valeurs similaires
+              </span>
+            </div>
+          </div>
         )}
       </div>
     </Card>

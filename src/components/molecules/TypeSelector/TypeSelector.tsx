@@ -37,19 +37,19 @@ export const TypeSelector: React.FC<TypeSelectorProps> = ({
     {
       key: 'products',
       label: 'Produits',
-      description: 'Comparer 2 produits pharmaceutiques',
+      description: 'Comparer 2-3 produits pharmaceutiques',
       icon: Package,
     },
     {
       key: 'laboratories',
       label: 'Laboratoires',
-      description: 'Comparer 2 laboratoires',
+      description: 'Comparer 2-3 laboratoires',
       icon: TestTube,
     },
     {
       key: 'categories',
       label: 'Catégories',
-      description: 'Comparer 2 catégories/univers',
+      description: 'Comparer 2-3 catégories/univers',
       icon: Tag,
     },
   ];
@@ -61,7 +61,7 @@ export const TypeSelector: React.FC<TypeSelectorProps> = ({
           1. Choisissez le type de comparaison
         </h2>
         <p className="text-sm text-gray-500 mt-1">
-          Sélectionnez le type d'éléments que vous souhaitez comparer
+          Sélectionnez le type d'éléments que vous souhaitez comparer (2 minimum, 3 maximum)
         </p>
       </div>
       

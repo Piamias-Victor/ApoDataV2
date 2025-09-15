@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { ArrowLeftRight, RefreshCw, Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { TypeSelector } from '@/components/molecules/TypeSelector/TypeSelector';
 import { ComparisonCard } from '@/components/molecules/ComparisonCard/ComparisonCard';
 import { ElementSearchModal } from '@/components/molecules/ElementSearchModal/ElementSearchModal';
@@ -19,8 +19,7 @@ interface ComparisonSelectorProps {
  * 
  * Layout :
  * - TypeSelector (3 cards)
- * - Divider "VS" avec cercle + ArrowLeftRight
- * - ComparisonCards A/B
+ * - ComparisonCards A/B/C (grid 3 colonnes)
  * - Actions : Comparer + Swap + Clear
  * 
  * Responsive : Stack mobile, grid desktop
@@ -35,11 +34,13 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
     comparisonType,
     elementA,
     elementB,
+    elementC,
     isModalOpen,
     modalTarget,
     setComparisonType,
     setElementA,
     setElementB,
+    setElementC,
     swapElements,
     clearAll,
     clearElement,
@@ -53,18 +54,16 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
     setComparisonType(type);
   }, [setComparisonType]);
 
-  const handleCardSelect = useCallback((position: 'A' | 'B') => {
+  const handleCardSelect = useCallback((position: 'A' | 'B' | 'C') => {
     openModal(position);
   }, [openModal]);
 
   const handleElementSelect = useCallback((element: any) => {
-    if (modalTarget === 'A') {
-      setElementA(element);
-    } else if (modalTarget === 'B') {
-      setElementB(element);
-    }
+    if (modalTarget === 'A') setElementA(element);
+    else if (modalTarget === 'B') setElementB(element);
+    else if (modalTarget === 'C') setElementC(element);
     closeModal();
-  }, [modalTarget, setElementA, setElementB, closeModal]);
+  }, [modalTarget, setElementA, setElementB, setElementC, closeModal]);
 
   const handleSwap = useCallback(() => {
     swapElements();
@@ -75,21 +74,19 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
   }, [clearAll]);
 
   const handleCompare = useCallback(() => {
-    // Juste sauvegarder dans le store, pas de navigation
     if (canCompare()) {
       console.log('✅ Comparaison sauvegardée dans le store:', {
         type: comparisonType,
         elementA: elementA?.name,
-        elementB: elementB?.name
+        elementB: elementB?.name,
+        elementC: elementC?.name,
       });
-      
-      // Optionnel : notification utilisateur
-      // toast.success('Comparaison sauvegardée');
     }
-  }, [canCompare, comparisonType, elementA, elementB]);
+  }, [canCompare, comparisonType, elementA, elementB, elementC]);
 
   const canSwap = elementA && elementB;
-  const hasAnySelection = comparisonType || elementA || elementB;
+  const hasAnySelection = comparisonType || elementA || elementB || elementC;
+  const selectedCount = [elementA, elementB, elementC].filter(Boolean).length;
 
   return (
     <div className={`space-y-8 ${className}`}>
@@ -99,7 +96,7 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
         onTypeSelect={handleTypeSelect}
       />
 
-      {/* Section Éléments A/B */}
+      {/* Section Éléments A/B/C */}
       {comparisonType && (
         <div className="space-y-6">
           <div className="mb-6">
@@ -107,49 +104,35 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
               2. Sélectionnez les éléments à comparer
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Choisissez deux éléments différents pour les comparer
+              Minimum 2 éléments, maximum 3 • {selectedCount}/3 sélectionnés
             </p>
           </div>
           
-          {/* Cards A/B avec divider VS */}
-          <div className="relative">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Card A */}
-              <ComparisonCard
-                position="A"
-                element={elementA}
-                comparisonType={comparisonType}
-                onSelect={() => handleCardSelect('A')}
-                onClear={() => clearElement('A')}
-              />
+          {/* Grid 3 colonnes */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <ComparisonCard
+              position="A"
+              element={elementA}
+              comparisonType={comparisonType}
+              onSelect={() => handleCardSelect('A')}
+              onClear={() => clearElement('A')}
+            />
 
-              {/* Card B */}
-              <ComparisonCard
-                position="B"
-                element={elementB}
-                comparisonType={comparisonType}
-                onSelect={() => handleCardSelect('B')}
-                onClear={() => clearElement('B')}
-              />
-            </div>
+            <ComparisonCard
+              position="B"
+              element={elementB}
+              comparisonType={comparisonType}
+              onSelect={() => handleCardSelect('B')}
+              onClear={() => clearElement('B')}
+            />
 
-            {/* Divider VS - Desktop only */}
-            <div className="hidden lg:block absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-              <div className="bg-white border-2 border-gray-200 rounded-full p-3 shadow-md">
-                <ArrowLeftRight className="w-5 h-5 text-gray-500" />
-              </div>
-            </div>
-
-            {/* Divider VS - Mobile */}
-            <div className="lg:hidden flex items-center justify-center py-6">
-              <div className="flex items-center space-x-3 text-gray-500">
-                <div className="h-px bg-gray-200 flex-1" />
-                <div className="bg-white border border-gray-200 rounded-full p-2 shadow-sm">
-                  <ArrowLeftRight className="w-4 h-4" />
-                </div>
-                <div className="h-px bg-gray-200 flex-1" />
-              </div>
-            </div>
+            <ComparisonCard
+              position="C"
+              element={elementC}
+              comparisonType={comparisonType}
+              onSelect={() => handleCardSelect('C')}
+              onClear={() => clearElement('C')}
+            />
           </div>
 
           {/* Actions Bar */}
@@ -164,7 +147,7 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
                   disabled={!canSwap}
                   iconLeft={<RefreshCw className="w-4 h-4" />}
                 >
-                  Échanger
+                  Échanger A↔B
                 </Button>
 
                 <Button
@@ -186,7 +169,7 @@ export const ComparisonSelector: React.FC<ComparisonSelectorProps> = ({
                 disabled={!canCompare()}
                 className="w-full sm:w-auto min-w-[160px] font-semibold"
               >
-                Comparer les éléments
+                Comparer les éléments ({selectedCount})
               </Button>
             </div>
           </div>

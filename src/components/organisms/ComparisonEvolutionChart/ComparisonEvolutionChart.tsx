@@ -40,26 +40,30 @@ interface ChartDataPoint {
   ca_ttc_b: number;
   marge_b: number;
   quantite_b: number;
+  // Élément C (optionnel)
+  ca_ttc_c?: number;
+  marge_c?: number;
+  quantite_c?: number;
 }
 
 /**
- * ComparisonEvolutionChart - Graphique évolution comparative A vs B avec Export CSV
+ * ComparisonEvolutionChart - Graphique évolution comparative 2-3 éléments avec Export CSV
  * 
  * Features :
- * - Comparaison temporelle 2 éléments (courbes A/B)
+ * - Comparaison temporelle 2-3 éléments (courbes A/B/C)
  * - 3 métriques : CA TTC, Marge, Quantité vendue
  * - Agrégation jour/semaine/mois
  * - Design cohérent avec pages comparaisons
  * - Tooltip comparatif avec écarts
  * - Export CSV évolution comparative
- * - Légende claire A (bleu) vs B (violet)
+ * - Légende claire A (bleu) vs B (violet) vs C (vert)
  */
 export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> = ({
   className = '',
   onRefresh
 }) => {
   // Store states
-  const { elementA, elementB } = useComparisonStore();
+  const { elementA, elementB, elementC } = useComparisonStore();
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore(state => state.pharmacy);
 
@@ -110,9 +114,22 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
     pharmacyId: pharmacyFilter.length > 0 ? pharmacyFilter[0] : undefined
   });
 
+  const { 
+    data: dataC, 
+    isLoading: loadingC, 
+    error: errorC,
+    refetch: refetchC 
+  } = useDailyMetrics({
+    enabled: !!elementC,
+    dateRange: analysisDateRange,
+    productCodes: getProductCodes(elementC),
+    pharmacyId: pharmacyFilter.length > 0 ? pharmacyFilter[0] : undefined
+  });
+
   // États dérivés
-  const isLoading = loadingA || loadingB;
-  const error = errorA || errorB;
+  const isLoading = loadingA || loadingB || (elementC ? loadingC : false);
+  const error = errorA || errorB || (elementC ? errorC : null);
+  const selectedCount = [elementA, elementB, elementC].filter(Boolean).length;
 
   // Agrégation des données par période
   const aggregateByPeriod = useCallback((data: any[], mode: ViewMode) => {
@@ -179,16 +196,19 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
     }
   };
 
-  // Données du graphique
+  // Données du graphique pour 2-3 éléments
   const chartData: ChartDataPoint[] = useMemo(() => {
-    if (!dataA || !dataB) return [];
+    const hasMinimumData = dataA && dataB;
+    if (!hasMinimumData) return [];
 
     const aggregatedA = aggregateByPeriod(dataA, viewMode);
     const aggregatedB = aggregateByPeriod(dataB, viewMode);
+    const aggregatedC = dataC ? aggregateByPeriod(dataC, viewMode) : [];
 
     // Fusionner les données par période
     const merged = new Map<string, ChartDataPoint>();
 
+    // Initialiser avec les données A
     aggregatedA.forEach(entryA => {
       merged.set(entryA.date, {
         date: entryA.date,
@@ -198,10 +218,16 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
         quantite_a: entryA.quantite_vendue,
         ca_ttc_b: 0,
         marge_b: 0,
-        quantite_b: 0
+        quantite_b: 0,
+        ...(elementC && {
+          ca_ttc_c: 0,
+          marge_c: 0,
+          quantite_c: 0
+        })
       });
     });
 
+    // Ajouter les données B
     aggregatedB.forEach(entryB => {
       if (merged.has(entryB.date)) {
         const existing = merged.get(entryB.date)!;
@@ -217,15 +243,46 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
           quantite_a: 0,
           ca_ttc_b: entryB.ca_ttc,
           marge_b: entryB.marge,
-          quantite_b: entryB.quantite_vendue
+          quantite_b: entryB.quantite_vendue,
+          ...(elementC && {
+            ca_ttc_c: 0,
+            marge_c: 0,
+            quantite_c: 0
+          })
         });
       }
     });
 
-    return Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [dataA, dataB, viewMode, aggregateByPeriod]);
+    // Ajouter les données C si présentes
+    if (elementC && aggregatedC.length > 0) {
+      aggregatedC.forEach(entryC => {
+        if (merged.has(entryC.date)) {
+          const existing = merged.get(entryC.date)!;
+          existing.ca_ttc_c = entryC.ca_ttc;
+          existing.marge_c = entryC.marge;
+          existing.quantite_c = entryC.quantite_vendue;
+        } else {
+          merged.set(entryC.date, {
+            date: entryC.date,
+            period: entryC.period,
+            ca_ttc_a: 0,
+            marge_a: 0,
+            quantite_a: 0,
+            ca_ttc_b: 0,
+            marge_b: 0,
+            quantite_b: 0,
+            ca_ttc_c: entryC.ca_ttc,
+            marge_c: entryC.marge,
+            quantite_c: entryC.quantite_vendue
+          });
+        }
+      });
+    }
 
-  // Préparation données pour export CSV évolution comparative
+    return Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [dataA, dataB, dataC, viewMode, aggregateByPeriod, elementC]);
+
+  // Préparation données pour export CSV évolution comparative 2-3 éléments
   const prepareEvolutionDataForExport = useCallback(() => {
     if (!chartData || chartData.length === 0 || !elementA || !elementB) return [];
     
@@ -238,6 +295,10 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Type A': elementA.type,
       'Élément B': elementB.name,
       'Type B': elementB.type,
+      ...(elementC && {
+        'Élément C': elementC.name,
+        'Type C': elementC.type
+      }),
       'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
       'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
       'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
@@ -248,16 +309,19 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Date': '',
       'CA TTC A (€)': '',
       'CA TTC B (€)': '',
-      'Écart CA TTC (€)': '',
-      'Écart CA TTC (%)': '',
+      ...(elementC && { 'CA TTC C (€)': '' }),
+      'Écart CA TTC A-B (€)': '',
+      'Écart CA TTC A-B (%)': '',
       'Marge A (€)': '',
       'Marge B (€)': '',
-      'Écart Marge (€)': '',
-      'Écart Marge (%)': '',
+      ...(elementC && { 'Marge C (€)': '' }),
+      'Écart Marge A-B (€)': '',
+      'Écart Marge A-B (%)': '',
       'Quantité A': '',
       'Quantité B': '',
-      'Écart Quantité': '',
-      'Écart Quantité (%)': '',
+      ...(elementC && { 'Quantité C': '' }),
+      'Écart Quantité A-B': '',
+      'Écart Quantité A-B (%)': '',
       'Performance Période': ''
     });
 
@@ -268,6 +332,10 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Type A': '',
       'Élément B': '',
       'Type B': '',
+      ...(elementC && {
+        'Élément C': '',
+        'Type C': ''
+      }),
       'Période Analyse': '',
       'Agrégation': '',
       'Métrique Sélectionnée': '',
@@ -278,16 +346,19 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Date': '',
       'CA TTC A (€)': '',
       'CA TTC B (€)': '',
-      'Écart CA TTC (€)': '',
-      'Écart CA TTC (%)': '',
+      ...(elementC && { 'CA TTC C (€)': '' }),
+      'Écart CA TTC A-B (€)': '',
+      'Écart CA TTC A-B (%)': '',
       'Marge A (€)': '',
       'Marge B (€)': '',
-      'Écart Marge (€)': '',
-      'Écart Marge (%)': '',
+      ...(elementC && { 'Marge C (€)': '' }),
+      'Écart Marge A-B (€)': '',
+      'Écart Marge A-B (%)': '',
       'Quantité A': '',
       'Quantité B': '',
-      'Écart Quantité': '',
-      'Écart Quantité (%)': '',
+      ...(elementC && { 'Quantité C': '' }),
+      'Écart Quantité A-B': '',
+      'Écart Quantité A-B (%)': '',
       'Performance Période': ''
     });
     
@@ -305,7 +376,7 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       const ecartQuantite = dataPoint.quantite_b - dataPoint.quantite_a;
       const ecartQuantitePercent = dataPoint.quantite_a !== 0 ? (ecartQuantite / dataPoint.quantite_a) * 100 : 0;
 
-      // Performance globale de la période (qui gagne sur plus d'indicateurs)
+      // Performance globale de la période
       const scoreA = (dataPoint.ca_ttc_a > dataPoint.ca_ttc_b ? 1 : 0) + 
                     (dataPoint.marge_a > dataPoint.marge_b ? 1 : 0) + 
                     (dataPoint.quantite_a > dataPoint.quantite_b ? 1 : 0);
@@ -313,7 +384,18 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
                     (dataPoint.marge_b > dataPoint.marge_a ? 1 : 0) + 
                     (dataPoint.quantite_b > dataPoint.quantite_a ? 1 : 0);
       
-      const performancePeriode = scoreA > scoreB ? elementA.name : scoreB > scoreA ? elementB.name : 'Égalité';
+      let performancePeriode = 'Égalité';
+      if (elementC) {
+        const scoreC = ((dataPoint.ca_ttc_c || 0) > Math.max(dataPoint.ca_ttc_a, dataPoint.ca_ttc_b) ? 1 : 0) +
+                      ((dataPoint.marge_c || 0) > Math.max(dataPoint.marge_a, dataPoint.marge_b) ? 1 : 0) +
+                      ((dataPoint.quantite_c || 0) > Math.max(dataPoint.quantite_a, dataPoint.quantite_b) ? 1 : 0);
+        const maxScore = Math.max(scoreA, scoreB, scoreC);
+        if (scoreA === maxScore) performancePeriode = elementA.name;
+        else if (scoreB === maxScore) performancePeriode = elementB.name;
+        else if (scoreC === maxScore) performancePeriode = elementC.name;
+      } else {
+        performancePeriode = scoreA > scoreB ? elementA.name : scoreB > scoreA ? elementB.name : 'Égalité';
+      }
 
       exportData.push({
         'Type Export': 'DONNÉES PÉRIODE',
@@ -321,6 +403,10 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
         'Type A': elementA.type,
         'Élément B': elementB.name,
         'Type B': elementB.type,
+        ...(elementC && {
+          'Élément C': elementC.name,
+          'Type C': elementC.type
+        }),
         'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
         'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
         'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
@@ -331,16 +417,19 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
         'Date': dataPoint.date,
         'CA TTC A (€)': dataPoint.ca_ttc_a.toFixed(2),
         'CA TTC B (€)': dataPoint.ca_ttc_b.toFixed(2),
-        'Écart CA TTC (€)': ecartCaTtc.toFixed(2),
-        'Écart CA TTC (%)': ecartCaTtcPercent.toFixed(2),
+        ...(elementC && { 'CA TTC C (€)': (dataPoint.ca_ttc_c || 0).toFixed(2) }),
+        'Écart CA TTC A-B (€)': ecartCaTtc.toFixed(2),
+        'Écart CA TTC A-B (%)': ecartCaTtcPercent.toFixed(2),
         'Marge A (€)': dataPoint.marge_a.toFixed(2),
         'Marge B (€)': dataPoint.marge_b.toFixed(2),
-        'Écart Marge (€)': ecartMarge.toFixed(2),
-        'Écart Marge (%)': ecartMargePercent.toFixed(2),
+        ...(elementC && { 'Marge C (€)': (dataPoint.marge_c || 0).toFixed(2) }),
+        'Écart Marge A-B (€)': ecartMarge.toFixed(2),
+        'Écart Marge A-B (%)': ecartMargePercent.toFixed(2),
         'Quantité A': dataPoint.quantite_a.toString(),
         'Quantité B': dataPoint.quantite_b.toString(),
-        'Écart Quantité': ecartQuantite.toString(),
-        'Écart Quantité (%)': ecartQuantitePercent.toFixed(2),
+        ...(elementC && { 'Quantité C': (dataPoint.quantite_c || 0).toString() }),
+        'Écart Quantité A-B': ecartQuantite.toString(),
+        'Écart Quantité A-B (%)': ecartQuantitePercent.toFixed(2),
         'Performance Période': performancePeriode
       });
     });
@@ -352,6 +441,10 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Type A': '',
       'Élément B': '',
       'Type B': '',
+      ...(elementC && {
+        'Élément C': '',
+        'Type C': ''
+      }),
       'Période Analyse': '',
       'Agrégation': '',
       'Métrique Sélectionnée': '',
@@ -362,26 +455,32 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Date': '',
       'CA TTC A (€)': '',
       'CA TTC B (€)': '',
-      'Écart CA TTC (€)': '',
-      'Écart CA TTC (%)': '',
+      ...(elementC && { 'CA TTC C (€)': '' }),
+      'Écart CA TTC A-B (€)': '',
+      'Écart CA TTC A-B (%)': '',
       'Marge A (€)': '',
       'Marge B (€)': '',
-      'Écart Marge (€)': '',
-      'Écart Marge (%)': '',
+      ...(elementC && { 'Marge C (€)': '' }),
+      'Écart Marge A-B (€)': '',
+      'Écart Marge A-B (%)': '',
       'Quantité A': '',
       'Quantité B': '',
-      'Écart Quantité': '',
-      'Écart Quantité (%)': '',
+      ...(elementC && { 'Quantité C': '' }),
+      'Écart Quantité A-B': '',
+      'Écart Quantité A-B (%)': '',
       'Performance Période': ''
     });
 
     // Calculs totaux et moyennes
     const totalCaTtcA = chartData.reduce((sum, d) => sum + d.ca_ttc_a, 0);
     const totalCaTtcB = chartData.reduce((sum, d) => sum + d.ca_ttc_b, 0);
+    const totalCaTtcC = chartData.reduce((sum, d) => sum + (d.ca_ttc_c || 0), 0);
     const totalMargeA = chartData.reduce((sum, d) => sum + d.marge_a, 0);
     const totalMargeB = chartData.reduce((sum, d) => sum + d.marge_b, 0);
+    const totalMargeC = chartData.reduce((sum, d) => sum + (d.marge_c || 0), 0);
     const totalQuantiteA = chartData.reduce((sum, d) => sum + d.quantite_a, 0);
     const totalQuantiteB = chartData.reduce((sum, d) => sum + d.quantite_b, 0);
+    const totalQuantiteC = chartData.reduce((sum, d) => sum + (d.quantite_c || 0), 0);
 
     exportData.push({
       'Type Export': 'TOTAUX PÉRIODE',
@@ -389,6 +488,10 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Type A': elementA.type,
       'Élément B': elementB.name,
       'Type B': elementB.type,
+      ...(elementC && {
+        'Élément C': elementC.name,
+        'Type C': elementC.type
+      }),
       'Période Analyse': `${analysisDateRange.start} - ${analysisDateRange.end}`,
       'Agrégation': viewMode === 'daily' ? 'Journalière' : viewMode === 'weekly' ? 'Hebdomadaire' : 'Mensuelle',
       'Métrique Sélectionnée': selectedMetric === 'ca_ttc' ? 'CA TTC' : selectedMetric === 'marge' ? 'Marge' : 'Quantité vendue',
@@ -399,21 +502,27 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       'Date': 'PÉRIODE COMPLÈTE',
       'CA TTC A (€)': totalCaTtcA.toFixed(2),
       'CA TTC B (€)': totalCaTtcB.toFixed(2),
-      'Écart CA TTC (€)': (totalCaTtcB - totalCaTtcA).toFixed(2),
-      'Écart CA TTC (%)': totalCaTtcA !== 0 ? (((totalCaTtcB - totalCaTtcA) / totalCaTtcA) * 100).toFixed(2) : '0',
+      ...(elementC && { 'CA TTC C (€)': totalCaTtcC.toFixed(2) }),
+      'Écart CA TTC A-B (€)': (totalCaTtcB - totalCaTtcA).toFixed(2),
+      'Écart CA TTC A-B (%)': totalCaTtcA !== 0 ? (((totalCaTtcB - totalCaTtcA) / totalCaTtcA) * 100).toFixed(2) : '0',
       'Marge A (€)': totalMargeA.toFixed(2),
       'Marge B (€)': totalMargeB.toFixed(2),
-      'Écart Marge (€)': (totalMargeB - totalMargeA).toFixed(2),
-      'Écart Marge (%)': totalMargeA !== 0 ? (((totalMargeB - totalMargeA) / totalMargeA) * 100).toFixed(2) : '0',
+      ...(elementC && { 'Marge C (€)': totalMargeC.toFixed(2) }),
+      'Écart Marge A-B (€)': (totalMargeB - totalMargeA).toFixed(2),
+      'Écart Marge A-B (%)': totalMargeA !== 0 ? (((totalMargeB - totalMargeA) / totalMargeA) * 100).toFixed(2) : '0',
       'Quantité A': totalQuantiteA.toString(),
       'Quantité B': totalQuantiteB.toString(),
-      'Écart Quantité': (totalQuantiteB - totalQuantiteA).toString(),
-      'Écart Quantité (%)': totalQuantiteA !== 0 ? (((totalQuantiteB - totalQuantiteA) / totalQuantiteA) * 100).toFixed(2) : '0',
-      'Performance Période': totalCaTtcB > totalCaTtcA ? elementB.name : totalCaTtcA > totalCaTtcB ? elementA.name : 'Égalité'
+      ...(elementC && { 'Quantité C': totalQuantiteC.toString() }),
+      'Écart Quantité A-B': (totalQuantiteB - totalQuantiteA).toString(),
+      'Écart Quantité A-B (%)': totalQuantiteA !== 0 ? (((totalQuantiteB - totalQuantiteA) / totalQuantiteA) * 100).toFixed(2) : '0',
+      'Performance Période': elementC 
+        ? (totalCaTtcA >= totalCaTtcB && totalCaTtcA >= totalCaTtcC ? elementA.name : 
+           totalCaTtcB >= totalCaTtcA && totalCaTtcB >= totalCaTtcC ? elementB.name : elementC.name)
+        : (totalCaTtcB > totalCaTtcA ? elementB.name : totalCaTtcA > totalCaTtcB ? elementA.name : 'Égalité')
     });
     
     return exportData;
-  }, [chartData, elementA, elementB, analysisDateRange, viewMode, selectedMetric]);
+  }, [chartData, elementA, elementB, elementC, analysisDateRange, viewMode, selectedMetric]);
 
   // Handler export avec vérification
   const handleExport = useCallback(() => {
@@ -427,9 +536,13 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
     // Nom de fichier intelligent avec éléments et période
     const elementASlug = elementA?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementA';
     const elementBSlug = elementB?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'elementB';
+    const elementCSlug = elementC?.name.replace(/[^a-zA-Z0-9]/g, '_') || '';
     const viewModeLabel = viewMode === 'daily' ? 'quotidien' : viewMode === 'weekly' ? 'hebdo' : 'mensuel';
     const metricLabel = selectedMetric === 'ca_ttc' ? 'ca' : selectedMetric === 'marge' ? 'marge' : 'qte';
-    const filename = CsvExporter.generateFilename(`apodata_evolution_${elementASlug}_vs_${elementBSlug}_${viewModeLabel}_${metricLabel}`);
+    
+    const filename = elementC 
+      ? CsvExporter.generateFilename(`apodata_evolution_${elementASlug}_vs_${elementBSlug}_vs_${elementCSlug}_${viewModeLabel}_${metricLabel}`)
+      : CsvExporter.generateFilename(`apodata_evolution_${elementASlug}_vs_${elementBSlug}_${viewModeLabel}_${metricLabel}`);
     
     // Vérification que le premier élément existe avant d'obtenir les headers
     if (!exportData[0]) {
@@ -444,33 +557,38 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
       headers,
       data: exportData
     });
-  }, [prepareEvolutionDataForExport, exportToCsv, elementA, elementB, viewMode, selectedMetric]);
+  }, [prepareEvolutionDataForExport, exportToCsv, elementA, elementB, elementC, viewMode, selectedMetric]);
 
   // Handlers
   const handleRefresh = useCallback(async () => {
-    await Promise.all([refetchA(), refetchB()]);
+    const promises = [refetchA(), refetchB()];
+    if (elementC) promises.push(refetchC());
+    await Promise.all(promises);
     onRefresh?.();
-  }, [refetchA, refetchB, onRefresh]);
+  }, [refetchA, refetchB, refetchC, onRefresh, elementC]);
 
-  // Configuration métriques
+  // Configuration métriques avec support 3 éléments
   const metricConfig = {
     ca_ttc: { 
       label: 'Chiffre d\'affaires', 
       unit: 'currency',
       keyA: 'ca_ttc_a' as keyof ChartDataPoint,
-      keyB: 'ca_ttc_b' as keyof ChartDataPoint
+      keyB: 'ca_ttc_b' as keyof ChartDataPoint,
+      keyC: 'ca_ttc_c' as keyof ChartDataPoint
     },
     marge: { 
       label: 'Marge', 
       unit: 'currency',
       keyA: 'marge_a' as keyof ChartDataPoint,
-      keyB: 'marge_b' as keyof ChartDataPoint
+      keyB: 'marge_b' as keyof ChartDataPoint,
+      keyC: 'marge_c' as keyof ChartDataPoint
     },
     quantite_vendue: { 
       label: 'Quantité vendue', 
       unit: 'number',
       keyA: 'quantite_a' as keyof ChartDataPoint,
-      keyB: 'quantite_b' as keyof ChartDataPoint
+      keyB: 'quantite_b' as keyof ChartDataPoint,
+      keyC: 'quantite_c' as keyof ChartDataPoint
     }
   };
 
@@ -488,7 +606,7 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
     return new Intl.NumberFormat('fr-FR').format(value);
   };
 
-  // Tooltip personnalisé
+  // Tooltip personnalisé pour 2-3 éléments
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || !payload.length) return null;
 
@@ -497,14 +615,13 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
 
     const valueA = dataPoint[currentMetric.keyA] as number;
     const valueB = dataPoint[currentMetric.keyB] as number;
-    const difference = valueB - valueA;
-    const percentDiff = valueA !== 0 ? (difference / Math.abs(valueA)) * 100 : 0;
+    const valueC = elementC ? (dataPoint[currentMetric.keyC] as number) : undefined;
 
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200 min-w-[200px]">
         <p className="font-semibold text-gray-900 mb-3">{label}</p>
         
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Élément A */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -527,31 +644,25 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
             </span>
           </div>
 
-          {/* Écart */}
-          <div className="pt-2 border-t border-gray-100">
+          {/* Élément C */}
+          {elementC && valueC !== undefined && (
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Écart:</span>
               <div className="flex items-center space-x-2">
-                <span className={`text-sm font-medium ${
-                  difference >= 0 ? 'text-emerald-600' : 'text-red-500'
-                }`}>
-                  {difference >= 0 ? '+' : ''}{formatValue(difference, currentMetric.unit)}
-                </span>
-                {Math.abs(percentDiff) >= 1 && (
-                  <span className="text-xs text-gray-400">
-                    ({percentDiff >= 0 ? '+' : ''}{percentDiff.toFixed(0)}%)
-                  </span>
-                )}
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">{elementC.name}</span>
               </div>
+              <span className="font-medium">
+                {formatValue(valueC, currentMetric.unit)}
+              </span>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
   };
 
   // États conditionnels
-  if (!elementA || !elementB) {
+  if (selectedCount < 2) {
     return (
       <Card variant="outlined" padding="lg" className={className}>
         <div className="text-center py-12">
@@ -560,7 +671,7 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
             Graphique d'évolution comparative
           </h3>
           <p className="text-gray-500">
-            Sélectionnez deux éléments pour visualiser leur évolution temporelle
+            Sélectionnez au moins 2 éléments pour visualiser leur évolution temporelle
           </p>
         </div>
       </Card>
@@ -613,19 +724,34 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
           <div className="flex items-center space-x-2 mb-2">
             <TrendingUp className="w-5 h-5 text-blue-600" />
             <h3 className="text-lg font-semibold text-gray-900">
-              Évolution comparative
+              Évolution comparative ({selectedCount} éléments)
             </h3>
           </div>
           <div className="flex items-center space-x-3 text-sm text-gray-600">
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>{elementA.name}</span>
-            </div>
-            <ArrowLeftRight className="w-3 h-3" />
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-              <span>{elementB.name}</span>
-            </div>
+            {elementA && (
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>{elementA.name}</span>
+              </div>
+            )}
+            {elementB && (
+              <>
+                <ArrowLeftRight className="w-3 h-3" />
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span>{elementB.name}</span>
+                </div>
+              </>
+            )}
+            {elementC && (
+              <>
+                <ArrowLeftRight className="w-3 h-3" />
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span>{elementC.name}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -707,25 +833,40 @@ export const ComparisonEvolutionChart: React.FC<ComparisonEvolutionChartProps> =
             />
             <Tooltip content={<CustomTooltip />} />
             
-            {/* Courbes A et B */}
+            {/* Courbe A */}
             <Line
               type="monotone"
               dataKey={currentMetric.keyA}
-              name={elementA.name}
+              name={elementA?.name || 'Élément A'}
               stroke="#3b82f6"
               strokeWidth={3}
               dot={{ r: 4, fill: '#3b82f6' }}
               activeDot={{ r: 6, fill: '#3b82f6' }}
             />
+            
+            {/* Courbe B */}
             <Line
               type="monotone"
               dataKey={currentMetric.keyB}
-              name={elementB.name}
+              name={elementB?.name || 'Élément B'}
               stroke="#a855f7"
               strokeWidth={3}
               dot={{ r: 4, fill: '#a855f7' }}
               activeDot={{ r: 6, fill: '#a855f7' }}
             />
+            
+            {/* Courbe C (si présente) */}
+            {elementC && (
+              <Line
+                type="monotone"
+                dataKey={currentMetric.keyC}
+                name={elementC.name || 'Élément C'}
+                stroke="#22c55e"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#22c55e' }}
+                activeDot={{ r: 6, fill: '#22c55e' }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

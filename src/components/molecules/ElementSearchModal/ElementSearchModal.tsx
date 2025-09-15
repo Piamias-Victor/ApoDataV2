@@ -18,7 +18,7 @@ import type {
 interface ElementSearchModalProps {
   readonly isOpen: boolean;
   readonly comparisonType: ComparisonType;
-  readonly targetPosition: 'A' | 'B';
+  readonly targetPosition: 'A' | 'B' | 'C';
   readonly onClose: () => void;
   readonly onSelect: (element: ComparisonElement) => void;
 }
@@ -189,7 +189,7 @@ export const ElementSearchModal: React.FC<ElementSearchModalProps> = ({
       case 'laboratories':
         return data.laboratories?.map((lab: LaboratorySearchResult) => ({
           id: lab.laboratory_name,
-          name: lab.laboratory_name, // ✅ Le nom vient directement de laboratory_name
+          name: lab.laboratory_name,
           type: 'laboratory' as const,
           metadata: {
             laboratory_name: lab.laboratory_name,
@@ -200,7 +200,7 @@ export const ElementSearchModal: React.FC<ElementSearchModalProps> = ({
       case 'categories':
         return data.categories?.map((category: CategorySearchResult) => ({
           id: `${category.category_type}-${category.category_name}`,
-          name: category.category_name, // ✅ Le nom vient directement de category_name
+          name: category.category_name,
           type: 'category' as const,
           metadata: {
             category_type: category.category_type,
@@ -228,6 +228,14 @@ export const ElementSearchModal: React.FC<ElementSearchModalProps> = ({
     }
   };
 
+  // Label position avec indication optionnel pour C
+  const getPositionLabel = () => {
+    if (targetPosition === 'C') {
+      return `${targetPosition} (optionnel)`;
+    }
+    return targetPosition;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -244,7 +252,7 @@ export const ElementSearchModal: React.FC<ElementSearchModalProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              Rechercher {getTypeLabel()} {targetPosition}
+              Rechercher {getTypeLabel()} {getPositionLabel()}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
               Tapez au moins 2 caractères
