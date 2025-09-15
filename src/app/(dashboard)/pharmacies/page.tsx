@@ -5,10 +5,11 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import { Info, TrendingUp, BarChart3, Building2 } from 'lucide-react';
+import { Info, TrendingUp, Building2, Map } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { PharmaciesKpisSection } from '@/components/organisms/PharmaciesKpisSection/PharmaciesKpisSection';
 import { PharmaciesTableAnalytics } from '@/components/organisms/PharmaciesTable/PharmaciesTableAnalytics';
+import { PharmaciesGeographicSection } from '@/components/organisms/PharmaciesGeographicSection/PharmaciesGeographicSection';
 import { usePharmaciesAnalytics } from '@/hooks/pharmacies/usePharmaciesAnalytics';
 
 /**
@@ -109,7 +110,7 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
  * 
  * SÉCURITÉ : Vérification côté client + serveur des droits admin
  * LAYOUT : Utilise le DashboardLayout partagé avec Header + FilterBar
- * FEATURES : KPIs d'analyse pharmacies avec filtres + Tableau analytics
+ * FEATURES : KPIs d'analyse pharmacies avec filtres + Tableau analytics + Cartographie géographique
  */
 export default function PharmaciesPage() {
   const { data: session, status } = useSession();
@@ -177,14 +178,14 @@ Analysez la performance globale et identifiez les pharmacies les plus performant
 
 Triez et filtrez pour identifier opportunités d'amélioration et bonnes pratiques.`,
 
-    future: `Modules d'analyse avancée en développement :
+    geographic: `Cartographie interactive des performances par région française :
 
-- Géolocalisation : Cartographie des performances par zone
-- Segmentation clients : Typologie de pharmacies performantes
-- Prédictions : Modèles de forecast par officine
-- Benchmarking : Comparaisons sectorielles approfondies
+- Visualisation géographique : Intensité couleur basée sur métriques sélectionnées
+- Métriques disponibles : CA total, nombre de pharmacies, CA moyen par pharmacie
+- Hover interactif : Détails instantanés au survol des régions
+- Classement régional : Top 10 des régions les plus performantes
 
-Ces fonctionnalités enrichiront votre analyse du réseau pharmaceutique.`
+Identifiez rapidement les zones géographiques prioritaires pour vos actions commerciales.`
   };
 
   // Fusion codes produits pour affichage
@@ -284,6 +285,20 @@ Ces fonctionnalités enrichiront votre analyse du réseau pharmaceutique.`
         />
       </SectionWithHelp>
 
+      {/* Section Cartographie Géographique */}
+      <SectionWithHelp
+        title="Répartition Géographique"
+        description="Visualisez la performance de vos produits par région française avec cartographie interactive et métriques détaillées"
+        tooltipContent={tooltips.geographic}
+        icon={<Map className="w-5 h-5 text-purple-600" />}
+      >
+        <PharmaciesGeographicSection
+          dateRange={analysisDateRange}
+          comparisonDateRange={comparisonDateRange}
+          includeComparison={!!hasComparison}
+        />
+      </SectionWithHelp>
+
       {/* Tableau Analytics Pharmacies avec description + tooltip */}
       <SectionWithHelp
         title="Tableau Détaillé des Performances"
@@ -297,54 +312,6 @@ Ces fonctionnalités enrichiront votre analyse du réseau pharmaceutique.`
           error={analyticsError}
           onRefresh={handleRefresh}
         />
-      </SectionWithHelp>
-
-      {/* Section placeholder pour modules futurs avec description + tooltip */}
-      <SectionWithHelp
-        title="Analyses Avancées"
-        description="Modules d'analyse géographique, segmentation et prédictions en cours de développement pour enrichir votre vision du réseau"
-        tooltipContent={tooltips.future}
-        icon={<BarChart3 className="w-5 h-5 text-purple-600" />}
-      >
-        <div className="text-center py-12">
-          <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Modules à venir
-            </h3>
-            
-            <p className="text-gray-600 text-sm mb-4">
-              Cartographie géographique, segmentation avancée et analyses prédictives en cours de développement.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-              <div className="bg-white/40 rounded-lg p-3">
-                <div className="font-medium text-green-600 mb-1">🗺️ Géolocalisation</div>
-                <div>Cartographie des performances par zone géographique</div>
-              </div>
-              
-              <div className="bg-white/40 rounded-lg p-3">
-                <div className="font-medium text-blue-600 mb-1">🎯 Segmentation</div>
-                <div>Typologie et clustering des pharmacies</div>
-              </div>
-              
-              <div className="bg-white/40 rounded-lg p-3">
-                <div className="font-medium text-purple-600 mb-1">📈 Prédictions</div>
-                <div>Modèles de forecast par officine</div>
-              </div>
-              
-              <div className="bg-white/40 rounded-lg p-3">
-                <div className="font-medium text-orange-600 mb-1">⚖️ Benchmarking</div>
-                <div>Comparaisons sectorielles approfondies</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </SectionWithHelp>
     </motion.div>
   );

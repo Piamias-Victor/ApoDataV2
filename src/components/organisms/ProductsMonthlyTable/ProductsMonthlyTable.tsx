@@ -330,7 +330,7 @@ export const ProductsMonthlyTable: React.FC<ProductsMonthlyTableProps> = ({
             onChange={(e) => setJoursStockIdeal(Math.max(1, parseInt(e.target.value) || 60))}
             className="w-12 px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
           />
-          <span className="text-xs text-gray-500">j</span>
+          <span className="text-xs text-gray-500">jours</span>
         </div>
         
         <SearchBar
