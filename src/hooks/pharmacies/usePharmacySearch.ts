@@ -29,6 +29,13 @@ interface SearchResponse {
   readonly queryTime: number;
 }
 
+interface BulkSelectResponse {
+  readonly pharmacies: Pharmacy[];
+  readonly totalCount: number;
+  readonly queryTime: number;
+  readonly truncated: boolean;
+}
+
 interface UsePharmacySearchReturn {
   readonly pharmacies: Pharmacy[];
   readonly isLoading: boolean;
@@ -47,17 +54,22 @@ interface UsePharmacySearchReturn {
   readonly caRanges: CARange[];
   readonly regions: Region[];
   readonly getSelectedPharmaciesFromStore: () => SelectedPharmacy[];
-  readonly pendingPharmaciesCount: number; // Ajouté pour compatibilité avec drawer
+  readonly pendingPharmaciesCount: number;
+  // NOUVELLES PROPRIÉTÉS BULK
+  readonly bulkSelectAllPharmacies: () => Promise<BulkSelectResponse>;
+  readonly isBulkSelecting: boolean;
+  readonly bulkSelectPharmacies: (pharmacies: Pharmacy[]) => void;
+  readonly isAllSelected: boolean;
+  readonly totalPharmaciesCount: number;
 }
 
 /**
- * Hook usePharmacySearch - VERSION IDENTIQUE AU useLaboratorySearch
+ * Hook usePharmacySearch - VERSION AVEC FONCTIONNALITÉ BULK SELECT
  * 
- * LOGIQUE COPIÉE EXACTEMENT :
- * - Persistance des codes du store avec previousStoreCodes
- * - Construction correcte des objets SelectedPharmacy
- * - Mapping entre nouvelles sélections et store existant
- * - applyFilters utilise setPharmacyFiltersWithNames
+ * LOGIQUE IDENTIQUE AUX LABORATOIRES + NOUVELLES FONCTIONS :
+ * - bulkSelectAllPharmacies : Sélectionne TOUTES les pharmacies via API
+ * - bulkSelectPharmacies : Applique une liste de pharmacies
+ * - isAllSelected : État pour UI "tout sélectionner"
  */
 export function usePharmacySearch(): UsePharmacySearchReturn {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
@@ -74,6 +86,11 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
   // États pour les filtres CA et régions
   const [selectedCARange, setSelectedCARange] = useState<CARange | null>(null);
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
+
+  // NOUVEAUX ÉTATS POUR BULK SELECT
+  const [isBulkSelecting, setIsBulkSelecting] = useState(false);
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  const [totalPharmaciesCount, setTotalPharmaciesCount] = useState(0);
 
   // Récupération depuis le store - IDENTIQUE AUX LABORATOIRES
   const storedPharmacyIds = useFiltersStore(state => state.pharmacy);
@@ -128,6 +145,78 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
       total: allPendingIds.size
     });
   }, [selectedPharmacies, previousStoreIds]);
+
+  // NOUVELLE FONCTION : Sélection massive de TOUTES les pharmacies
+  const bulkSelectAllPharmacies = useCallback(async (): Promise<BulkSelectResponse> => {
+    console.log('🌟 [usePharmacySearch] Starting bulk select ALL pharmacies');
+    setIsBulkSelecting(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/pharmacies/bulk-select', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // Body vide = tout sélectionner
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur ${response.status}: ${errorText}`);
+      }
+
+      const result: BulkSelectResponse = await response.json();
+      
+      console.log('🎯 [usePharmacySearch] Bulk select complete:', {
+        returned: result.pharmacies.length,
+        totalInDB: result.totalCount,
+        truncated: result.truncated,
+        queryTime: `${result.queryTime}ms`
+      });
+
+      // Mettre à jour les états
+      setTotalPharmaciesCount(result.totalCount);
+      
+      // Warning si données tronquées
+      if (result.truncated) {
+        console.warn('⚠️ Données tronquées - seulement 10k premières pharmacies');
+      }
+      
+      return result;
+      
+    } catch (err) {
+      console.error('❌ [usePharmacySearch] Bulk select error:', err);
+      setError(err instanceof Error ? err.message : 'Erreur lors de la sélection massive');
+      throw err;
+    } finally {
+      setIsBulkSelecting(false);
+    }
+  }, []);
+
+  // NOUVELLE FONCTION : Sélection automatique d'une liste de pharmacies
+  const bulkSelectPharmacies = useCallback((pharmaciesToSelect: Pharmacy[]) => {
+    console.log('⚡ [usePharmacySearch] Bulk selecting', pharmaciesToSelect.length, 'pharmacies');
+    
+    // Créer le Set des nouvelles sélections
+    const newSelections = new Set<string>();
+    const newPharmacyInfoMap = new Map<string, Pharmacy>(pharmacyInfoMap);
+    
+    pharmaciesToSelect.forEach(pharmacy => {
+      newSelections.add(pharmacy.id);
+      newPharmacyInfoMap.set(pharmacy.id, pharmacy);
+    });
+    
+    // Mettre à jour les états
+    setSelectedPharmacies(newSelections);
+    setPharmacyInfoMap(newPharmacyInfoMap);
+    setIsAllSelected(true);
+    
+    console.log('✅ [usePharmacySearch] Bulk selection applied:', {
+      selectedCount: newSelections.size,
+      totalAvailable: pharmaciesToSelect.length
+    });
+  }, [pharmacyInfoMap]);
 
   // FONCTION IDENTIQUE AUX LABORATOIRES : Lire directement le store
   const getSelectedPharmaciesFromStore = useCallback((): SelectedPharmacy[] => {
@@ -255,22 +344,55 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     }
   }, [searchQuery, selectedCARange, selectedRegions]);
 
-  // Toggle pharmacy pour nouvelles sélections - IDENTIQUE AUX LABORATOIRES
+  // Toggle pharmacy - GESTION COMPLÈTE (nouvelles sélections ET store)
   const togglePharmacy = useCallback((pharmacyId: string) => {
     console.log('🔄 [usePharmacySearch] Toggle pharmacy:', pharmacyId);
     
-    setSelectedPharmacies(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(pharmacyId)) {
-        newSet.delete(pharmacyId);
-        console.log('➖ Removed from new selections:', pharmacyId);
-      } else {
-        newSet.add(pharmacyId);
-        console.log('➕ Added to new selections:', pharmacyId);
+    // Vérifier si la pharmacie est déjà dans le store
+    const isInStore = storedSelectedPharmacies.some(pharmacy => pharmacy.id === pharmacyId);
+    const isInNewSelections = selectedPharmacies.has(pharmacyId);
+    
+    if (isInStore) {
+      console.log('🗑️ [usePharmacySearch] Pharmacy is in store - removing from store');
+      
+      // Si elle est dans le store, la retirer complètement
+      const remainingPharmacies = storedSelectedPharmacies.filter(pharmacy => pharmacy.id !== pharmacyId);
+      const remainingIds = remainingPharmacies.map(pharmacy => pharmacy.id);
+      
+      // Mettre à jour le store immédiatement
+      const setPharmacyFiltersWithNames = useFiltersStore.getState().setPharmacyFiltersWithNames;
+      setPharmacyFiltersWithNames(remainingIds, remainingPharmacies);
+      
+      // Aussi la retirer des nouvelles sélections si elle y était
+      if (isInNewSelections) {
+        setSelectedPharmacies(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(pharmacyId);
+          return newSet;
+        });
       }
-      return newSet;
-    });
-  }, []);
+      
+    } else if (isInNewSelections) {
+      console.log('➖ [usePharmacySearch] Removing from new selections');
+      // Si elle est seulement dans les nouvelles sélections, la retirer
+      setSelectedPharmacies(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(pharmacyId);
+        return newSet;
+      });
+    } else {
+      console.log('➕ [usePharmacySearch] Adding to new selections');
+      // Sinon, l'ajouter aux nouvelles sélections
+      setSelectedPharmacies(prev => {
+        const newSet = new Set(prev);
+        newSet.add(pharmacyId);
+        return newSet;
+      });
+    }
+
+    // Reset isAllSelected si on modifie individuellement
+    setIsAllSelected(false);
+  }, [selectedPharmacies, storedSelectedPharmacies]);
 
   // MODIFIÉ : toggleRegion affecte seulement l'état local (pending)
   const toggleRegion = useCallback((region: string) => {
@@ -293,6 +415,7 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     setSelectedCARange(null);
     setSelectedRegions(new Set());
     setPendingPharmacyIds(previousStoreIds);
+    setIsAllSelected(false);
   }, [previousStoreIds]);
 
   // FONCTION MODIFIÉE : IDENTIQUE AUX LABORATOIRES - Utilise setPharmacyFiltersWithNames
@@ -342,6 +465,7 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     setSelectedCARange(null);
     setSelectedRegions(new Set());
     setPreviousStoreIds(new Set(allPharmacyIds));
+    setIsAllSelected(false);
   }, [selectedPharmacies, pharmacyInfoMap, pharmacies, storedSelectedPharmacies, selectedCARange, selectedRegions]);
 
   const clearPharmacyFilters = useCallback(() => {
@@ -354,6 +478,7 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     setSelectedRegions(new Set());
     setPendingPharmacyIds(new Set());
     setPreviousStoreIds(new Set());
+    setIsAllSelected(false);
   }, []);
 
   return {
@@ -374,6 +499,12 @@ export function usePharmacySearch(): UsePharmacySearchReturn {
     caRanges,
     regions,
     getSelectedPharmaciesFromStore,
-    pendingPharmaciesCount: pendingPharmacyIds.size // Ajouté pour compatibilité
+    pendingPharmaciesCount: pendingPharmacyIds.size,
+    // NOUVELLES PROPRIÉTÉS BULK
+    bulkSelectAllPharmacies,
+    isBulkSelecting,
+    bulkSelectPharmacies,
+    isAllSelected,
+    totalPharmaciesCount
   };
 }

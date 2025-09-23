@@ -1,9 +1,12 @@
 // src/components/organisms/PharmacyDrawer/PharmacyDrawer.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Loader2, Building, MapPin, Euro, Users, Filter, Check, CheckSquare } from 'lucide-react';
+import { 
+  X, Search, Loader2, Building, MapPin, Euro, Users, Filter, Check,
+  CheckSquare, Square, AlertCircle // NOUVEAUX ICONES
+} from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { usePharmacySearch } from '@/hooks/pharmacies/usePharmacySearch';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -17,30 +20,15 @@ interface PharmacyDrawerProps {
   readonly onCountChange: (count: number) => void;
 }
 
-interface AllPharmaciesState {
-  pharmacies: Array<{
-    id: string;
-    name: string;
-    address: string;
-    ca: number;
-    area: string;
-    employees_count: number;
-    id_nat: string;
-  }>;
-  isLoading: boolean;
-  error: string | null;
-}
-
 /**
- * PharmacyDrawer Component - DESIGN IDENTIQUE AU LABORATORIES DRAWER
+ * PharmacyDrawer Component - AVEC FONCTIONNALITÉ "TOUT SÉLECTIONNER"
  * 
- * Fonctionnalités :
- * - Section "Pharmacies sélectionnées" avec design uniforme
- * - Mode "Recherche" : recherche par nom/adresse
- * - Mode "Filtres" : filtres par CA et régions
- * - Liste complète des pharmacies quand pas de recherche
- * - Bouton "Tout sélectionner"
- * - Couleur orange cohérente
+ * NOUVELLES FONCTIONNALITÉS :
+ * - Bouton "Tout sélectionner" en mode recherche
+ * - Sélection massive de TOUTES les pharmacies de la base
+ * - Exclusion par recherche + décocher
+ * - Compteur dynamique avec totaux
+ * - Warning si données tronquées
  */
 export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   isOpen,
@@ -48,11 +36,6 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   onCountChange
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('search');
-  const [allPharmaciesState, setAllPharmaciesState] = useState<AllPharmaciesState>({
-    pharmacies: [],
-    isLoading: false,
-    error: null
-  });
   
   const {
     pharmacies,
@@ -70,70 +53,68 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
     toggleRegion,
     caRanges,
     regions,
-    getSelectedPharmaciesFromStore
+    getSelectedPharmaciesFromStore,
+    // NOUVELLES PROPRIÉTÉS BULK
+    bulkSelectAllPharmacies,
+    isBulkSelecting,
+    bulkSelectPharmacies,
+    isAllSelected,
+    totalPharmaciesCount
   } = usePharmacySearch();
+
+  // États pour bulk select
+  const [bulkWarning, setBulkWarning] = useState<string | null>(null);
 
   // Récupération des pharmacies sélectionnées depuis le store
   const selectedPharmaciesInfo = getSelectedPharmaciesFromStore();
-
-  // Charger toutes les pharmacies au montage du drawer
-  useEffect(() => {
-    if (isOpen && allPharmaciesState.pharmacies.length === 0) {
-      loadAllPharmacies();
-    }
-  }, [isOpen]);
-
-  const loadAllPharmacies = async () => {
-    setAllPharmaciesState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      const response = await fetch('/api/admin/pharmacies?limit=10000&page=1', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      let pharmacies = result.pharmacies || [];
-      
-      // Filtrer et nettoyer les données
-      pharmacies = pharmacies.filter((p: any) => p && p.id && p.name).map((p: any) => ({
-        id: p.id,
-        name: p.name || '',
-        address: p.address || '',
-        ca: p.ca || 0,
-        area: p.area || '',
-        employees_count: p.employees_count || 0,
-        id_nat: p.id_nat || ''
-      }));
-      
-      setAllPharmaciesState(prev => ({ 
-        ...prev, 
-        pharmacies,
-        isLoading: false 
-      }));
-    } catch (err) {
-      console.error('Erreur chargement pharmacies:', err);
-      setAllPharmaciesState(prev => ({ 
-        ...prev, 
-        error: 'Erreur lors du chargement des pharmacies',
-        isLoading: false 
-      }));
-    }
-  };
 
   // Update count when selection changes
   React.useEffect(() => {
     onCountChange(selectedPharmacies.size);
   }, [selectedPharmacies.size, onCountChange]);
 
+  // NOUVELLE FONCTION : Gestion "Tout sélectionner"
+  const handleSelectAll = async () => {
+    setBulkWarning(null);
+    
+    try {
+      console.log('🌟 [PharmacyDrawer] Starting "Select All" process');
+      
+      const result = await bulkSelectAllPharmacies();
+      
+      // Sélectionner automatiquement toutes les pharmacies récupérées
+      bulkSelectPharmacies(result.pharmacies);
+      
+      // Afficher warning si données tronquées
+      if (result.truncated) {
+        setBulkWarning(`Attention: Seules les ${result.pharmacies.length.toLocaleString()} premières pharmacies sur ${result.totalCount.toLocaleString()} ont été sélectionnées.`);
+      }
+      
+      console.log('✅ [PharmacyDrawer] "Select All" completed:', {
+        selected: result.pharmacies.length,
+        total: result.totalCount,
+        truncated: result.truncated
+      });
+      
+    } catch (error) {
+      console.error('❌ [PharmacyDrawer] "Select All" failed:', error);
+      setBulkWarning('Erreur lors de la sélection massive. Veuillez réessayer.');
+    }
+  };
+
+  // NOUVELLE FONCTION : Désélectionner tout
+  const handleDeselectAll = () => {
+    console.log('🗑️ [PharmacyDrawer] Deselecting all pharmacies');
+    clearPharmacyFilters();
+    setBulkWarning(null);
+  };
+
   const handlePharmacyToggle = (pharmacyId: string) => {
     console.log('PharmacyDrawer handlePharmacyToggle called:', pharmacyId);
     togglePharmacy(pharmacyId);
+    
+    // Reset warning si on modifie les sélections
+    setBulkWarning(null);
   };
 
   // Fonction pour désélectionner une pharmacie du store
@@ -147,16 +128,9 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
     // Mettre à jour le store
     const setPharmacyFiltersWithNames = useFiltersStore.getState().setPharmacyFiltersWithNames;
     setPharmacyFiltersWithNames(remainingIds, remainingPharmacies);
-  };
-
-  // Fonction pour sélectionner toutes les pharmacies visibles
-  const handleSelectAll = () => {
-    const pharmaciesToSelect = isSearching ? pharmacies : allPharmaciesState.pharmacies;
-    pharmaciesToSelect.forEach(pharmacy => {
-      if (!isPharmacySelected(pharmacy.id)) {
-        togglePharmacy(pharmacy.id);
-      }
-    });
+    
+    // Reset warning si on modifie les sélections
+    setBulkWarning(null);
   };
 
   // Vérifier si une pharmacie est sélectionnée
@@ -189,19 +163,6 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   const showEmptyMessage = searchQuery.length >= 2 && !isLoading && !hasResults && !error;
   const isSearching = searchQuery.length >= 2;
   const showSelectedSection = !isSearching && selectedPharmaciesInfo.length > 0;
-  
-  // Déterminer quelles pharmacies afficher
-  const pharmaciesToDisplay = isSearching ? pharmacies : allPharmaciesState.pharmacies;
-  const isLoadingToDisplay = isSearching ? isLoading : allPharmaciesState.isLoading;
-  const errorToDisplay = isSearching ? error : allPharmaciesState.error;
-
-  // Séparer les pharmacies sélectionnées et non sélectionnées pour l'affichage sans recherche
-  const selectedPharmaciesForDisplay = !isSearching 
-    ? pharmaciesToDisplay.filter(p => isPharmacySelected(p.id))
-    : [];
-  const unselectedPharmaciesForDisplay = !isSearching 
-    ? pharmaciesToDisplay.filter(p => !isPharmacySelected(p.id))
-    : [];
 
   const getPlaceholderText = () => {
     return viewMode === 'search' 
@@ -242,7 +203,17 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 Pharmacies
               </h2>
               <p className="text-sm text-gray-500">
-                {selectedPharmaciesInfo.length} pharmacies appliquées
+                {selectedPharmaciesInfo.length > 0 
+                  ? `${selectedPharmaciesInfo.length} pharmacies appliquées`
+                  : selectedPharmacies.size > 0 
+                  ? `${selectedPharmacies.size} nouvelles sélections`
+                  : 'Aucune sélection'
+                }
+                {totalPharmaciesCount > 0 && (
+                  <span className="ml-1 text-xs text-gray-400">
+                    / {totalPharmaciesCount.toLocaleString()} total
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -286,9 +257,9 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
           </div>
         </div>
 
-        {/* Search Input - Mode Recherche uniquement */}
+        {/* Search Input + Bulk Actions - Mode Recherche uniquement */}
         {viewMode === 'search' && (
-          <div className="p-4 border-b border-gray-100">
+          <div className="p-4 border-b border-gray-100 space-y-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -299,10 +270,80 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 className="pl-10 bg-gray-50 border-gray-200 focus:border-orange-300 focus:ring-orange-200"
               />
             </div>
+            
             {searchQuery.length > 0 && searchQuery.length < 2 && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500">
                 Minimum 2 caractères requis
               </p>
+            )}
+
+            {/* SECTION BULK ACTIONS - NOUVELLE */}
+            <div className="flex items-center justify-between p-3 bg-orange-25 rounded-lg border border-orange-200">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  {isAllSelected ? (
+                    <CheckSquare className="w-4 h-4 text-orange-600" />
+                  ) : (
+                    <Square className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-sm font-medium text-gray-700">
+                    Sélection massive
+                  </span>
+                </div>
+                
+                {selectedPharmacies.size > 0 && (
+                  <div className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
+                    {selectedPharmacies.size.toLocaleString()} sélectionnées
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSelectAll}
+                  disabled={isBulkSelecting}
+                  className="
+                    px-3 py-1.5 text-xs font-medium rounded-lg
+                    bg-orange-600 text-white hover:bg-orange-700 
+                    disabled:bg-gray-300 disabled:cursor-not-allowed
+                    transition-all duration-200 flex items-center space-x-1
+                  "
+                >
+                  {isBulkSelecting ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Chargement...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="w-3 h-3" />
+                      <span>Tout sélectionner</span>
+                    </>
+                  )}
+                </button>
+                
+                {(selectedPharmacies.size > 0 || selectedPharmaciesInfo.length > 0) && (
+                  <button
+                    onClick={handleDeselectAll}
+                    className="
+                      px-3 py-1.5 text-xs font-medium rounded-lg
+                      bg-red-100 text-red-600 hover:bg-red-200
+                      transition-all duration-200 flex items-center space-x-1
+                    "
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Tout effacer</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Warning Bulk Select */}
+            {bulkWarning && (
+              <div className="flex items-start space-x-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-800">{bulkWarning}</p>
+              </div>
             )}
           </div>
         )}
@@ -443,10 +484,10 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
             </div>
           )}
 
-          {/* LISTE DES PHARMACIES - Mode Recherche uniquement */}
+          {/* RÉSULTATS DE RECHERCHE - Mode Recherche uniquement */}
           {viewMode === 'search' && (
             <AnimatePresence mode="wait">
-              {isLoadingToDisplay && (
+              {isLoading && (
                 <motion.div
                   key="loading"
                   initial={{ opacity: 0 }}
@@ -456,14 +497,12 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 >
                   <div className="flex items-center space-x-3 text-gray-500">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">
-                      {isSearching ? 'Recherche en cours...' : 'Chargement des pharmacies...'}
-                    </span>
+                    <span className="text-sm">Recherche en cours...</span>
                   </div>
                 </motion.div>
               )}
 
-              {errorToDisplay && (
+              {error && (
                 <motion.div
                   key="error"
                   initial={{ opacity: 0, y: 10 }}
@@ -471,7 +510,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                   exit={{ opacity: 0 }}
                   className="p-4 mx-4 mt-4 bg-red-50 border border-red-200 rounded-lg"
                 >
-                  <p className="text-sm text-red-600">{errorToDisplay}</p>
+                  <p className="text-sm text-red-600">{error}</p>
                 </motion.div>
               )}
 
@@ -491,8 +530,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 </motion.div>
               )}
 
-              {/* Résultats de recherche OU liste complète */}
-              {!isLoadingToDisplay && !errorToDisplay && pharmaciesToDisplay.length > 0 && (
+              {hasResults && !isLoading && (
                 <motion.div
                   key="results"
                   initial={{ opacity: 0 }}
@@ -500,108 +538,99 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                   exit={{ opacity: 0 }}
                   className="p-4 space-y-3"
                 >
-                  {/* Bouton "Tout sélectionner" - seulement quand pas de recherche OU résultats de recherche */}
-                  {(pharmaciesToDisplay.length > 0) && (
-                    <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                      <div className="flex items-center">
-                        <Building className="w-4 h-4 text-gray-600 mr-2" />
-                        <span className="text-sm text-gray-700">
-                          {isSearching 
-                            ? `${pharmaciesToDisplay.length} résultats trouvés`
-                            : `${pharmaciesToDisplay.length} pharmacies disponibles`
+                  {pharmacies.map((pharmacy, index) => {
+                    const isSelected = isPharmacySelected(pharmacy.id);
+                    const selectionType = getSelectionType(pharmacy.id);
+
+                    return (
+                      <motion.div
+                        key={`${pharmacy.id}-${index}`}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`
+                          p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
+                          ${selectionType === 'stored' 
+                            ? 'border-orange-300 bg-orange-50' 
+                            : selectionType === 'new'
+                            ? 'border-green-300 bg-green-50'
+                            : isSelected 
+                            ? 'border-orange-300 bg-orange-50'
+                            : 'border-gray-200 hover:border-gray-300'
                           }
-                        </span>
-                      </div>
-                      <button
-                        onClick={handleSelectAll}
-                        className="flex items-center px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 hover:border-orange-300 transition-colors"
+                        `}
+                        onClick={() => handlePharmacyToggle(pharmacy.id)}
                       >
-                        <CheckSquare className="w-4 h-4 mr-2" />
-                        Tout sélectionner
-                      </button>
-                    </div>
-                  )}
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center mb-2">
+                              <h3 className="text-sm font-semibold text-gray-900 truncate">
+                                {pharmacy.name}
+                              </h3>
+                              {pharmacy.id_nat && (
+                                <span className="ml-2 text-xs text-gray-500 font-mono">
+                                  {pharmacy.id_nat}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Address */}
+                            <div className="flex items-center text-xs text-gray-600 mb-2">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              <span className="truncate">{pharmacy.address}</span>
+                            </div>
 
-                  {/* Affichage avec séparation seulement quand pas de recherche */}
-                  {!isSearching ? (
-                    <>
-                      {/* Pharmacies sélectionnées en premier */}
-                      {selectedPharmaciesForDisplay.length > 0 && (
-                        <>
-                          <div className="flex items-center mb-3">
-                            <div className="flex-1 h-px bg-orange-200" />
-                            <span className="px-3 text-xs font-medium text-orange-600 bg-white">
-                              Sélectionnées ({selectedPharmaciesForDisplay.length})
-                            </span>
-                            <div className="flex-1 h-px bg-orange-200" />
+                            {/* Metrics Row */}
+                            <div className="flex items-center space-x-4 text-xs mb-2">
+                              <div className="flex items-center text-green-600">
+                                <Euro className="w-3 h-3 mr-1" />
+                                <span className="font-medium">{formatCA(pharmacy.ca)}</span>
+                              </div>
+                              <div className="flex items-center text-blue-600">
+                                <Users className="w-3 h-3 mr-1" />
+                                <span>{pharmacy.employees_count} emp.</span>
+                              </div>
+                              <div className="text-gray-600 truncate">
+                                {pharmacy.area}
+                              </div>
+                            </div>
+
+                            {/* Indicateurs visuels */}
+                            {selectionType === 'stored' && (
+                              <div className="flex items-center mb-2">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
+                                <span className="text-xs text-orange-600 font-medium">
+                                  Déjà appliquée
+                                </span>
+                              </div>
+                            )}
+                            
+                            {selectionType === 'new' && (
+                              <div className="flex items-center mb-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                                <span className="text-xs text-green-600 font-medium">
+                                  Nouvelle sélection
+                                </span>
+                              </div>
+                            )}
                           </div>
-                          
-                          {selectedPharmaciesForDisplay.map((pharmacy, index) => {
-                            const selectionType = getSelectionType(pharmacy.id);
-                            return (
-                              <PharmacyItem
-                                key={`selected-${pharmacy.id}`}
-                                pharmacy={pharmacy}
-                                index={index}
-                                isSelected={true}
-                                selectionType={selectionType}
-                                onToggle={handlePharmacyToggle}
-                                formatCA={formatCA}
-                              />
-                            );
-                          })}
-                        </>
-                      )}
 
-                      {/* Pharmacies non sélectionnées */}
-                      {unselectedPharmaciesForDisplay.length > 0 && (
-                        <>
-                          <div className="flex items-center mb-3">
-                            <div className="flex-1 h-px bg-gray-200" />
-                            <span className="px-3 text-xs font-medium text-gray-500 bg-white">
-                              Disponibles ({unselectedPharmaciesForDisplay.length})
-                            </span>
-                            <div className="flex-1 h-px bg-gray-200" />
-                          </div>
-                          
-                          {unselectedPharmaciesForDisplay.map((pharmacy, index) => (
-                            <PharmacyItem
-                              key={`unselected-${pharmacy.id}`}
-                              pharmacy={pharmacy}
-                              index={selectedPharmaciesForDisplay.length + index}
-                              isSelected={false}
-                              selectionType="none"
-                              onToggle={handlePharmacyToggle}
-                              formatCA={formatCA}
-                            />
-                          ))}
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    /* Affichage simple pour les résultats de recherche */
-                    pharmaciesToDisplay.map((pharmacy, index) => {
-                      const isSelected = isPharmacySelected(pharmacy.id);
-                      const selectionType = getSelectionType(pharmacy.id);
-
-                      return (
-                        <PharmacyItem
-                          key={`search-${pharmacy.id}-${index}`}
-                          pharmacy={pharmacy}
-                          index={index}
-                          isSelected={isSelected}
-                          selectionType={selectionType}
-                          onToggle={handlePharmacyToggle}
-                          formatCA={formatCA}
-                        />
-                      );
-                    })
-                  )}
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handlePharmacyToggle(pharmacy.id)}
+                            className="mt-2 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                          />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
               )}
 
               {/* Message quand aucune recherche et aucune pharmacie sélectionnée */}
-              {!isSearching && !isLoadingToDisplay && selectedPharmaciesInfo.length === 0 && pharmaciesToDisplay.length === 0 && (
+              {!isSearching && !isLoading && selectedPharmaciesInfo.length === 0 && !isAllSelected && (
                 <motion.div
                   key="no-selection"
                   initial={{ opacity: 0, y: 10 }}
@@ -610,7 +639,34 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                   className="p-8 text-center"
                 >
                   <Building className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-2">Chargement des pharmacies...</p>
+                  <p className="text-gray-500 mb-2">Aucune pharmacie sélectionnée</p>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Utilisez la recherche ou sélectionnez toutes les pharmacies
+                  </p>
+                  
+                  {/* Bouton "Tout sélectionner" alternatif */}
+                  <button
+                    onClick={handleSelectAll}
+                    disabled={isBulkSelecting}
+                    className="
+                      px-4 py-2 text-sm font-medium rounded-lg
+                      bg-orange-600 text-white hover:bg-orange-700 
+                      disabled:bg-gray-300 disabled:cursor-not-allowed
+                      transition-all duration-200 flex items-center space-x-2 mx-auto
+                    "
+                  >
+                    {isBulkSelecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Chargement...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-4 h-4" />
+                        <span>Sélectionner toutes les pharmacies</span>
+                      </>
+                    )}
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -656,9 +712,14 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
         {/* Tutorial */}
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           {viewMode === 'search' ? (
-            <p className="text-xs text-gray-600">
-              <strong>Mode Recherche :</strong> Recherche directe par nom ou adresse de pharmacie
-            </p>
+            <>
+              <p className="text-xs text-gray-600">
+                <strong>Mode Recherche :</strong> Recherche directe par nom/adresse + sélection massive
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Utilisez "Tout sélectionner" puis décochez les pharmacies à exclure
+              </p>
+            </>
           ) : (
             <>
               <p className="text-xs text-gray-600">
@@ -674,111 +735,3 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
     </>
   );
 };
-
-// Composant pour item pharmacie
-interface PharmacyItemProps {
-  pharmacy: {
-    id: string;
-    name: string;
-    address: string;
-    ca: number;
-    area: string;
-    employees_count: number;
-    id_nat: string;
-  };
-  index: number;
-  isSelected: boolean;
-  selectionType: 'new' | 'stored' | 'none';
-  onToggle: (pharmacyId: string) => void;
-  formatCA: (ca: number) => string;
-}
-
-const PharmacyItem: React.FC<PharmacyItemProps> = ({
-  pharmacy,
-  index,
-  isSelected,
-  selectionType,
-  onToggle,
-  formatCA
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: index * 0.05 }}
-    className={`
-      p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
-      ${selectionType === 'stored' 
-        ? 'border-orange-300 bg-orange-50' 
-        : selectionType === 'new'
-        ? 'border-green-300 bg-green-50'
-        : isSelected 
-        ? 'border-orange-300 bg-orange-50'
-        : 'border-gray-200 hover:border-gray-300'
-      }
-    `}
-    onClick={() => onToggle(pharmacy.id)}
-  >
-    <div className="flex items-start justify-between">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center mb-2">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">
-            {pharmacy.name}
-          </h3>
-          {pharmacy.id_nat && (
-            <span className="ml-2 text-xs text-gray-500 font-mono">
-              {pharmacy.id_nat}
-            </span>
-          )}
-        </div>
-        
-        {/* Address */}
-        <div className="flex items-center text-xs text-gray-600 mb-2">
-          <MapPin className="w-3 h-3 mr-1" />
-          <span className="truncate">{pharmacy.address}</span>
-        </div>
-
-        {/* Metrics Row */}
-        <div className="flex items-center space-x-4 text-xs mb-2">
-          <div className="flex items-center text-green-600">
-            <Euro className="w-3 h-3 mr-1" />
-            <span className="font-medium">{formatCA(pharmacy.ca)}</span>
-          </div>
-          <div className="flex items-center text-blue-600">
-            <Users className="w-3 h-3 mr-1" />
-            <span>{pharmacy.employees_count} emp.</span>
-          </div>
-          <div className="text-gray-600 truncate">
-            {pharmacy.area}
-          </div>
-        </div>
-
-        {/* Indicateurs visuels */}
-        {selectionType === 'stored' && (
-          <div className="flex items-center mb-2">
-            <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
-            <span className="text-xs text-orange-600 font-medium">
-              Déjà appliquée
-            </span>
-          </div>
-        )}
-        
-        {selectionType === 'new' && (
-          <div className="flex items-center mb-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
-            <span className="text-xs text-green-600 font-medium">
-              Nouvelle sélection
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Checkbox */}
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={() => onToggle(pharmacy.id)}
-        className="mt-2 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-      />
-    </div>
-  </motion.div>
-);
