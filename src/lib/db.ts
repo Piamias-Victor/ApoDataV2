@@ -20,8 +20,8 @@ class DatabaseConnection {
         require: true
       },
       max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      // idleTimeoutMillis: 30000,
+      // connectionTimeoutMillis: 2000,
     };
 
     this.pool = new Pool(config);
