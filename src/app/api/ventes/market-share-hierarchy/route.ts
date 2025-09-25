@@ -8,10 +8,9 @@ export const revalidate = 0;
 interface MarketShareHierarchyRequest {
   dateRange: { start: string; end: string; };
   productCodes?: string[];
-  laboratoryCodes?: string[];
-  categoryCodes?: string[];
+  bcbSegmentCodes?: string[];
   pharmacyIds?: string[];
-  hierarchyLevel: 'universe' | 'category' | 'family';
+  hierarchyLevel: 'bcb_segment_l0' | 'bcb_segment_l1' | 'bcb_segment_l2' | 'bcb_segment_l3' | 'bcb_segment_l4' | 'bcb_segment_l5' | 'bcb_family';
   page?: number;
   limit?: number;
 }
@@ -48,7 +47,8 @@ function validateRequest(body: any): MarketShareHierarchyRequest {
     throw new Error('Date range is required');
   }
   
-  if (!['universe', 'category', 'family'].includes(body.hierarchyLevel)) {
+  const validHierarchyLevels = ['bcb_segment_l0', 'bcb_segment_l1', 'bcb_segment_l2', 'bcb_segment_l3', 'bcb_segment_l4', 'bcb_segment_l5', 'bcb_family'];
+  if (!validHierarchyLevels.includes(body.hierarchyLevel)) {
     throw new Error('Invalid hierarchy level');
   }
   
@@ -61,15 +61,14 @@ function validateRequest(body: any): MarketShareHierarchyRequest {
     page: Math.max(1, parseInt(body.page) || 1),
     limit: Math.min(20, Math.max(5, parseInt(body.limit) || 5)),
     ...(body.productCodes && Array.isArray(body.productCodes) && { productCodes: body.productCodes }),
-    ...(body.laboratoryCodes && Array.isArray(body.laboratoryCodes) && { laboratoryCodes: body.laboratoryCodes }),
-    ...(body.categoryCodes && Array.isArray(body.categoryCodes) && { categoryCodes: body.categoryCodes }),
+    ...(body.bcbSegmentCodes && Array.isArray(body.bcbSegmentCodes) && { bcbSegmentCodes: body.bcbSegmentCodes }),
     ...(body.pharmacyIds && Array.isArray(body.pharmacyIds) && { pharmacyIds: body.pharmacyIds })
   };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
-  console.log('🎯 [API] Market Share Hierarchy Request started');
+  console.log('🎯 [API] Market Share Hierarchy BCB Request started');
 
   try {
     const body = await request.json();
@@ -80,10 +79,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       dateRange: validatedRequest.dateRange,
       page: validatedRequest.page,
       limit: validatedRequest.limit,
-      hasFilters: !!(validatedRequest.productCodes?.length || validatedRequest.pharmacyIds?.length)
+      hasFilters: !!(validatedRequest.productCodes?.length || validatedRequest.bcbSegmentCodes?.length || validatedRequest.pharmacyIds?.length)
     });
 
-    const segments = await calculateMarketShareHierarchy(validatedRequest);
+    const segments = await calculateMarketShareHierarchyBCB(validatedRequest);
     
     const response: MarketShareHierarchyResponse = {
       segments: segments.segments,
@@ -93,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cached: false
     };
     
-    console.log('✅ [API] Market Share Hierarchy completed:', {
+    console.log('✅ [API] Market Share Hierarchy BCB completed:', {
       segmentsCount: segments.segments.length,
       hierarchyLevel: validatedRequest.hierarchyLevel,
       queryTime: response.queryTime
@@ -102,14 +101,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('❌ [API] Market Share Hierarchy failed:', error);
+    console.error('❌ [API] Market Share Hierarchy BCB failed:', error);
     return NextResponse.json({ 
       error: error instanceof Error ? error.message : 'Internal server error' 
     }, { status: 500 });
   }
 }
 
-async function calculateMarketShareHierarchy(
+async function calculateMarketShareHierarchyBCB(
   request: MarketShareHierarchyRequest
 ): Promise<{
   segments: HierarchySegment[];
@@ -119,8 +118,7 @@ async function calculateMarketShareHierarchy(
     dateRange, 
     hierarchyLevel, 
     productCodes = [], 
-    laboratoryCodes = [], 
-    categoryCodes = [], 
+    bcbSegmentCodes = [], 
     pharmacyIds,
     page = 1,
     limit = 5
@@ -129,21 +127,14 @@ async function calculateMarketShareHierarchy(
   // Construction filtres produits
   const allProductCodes = Array.from(new Set([
     ...productCodes,
-    ...laboratoryCodes,
-    ...categoryCodes
+    ...bcbSegmentCodes
   ]));
 
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  // Mapping des niveaux hiérarchiques
-  const hierarchyFieldMap = {
-    universe: 'dgp.universe',
-    category: 'dgp.category',
-    family: 'dgp.family'
-  };
-
-  const hierarchyField = hierarchyFieldMap[hierarchyLevel];
+  // Champ hiérarchique BCB
+  const hierarchyField = `dgp.${hierarchyLevel}`;
   
   // Paramètres de base : [start_date, end_date]
   const params: any[] = [dateRange.start, dateRange.end];
@@ -215,7 +206,7 @@ async function calculateMarketShareHierarchy(
     brand_labs_by_segment AS (
       SELECT 
         ${hierarchyField} as segment_name,
-        dgp.brand_lab,
+        dgp.bcb_lab,
         SUM(s.quantity * ins.price_with_tax) as ca_brand_lab,
         SUM(s.quantity * (
           (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
@@ -231,9 +222,9 @@ async function calculateMarketShareHierarchy(
       WHERE s.date >= $1::date AND s.date <= $2::date
         AND ins.weighted_average_price > 0
         AND ${hierarchyField} IS NOT NULL
-        AND dgp.brand_lab IS NOT NULL
+        AND dgp.bcb_lab IS NOT NULL
         ${pharmacyFilterTotal}
-      GROUP BY ${hierarchyField}, dgp.brand_lab
+      GROUP BY ${hierarchyField}, dgp.bcb_lab
       HAVING SUM(s.quantity * ins.price_with_tax) > 0
     ),
     top_3_brand_labs AS (
@@ -241,7 +232,7 @@ async function calculateMarketShareHierarchy(
         segment_name,
         JSON_AGG(
           JSON_BUILD_OBJECT(
-            'brand_lab', brand_lab,
+            'brand_lab', bcb_lab,
             'ca_brand_lab', ca_brand_lab,
             'marge_brand_lab', marge_brand_lab
           ) ORDER BY ca_brand_lab DESC
@@ -293,7 +284,7 @@ async function calculateMarketShareHierarchy(
     FROM paginated_results;
   `;
 
-  console.log('🔍 [API] Executing Market Share Hierarchy query:', {
+  console.log('🔍 [API] Executing Market Share Hierarchy BCB query:', {
     hierarchyLevel,
     hierarchyField,
     dateRange,
@@ -301,15 +292,7 @@ async function calculateMarketShareHierarchy(
     hasPharmacyFilter,
     page,
     limit,
-    paramsLength: params.length,
-    paramMapping: {
-      '$1': 'start_date',
-      '$2': 'end_date', 
-      ...(hasProductFilter && { [`$3`]: 'product_codes' }),
-      ...(hasPharmacyFilter && { [`$${hasProductFilter ? 4 : 3}`]: 'pharmacy_ids' }),
-      [`$${limitParamIndex}`]: 'limit',
-      [`$${offsetParamIndex}`]: 'offset'
-    }
+    paramsLength: params.length
   });
 
   try {
@@ -340,7 +323,7 @@ async function calculateMarketShareHierarchy(
       })) : []
     }));
 
-    console.log('📊 [API] Market Share Hierarchy results:', {
+    console.log('📊 [API] Market Share Hierarchy BCB results:', {
       segmentsCount: segments.length,
       totalSegments,
       totalPages,

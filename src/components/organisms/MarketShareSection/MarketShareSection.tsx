@@ -14,33 +14,42 @@ interface MarketShareSectionProps {
   readonly dateRange: { start: string; end: string };
   readonly filters?: {
     readonly products?: string[];
-    readonly laboratories?: string[];
-    readonly categories?: string[];
+    readonly bcbSegments?: string[];
     readonly pharmacies?: string[];
   };
   readonly onRefresh?: () => void;
   readonly className?: string;
 }
 
-type HierarchyLevel = 'universe' | 'category' | 'family';
+type BCBHierarchyLevel = 
+  | 'bcb_segment_l0' 
+  | 'bcb_segment_l1' 
+  | 'bcb_segment_l2' 
+  | 'bcb_segment_l3' 
+  | 'bcb_segment_l4' 
+  | 'bcb_segment_l5' 
+  | 'bcb_family';
 
-const HIERARCHY_LABELS: Record<HierarchyLevel, string> = {
-  universe: 'Univers',
-  category: 'Catégories', 
-  family: 'Familles'
+const HIERARCHY_LABELS: Record<BCBHierarchyLevel, string> = {
+  bcb_segment_l0: 'Univers BCB',
+  bcb_segment_l1: 'Segment L1',
+  bcb_segment_l2: 'Segment L2', 
+  bcb_segment_l3: 'Segment L3',
+  bcb_segment_l4: 'Segment L4',
+  bcb_segment_l5: 'Segment L5',
+  bcb_family: 'Familles BCB'
 };
 
 /**
- * MarketShareSection - Parts de marché par hiérarchie produits
- * Avec export CSV intégré
+ * MarketShareSection - Parts de marché hiérarchie BCB complète
  * 
  * Features :
- * - 3 niveaux : Univers, Catégories, Familles
- * - Barres de progression avec CA + Marge
- * - Pagination 5 segments par niveau
- * - Tri par CA sélection décroissant
- * - Export CSV complet avec top laboratoires
- * - États loading/error/empty cohérents
+ * - 7 niveaux BCB : L0-L5 + Familles
+ * - Barres progression CA + Marge
+ * - Pagination 5 segments/niveau
+ * - Top 3 laboratoires BCB
+ * - Export CSV complet
+ * - États loading/error/empty
  */
 export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
   dateRange,
@@ -48,9 +57,9 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
   onRefresh,
   className = ''
 }) => {
-  const [activeLevel, setActiveLevel] = useState<HierarchyLevel>('universe');
+  const [activeLevel, setActiveLevel] = useState<BCBHierarchyLevel>('bcb_segment_l0');
 
-  // Hook pour le niveau actif
+  // Hook pour le niveau BCB actif
   const { 
     data, 
     isLoading, 
@@ -74,19 +83,19 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
   // Hook export CSV
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // Handler refresh avec callback externe
+  // Handler refresh
   const handleRefresh = useCallback(async () => {
     await refetch();
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Handler changement niveau hiérarchique
-  const handleLevelChange = useCallback((level: HierarchyLevel) => {
-    console.log('Switching hierarchy level:', level);
+  // Handler changement niveau BCB
+  const handleLevelChange = useCallback((level: BCBHierarchyLevel) => {
+    console.log('Switching BCB hierarchy level:', level);
     setActiveLevel(level);
   }, []);
 
-  // Formatage des montants
+  // Formatage montants
   const formatCurrency = useCallback((amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -96,7 +105,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
     }).format(amount);
   }, []);
 
-  // Formatage des pourcentages
+  // Formatage pourcentages
   const formatPercentage = useCallback((percentage: number): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'percent',
@@ -105,139 +114,76 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
     }).format(percentage / 100);
   }, []);
 
-  // Préparation données pour export CSV
+  // Préparation export CSV BCB
   const prepareMarketShareDataForExport = useCallback(() => {
     if (!data || data.segments.length === 0) return [];
     
     const exportData = [];
+    const currentPeriod = `${new Date(dateRange.start).toLocaleDateString('fr-FR')} - ${new Date(dateRange.end).toLocaleDateString('fr-FR')}`;
     
-    // Formatage période pour lisibilité
-    const formatDateRange = (start: string, end: string) => {
-      const startDate = new Date(start);
-      const endDate = new Date(end);
-      return `${startDate.toLocaleDateString('fr-FR')} - ${endDate.toLocaleDateString('fr-FR')}`;
-    };
-    
-    const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
-    
-    // En-tête avec informations générales
+    // En-tête informations BCB
     exportData.push({
-      'Segment': 'INFORMATIONS GÉNÉRALES',
+      'Segment BCB': 'INFORMATIONS GÉNÉRALES',
       'Niveau Hiérarchie': HIERARCHY_LABELS[activeLevel],
       'Période': currentPeriod,
       'Page Actuelle': currentPage.toString(),
-      'Total Pages': totalPages.toString(),
       'Total Segments': totalSegments.toString(),
-      'Temps de Calcul (ms)': data.queryTime.toString(),
-      'Données en Cache': data.cached ? 'Oui' : 'Non',
       'CA Sélection (€)': '',
       'Part Marché CA (%)': '',
       'Marge Sélection (€)': '',
       'Part Marché Marge (%)': '',
-      'CA Total Segment (€)': '',
-      'Marge Total Segment (€)': '',
-      'Top 1 Lab': '',
-      'Top 1 CA': '',
-      'Top 2 Lab': '',
-      'Top 2 CA': '',
-      'Top 3 Lab': '',
-      'Top 3 CA': ''
+      'Top Lab BCB': '',
+      'Top Lab CA': ''
     });
 
-    // Ligne de séparation
-    exportData.push({
-      'Segment': '--- DONNÉES PAR SEGMENT ---',
-      'Niveau Hiérarchie': '',
-      'Période': '',
-      'Page Actuelle': '',
-      'Total Pages': '',
-      'Total Segments': '',
-      'Temps de Calcul (ms)': '',
-      'Données en Cache': '',
-      'CA Sélection (€)': '',
-      'Part Marché CA (%)': '',
-      'Marge Sélection (€)': '',
-      'Part Marché Marge (%)': '',
-      'CA Total Segment (€)': '',
-      'Marge Total Segment (€)': '',
-      'Top 1 Lab': '',
-      'Top 1 CA': '',
-      'Top 2 Lab': '',
-      'Top 2 CA': '',
-      'Top 3 Lab': '',
-      'Top 3 CA': ''
-    });
-    
-    // Export de tous les segments avec leurs données
+    // Données segments BCB
     data.segments.forEach(segment => {
       const topLabs = segment.top_brand_labs || [];
       
       exportData.push({
-        'Segment': segment.segment_name,
+        'Segment BCB': segment.segment_name,
         'Niveau Hiérarchie': HIERARCHY_LABELS[activeLevel],
         'Période': currentPeriod,
         'Page Actuelle': currentPage.toString(),
-        'Total Pages': totalPages.toString(),
         'Total Segments': totalSegments.toString(),
-        'Temps de Calcul (ms)': data.queryTime.toString(),
-        'Données en Cache': data.cached ? 'Oui' : 'Non',
         'CA Sélection (€)': segment.ca_selection.toString(),
         'Part Marché CA (%)': segment.part_marche_ca_pct.toFixed(2),
         'Marge Sélection (€)': segment.marge_selection.toString(),
         'Part Marché Marge (%)': segment.part_marche_marge_pct.toFixed(2),
-        'CA Total Segment (€)': segment.ca_total_segment.toString(),
-        'Marge Total Segment (€)': segment.marge_total_segment.toString(),
-        'Top 1 Lab': topLabs[0]?.brand_lab || 'N/A',
-        'Top 1 CA': topLabs[0]?.ca_brand_lab?.toString() || '0',
-        'Top 2 Lab': topLabs[1]?.brand_lab || 'N/A',
-        'Top 2 CA': topLabs[1]?.ca_brand_lab?.toString() || '0',
-        'Top 3 Lab': topLabs[2]?.brand_lab || 'N/A',
-        'Top 3 CA': topLabs[2]?.ca_brand_lab?.toString() || '0'
+        'Top Lab BCB': topLabs[0]?.brand_lab || 'N/A',
+        'Top Lab CA': topLabs[0]?.ca_brand_lab?.toString() || '0'
       });
     });
     
     return exportData;
-  }, [data, dateRange, activeLevel, currentPage, totalPages, totalSegments]);
+  }, [data, dateRange, activeLevel, currentPage, totalSegments]);
 
-  // Handler export avec vérification
+  // Handler export BCB
   const handleExport = useCallback(() => {
     const exportData = prepareMarketShareDataForExport();
+    if (exportData.length === 0) return;
     
-    if (exportData.length === 0) {
-      console.warn('Aucune donnée à exporter');
-      return;
-    }
+    const levelLabel = HIERARCHY_LABELS[activeLevel].toLowerCase().replace(/\s+/g, '_');
+    const filename = CsvExporter.generateFilename(`apodata_parts_marche_bcb_${levelLabel}`);
     
-    const levelLabel = HIERARCHY_LABELS[activeLevel].toLowerCase().replace(' ', '_');
-    const filename = CsvExporter.generateFilename(`apodata_parts_marche_${levelLabel}`);
-    
-    // Vérification que le premier élément existe avant d'obtenir les headers
-    if (!exportData[0]) {
-      console.error('Données export invalides');
-      return;
-    }
-    
+    if (!exportData[0]) return;
     const headers = Object.keys(exportData[0]);
     
-    exportToCsv({
-      filename,
-      headers,
-      data: exportData
-    });
+    exportToCsv({ filename, headers, data: exportData });
   }, [prepareMarketShareDataForExport, exportToCsv, activeLevel]);
 
-  // État empty avec validation
+  // État empty
   const isEmpty = useMemo(() => {
     return hasData && data && data.segments.length === 0;
   }, [hasData, data]);
 
-  // Rendu états d'erreur
+  // Rendu erreur
   if (error) {
     return (
       <section className={`px-6 py-6 ${className}`}>
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-900">
-            Parts de Marché par Hiérarchie
+            Parts de Marché Hiérarchie BCB
           </h2>
         </div>
         
@@ -271,18 +217,17 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
 
   return (
     <section className={`px-6 py-6 ${className}`}>
-      {/* Header avec titre, contrôles et boutons d'action */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
-            Parts de Marché par Hiérarchie
+            Parts de Marché Hiérarchie BCB
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            Performance de votre sélection par niveau hiérarchique
+            Performance par niveau hiérarchique BCB complet
           </p>
         </div>
         
-        {/* Boutons d'action */}
         <div className="flex items-center space-x-2">
           <ExportButton
             onClick={handleExport}
@@ -296,11 +241,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
             size="sm"
             onClick={handleRefresh}
             disabled={isLoading}
-            iconLeft={
-              <RotateCcw 
-                className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
-              />
-            }
+            iconLeft={<RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />}
             className="text-gray-600 hover:text-gray-900"
           >
             {isLoading ? 'Actualisation...' : 'Actualiser'}
@@ -308,28 +249,29 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
         </div>
       </div>
 
-      {/* Onglets niveaux hiérarchiques */}
-      <div className="flex space-x-1 mb-6 p-1 bg-gray-100 rounded-lg">
+      {/* Onglets niveaux BCB */}
+      <div className="grid grid-cols-7 gap-1 mb-6 p-1 bg-gray-100 rounded-lg">
         {Object.entries(HIERARCHY_LABELS).map(([level, label]) => (
           <button
             key={level}
-            onClick={() => handleLevelChange(level as HierarchyLevel)}
+            onClick={() => handleLevelChange(level as BCBHierarchyLevel)}
             disabled={isLoading}
             className={`
-              px-4 py-2 text-sm font-medium rounded-md transition-all
+              px-2 py-2 text-xs font-medium rounded-md transition-all text-center
               ${activeLevel === level
                 ? 'bg-white text-gray-900 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }
               ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
             `}
+            title={label}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {/* États Loading */}
+      {/* Loading */}
       {isLoading && (
         <div className="space-y-4">
           {[...Array(5)].map((_, index) => (
@@ -348,14 +290,12 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
         </div>
       )}
 
-      {/* État Success avec données */}
+      {/* Success avec données BCB */}
       {!isLoading && data && data.segments.length > 0 && (
         <>
-          {/* Liste des segments avec barres de progression */}
           <div className="space-y-4">
             {data.segments.map((segment, index) => (
               <div key={`${segment.segment_name}-${index}`} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
-                {/* Header segment */}
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1 pr-4">
                     <h4 className="font-medium text-gray-900 text-base">
@@ -371,16 +311,14 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
                     <div className="text-sm font-medium text-gray-900">
                       {formatCurrency(segment.ca_selection)}
                     </div>
-                    <div className="text-xs text-gray-500">
-                      CA Sélection
-                    </div>
+                    <div className="text-xs text-gray-500">CA Sélection</div>
                   </div>
                 </div>
 
-                {/* Barre de progression CA */}
+                {/* Barres progression */}
                 <div className="mb-3">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-gray-700">Part de Marché CA</span>
+                    <span className="text-sm font-medium text-gray-700">Part Marché CA</span>
                     <span className="text-sm font-semibold text-sky-600">
                       {formatPercentage(segment.part_marche_ca_pct)}
                     </span>
@@ -388,17 +326,14 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                     <div 
                       className="bg-sky-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                      style={{ 
-                        width: `${Math.min(100, Math.max(0, segment.part_marche_ca_pct))}%` 
-                      }}
+                      style={{ width: `${Math.min(100, Math.max(0, segment.part_marche_ca_pct))}%` }}
                     ></div>
                   </div>
                 </div>
 
-                {/* Barre de progression Marge */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-gray-700">Part de Marché Marge</span>
+                    <span className="text-sm font-medium text-gray-700">Part Marché Marge</span>
                     <span className="text-sm font-semibold text-green-600">
                       {formatPercentage(segment.part_marche_marge_pct)}
                     </span>
@@ -406,9 +341,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
                     <div 
                       className="bg-green-500 h-2.5 rounded-full transition-all duration-700 ease-out"
-                      style={{ 
-                        width: `${Math.min(100, Math.max(0, segment.part_marche_marge_pct))}%` 
-                      }}
+                      style={{ width: `${Math.min(100, Math.max(0, segment.part_marche_marge_pct))}%` }}
                     ></div>
                   </div>
                   <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
@@ -416,24 +349,34 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
                   </div>
                 </div>
 
-                {/* Top 3 Brand Labs */}
+                {/* Top 3 Labs BCB */}
                 {segment.top_brand_labs && segment.top_brand_labs.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-gray-100">
                     <h5 className="text-sm font-medium text-gray-700 mb-2">
-                      Top 3 Laboratoires
+                      Top 3 Laboratoires BCB
                     </h5>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {segment.top_brand_labs.map((brandLab, brandIndex) => (
-                        <div key={`${brandLab.brand_lab}-${brandIndex}`} className="bg-gray-50 rounded-md p-2">
-                          <div className="text-xs font-medium text-gray-900 truncate" title={brandLab.brand_lab}>
-                            {brandLab.brand_lab}
+                      {segment.top_brand_labs.map((brandLab, brandIndex) => {
+                        // Calcul part de marché CA du laboratoire
+                        const labMarketSharePct = segment.ca_total_segment > 0 
+                          ? (brandLab.ca_brand_lab / segment.ca_total_segment) * 100 
+                          : 0;
+                        
+                        return (
+                          <div key={`${brandLab.brand_lab}-${brandIndex}`} className="bg-gray-50 rounded-md p-2">
+                            <div className="text-xs font-medium text-gray-900 truncate" title={brandLab.brand_lab}>
+                              {brandLab.brand_lab}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              <div>CA: {formatCurrency(brandLab.ca_brand_lab)}</div>
+                              <div className="text-xs text-sky-600 font-medium">
+                                Part: {formatPercentage(labMarketSharePct)}
+                              </div>
+                              <div>Marge: {formatCurrency(brandLab.marge_brand_lab)}</div>
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            <div>CA: {formatCurrency(brandLab.ca_brand_lab)}</div>
-                            <div>Marge: {formatCurrency(brandLab.marge_brand_lab)}</div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -474,7 +417,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
         </>
       )}
 
-      {/* État Empty */}
+      {/* Empty state */}
       {!isLoading && isEmpty && (
         <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-gray-200">
           <div className="text-gray-400 mb-4">
@@ -484,12 +427,11 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
           </div>
           
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Aucune donnée de {HIERARCHY_LABELS[activeLevel].toLowerCase()}
+            Aucune donnée {HIERARCHY_LABELS[activeLevel]}
           </h3>
           
           <p className="text-gray-500 mb-4 max-w-md">
-            Aucune activité détectée pour ce niveau hiérarchique sur la période sélectionnée.
-            Vérifiez vos filtres ou changez de période.
+            Aucune activité détectée pour ce niveau BCB sur la période sélectionnée.
           </p>
           
           <Button
@@ -498,7 +440,7 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
             onClick={handleRefresh}
             iconLeft={<RotateCcw className="w-4 h-4" />}
           >
-            Actualiser les données
+            Actualiser
           </Button>
         </div>
       )}
@@ -506,5 +448,4 @@ export const MarketShareSection: React.FC<MarketShareSectionProps> = ({
   );
 };
 
-// Performance optimization avec React.memo
 export const MemoizedMarketShareSection = React.memo(MarketShareSection);
