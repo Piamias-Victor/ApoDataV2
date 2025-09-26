@@ -27,21 +27,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body: PricingCalculateRequest = await request.json();
     
-    // Fusion des codes comme dans products/list
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
       ...(body.categoryCodes || [])
     ]));
-    
-    console.log('🔍 [API Pricing] Request:', {
-      totalCodes: allProductCodes.length,
-      productCodes: body.productCodes?.length || 0,
-      laboratoryCodes: body.laboratoryCodes?.length || 0,
-      categoryCodes: body.categoryCodes?.length || 0,
-      pharmacyIds: body.pharmacyIds,
-      userRole: context.userRole
-    });
     
     if (!allProductCodes || allProductCodes.length === 0) {
       return NextResponse.json({
@@ -56,121 +46,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacy: body.pharmacyIds || []
     }, context);
 
-    let params: any[] = [body.dateRange.start, body.dateRange.end, allProductCodes];
-    let pharmacyFilter = '';
+    // Utiliser exactement la même logique que products/list
+    const products = context.isAdmin 
+      ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy)
+      : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!);
 
-    if (context.isAdmin && secureFilters.pharmacy?.length) {
-      params.push(secureFilters.pharmacy);
-      pharmacyFilter = 'AND ip.pharmacy_id = ANY($4::uuid[])';
-    } else if (!context.isAdmin) {
-      params.push(context.pharmacyId);
-      pharmacyFilter = 'AND ip.pharmacy_id = $4::uuid';
-    }
-
-    // Même requête qu'avant mais avec allProductCodes
-    const query = context.isAdmin
-      ? `WITH product_data AS (
-          SELECT 
-            gp.name as product_name,
-            gp.code_13_ref as code_ean,
-            COUNT(DISTINCT ip.pharmacy_id) as pharmacy_count,
-            AVG(CASE WHEN ins.weighted_average_price > 0 THEN ins.weighted_average_price END) as avg_buy_price_ht,
-            COALESCE(SUM(po.qte), 0) as quantity_bought,
-            COALESCE(SUM(s.quantity), 0) as quantity_sold,
-            AVG(ins.price_with_tax) as avg_sell_price_ttc,
-            AVG(ip."TVA") as tva_rate
-          FROM data_globalproduct gp
-          INNER JOIN data_internalproduct ip ON gp.code_13_ref = ip.code_13_ref_id
-          LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
-          LEFT JOIN data_sales s ON ins.id = s.product_id
-            AND s.date >= $1 AND s.date <= $2
-          LEFT JOIN data_productorder po ON ip.id = po.product_id
-          LEFT JOIN data_order o ON po.order_id = o.id
-            AND o.created_at >= $1 AND o.created_at <= $2
-          WHERE gp.code_13_ref = ANY($3::text[])
-            ${pharmacyFilter}
-          GROUP BY gp.name, gp.code_13_ref
-        )`
-      : `WITH product_data AS (
-          SELECT 
-            ip.name as product_name,
-            ip.code_13_ref_id as code_ean,
-            1 as pharmacy_count,
-            AVG(CASE WHEN ins.weighted_average_price > 0 THEN ins.weighted_average_price END) as avg_buy_price_ht,
-            COALESCE(SUM(po.qte), 0) as quantity_bought,
-            COALESCE(SUM(s.quantity), 0) as quantity_sold,
-            AVG(ins.price_with_tax) as avg_sell_price_ttc,
-            AVG(ip."TVA") as tva_rate
-          FROM data_internalproduct ip
-          LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
-          LEFT JOIN data_sales s ON ins.id = s.product_id
-            AND s.date >= $1 AND s.date <= $2
-          LEFT JOIN data_productorder po ON ip.id = po.product_id
-          LEFT JOIN data_order o ON po.order_id = o.id
-            AND o.created_at >= $1 AND o.created_at <= $2
-          WHERE ip.code_13_ref_id = ANY($3::text[])
-            AND ip.pharmacy_id = $4::uuid
-          GROUP BY ip.name, ip.code_13_ref_id
-        )`;
-
-    const fullQuery = query + `
-      SELECT 
-        product_name,
-        code_ean,
-        pharmacy_count::int,
-        COALESCE(avg_buy_price_ht, 0)::float as avg_buy_price_ht,
-        quantity_bought::int,
-        quantity_sold::int,
-        COALESCE(avg_sell_price_ttc, 0)::float as avg_sell_price_ttc,
-        COALESCE(tva_rate, 5.5)::float as tva_rate,
-        CASE WHEN avg_sell_price_ttc > 0 
-          THEN avg_sell_price_ttc / (1 + COALESCE(tva_rate, 5.5)/100) 
-          ELSE 0 
-        END::float as avg_sell_price_ht,
-        CASE 
-          WHEN avg_sell_price_ttc > 0 AND avg_buy_price_ht > 0 THEN
-            ((avg_sell_price_ttc / (1 + COALESCE(tva_rate, 5.5)/100) - avg_buy_price_ht) / 
-             (avg_sell_price_ttc / (1 + COALESCE(tva_rate, 5.5)/100))) * 100
-          ELSE 0
-        END::float as current_margin_percent,
-        CASE 
-          WHEN avg_sell_price_ttc > 0 AND avg_buy_price_ht > 0 THEN
-            avg_sell_price_ttc / (1 + COALESCE(tva_rate, 5.5)/100) - avg_buy_price_ht
-          ELSE 0
-        END::float as current_margin_ht,
-        CASE 
-          WHEN avg_buy_price_ht > 0 THEN avg_sell_price_ttc / avg_buy_price_ht
-          ELSE 0
-        END::float as current_coefficient,
-        (COALESCE(avg_sell_price_ttc, 0) * quantity_sold)::float as total_ca_ttc,
-        ((COALESCE(avg_sell_price_ttc, 0) / (1 + COALESCE(tva_rate, 5.5)/100)) * quantity_sold)::float as total_ca_ht
-      FROM product_data
-      ORDER BY quantity_sold DESC, product_name`;
-    
-    const result = await db.query(fullQuery, params);
-    
-    const products = result.map((row: any) => ({
+    const result = products.map((row: any) => ({
       product_name: row.product_name,
       code_ean: row.code_ean,
       current_conditions: {
         avg_buy_price_ht: row.avg_buy_price_ht,
-        pharmacy_count: row.pharmacy_count,
+        pharmacy_count: row.pharmacy_count || 1,
         quantity_bought: row.quantity_bought,
         quantity_sold: row.quantity_sold,
         avg_sell_price_ttc: row.avg_sell_price_ttc,
         avg_sell_price_ht: row.avg_sell_price_ht,
         tva_rate: row.tva_rate,
-        current_margin_percent: row.current_margin_percent,
-        current_margin_ht: row.current_margin_ht,
-        current_coefficient: row.current_coefficient,
-        total_ca_ttc: row.total_ca_ttc,
-        total_ca_ht: row.total_ca_ht
+        current_margin_percent: row.margin_rate_percent,
+        current_margin_ht: row.unit_margin_ht,
+        current_coefficient: row.avg_buy_price_ht > 0 ? row.avg_sell_price_ttc / row.avg_buy_price_ht : 0,
+        total_ca_ttc: row.ca_ttc,
+        total_ca_ht: row.ca_ttc / (1 + row.tva_rate / 100),
+        total_purchase_amount: row.purchase_amount
       }
     }));
 
     return NextResponse.json({
-      products,
-      count: products.length,
+      products: result,
+      count: result.length,
       queryTime: Date.now() - startTime
     });
 
@@ -181,4 +84,190 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+}
+
+async function executeAdminQuery(
+  dateRange: { start: string; end: string },
+  productCodes: string[],
+  pharmacyIds?: string[]
+) {
+  const params: any[] = [dateRange.start, dateRange.end, productCodes];
+  let pharmacyFilter = '';
+  
+  if (pharmacyIds && pharmacyIds.length > 0) {
+    params.push(pharmacyIds);
+    pharmacyFilter = 'AND ip.pharmacy_id = ANY($4::uuid[])';
+  }
+
+  const query = `
+    WITH product_sales AS (
+      SELECT 
+        ip.code_13_ref_id,
+        SUM(s.quantity) as total_quantity_sold,
+        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
+        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        AVG(ip."TVA") as avg_tva_rate
+      FROM data_sales s
+      INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE s.date >= $1 AND s.date <= $2
+        AND ip.code_13_ref_id = ANY($3::text[])
+        ${pharmacyFilter}
+      GROUP BY ip.code_13_ref_id
+    ),
+    product_purchases AS (
+      SELECT 
+        ip.code_13_ref_id,
+        SUM(po.qte) as total_quantity_bought,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
+        AND ip.code_13_ref_id = ANY($3::text[])
+        ${pharmacyFilter}
+      GROUP BY ip.code_13_ref_id
+    ),
+    avg_buy_price AS (
+      SELECT 
+        ip.code_13_ref_id,
+        AVG(ins.weighted_average_price) as avg_buy_price_ht
+      FROM data_inventorysnapshot ins
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE ins.weighted_average_price > 0
+        AND ip.code_13_ref_id = ANY($3::text[])
+        ${pharmacyFilter}
+      GROUP BY ip.code_13_ref_id
+    )
+    SELECT 
+      gp.name as product_name,
+      gp.code_13_ref as code_ean,
+      COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
+      COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
+      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
+      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
+      CASE 
+        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
+          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
+          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
+        ELSE 0 
+      END as margin_rate_percent,
+      CASE 
+        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
+          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
+        ELSE 0 
+      END as unit_margin_ht,
+      COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
+      COALESCE(ps.total_ca_ttc, 0) as ca_ttc,
+      COALESCE(pp.total_quantity_bought, 0) as quantity_bought,
+      COALESCE(pp.total_purchase_amount, 0) as purchase_amount
+    FROM data_globalproduct gp
+    LEFT JOIN product_sales ps ON gp.code_13_ref = ps.code_13_ref_id
+    LEFT JOIN product_purchases pp ON gp.code_13_ref = pp.code_13_ref_id
+    LEFT JOIN avg_buy_price abp ON gp.code_13_ref = abp.code_13_ref_id
+    WHERE gp.code_13_ref = ANY($3::text[])
+    ORDER BY ps.total_quantity_sold DESC NULLS LAST`;
+
+  return await db.query(query, params);
+}
+
+async function executeUserQuery(
+  dateRange: { start: string; end: string },
+  productCodes: string[],
+  pharmacyId: string
+) {
+  const query = `
+    WITH product_sales AS (
+      SELECT 
+        ip.code_13_ref_id,
+        SUM(s.quantity) as total_quantity_sold,
+        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
+        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        AVG(ip."TVA") as avg_tva_rate
+      FROM data_sales s
+      INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE s.date >= $1 AND s.date <= $2
+        AND ip.code_13_ref_id = ANY($3::text[])
+        AND ip.pharmacy_id = $4::uuid
+      GROUP BY ip.code_13_ref_id
+    ),
+    product_purchases AS (
+      SELECT 
+        ip.code_13_ref_id,
+        SUM(po.qte) as total_quantity_bought,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
+        AND ip.code_13_ref_id = ANY($3::text[])
+        AND ip.pharmacy_id = $4::uuid
+      GROUP BY ip.code_13_ref_id
+    ),
+    avg_buy_price AS (
+      SELECT 
+        ip.code_13_ref_id,
+        AVG(ins.weighted_average_price) as avg_buy_price_ht
+      FROM data_inventorysnapshot ins
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE ins.weighted_average_price > 0
+        AND ip.pharmacy_id = $4::uuid
+        AND ip.code_13_ref_id = ANY($3::text[])
+      GROUP BY ip.code_13_ref_id
+    )
+    SELECT 
+      ip.name as product_name,
+      ip.code_13_ref_id as code_ean,
+      COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
+      COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
+      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
+      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
+      CASE 
+        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
+          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
+          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
+        ELSE 0 
+      END as margin_rate_percent,
+      CASE 
+        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
+          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
+        ELSE 0 
+      END as unit_margin_ht,
+      COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
+      COALESCE(ps.total_ca_ttc, 0) as ca_ttc,
+      COALESCE(pp.total_quantity_bought, 0) as quantity_bought,
+      COALESCE(pp.total_purchase_amount, 0) as purchase_amount
+    FROM data_internalproduct ip
+    LEFT JOIN product_sales ps ON ip.code_13_ref_id = ps.code_13_ref_id
+    LEFT JOIN product_purchases pp ON ip.code_13_ref_id = pp.code_13_ref_id
+    LEFT JOIN avg_buy_price abp ON ip.code_13_ref_id = abp.code_13_ref_id
+    WHERE ip.pharmacy_id = $4::uuid
+      AND ip.code_13_ref_id = ANY($3::text[])
+    ORDER BY ps.total_quantity_sold DESC NULLS LAST`;
+
+  return await db.query(query, [
+    dateRange.start,
+    dateRange.end,
+    productCodes,
+    pharmacyId
+  ]);
 }

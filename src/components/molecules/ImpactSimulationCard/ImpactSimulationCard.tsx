@@ -1,18 +1,20 @@
 // src/components/molecules/ImpactSimulationCard/ImpactSimulationCard.tsx
 import React from 'react';
-import { TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 
 interface ImpactSimulationCardProps {
   readonly simulation?: {
+    readonly new_buy_price_ht: number;
+    readonly new_sell_price_ttc: number;
     readonly new_margin_percent: number;
+    readonly new_margin_ht: number;
     readonly new_coefficient: number;
     readonly delta_margin_percent: number;
     readonly projected_ca_ttc: number;
     readonly projected_total_margin: number;
-  } | undefined;
-  readonly currentConditions?: {
-    readonly current_margin_percent: number;
+  } | undefined; // Ajout explicite de undefined
+  readonly currentConditions: {
     readonly total_ca_ttc: number;
     readonly current_margin_ht: number;
     readonly quantity_sold: number;
@@ -23,128 +25,140 @@ export const ImpactSimulationCard: React.FC<ImpactSimulationCardProps> = ({
   simulation,
   currentConditions
 }) => {
-  const formatCurrency = (value: number) => 
-    `${value.toFixed(2).replace('.', ',')} €`;
-  
-  const formatPercent = (value: number, showSign = true) => {
-    const formatted = value.toFixed(1).replace('.', ',');
-    return showSign && value >= 0 ? `+${formatted}%` : `${formatted}%`;
+  // Fonction de conversion sécurisée
+  const toNumber = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(',', '.').replace(/[^\d.-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
   };
 
-  if (!simulation || !currentConditions) {
+  const formatCurrency = (value: any) => {
+    const num = toNumber(value);
+    return `${num.toFixed(2).replace('.', ',')} €`;
+  };
+  
+  const formatPercent = (value: any, showSign = true) => {
+    const num = toNumber(value);
+    const formatted = num.toFixed(1).replace('.', ',');
+    if (showSign && num > 0) return `+${formatted}%`;
+    return `${formatted}%`;
+  };
+
+  if (!simulation) {
     return (
-      <Card variant="elevated" className="h-full bg-gray-50">
-        <div className="p-6 flex flex-col items-center justify-center h-full">
-          <AlertCircle className="w-12 h-12 text-gray-300 mb-4" />
-          <p className="text-gray-500 text-center">
-            Modifiez les conditions pour voir la simulation
-          </p>
+      <Card variant="elevated" className="h-full border-2 border-gray-200">
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-gray-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Impact simulation</h3>
+              <p className="text-xs text-gray-500">En attente de simulation</p>
+            </div>
+          </div>
+          
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-sm">Modifiez les conditions pour voir l'impact</p>
+          </div>
         </div>
       </Card>
     );
   }
 
-  const isPositive = simulation.delta_margin_percent > 0;
-  const totalMarginCurrent = currentConditions.current_margin_ht * currentConditions.quantity_sold;
-  const deltaCA = simulation.projected_ca_ttc - currentConditions.total_ca_ttc;
-  const deltaMarge = simulation.projected_total_margin - totalMarginCurrent;
+  const deltaCA = toNumber(simulation.projected_ca_ttc) - toNumber(currentConditions.total_ca_ttc);
+  const currentTotalMargin = toNumber(currentConditions.current_margin_ht) * toNumber(currentConditions.quantity_sold);
+  const deltaMargin = toNumber(simulation.projected_total_margin) - currentTotalMargin;
+  
+  const isPositive = deltaMargin >= 0;
 
   return (
-    <Card variant="elevated" className="h-full border-2 border-purple-200">
+    <Card variant="elevated" className={`h-full border-2 ${isPositive ? 'border-green-200' : 'border-red-200'}`}>
       <div className="p-6">
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-2 mb-4">
           <div className={`p-2 rounded-lg ${isPositive ? 'bg-green-100' : 'bg-red-100'}`}>
-            {isPositive ? 
-              <TrendingUp className="w-5 h-5 text-green-600" /> :
+            {isPositive ? (
+              <TrendingUp className="w-5 h-5 text-green-600" />
+            ) : (
               <TrendingDown className="w-5 h-5 text-red-600" />
-            }
+            )}
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Impact & Projections</h3>
-            <p className="text-xs text-gray-500">Analyse comparative</p>
+            <h3 className="font-semibold text-gray-900">Impact simulation</h3>
+            <p className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              {isPositive ? 'Impact positif' : 'Impact négatif'}
+            </p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className={`rounded-lg p-4 ${isPositive ? 'bg-green-50' : 'bg-red-50'}`}>
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-sm text-gray-600">Nouvelle marge</span>
-              <div className="text-right">
-                <div className="font-bold text-lg">
-                  {formatPercent(simulation.new_margin_percent, false)}
-                </div>
-                <div className={`text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatPercent(simulation.delta_margin_percent)}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all ${
-                    isPositive ? 'bg-green-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${Math.min(simulation.new_margin_percent, 100)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
+        <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-purple-50 rounded-lg p-3">
-              <div className="text-xs text-gray-600 mb-1">Nouveau coef.</div>
-              <div className="font-semibold text-purple-600">
-                {simulation.new_coefficient.toFixed(2).replace('.', ',')}
+            <div>
+              <div className="text-xs text-gray-500">Nouvelle marge</div>
+              <div className={`font-semibold ${
+                toNumber(simulation.new_margin_percent) > 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {formatPercent(simulation.new_margin_percent, false)}
               </div>
             </div>
-            <div className={`rounded-lg p-3 ${isPositive ? 'bg-green-50' : 'bg-orange-50'}`}>
-              <div className="text-xs text-gray-600 mb-1">Δ Marge</div>
-              <div className={`font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+            <div>
+              <div className="text-xs text-gray-500">Delta marge</div>
+              <div className={`font-semibold ${
+                toNumber(simulation.delta_margin_percent) >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
                 {formatPercent(simulation.delta_margin_percent)}
               </div>
             </div>
           </div>
 
-          <div className="border-t pt-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">CA TTC</span>
-                <span className="text-sm text-gray-500">
-                  {formatCurrency(currentConditions.total_ca_ttc)} →
-                </span>
-              </div>
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-xs text-gray-500">Projeté</span>
-                <span className="font-bold text-lg">
-                  {formatCurrency(simulation.projected_ca_ttc)}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className={`text-sm ${deltaCA >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {deltaCA >= 0 ? '+' : ''}{formatCurrency(deltaCA)}
-                </span>
+              <div className="text-xs text-gray-500">CA projeté</div>
+              <div className="font-medium text-gray-900">
+                {formatCurrency(simulation.projected_ca_ttc)}
               </div>
             </div>
-            
             <div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Marge HT</span>
-                <span className="text-sm text-gray-500">
-                  {formatCurrency(totalMarginCurrent)} →
-                </span>
+              <div className="text-xs text-gray-500">Delta CA</div>
+              <div className={`font-medium ${
+                deltaCA >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {deltaCA >= 0 ? '+' : ''}{formatCurrency(deltaCA)}
               </div>
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-xs text-gray-500">Projetée</span>
-                <span className="font-bold text-purple-600">
-                  {formatCurrency(simulation.projected_total_margin)}
-                </span>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-3">
+              <div className="text-xs text-gray-600 mb-1">Impact marge totale</div>
+              <div className={`text-lg font-bold ${
+                deltaMargin >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {deltaMargin >= 0 ? '+' : ''}{formatCurrency(deltaMargin)}
               </div>
-              <div className="text-right">
-                <span className={`text-sm ${deltaMarge >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {deltaMarge >= 0 ? '+' : ''}{formatCurrency(deltaMarge)}
-                </span>
+              <div className="text-xs text-gray-500 mt-1">
+                Sur {toNumber(currentConditions.quantity_sold)} unités vendues
               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Nouveau coef.</span>
+              <span className="font-medium text-purple-600">
+                {toNumber(simulation.new_coefficient).toFixed(2).replace('.', ',')}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Marge unitaire</span>
+              <span className="font-medium text-gray-900">
+                {formatCurrency(simulation.new_margin_ht)}
+              </span>
             </div>
           </div>
         </div>

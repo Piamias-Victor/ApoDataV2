@@ -6,6 +6,7 @@ import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CurrentConditionsCard } from '@/components/molecules/CurrentConditionsCard/CurrentConditionsCard';
 import { NewConditionsCard } from '@/components/molecules/NewConditionsCard/NewConditionsCard';
 import { ImpactSimulationCard } from '@/components/molecules/ImpactSimulationCard/ImpactSimulationCard';
+import { GlobalSimulationCard } from '@/components/molecules/GlobalSimulationCard/GlobalSimulationCard';
 import { Button } from '@/components/atoms/Button/Button';
 import { Input } from '@/components/atoms/Input/Input';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
@@ -22,69 +23,119 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
     newSellPrice: string;
   }>>({});
   
-  const [globalInputs, setGlobalInputs] = useState({
-    newBuyPrice: '',
-    newDiscount: '',
-    newSellPrice: ''
-  });
-  
+  const [newGlobalDiscount, setNewGlobalDiscount] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { products, isLoading, calculateSimulation, refetch } = usePricingCalculation({
     productCodes
   });
 
-  const { updateSimulation, getSimulation } = usePricingSimulations();
+  const { updateSimulation, getSimulation, simulations } = usePricingSimulations();
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // Calcul des données globales
+  // Calcul des données globales avec vérifications de sécurité
   const globalData = useMemo(() => {
     if (!products.length) return null;
     
-    const total = products.reduce((acc, product) => ({
-      avg_buy_price_ht: acc.avg_buy_price_ht + (product.current_conditions.avg_buy_price_ht * product.current_conditions.quantity_sold),
-      quantity_bought: acc.quantity_bought + product.current_conditions.quantity_bought,
-      quantity_sold: acc.quantity_sold + product.current_conditions.quantity_sold,
-      total_ca_ttc: acc.total_ca_ttc + product.current_conditions.total_ca_ttc,
-      total_ca_ht: acc.total_ca_ht + product.current_conditions.total_ca_ht,
-      weighted_sell_price: acc.weighted_sell_price + (product.current_conditions.avg_sell_price_ttc * product.current_conditions.quantity_sold)
-    }), {
-      avg_buy_price_ht: 0,
-      quantity_bought: 0,
-      quantity_sold: 0,
-      total_ca_ttc: 0,
-      total_ca_ht: 0,
-      weighted_sell_price: 0
+    const totals = products.reduce((acc, product) => {
+      const conditions = product.current_conditions;
+      
+      // Conversions sécurisées avec vérification des valeurs
+      const quantity_sold = Number(conditions.quantity_sold) || 0;
+      const quantity_bought = Number(conditions.quantity_bought) || 0;
+      const total_ca_ttc = Number(conditions.total_ca_ttc) || 0;
+      const total_purchase_amount = Number(conditions.total_purchase_amount) || 0;
+      const current_margin_ht = Number(conditions.current_margin_ht) || 0;
+      const current_margin_percent = Number(conditions.current_margin_percent) || 0;
+      
+      // Calcul de la marge totale pour ce produit
+      const totalMarginProduct = current_margin_ht * quantity_sold;
+      
+      return {
+        totalProducts: acc.totalProducts + 1,
+        totalCA: acc.totalCA + total_ca_ttc,
+        totalMargin: acc.totalMargin + totalMarginProduct,
+        totalQuantitySold: acc.totalQuantitySold + quantity_sold,
+        totalQuantityBought: acc.totalQuantityBought + quantity_bought,
+        totalPurchaseAmount: acc.totalPurchaseAmount + total_purchase_amount,
+        weightedMargin: acc.weightedMargin + (current_margin_percent * quantity_sold),
+        avgDiscount: 0
+      };
+    }, {
+      totalProducts: 0,
+      totalCA: 0,
+      totalMargin: 0,
+      totalQuantitySold: 0,
+      totalQuantityBought: 0,
+      totalPurchaseAmount: 0,
+      weightedMargin: 0,
+      avgDiscount: 0
     });
     
-    const avgBuyPrice = total.quantity_sold > 0 ? total.avg_buy_price_ht / total.quantity_sold : 0;
-    const avgSellPrice = total.quantity_sold > 0 ? total.weighted_sell_price / total.quantity_sold : 0;
-    const avgSellPriceHT = avgSellPrice / 1.055; // TVA moyenne 5.5%
-    const marginHT = avgSellPriceHT - avgBuyPrice;
-    const marginPercent = avgSellPriceHT > 0 ? (marginHT / avgSellPriceHT) * 100 : 0;
-    const coefficient = avgBuyPrice > 0 ? avgSellPrice / avgBuyPrice : 0;
+    // Calcul de la marge moyenne pondérée avec vérification
+    const avgMarginPercent = totals.totalQuantitySold > 0 
+      ? totals.weightedMargin / totals.totalQuantitySold 
+      : 0;
     
+    // Retour avec vérifications isFinite pour éviter NaN et Infinity
     return {
-      product_name: `Global - ${products.length} produits`,
-      code_ean: 'GLOBAL',
-      current_conditions: {
-        avg_buy_price_ht: avgBuyPrice,
-        pharmacy_count: Math.max(...products.map(p => p.current_conditions.pharmacy_count)),
-        quantity_bought: total.quantity_bought,
-        quantity_sold: total.quantity_sold,
-        avg_sell_price_ttc: avgSellPrice,
-        avg_sell_price_ht: avgSellPriceHT,
-        tva_rate: 5.5,
-        current_margin_percent: marginPercent,
-        current_margin_ht: marginHT,
-        current_coefficient: coefficient,
-        total_ca_ttc: total.total_ca_ttc,
-        total_ca_ht: total.total_ca_ht
-      }
+      totalProducts: totals.totalProducts,
+      avgDiscount: totals.avgDiscount,
+      totalCA: isFinite(totals.totalCA) ? totals.totalCA : 0,
+      totalMargin: isFinite(totals.totalMargin) ? totals.totalMargin : 0,
+      totalQuantityBought: isFinite(totals.totalQuantityBought) ? totals.totalQuantityBought : 0,
+      totalPurchaseAmount: isFinite(totals.totalPurchaseAmount) ? totals.totalPurchaseAmount : 0,
+      avgMarginPercent: isFinite(avgMarginPercent) ? avgMarginPercent : 0
     };
   }, [products]);
 
-  // Filtrage des produits par recherche
+  // Agrégation des simulations individuelles
+  const aggregatedSimulation = useMemo(() => {
+    let totalDeltaCA = 0;
+    let totalDeltaMargin = 0;
+    let totalNewMargin = 0;
+    let totalQuantity = 0;
+
+    products.forEach(product => {
+      const simulation = getSimulation(product.code_ean);
+      if (simulation) {
+        const quantity_sold = Number(product.current_conditions.quantity_sold) || 0;
+        const current_margin_ht = Number(product.current_conditions.current_margin_ht) || 0;
+        const currentMargin = current_margin_ht * quantity_sold;
+        
+        totalDeltaCA += (Number(simulation.projected_ca_ttc) || 0) - (Number(product.current_conditions.total_ca_ttc) || 0);
+        totalDeltaMargin += (Number(simulation.projected_total_margin) || 0) - currentMargin;
+        totalNewMargin += (Number(simulation.new_margin_percent) || 0) * quantity_sold;
+        totalQuantity += quantity_sold;
+      }
+    });
+
+    return {
+      totalDeltaCA: isFinite(totalDeltaCA) ? totalDeltaCA : 0,
+      totalDeltaMargin: isFinite(totalDeltaMargin) ? totalDeltaMargin : 0,
+      newAvgMargin: totalQuantity > 0 && isFinite(totalNewMargin / totalQuantity) 
+        ? totalNewMargin / totalQuantity 
+        : 0
+    };
+  }, [products, simulations, getSimulation]);
+
+  // Calcul du gain de la remise globale
+  const projectedGlobalGain = useMemo(() => {
+    if (!newGlobalDiscount || !globalData) return 0;
+    const discount = parseFloat(newGlobalDiscount.replace(',', '.'));
+    if (isNaN(discount)) return 0;
+    
+    const totalBuyValue = products.reduce((acc, p) => {
+      const buy_price = Number(p.current_conditions.avg_buy_price_ht) || 0;
+      const quantity = Number(p.current_conditions.quantity_bought) || 0;
+      return acc + (buy_price * quantity);
+    }, 0);
+    
+    const gain = totalBuyValue * (discount / 100);
+    return isFinite(gain) ? gain : 0;
+  }, [newGlobalDiscount, products, globalData]);
+
+  // Filtrage des produits
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return products;
     const query = searchQuery.toLowerCase();
@@ -99,73 +150,58 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
     field: 'newBuyPrice' | 'newDiscount' | 'newSellPrice',
     value: string
   ) => {
-    const isGlobal = productCode === 'GLOBAL';
+    const currentInputs = simulationInputs[productCode] || {
+      newBuyPrice: '',
+      newDiscount: '',
+      newSellPrice: ''
+    };
     
-    if (isGlobal) {
-      setGlobalInputs(prev => ({
-        ...prev,
-        [field]: value
-      }));
-      
-      if (globalData) {
-        const simulation = calculateSimulation({
-          product: globalData,
-          newBuyPrice: parseFloat(field === 'newBuyPrice' ? value : globalInputs.newBuyPrice) || undefined,
-          newDiscount: parseFloat(field === 'newDiscount' ? value : globalInputs.newDiscount) || undefined,
-          newSellPrice: parseFloat(field === 'newSellPrice' ? value : globalInputs.newSellPrice) || undefined
-        });
-        updateSimulation('GLOBAL', simulation);
-      }
-    } else {
-      const currentInputs = simulationInputs[productCode] || {
-        newBuyPrice: '',
-        newDiscount: '',
-        newSellPrice: ''
-      };
-      
-      const newInputs = {
-        ...currentInputs,
-        [field]: value
-      };
-      
-      setSimulationInputs(prev => ({
-        ...prev,
-        [productCode]: newInputs
-      }));
+    const newInputs = {
+      ...currentInputs,
+      [field]: value
+    };
+    
+    setSimulationInputs(prev => ({
+      ...prev,
+      [productCode]: newInputs
+    }));
 
-      const product = products.find(p => p.code_ean === productCode);
-      if (product) {
-        const simulation = calculateSimulation({
-          product,
-          newBuyPrice: parseFloat(newInputs.newBuyPrice) || undefined,
-          newDiscount: parseFloat(newInputs.newDiscount) || undefined,
-          newSellPrice: parseFloat(newInputs.newSellPrice) || undefined
-        });
-        updateSimulation(productCode, simulation);
-      }
+    const product = products.find(p => p.code_ean === productCode);
+    if (product) {
+      const simulation = calculateSimulation({
+        product,
+        newBuyPrice: parseFloat(newInputs.newBuyPrice) || undefined,
+        newDiscount: parseFloat(newInputs.newDiscount) || undefined,
+        newSellPrice: parseFloat(newInputs.newSellPrice) || undefined
+      });
+      updateSimulation(productCode, simulation);
     }
-  }, [simulationInputs, globalInputs, products, globalData, calculateSimulation, updateSimulation]);
+  }, [simulationInputs, products, calculateSimulation, updateSimulation]);
 
   const handleExport = useCallback(() => {
     const exportData = products.map(product => {
       const simulation = getSimulation(product.code_ean);
-      const totalMarginCurrent = product.current_conditions.current_margin_ht * 
-                                product.current_conditions.quantity_sold;
+      const quantity_sold = Number(product.current_conditions.quantity_sold) || 0;
+      const current_margin_ht = Number(product.current_conditions.current_margin_ht) || 0;
+      const totalMarginCurrent = current_margin_ht * quantity_sold;
       
       return {
         'Produit': product.product_name,
         'EAN': product.code_ean,
         'Prix achat actuel HT': product.current_conditions.avg_buy_price_ht,
         'Prix vente actuel TTC': product.current_conditions.avg_sell_price_ttc,
+        'Qté vendue': product.current_conditions.quantity_sold,
+        'Qté achetée': product.current_conditions.quantity_bought,
+        'Montant acheté': product.current_conditions.total_purchase_amount,
         'CA actuel TTC': product.current_conditions.total_ca_ttc,
         'Marge actuelle %': product.current_conditions.current_margin_percent,
         'Marge actuelle €': totalMarginCurrent,
         'Nouvelle marge %': simulation?.new_margin_percent || '',
         'Delta marge %': simulation?.delta_margin_percent || '',
         'CA projeté TTC': simulation?.projected_ca_ttc || '',
-        'Delta CA €': simulation ? simulation.projected_ca_ttc - product.current_conditions.total_ca_ttc : '',
+        'Delta CA €': simulation ? (Number(simulation.projected_ca_ttc) || 0) - (Number(product.current_conditions.total_ca_ttc) || 0) : '',
         'Marge projetée €': simulation?.projected_total_margin || '',
-        'Delta marge €': simulation ? simulation.projected_total_margin - totalMarginCurrent : ''
+        'Delta marge €': simulation ? (Number(simulation.projected_total_margin) || 0) - totalMarginCurrent : ''
       };
     });
 
@@ -184,6 +220,7 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-6">
+        <div className="h-32 bg-gray-100 rounded-lg"></div>
         <div className="h-96 bg-gray-100 rounded-lg"></div>
       </div>
     );
@@ -199,6 +236,7 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
 
   return (
     <section className={`space-y-6 ${className}`}>
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-900">Simulation tarifaire</h2>
         <div className="flex gap-2">
@@ -214,31 +252,15 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
         </div>
       </div>
 
-      {/* Section Globale */}
+      {/* Section Globale avec quantités et montants d'achat */}
       {globalData && (
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Vue d'ensemble</h3>
-          <div className="grid grid-cols-3 gap-6">
-            <CurrentConditionsCard
-              productName={globalData.product_name}
-              conditions={globalData.current_conditions}
-            />
-            <NewConditionsCard
-              values={globalInputs}
-              placeholders={{
-                buyPrice: globalData.current_conditions.avg_buy_price_ht,
-                sellPrice: globalData.current_conditions.avg_sell_price_ttc,
-                tvaRate: globalData.current_conditions.tva_rate
-              }}
-              onChange={(field, value) => handleInputChange('GLOBAL', field, value)}
-              netPrice={getSimulation('GLOBAL')?.new_buy_price_ht}
-            />
-            <ImpactSimulationCard
-              simulation={getSimulation('GLOBAL')}
-              currentConditions={globalData.current_conditions}
-            />
-          </div>
-        </div>
+        <GlobalSimulationCard
+          globalData={globalData}
+          aggregatedSimulation={aggregatedSimulation}
+          newGlobalDiscount={newGlobalDiscount}
+          onDiscountChange={setNewGlobalDiscount}
+          projectedGain={projectedGlobalGain}
+        />
       )}
 
       {/* Barre de recherche */}
@@ -303,7 +325,7 @@ export const PricingSimulationSection: React.FC<PricingSimulationSectionProps> =
         })}
       </div>
 
-      {/* Message si aucun résultat de recherche */}
+      {/* Message si aucun résultat */}
       {searchQuery && filteredProducts.length === 0 && (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
           <p className="text-gray-500">Aucun produit ne correspond à "{searchQuery}"</p>

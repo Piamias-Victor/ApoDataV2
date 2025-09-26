@@ -31,6 +31,18 @@ export const NewConditionsCard: React.FC<NewConditionsCardProps> = ({
   const [targetCoef, setTargetCoef] = useState('');
   const [targetSellPrice, setTargetSellPrice] = useState('');
 
+  // Fonction de conversion sécurisée
+  const toNumber = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(',', '.').replace(/[^\d.-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
   const handleInputChange = (field: 'newBuyPrice' | 'newDiscount' | 'newSellPrice') => 
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -43,9 +55,10 @@ export const NewConditionsCard: React.FC<NewConditionsCardProps> = ({
     const sellPrice = parseFloat(targetSellPrice.replace(',', '.'));
     const margin = parseFloat(targetMargin.replace(',', '.'));
     const coef = parseFloat(targetCoef.replace(',', '.'));
+    const tvaRate = toNumber(placeholders.tvaRate);
     
     if (sellPrice > 0) {
-      const sellPriceHT = sellPrice / (1 + placeholders.tvaRate / 100);
+      const sellPriceHT = sellPrice / (1 + tvaRate / 100);
       
       if (margin > 0 && margin < 100) {
         const buyPrice = sellPriceHT * (1 - margin / 100);
@@ -58,8 +71,15 @@ export const NewConditionsCard: React.FC<NewConditionsCardProps> = ({
     return 'Saisir les valeurs';
   };
 
-  const formatPlaceholder = (value: number) => 
-    value.toFixed(2).replace('.', ',');
+  const formatPlaceholder = (value: any) => {
+    const num = toNumber(value);
+    return num.toFixed(2).replace('.', ',');
+  };
+
+  const formatNetPrice = (value: any) => {
+    const num = toNumber(value);
+    return num.toFixed(2).replace('.', ',');
+  };
 
   return (
     <Card variant="elevated" className="h-full border-2 border-green-200">
@@ -137,19 +157,17 @@ export const NewConditionsCard: React.FC<NewConditionsCardProps> = ({
               />
             </div>
 
-            {netPrice !== undefined && netPrice > 0 && (
+            {netPrice !== undefined && toNumber(netPrice) > 0 && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
                 <div className="text-sm text-gray-600 mb-1">Prix net après remise HT</div>
                 <div className="text-xl font-bold text-green-600">
-                  {netPrice.toFixed(2).replace('.', ',')} €
+                  {formatNetPrice(netPrice)} €
                 </div>
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-4">
-            
-            
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 text-gray-400" />
@@ -202,7 +220,6 @@ export const NewConditionsCard: React.FC<NewConditionsCardProps> = ({
               <div className="text-xl font-bold text-purple-600">
                 {calculateRequiredBuyPrice()} €
               </div>
-              
             </div>
           </div>
         )}

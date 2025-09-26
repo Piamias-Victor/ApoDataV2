@@ -20,6 +20,7 @@ interface ProductConditions {
   readonly current_coefficient: number;
   readonly total_ca_ttc: number;
   readonly total_ca_ht: number;
+    readonly total_purchase_amount: number; // AJOUT
 }
 
 export interface ProductPricingData {
