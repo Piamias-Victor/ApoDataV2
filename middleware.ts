@@ -20,6 +20,7 @@ export default withAuth(
     if (pathname.startsWith('/dashboard') || 
         pathname.startsWith('/ventes') || 
         pathname.startsWith('/stock') || 
+        pathname.startsWith('/pricing') || 
         pathname.startsWith('/comparaisons')) {
       if (!token) {
         const loginUrl = new URL('/login', req.url);

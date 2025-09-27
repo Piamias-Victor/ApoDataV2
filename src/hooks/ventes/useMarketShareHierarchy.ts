@@ -79,19 +79,33 @@ export function useMarketShareHierarchy(
 
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
+  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
+  // Fusion de tous les codes produits (products + laboratories + categories)
+  const allProductCodes = Array.from(new Set([
+    ...productsFilter,
+    ...laboratoriesFilter,
+    ...categoriesFilter
+  ]));
+
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: productsFilter,
-    bcbSegmentCodes: categoriesFilter, // Les catégories sont maintenant des segments BCB
+    productCodes: allProductCodes,
+    bcbSegmentCodes: [], // On ne passe plus les catégories séparément car elles sont dans productCodes
     hierarchyLevel: options.hierarchyLevel,
     page: currentPage,
     limit: options.limit || 5,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter }),
-    ...(options.filters?.products && { productCodes: [...productsFilter, ...options.filters.products] }),
-    ...(options.filters?.bcbSegments && { bcbSegmentCodes: [...categoriesFilter, ...options.filters.bcbSegments] }),
-    ...(options.filters?.pharmacies && { pharmacyIds: [...pharmacyFilter, ...options.filters.pharmacies] })
+    ...(options.filters?.products && { 
+      productCodes: [...allProductCodes, ...options.filters.products] 
+    }),
+    ...(options.filters?.bcbSegments && { 
+      bcbSegmentCodes: options.filters.bcbSegments 
+    }),
+    ...(options.filters?.pharmacies && { 
+      pharmacyIds: [...pharmacyFilter, ...options.filters.pharmacies] 
+    })
   };
 
   const {

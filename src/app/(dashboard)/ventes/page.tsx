@@ -3,11 +3,12 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Info, TrendingUp, PieChart, List } from 'lucide-react';
+import { Info, TrendingUp, PieChart, List, Building2 } from 'lucide-react';
 import { SalesTable } from '@/components/organisms/SalesTable/SalesTable';
 import { SalesKpisSection } from '@/components/organisms/SalesKpisSection/SalesKpisSection';
-import { useFiltersStore } from '@/stores/useFiltersStore';
 import { MarketShareSection } from '@/components/organisms/MarketShareSection/MarketShareSection';
+import { LaboratoryMarketShareSection } from '@/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShareSection';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 /**
  * Composant Tooltip réutilisable
@@ -114,13 +115,22 @@ export default function VentesPage() {
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Filtres formatés pour SalesKpisSection
+  // Filtres formatés pour SalesKpisSection et MarketShareSection
   const filters = useMemo(() => ({
     products: productsFilter,
     laboratories: laboratoriesFilter,
     categories: categoriesFilter,
     pharmacies: pharmacyFilter
   }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
+
+  // Fusion de tous les codes produits pour LaboratoryMarketShareSection
+  const allProductCodes = useMemo(() => {
+    return Array.from(new Set([
+      ...productsFilter,
+      ...laboratoriesFilter,
+      ...categoriesFilter
+    ]));
+  }, [productsFilter, laboratoriesFilter, categoriesFilter]);
 
   // Vérification si comparaison est active
   const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
@@ -149,6 +159,16 @@ Hook useSalesKpiMetrics dédié pour ces métriques spécifiques ventes.`,
 
 Utilisez les onglets pour naviguer entre les niveaux hiérarchiques.`,
 
+    laboratoryshare: `Analyse des parts de marché par laboratoire :
+
+- Part CA : % du chiffre d'affaires réalisé par chaque laboratoire
+- Part Marge : % de la marge totale captée par chaque laboratoire
+- Nombre de produits par laboratoire dans la sélection
+- Identification des laboratoires référents
+- Pagination : Navigation entre les laboratoires (10 par page)
+
+Les laboratoires sont triés par CA décroissant.`,
+
     salesdetail: `Tableau détaillé des ventes avec expansion :
 
 - Recherche par nom ou code EAN avec filtrage avancé
@@ -174,7 +194,7 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
               Analyse des Ventes
             </h1>
             <Tooltip 
-              content="Module d'analyse sell-out complet : KPIs spécialisés ventes, parts de marché hiérarchiques et tableau détaillé avec expansion graphique"
+              content="Module d'analyse sell-out complet : KPIs spécialisés ventes, parts de marché hiérarchiques et par laboratoire, tableau détaillé avec expansion graphique"
               position="bottom"
             >
               <Info className="w-5 h-5 text-gray-400 hover:text-blue-600 cursor-help transition-colors" />
@@ -215,6 +235,21 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
           onRefresh={handleRefresh}
         />
       </SectionWithHelp>
+
+      {/* Section Parts de Marché par Laboratoire */}
+      {allProductCodes.length > 0 && (
+        <SectionWithHelp
+          title="Parts de Marché par Laboratoire"
+          description="Répartition du CA et des marges entre laboratoires pour votre sélection de produits avec identification des référents"
+          tooltipContent={tooltips.laboratoryshare}
+          icon={<Building2 className="w-5 h-5 text-purple-600" />}
+        >
+          <LaboratoryMarketShareSection
+            productCodes={allProductCodes}
+            dateRange={analysisDateRange}
+          />
+        </SectionWithHelp>
+      )}
       
       {/* Tableau détaillé avec description + tooltip */}
       <SectionWithHelp

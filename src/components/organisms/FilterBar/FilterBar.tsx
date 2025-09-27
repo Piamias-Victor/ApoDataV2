@@ -153,21 +153,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
       label: 'Produits', 
       icon: <Package className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons'] 
+      hiddenRoutes: ['/comparaisons', '/generique'] 
     },
     { 
       id: 'laboratories', 
       label: 'Laboratoires', 
       icon: <TestTube className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons'] 
+      hiddenRoutes: ['/comparaisons' , '/generique'] 
     },
     { 
       id: 'categories', 
       label: 'Catégories', 
       icon: <Tag className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons'] 
+      hiddenRoutes: ['/comparaisons' , '/generique'] 
     },
     { 
       id: 'pharmacy', 

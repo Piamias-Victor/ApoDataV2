@@ -136,14 +136,13 @@ async function calculateMarketShareHierarchyBCB(
   // Champ hiérarchique BCB
   const hierarchyField = `dgp.${hierarchyLevel}`;
   
-  // Paramètres de base : [start_date, end_date]
+  // Paramètres de base
   const params: any[] = [dateRange.start, dateRange.end];
-  let paramIndex = 3; // Prochain paramètre sera $3
+  let paramIndex = 3;
 
-  // Construction conditionnelle des filtres
+  // Construction des filtres
   let productFilterSelection = '';
-  let pharmacyFilterSelection = '';
-  let pharmacyFilterTotal = '';
+  let pharmacyFilterAll = '';
 
   if (hasProductFilter) {
     productFilterSelection = `AND ip.code_13_ref_id = ANY($${paramIndex}::text[])`;
@@ -152,21 +151,37 @@ async function calculateMarketShareHierarchyBCB(
   }
 
   if (hasPharmacyFilter) {
-    pharmacyFilterSelection = `AND ip.pharmacy_id = ANY($${paramIndex}::uuid[])`;
-    pharmacyFilterTotal = `AND ip.pharmacy_id = ANY($${paramIndex}::uuid[])`;
+    pharmacyFilterAll = `AND ip.pharmacy_id = ANY($${paramIndex}::uuid[])`;
     params.push(pharmacyIds);
     paramIndex++;
   }
 
   // Pagination
   const offset = (page - 1) * limit;
-  const limitParamIndex = paramIndex;     // Pour LIMIT
-  const offsetParamIndex = paramIndex + 1; // Pour OFFSET
+  const limitParamIndex = paramIndex;
+  const offsetParamIndex = paramIndex + 1;
   
   params.push(limit, offset);
 
-  const query = `
-    WITH selection_by_hierarchy AS (
+  // SI on a un filtre produit, on ne montre QUE les segments où ces produits sont vendus
+  // SINON on montre tous les segments
+  
+  const query = hasProductFilter ? `
+    -- Avec filtre produit : ne montrer QUE les segments où les produits sélectionnés sont vendus
+    WITH segments_with_selection AS (
+      -- D'abord identifier les segments où les produits sélectionnés ont des ventes
+      SELECT DISTINCT ${hierarchyField} as segment_name
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      WHERE s.date >= $1::date AND s.date <= $2::date
+        AND ${hierarchyField} IS NOT NULL
+        ${productFilterSelection}
+        ${pharmacyFilterAll}
+    ),
+    selection_by_hierarchy AS (
+      -- CA/marge des produits sélectionnés dans ces segments
       SELECT 
         ${hierarchyField} as segment_name,
         SUM(s.quantity * ins.price_with_tax) as ca_selection,
@@ -178,14 +193,13 @@ async function calculateMarketShareHierarchyBCB(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
-        AND ins.weighted_average_price > 0
-        AND ${hierarchyField} IS NOT NULL
+        AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
         ${productFilterSelection}
-        ${pharmacyFilterSelection}
+        ${pharmacyFilterAll}
       GROUP BY ${hierarchyField}
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
     ),
     total_by_hierarchy AS (
+      -- CA/marge TOTAL de ces segments (sans filtre produit)
       SELECT 
         ${hierarchyField} as segment_name,
         SUM(s.quantity * ins.price_with_tax) as ca_total_segment,
@@ -197,13 +211,12 @@ async function calculateMarketShareHierarchyBCB(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
-        AND ins.weighted_average_price > 0
-        AND ${hierarchyField} IS NOT NULL
-        ${pharmacyFilterTotal}
+        AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
+        ${pharmacyFilterAll}
       GROUP BY ${hierarchyField}
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
     ),
     brand_labs_by_segment AS (
+      -- Top 3 laboratoires dans ces segments
       SELECT 
         ${hierarchyField} as segment_name,
         dgp.bcb_lab,
@@ -220,12 +233,10 @@ async function calculateMarketShareHierarchyBCB(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
-        AND ins.weighted_average_price > 0
-        AND ${hierarchyField} IS NOT NULL
+        AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
         AND dgp.bcb_lab IS NOT NULL
-        ${pharmacyFilterTotal}
+        ${pharmacyFilterAll}
       GROUP BY ${hierarchyField}, dgp.bcb_lab
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
     ),
     top_3_brand_labs AS (
       SELECT 
@@ -262,7 +273,6 @@ async function calculateMarketShareHierarchyBCB(
       FROM selection_by_hierarchy sel
       JOIN total_by_hierarchy tot ON sel.segment_name = tot.segment_name
       LEFT JOIN top_3_brand_labs bl ON sel.segment_name = bl.segment_name
-      WHERE sel.ca_selection > 0
     ),
     paginated_results AS (
       SELECT *,
@@ -281,7 +291,93 @@ async function calculateMarketShareHierarchyBCB(
       marge_total_segment,
       top_brand_labs,
       total_count
-    FROM paginated_results;
+    FROM paginated_results
+  ` : `
+    -- Sans filtre produit : montrer tous les segments avec activité
+    WITH total_by_hierarchy AS (
+      SELECT 
+        ${hierarchyField} as segment_name,
+        SUM(s.quantity * ins.price_with_tax) as ca_total_segment,
+        SUM(s.quantity * (
+          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+        )) as marge_total_segment
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      WHERE s.date >= $1::date AND s.date <= $2::date
+        AND ${hierarchyField} IS NOT NULL
+        ${pharmacyFilterAll}
+      GROUP BY ${hierarchyField}
+      HAVING SUM(s.quantity * ins.price_with_tax) > 0
+    ),
+    brand_labs_by_segment AS (
+      SELECT 
+        ${hierarchyField} as segment_name,
+        dgp.bcb_lab,
+        SUM(s.quantity * ins.price_with_tax) as ca_brand_lab,
+        SUM(s.quantity * (
+          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+        )) as marge_brand_lab,
+        ROW_NUMBER() OVER (
+          PARTITION BY ${hierarchyField} 
+          ORDER BY SUM(s.quantity * ins.price_with_tax) DESC
+        ) as rank_in_segment
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      WHERE s.date >= $1::date AND s.date <= $2::date
+        AND ${hierarchyField} IS NOT NULL
+        AND dgp.bcb_lab IS NOT NULL
+        ${pharmacyFilterAll}
+      GROUP BY ${hierarchyField}, dgp.bcb_lab
+    ),
+    top_3_brand_labs AS (
+      SELECT 
+        segment_name,
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'brand_lab', bcb_lab,
+            'ca_brand_lab', ca_brand_lab,
+            'marge_brand_lab', marge_brand_lab
+          ) ORDER BY ca_brand_lab DESC
+        ) as top_brand_labs
+      FROM brand_labs_by_segment
+      WHERE rank_in_segment <= 3
+      GROUP BY segment_name
+    ),
+    market_share_calculation AS (
+      SELECT 
+        tot.segment_name,
+        tot.ca_total_segment as ca_selection,
+        tot.marge_total_segment as marge_selection,
+        tot.ca_total_segment,
+        tot.marge_total_segment,
+        100.0 as part_marche_ca_pct,
+        100.0 as part_marche_marge_pct,
+        COALESCE(bl.top_brand_labs, '[]'::json) as top_brand_labs
+      FROM total_by_hierarchy tot
+      LEFT JOIN top_3_brand_labs bl ON tot.segment_name = bl.segment_name
+    ),
+    paginated_results AS (
+      SELECT *,
+        COUNT(*) OVER() as total_count
+      FROM market_share_calculation
+      ORDER BY ca_selection DESC
+      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+    )
+    SELECT 
+      segment_name,
+      ca_selection,
+      part_marche_ca_pct,
+      marge_selection,
+      part_marche_marge_pct,
+      ca_total_segment,
+      marge_total_segment,
+      top_brand_labs,
+      total_count
+    FROM paginated_results
   `;
 
   console.log('🔍 [API] Executing Market Share Hierarchy BCB query:', {

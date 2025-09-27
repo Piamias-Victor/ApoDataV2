@@ -16,7 +16,8 @@ import {
   LogOut, 
   GitCompareArrows,
   Loader2,
-  Building2
+  Building2,
+  Handshake
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -33,6 +34,7 @@ const navigationItems: NavigationItem[] = [
   { name: 'Stock', href: '/stock', icon: <Package2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
   { name: 'Comparaison', href: '/comparaisons', icon: <GitCompareArrows className="w-full h-full" />, badgeVariant: 'gradient-pink' },
   { name: 'Pharmacies', href: '/pharmacies', icon: <Building2 className="w-full h-full" />, badgeVariant: 'gradient-pink' },
+  { name: 'Négociation', href: '/pricing', icon: <Handshake className="w-full h-full" />, badgeVariant: 'gradient-pink' },
 ];
 
 interface DashboardHeaderProps {
