@@ -1,7 +1,6 @@
-// src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/atoms/Badge/Badge';
@@ -11,19 +10,96 @@ import { LaboratoriesDrawer } from '@/components/organisms/LaboratoriesDrawer/La
 import { CategoriesDrawer } from '@/components/organisms/CategoriesDrawer/CategoriesDrawer';
 import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDrawer';
 import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
-
-import { Package, TestTube, Tag, Building, Calendar } from 'lucide-react';
+import { 
+  Package, 
+  TestTube, 
+  Tag, 
+  Building, 
+  Calendar,
+  X,
+} from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | null;
 
-interface FilterCounts {
-  products: number;
-  laboratories: number;
-  categories: number;
-  pharmacy: number;
-  date: number;
+interface FilterChipProps {
+  readonly icon: React.ReactNode;
+  readonly label: string;
+  readonly value: string;
+  readonly onRemove?: (() => void) | undefined;
+  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange';
+  readonly tooltip?: string;
 }
+
+const FilterChip: React.FC<FilterChipProps> = ({ 
+  icon, 
+  label, 
+  value, 
+  onRemove,
+  color,
+  tooltip
+}) => {
+  const colorClasses = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
+    green: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
+    pink: 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100',
+    orange: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.8, y: -10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.8, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="relative group"
+    >
+      <div className={`
+        inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+        border transition-all duration-200
+        ${colorClasses[color]}
+      `}>
+        <span className="w-4 h-4 flex-shrink-0">
+          {icon}
+        </span>
+        <span className="text-xs font-medium">{label}</span>
+        <span className="text-xs font-semibold">{value}</span>
+        
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="
+              ml-1 -mr-1 p-0.5 rounded-full
+              hover:bg-white/50 transition-colors
+            "
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+
+      {tooltip && (
+        <div className="
+          absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+          opacity-0 group-hover:opacity-100 pointer-events-none
+          transition-opacity duration-200 z-50
+        ">
+          <div className="
+            bg-gray-900 text-white text-xs rounded-lg
+            px-3 py-2 max-w-xs whitespace-pre-wrap
+          ">
+            {tooltip}
+            <div className="
+              absolute top-full left-1/2 -translate-x-1/2 -mt-1
+              border-4 border-transparent border-t-gray-900
+            " />
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 interface FilterButton {
   readonly id: DrawerType;
@@ -33,119 +109,131 @@ interface FilterButton {
   readonly hiddenRoutes?: string[];
 }
 
-interface FilterBarProps {
-  readonly className?: string;
-}
-
-/**
- * FilterBar Component - VERSION FINALE AVEC TOUS LES STORES
- * 
- * TOUTES LES CORRECTIONS :
- * - selectedProducts.length pour les produits
- * - selectedLaboratories.length pour les laboratoires
- * - selectedCategories.length pour les catégories
- * - Tous les drawers gérés par store subscription
- */
-export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
+export const FilterBar: React.FC = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
-  const [filterCounts, setFilterCounts] = useState<FilterCounts>({
-    products: 0,
-    laboratories: 0,
-    categories: 0,
-    pharmacy: 0,
-    date: 0,
-  });
+  const [showActiveFilters] = useState(true);
+  
+  const {
+    selectedProducts,
+    selectedLaboratories,
+    selectedCategories,
+    selectedPharmacies,
+    analysisDateRange,
+    clearProductFilters,
+    clearLaboratoryFilters,
+    clearCategoryFilters,
+    clearPharmacyFilters,
+    clearAllFilters,
+    isPharmacyLocked
+  } = useFiltersStore();
 
-  // Ref pour éviter les mises à jour redondantes
-  const lastCountsRef = useRef<FilterCounts>({
-    products: 0,
-    laboratories: 0,
-    categories: 0,
-    pharmacy: 0,
-    date: 0,
-  });
+  // Formater les dates
+  const formatDateRange = useMemo(() => {
+    if (!analysisDateRange?.start || !analysisDateRange?.end) return null;
+    
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      return `${day}/${month}`;
+    };
 
-  // UNIQUE useEffect pour initialisation + subscription avec debounce
-  useEffect(() => {
-    console.log('🔧 [FilterBar] Initializing store subscription');
+    return `${formatDate(analysisDateRange.start)} - ${formatDate(analysisDateRange.end)}`;
+  }, [analysisDateRange]);
 
-    // FONCTION COMPLÈTE : Calculer les counts depuis le store
-    const calculateCounts = (state: any): FilterCounts => {
-      const analysisCount = state.analysisDateRange.start && state.analysisDateRange.end ? 1 : 0;
-      const comparisonCount = state.comparisonDateRange.start && state.comparisonDateRange.end ? 1 : 0;
-      
+  // Formater les laboratoires
+  const labInfo = useMemo(() => {
+    if (!selectedLaboratories || selectedLaboratories.length === 0) return null;
+    
+    if (selectedLaboratories.length === 1) {
+      const lab = selectedLaboratories[0];
       return {
-        products: state.selectedProducts?.length || 0,        // CORRIGÉ : utilise selectedProducts
-        laboratories: state.selectedLaboratories?.length || 0, // CORRIGÉ : utilise selectedLaboratories
-        categories: state.selectedCategories?.length || 0,     // CORRIGÉ : utilise selectedCategories
-        pharmacy: state.pharmacy.length,
-        date: analysisCount + comparisonCount,
+        value: lab?.name || 'Laboratoire',
+        tooltip: `${lab?.productCount || 0} produits`
       };
+    }
+    
+    return {
+      value: `${selectedLaboratories.length} sélectionnés`,
+      tooltip: selectedLaboratories
+        .map(lab => `• ${lab?.name || 'Inconnu'} (${lab?.productCount || 0} produits)`)
+        .join('\n')
     };
+  }, [selectedLaboratories]);
 
-    // Initialisation immédiate
-    const store = useFiltersStore.getState();
-    const initialCounts = calculateCounts(store);
+  // Formater les produits
+  const productInfo = useMemo(() => {
+    if (!selectedProducts || selectedProducts.length === 0) return null;
     
-    console.log('📊 [FilterBar] Initial counts:', initialCounts);
-    console.log('🔍 [FilterBar] Store details:', {
-      selectedProducts: store.selectedProducts?.length || 0,
-      selectedLaboratories: store.selectedLaboratories?.length || 0,
-      selectedCategories: store.selectedCategories?.length || 0,
-      productCodes: store.products.length,
-      laboratoryCodes: store.laboratories.length,
-      categoryCodes: store.categories.length
-    });
+    if (selectedProducts.length === 1) {
+      const product = selectedProducts[0];
+      return {
+        value: product?.name || 'Produit',
+        tooltip: product?.code || ''
+      };
+    }
     
-    setFilterCounts(initialCounts);
-    lastCountsRef.current = initialCounts;
-
-    // Subscription avec debounce pour éviter les appels multiples
-    let timeoutId: NodeJS.Timeout | null = null;
+    const displayCount = 3;
+    const displayed = selectedProducts.slice(0, displayCount);
+    const remaining = selectedProducts.length - displayCount;
     
-    const unsubscribe = useFiltersStore.subscribe((state) => {
-      // Clear timeout précédent
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-
-      // Debounce de 50ms
-      timeoutId = setTimeout(() => {
-        const newCounts = calculateCounts(state);
-        
-        // Guard : vérifier si les counts ont vraiment changé
-        const hasChanged = Object.keys(newCounts).some(key => 
-          newCounts[key as keyof FilterCounts] !== lastCountsRef.current[key as keyof FilterCounts]
-        );
-
-        if (hasChanged) {
-          console.log('📊 [FilterBar] Counts updated:', newCounts);
-          console.log('🔍 [FilterBar] Store details:', {
-            selectedProducts: state.selectedProducts?.length || 0,
-            selectedLaboratories: state.selectedLaboratories?.length || 0,
-            selectedCategories: state.selectedCategories?.length || 0,
-            productCodes: state.products.length,
-            laboratoryCodes: state.laboratories.length,
-            categoryCodes: state.categories.length
-          });
-          
-          setFilterCounts(newCounts);
-          lastCountsRef.current = newCounts;
-        }
-      }, 50);
-    });
-
-    // Cleanup function
-    return () => {
-      console.log('🧹 [FilterBar] Cleaning up subscription');
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      unsubscribe();
+    return {
+      value: `${selectedProducts.length} produits`,
+      tooltip: [
+        ...displayed.map(p => `• ${p?.name || 'Produit'}`),
+        remaining > 0 ? `... et ${remaining} autres` : ''
+      ].filter(Boolean).join('\n')
     };
-  }, []); // Pas de dépendances pour éviter les re-souscriptions
+  }, [selectedProducts]);
+
+  // Formater les catégories
+  const categoryInfo = useMemo(() => {
+    if (!selectedCategories || selectedCategories.length === 0) return null;
+    
+    if (selectedCategories.length === 1) {
+      const category = selectedCategories[0];
+      return {
+        value: category?.name || 'Catégorie',
+        tooltip: `${category?.productCount || 0} produits`
+      };
+    }
+    
+    return {
+      value: `${selectedCategories.length} catégories`,
+      tooltip: selectedCategories
+        .map(cat => `• ${cat?.name || 'Catégorie'} (${cat?.productCount || 0} produits)`)
+        .join('\n')
+    };
+  }, [selectedCategories]);
+
+  // Formater les pharmacies
+  const pharmacyInfo = useMemo(() => {
+    if (!selectedPharmacies || selectedPharmacies.length === 0) return null;
+    
+    if (selectedPharmacies.length === 1) {
+      const pharmacy = selectedPharmacies[0];
+      return {
+        value: pharmacy?.name || 'Pharmacie',
+        tooltip: pharmacy ? `${pharmacy.address || ''}\nCA: ${pharmacy.ca?.toLocaleString() || 0}€` : ''
+      };
+    }
+    
+    return {
+      value: `${selectedPharmacies.length} pharmacies`,
+      tooltip: selectedPharmacies
+        .map(p => `• ${p?.name || 'Pharmacie'}`)
+        .join('\n')
+    };
+  }, [selectedPharmacies]);
+
+  const hasActiveFilters = !!(
+    (selectedProducts && selectedProducts.length > 0) ||
+    (selectedLaboratories && selectedLaboratories.length > 0) ||
+    (selectedCategories && selectedCategories.length > 0) ||
+    (selectedPharmacies && selectedPharmacies.length > 0)
+  );
 
   const filterButtons: FilterButton[] = [
     { 
@@ -160,14 +248,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
       label: 'Laboratoires', 
       icon: <TestTube className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons' , '/generique'] 
+      hiddenRoutes: ['/comparaisons', '/generique'] 
     },
     { 
       id: 'categories', 
       label: 'Catégories', 
       icon: <Tag className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons' , '/generique'] 
+      hiddenRoutes: ['/comparaisons', '/generique'] 
     },
     { 
       id: 'pharmacy', 
@@ -183,141 +271,76 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
     },
   ];
 
-  const handleFilterClick = (filterId: DrawerType): void => {
-    if (activeDrawer === filterId) {
-      setActiveDrawer(null);
-    } else {
-      setActiveDrawer(filterId);
+  const visibleButtons = filterButtons.filter(button => {
+    if (button.adminOnly && session?.user?.role !== 'admin') {
+      return false;
     }
+    if (button.hiddenRoutes?.includes(pathname)) {
+      return false;
+    }
+    return true;
+  });
+
+  const handleFilterClick = (filterId: DrawerType): void => {
+    setActiveDrawer(activeDrawer === filterId ? null : filterId);
   };
 
   const handleDrawerClose = (): void => {
     setActiveDrawer(null);
   };
 
-  const handleClearAllFilters = (): void => {
-    console.log('🗑️ [FilterBar] Clearing all filters');
-    const clearAllFilters = useFiltersStore.getState().clearAllFilters;
-    clearAllFilters();
-    
-    // Reset local counts immédiatement (sera synchronisé par la subscription)
-    const resetCounts = {
-      products: 0,      // CORRIGÉ : reset à 0 aussi
-      laboratories: 0,
-      categories: 0,
-      pharmacy: 0,
-      date: 2, // Analysis dates restent (obligatoires)
-    };
-    
-    setFilterCounts(resetCounts);
-    lastCountsRef.current = resetCounts;
-    setActiveDrawer(null);
+  // Calculer les counts pour les badges
+  const filterCounts = {
+    products: selectedProducts?.length || 0,
+    laboratories: selectedLaboratories?.length || 0,
+    categories: selectedCategories?.length || 0,
+    pharmacy: selectedPharmacies?.length || 0,
+    date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0
   };
-
-  // updateFilterCount MODIFIÉ : Uniquement pour pharmacy et date
-  const updateFilterCount = useCallback((filterType: keyof FilterCounts, count: number) => {
-    console.log(`🔄 [FilterBar] Manual count update: ${filterType} = ${count}`);
-    
-    // IMPORTANT : Ne pas updater manuellement les filtres gérés par le store
-    if (filterType === 'products' || filterType === 'laboratories' || filterType === 'categories') {
-      console.log(`⚠️ [FilterBar] Ignoring manual update for ${filterType} - managed by store`);
-      return;
-    }
-    
-    setFilterCounts(prev => {
-      // Guard : éviter les mises à jour redondantes
-      if (prev[filterType] === count) {
-        return prev;
-      }
-      
-      const newCounts = {
-        ...prev,
-        [filterType]: count
-      };
-      
-      lastCountsRef.current = newCounts;
-      return newCounts;
-    });
-  }, []);
-
-  // Filtrer les boutons selon le rôle utilisateur ET la route actuelle
-  const visibleButtons = filterButtons.filter(button => {
-    // Filtrage par rôle admin
-    if (button.adminOnly && session?.user?.role !== 'admin') {
-      return false;
-    }
-    
-    // Filtrage par route
-    if (button.hiddenRoutes?.includes(pathname)) {
-      return false;
-    }
-    
-    return true;
-  });
-
-  // Check if any filters are active
-  const hasActiveFilters = Object.values(filterCounts).some(count => count > 0);
 
   return (
     <>
-      {/* Filter Bar */}
+      {/* Barre principale avec boutons */}
       <motion.div
-        className={`
+        className="
           fixed top-16 left-0 right-0 z-40
           bg-white/60 backdrop-blur-lg border-b border-gray-200/50
-          shadow-sm transition-all duration-300 ease-in-out
-          ${className}
-        `}
+          shadow-sm transition-all duration-300
+        "
         initial={{ y: -60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
         <div className="container-apodata">
           <div className="flex items-center justify-between py-3">
-            
-            {/* Boutons filtres */}
             <div className="flex items-center space-x-3">
               {visibleButtons.map(button => (
                 <motion.button
                   key={button.id}
                   onClick={() => handleFilterClick(button.id)}
                   className={`
-                    relative group flex items-center space-x-2 px-4 py-2.5 
-                    rounded-xl border transition-all duration-300 ease-in-out
+                    relative flex items-center space-x-2 px-4 py-2.5 
+                    rounded-xl border transition-all duration-300
                     ${activeDrawer === button.id
                       ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
-                      : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300 hover:text-gray-700'
+                      : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
                     }
-                    backdrop-blur-sm hover:shadow-sm
                   `}
                   whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
                 >
-                  <div className="w-4 h-4 flex-shrink-0">
-                    {button.icon}
-                  </div>
-                  <span className="font-medium text-sm">
-                    {button.label}
-                  </span>
+                  <div className="w-4 h-4">{button.icon}</div>
+                  <span className="font-medium text-sm">{button.label}</span>
                   
-                  {/* Badge compte */}
                   <AnimatePresence>
-                    {filterCounts[button.id as keyof FilterCounts] > 0 && (
+                    {filterCounts[button.id as keyof typeof filterCounts] > 0 && (
                       <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
                       >
-                        <Badge 
-                          variant="primary"
-                          size="sm"
-                          className="ml-1 min-w-[20px] h-5 text-xs flex items-center justify-center"
-                        >
-                          {filterCounts[button.id as keyof FilterCounts]}
+                        <Badge variant="primary" size="sm">
+                          {filterCounts[button.id as keyof typeof filterCounts]}
                         </Badge>
                       </motion.div>
                     )}
@@ -326,61 +349,111 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
               ))}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center space-x-3">
-              {/* Badge total filtres */}
-              <AnimatePresence>
-                {hasActiveFilters && (
-                  <motion.div
-                    className="text-sm text-gray-500"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                  >
-                    {Object.values(filterCounts).reduce((sum, count) => sum + count, 0)} filtres actifs
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Bouton effacer tout */}
-              <AnimatePresence>
-                {hasActiveFilters && (
-                  <motion.button
-                    onClick={handleClearAllFilters}
-                    className="
-                      inline-flex items-center px-3 py-2 rounded-lg
-                      text-sm font-medium text-red-600 bg-red-50
-                      hover:bg-red-100 hover:text-red-700
-                      border border-red-200 hover:border-red-300
-                      transition-all duration-200 ease-in-out
-                      backdrop-blur-sm
-                    "
-                    whileHover={{ scale: 1.02, y: -1 }}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                  >
-                    Effacer tout
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Toggle pour afficher/masquer les filtres actifs */}
 
           </div>
+
+          {/* Ligne des filtres actifs */}
+          <AnimatePresence>
+            {showActiveFilters && (hasActiveFilters || formatDateRange) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="flex items-center gap-2 pb-3 px-1">
+                  <span className="text-xs font-medium text-gray-500 mr-2">Actifs:</span>
+                  
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {formatDateRange && (
+                      <FilterChip
+                        icon={<Calendar className="w-3.5 h-3.5" />}
+                        label="Période"
+                        value={formatDateRange}
+                        color="blue"
+                      />
+                    )}
+
+                    {pharmacyInfo && (
+                      <FilterChip
+                        key="pharmacy"
+                        icon={<Building className="w-3.5 h-3.5" />}
+                        label="Pharmacie"
+                        value={pharmacyInfo.value}
+                        tooltip={pharmacyInfo.tooltip}
+                        onRemove={!isPharmacyLocked ? clearPharmacyFilters : undefined}
+                        color="green"
+                      />
+                    )}
+
+                    {labInfo && (
+                      <FilterChip
+                        key="lab"
+                        icon={<TestTube className="w-3.5 h-3.5" />}
+                        label="Labo"
+                        value={labInfo.value}
+                        tooltip={labInfo.tooltip}
+                        onRemove={clearLaboratoryFilters}
+                        color="purple"
+                      />
+                    )}
+
+                    {productInfo && (
+                      <FilterChip
+                        key="product"
+                        icon={<Package className="w-3.5 h-3.5" />}
+                        label="Produit"
+                        value={productInfo.value}
+                        tooltip={productInfo.tooltip}
+                        onRemove={clearProductFilters}
+                        color="pink"
+                      />
+                    )}
+
+                    {categoryInfo && (
+                      <FilterChip
+                        key="category"
+                        icon={<Tag className="w-3.5 h-3.5" />}
+                        label="Catégorie"
+                        value={categoryInfo.value}
+                        tooltip={categoryInfo.tooltip}
+                        onRemove={clearCategoryFilters}
+                        color="orange"
+                      />
+                    )}
+                  </div>
+
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {Object.values(filterCounts).reduce((a, b) => a + b, 0)} filtres
+                    </span>
+                    <button
+                      onClick={clearAllFilters}
+                      className="
+                        text-xs text-red-600 hover:text-red-700
+                        px-2 py-1 rounded hover:bg-red-50
+                        transition-colors
+                      "
+                    >
+                      Tout effacer
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
-      {/* Drawers - TOUS SIMPLIFIÉS */}
+      {/* Drawers */}
       <AnimatePresence mode="wait">
-        {/* MODIFIÉ : ProductsDrawer n'utilise plus updateFilterCount */}
         {activeDrawer === 'products' && (
           <ProductsDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}} // Fonction vide - count géré par store subscription
+            onCountChange={() => {}}
           />
         )}
         
@@ -388,7 +461,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <LaboratoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}} // Fonction vide - count géré par store subscription
+            onCountChange={() => {}}
           />
         )}
         
@@ -396,16 +469,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <CategoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}} // Fonction vide - count géré par store subscription
+            onCountChange={() => {}}
           />
         )}
         
-        {/* Pharmacy et Date gardent leur système de count manuel */}
         {activeDrawer === 'pharmacy' && session?.user?.role === 'admin' && (
           <PharmacyDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={updateFilterCount.bind(null, 'pharmacy')}
+            onCountChange={() => {}}
           />
         )}
         
@@ -413,7 +485,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className = '' }) => {
           <DateDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={(count: number) => updateFilterCount('date', count)}
+            onCountChange={() => {}}
           />
         )}
       </AnimatePresence>

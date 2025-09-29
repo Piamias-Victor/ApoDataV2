@@ -112,8 +112,6 @@ export default function DashboardPage() {
     products, 
     isLoading, 
     error,
-    queryTime,
-    cached,
     refetch
   } = useProductsList();
 
@@ -227,41 +225,6 @@ Cliquez sur les en-têtes pour trier les données.`
           </p>
         </div>
         
-        {/* Indicateurs performance */}
-        {products.length > 0 && (
-          <div className="flex items-center space-x-4 text-sm text-gray-500">
-            {cached && (
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span>Cache</span>
-              </div>
-            )}
-            <span>{queryTime}ms</span>
-            <span>{products.length} produit{products.length > 1 ? 's' : ''}</span>
-            
-            {/* Indicateurs filtres appliqués */}
-            {productsFilter.length > 0 && (
-              <span className="text-blue-600 font-medium">
-                {productsFilter.length} produit{productsFilter.length > 1 ? 's' : ''} sélectionné{productsFilter.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {laboratoriesFilter.length > 0 && (
-              <span className="text-purple-600 font-medium">
-                {laboratoriesFilter.length} labo{laboratoriesFilter.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {pharmacyFilter.length > 0 && (
-              <span className="text-orange-600 font-medium">
-                {pharmacyFilter.length} pharmacie{pharmacyFilter.length > 1 ? 's' : ''}
-              </span>
-            )}
-            {allProductCodes.length > 0 && (
-              <span className="text-gray-700 font-medium bg-gray-200 px-2 py-1 rounded">
-                {allProductCodes.length} codes EAN total
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Section KPI avec description + tooltip */}

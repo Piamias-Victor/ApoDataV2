@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Award } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLaboratoryMarketShare } from '@/hooks/generic-groups/useLaboratoryMarketShare';
 import { Button } from '@/components/atoms/Button/Button';
 

@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       </Suspense>
       
       {/* Contenu principal avec padding pour header + filterbar */}
-      <main className="relative z-10 pt-[116px]">
+      <main className="relative z-10 pt-[190px]">
         <div className="container-apodata py-8">
           {/* Pages enfants s'affichent ici - SEUL le contenu change */}
           <Suspense fallback={<PageLoadingSkeleton />}>

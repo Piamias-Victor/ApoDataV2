@@ -1,11 +1,11 @@
 // src/app/(dashboard)/generiques/page.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Info, Pill, Building2, Package } from 'lucide-react';
 import { GenericGroupSelector } from '@/components/organisms/GenericGroupSelector/GenericGroupSelector';
-import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
+import { GenericKpisSection } from '@/components/organisms/GenericKpisSection/GenericKpisSection';
 import { LaboratoryMarketShareSection } from '@/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShareSection';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
@@ -90,13 +90,6 @@ export default function GeneriquesPage() {
     error: productsError,
     refetch: refetchProducts 
   } = useGenericGroupProducts();
-  
-  const kpiFilters = useMemo(() => {
-    if (productCodes.length > 0) {
-      return { products: productCodes };
-    }
-    return {};
-  }, [productCodes]);
 
   return (
     <motion.div
@@ -144,10 +137,9 @@ Le système affiche automatiquement le médicament référent et le nombre de g�
             transition={{ duration: 0.3, delay: 0.1 }}
           >
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
-              <KpisSection 
+              <GenericKpisSection 
                 dateRange={analysisDateRange}
                 comparisonDateRange={comparisonDateRange}
-                filters={kpiFilters}
                 includeComparison={true}
               />
             </div>
