@@ -118,8 +118,8 @@ async function executeAdminQuery(
     product_purchases AS (
       SELECT 
         ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        SUM(po.qte_r) as total_quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
         AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
@@ -132,7 +132,10 @@ async function executeAdminQuery(
         ORDER BY ins2.date DESC
         LIMIT 1
       ) closest_snap ON true
-      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
+      WHERE o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
         AND ip.code_13_ref_id = ANY($3::text[])
         ${pharmacyFilter}
       GROUP BY ip.code_13_ref_id
@@ -204,8 +207,8 @@ async function executeUserQuery(
     product_purchases AS (
       SELECT 
         ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        SUM(po.qte_r) as total_quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
         AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
@@ -218,7 +221,10 @@ async function executeUserQuery(
         ORDER BY ins2.date DESC
         LIMIT 1
       ) closest_snap ON true
-      WHERE o.created_at >= $1 AND o.created_at < ($2::date + interval '1 day')
+      WHERE o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
         AND ip.code_13_ref_id = ANY($3::text[])
         AND ip.pharmacy_id = $4::uuid
       GROUP BY ip.code_13_ref_id

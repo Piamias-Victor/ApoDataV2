@@ -133,7 +133,7 @@ export const CompetitiveTable: React.FC<CompetitiveTableProps> = ({
         'Prix achat HT (€)': safeNumber(product.prix_achat_moyen_ht).toFixed(2),
         'Quantité vendue': safeNumber(product.quantite_vendue_selection),
         'Taux marge (%)': safeNumber(product.taux_marge_moyen_selection).toFixed(2),
-        'Écart vs marché (%)': safeNumber(product.ecart_prix_vs_marche_pct).toFixed(2),
+        'Écart vs apothical (%)': safeNumber(product.ecart_prix_vs_marche_pct).toFixed(2),
         'Interprétation écart': safeNumber(product.ecart_prix_vs_marche_pct) > 5 ? 'Trop cher' :
                                safeNumber(product.ecart_prix_vs_marche_pct) > 2 ? 'Légèrement cher' :
                                safeNumber(product.ecart_prix_vs_marche_pct) > -2 ? 'Prix aligné' :

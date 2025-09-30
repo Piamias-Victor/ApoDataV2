@@ -20,7 +20,8 @@ import {
   Handshake,
   Pill,
   TrendingUp,
-  Boxes
+  Boxes,
+  ShieldMinus
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -59,6 +60,7 @@ const navigationGroups: NavigationGroup[] = [
     icon: <Boxes className="w-4 h-4" />,
     items: [
       { name: 'Stock', href: '/stock', icon: <Package2 className="w-4 h-4" />, badgeVariant: 'gradient-pink' },
+      { name: 'Rupture', href: '/ruptures', icon: <ShieldMinus className="w-4 h-4" />, badgeVariant: 'gradient-pink' },
       { name: 'Générique', href: '/generique', icon: <Pill className="w-4 h-4" />, badgeVariant: 'gradient-blue' },
       { name: 'Pharmacies', href: '/pharmacies', icon: <Building2 className="w-4 h-4" />, badgeVariant: 'gradient-green' }
     ]

@@ -126,7 +126,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
     });
     
     exportData.push({
-      'Métrique': 'Écart vs Marché',
+      'Métrique': 'Écart vs Apothical',
       'Valeur (%)': metrics.ecart_prix_vs_marche_pct.toFixed(2),
       'Interprétation': metrics.ecart_prix_vs_marche_pct > 0 ? 'Au-dessus marché' : 
                        metrics.ecart_prix_vs_marche_pct < 0 ? 'En-dessous marché' : 'Aligné marché',
@@ -216,7 +216,7 @@ export const PriceEvolutionKpis: React.FC<PriceEvolutionKpisProps> = ({
         icon: <Percent className="w-4 h-4 text-orange-600" />
       },
       {
-        title: 'Écart vs Marché',
+        title: 'Écart vs Apothical',
         value: safeMetrics.ecart_prix_vs_marche_pct, // Garder le signe
         unit: 'percentage' as const,
         subtitle: 'Position concurrentielle',
