@@ -79,9 +79,25 @@ export async function POST(request: NextRequest) {
         const { condition, params: keywordParams } = buildKeywordSearch(keywords, true);
         
         sqlQuery = `
+          WITH ranked_products AS (
+            SELECT 
+              name, 
+              code_13_ref, 
+              brand_lab, 
+              universe,
+              bcb_product_id,
+              ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(bcb_product_id::text, code_13_ref) 
+                ORDER BY 
+                  CASE WHEN code_13_ref ~ '^[0-9]{13}$' THEN 0 ELSE 1 END,
+                  code_13_ref
+              ) as rn
+            FROM data_globalproduct
+            WHERE ${condition}
+          )
           SELECT name, code_13_ref, brand_lab, universe
-          FROM data_globalproduct
-          WHERE ${condition}
+          FROM ranked_products
+          WHERE rn = 1
           ORDER BY 
             CASE 
               WHEN LOWER(name) LIKE LOWER($${keywords.length + 1}) THEN 1
@@ -94,9 +110,25 @@ export async function POST(request: NextRequest) {
         
       } else if (isStartCodeSearch) {
         sqlQuery = `
+          WITH ranked_products AS (
+            SELECT 
+              name, 
+              code_13_ref, 
+              brand_lab, 
+              universe,
+              bcb_product_id,
+              ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(bcb_product_id::text, code_13_ref) 
+                ORDER BY 
+                  CASE WHEN code_13_ref ~ '^[0-9]{13}$' THEN 0 ELSE 1 END,
+                  code_13_ref
+              ) as rn
+            FROM data_globalproduct
+            WHERE code_13_ref LIKE $1
+          )
           SELECT name, code_13_ref, brand_lab, universe
-          FROM data_globalproduct
-          WHERE code_13_ref LIKE $1
+          FROM ranked_products
+          WHERE rn = 1
           ORDER BY code_13_ref
           LIMIT 100
         `;
@@ -105,9 +137,25 @@ export async function POST(request: NextRequest) {
       } else if (isEndCodeSearch) {
         const codeDigits = trimmedQuery.substring(1);
         sqlQuery = `
+          WITH ranked_products AS (
+            SELECT 
+              name, 
+              code_13_ref, 
+              brand_lab, 
+              universe,
+              bcb_product_id,
+              ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(bcb_product_id::text, code_13_ref) 
+                ORDER BY 
+                  CASE WHEN code_13_ref ~ '^[0-9]{13}$' THEN 0 ELSE 1 END,
+                  code_13_ref
+              ) as rn
+            FROM data_globalproduct
+            WHERE code_13_ref LIKE $1
+          )
           SELECT name, code_13_ref, brand_lab, universe
-          FROM data_globalproduct
-          WHERE code_13_ref LIKE $1
+          FROM ranked_products
+          WHERE rn = 1
           ORDER BY code_13_ref
           LIMIT 100
         `;

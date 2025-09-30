@@ -519,7 +519,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
+                      <span className="text-sm font-medium text-gray-600">Écart vs apothical</span>
                       <div className="flex items-center space-x-2">
                         {comparisonDataA.summary.marketGap >= 0 ? (
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -631,7 +631,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
+                      <span className="text-sm font-medium text-gray-600">Écart vs apothical</span>
                       <div className="flex items-center space-x-2">
                         {comparisonDataB.summary.marketGap >= 0 ? (
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -743,7 +743,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-600">Écart vs marché</span>
+                      <span className="text-sm font-medium text-gray-600">Écart vs apothical</span>
                       <div className="flex items-center space-x-2">
                         {comparisonDataC.summary.marketGap >= 0 ? (
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -847,7 +847,7 @@ export const ComparisonPricingSection: React.FC<ComparisonPricingSectionProps> =
               
               {/* Écart marché */}
               <div className="text-center">
-                <p className="text-sm font-medium text-gray-600 mb-2">Écart vs marché</p>
+                <p className="text-sm font-medium text-gray-600 mb-2">Écart vs apothical</p>
                 <div className="space-y-1">
                   {(comparisonDataA?.summary.avgSellingPrice ?? 0) > 0 && (
                     <div className="text-sm">

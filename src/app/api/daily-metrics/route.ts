@@ -188,9 +188,9 @@ async function fetchFromRawTablesDaily(
     ),
     daily_purchases AS (
       SELECT 
-        o.created_at::date as date_achat,
-        SUM(po.qte) as quantite_achetee_jour,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_jour
+        o.delivery_date as date_achat,
+        SUM(po.qte_r) as quantite_achetee_jour,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_jour
       FROM data_productorder po
       JOIN data_order o ON po.order_id = o.id
       JOIN data_internalproduct ip ON po.product_id = ip.id
@@ -205,8 +205,11 @@ async function fetchFromRawTablesDaily(
       WHERE 1=1
         AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
         AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
-        AND o.created_at >= $1::date AND o.created_at <= $2::date
-      GROUP BY o.created_at::date
+        AND o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
+      GROUP BY o.delivery_date
     ),
     daily_stock AS (
       SELECT 

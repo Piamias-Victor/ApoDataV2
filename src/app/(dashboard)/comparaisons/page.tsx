@@ -140,7 +140,7 @@ Analysez les tendances et performances relatives dans le temps.`,
 
 - Prix de vente moyens : Comparaison directe A vs B
 - Taux de marge : Rentabilité relative de chaque élément
-- Écart vs marché : Positionnement concurrentiel individuel
+- Écart vs apothical : Positionnement concurrentiel individuel
 - Synthèse avantages : Qui a le meilleur pricing strategy
 
 Optimisez votre stratégie tarifaire en comparant avec la concurrence.`,

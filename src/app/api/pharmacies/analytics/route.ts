@@ -250,12 +250,15 @@ async function executePharmaciesAnalyticsQuery(
     pharmacy_purchases AS (
       SELECT 
         dp.id as pharmacy_id,
-        COALESCE(SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)), 0) as montant_achat_total
+        COALESCE(SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)), 0) as montant_achat_total
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
       LEFT JOIN data_productorder po ON ip.id = po.product_id
       LEFT JOIN data_order o ON po.order_id = o.id 
-        AND o.created_at >= $1::date AND o.created_at < ($2::date + interval '1 day')
+        AND o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
       LEFT JOIN LATERAL (
         SELECT weighted_average_price
         FROM data_inventorysnapshot ins2
