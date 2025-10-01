@@ -305,8 +305,8 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
     ),
     period_purchases AS (
       SELECT 
-        SUM(po.qte_r) as total_quantity_bought,
-        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_total
+        SUM(po.qte) as total_quantity_bought,
+        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_total
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
       INNER JOIN data_internalproduct ip ON po.product_id = ip.id
@@ -321,7 +321,7 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
       WHERE o.delivery_date >= $1::date 
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
-        AND po.qte_r > 0
+        AND po.qte > 0
         ${productFilter}
         ${pharmacyFilter}
     ),
