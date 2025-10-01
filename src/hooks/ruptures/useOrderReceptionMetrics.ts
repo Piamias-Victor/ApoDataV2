@@ -15,6 +15,9 @@ interface OrderReceptionMetricsResponse {
   readonly nb_commandes: number;
   readonly nb_lignes_commandes: number;
   readonly nb_fournisseurs: number;
+  readonly nb_references_total: number;
+  readonly nb_references_rupture: number;
+  readonly taux_references_rupture: number;
   readonly delai_moyen_reception_jours: number | null;
   readonly comparison?: {
     readonly quantite_commandee: number;
@@ -23,6 +26,9 @@ interface OrderReceptionMetricsResponse {
     readonly montant_receptionne_ht: number;
     readonly delta_quantite: number;
     readonly delta_montant: number;
+    readonly nb_references_total: number;
+    readonly nb_references_rupture: number;
+    readonly taux_references_rupture: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
