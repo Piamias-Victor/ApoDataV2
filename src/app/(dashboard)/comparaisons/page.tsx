@@ -3,12 +3,11 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Info, Search, BarChart3, TrendingUp, DollarSign, PieChart } from 'lucide-react';
+import { Info, Search, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
 import { ComparisonSelector } from '@/components/organisms/ComparisonSelector/ComparisonSelector';
 import { ComparisonKpisSection } from '@/components/organisms/ComparisonKpisSection/ComparisonKpisSection';
 import { ComparisonEvolutionChart } from '@/components/organisms/ComparisonEvolutionChart/ComparisonEvolutionChart';
 import { ComparisonPricingSection } from '@/components/organisms/ComparisonPricingSection/ComparisonPricingSection';
-import { ComparisonMarketShareSection } from '@/components/organisms/ComparisonMarketShareSection/ComparisonMarketShareSection';
 
 /**
  * Composant Tooltip réutilisable
