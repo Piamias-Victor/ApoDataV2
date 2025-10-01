@@ -223,14 +223,14 @@ Comprenez votre positionnement relatif sur chaque segment de marché.`
       </SectionWithHelp>
 
       {/* 5. Section Parts de Marché avec description + tooltip */}
-      <SectionWithHelp
+      {/* <SectionWithHelp
         title="Parts de Marché par Hiérarchie"
         description="Comparaison des positions marché A vs B par univers, catégories et familles avec barres de progression visuelles"
         tooltipContent={tooltips.marketshare}
         icon={<PieChart className="w-5 h-5 text-indigo-600" />}
       >
         <ComparisonMarketShareSection />
-      </SectionWithHelp>
+      </SectionWithHelp> */}
 
       {/* Instructions d'utilisation simplifiées */}
       <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6">

@@ -7,8 +7,8 @@ import { Info, TrendingUp, PieChart, List, Building2 } from 'lucide-react';
 import { SalesTable } from '@/components/organisms/SalesTable/SalesTable';
 import { SalesKpisSection } from '@/components/organisms/SalesKpisSection/SalesKpisSection';
 import { MarketShareSection } from '@/components/organisms/MarketShareSection/MarketShareSection';
-import { LaboratoryMarketShareSection } from '@/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShareSection';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { LaboratoryMarketShare } from '@/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShare';
 
 /**
  * Composant Tooltip réutilisable
@@ -40,7 +40,6 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }
         <div className={`absolute z-50 ${positionClasses[position]}`}>
           <div className="bg-white/95 backdrop-blur-lg text-gray-800 text-sm rounded-xl px-6 py-4 w-[600px] shadow-2xl border border-white/20">
             <div className="whitespace-pre-line leading-relaxed">{content}</div>
-            {/* Flèche du tooltip */}
             <div 
               className={`absolute w-3 h-3 bg-white/95 border border-white/20 transform rotate-45 ${
                 position === 'top' ? 'top-full left-1/2 -translate-x-1/2 -mt-1.5' :
@@ -78,7 +77,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 }) => {
   return (
     <div className={`bg-white/50 backdrop-blur-sm rounded-2xl p-6 ${className}`}>
-      {/* Header avec titre, description et tooltip */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-3">
@@ -92,7 +90,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
           </div>
         </div>
         
-        {/* Description toujours visible */}
         <p className="text-sm text-gray-700 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-2 border-l-4 border-blue-300 shadow-sm">
           💡 {description}
         </p>
@@ -107,7 +104,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
  * Page Ventes AMÉLIORÉE avec descriptions + tooltips
  */
 export default function VentesPage() {
-  // Filtres depuis le store Zustand
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
@@ -115,7 +111,6 @@ export default function VentesPage() {
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Filtres formatés pour SalesKpisSection et MarketShareSection
   const filters = useMemo(() => ({
     products: productsFilter,
     laboratories: laboratoriesFilter,
@@ -123,23 +118,18 @@ export default function VentesPage() {
     pharmacies: pharmacyFilter
   }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
 
-  // Fusion de tous les codes produits pour LaboratoryMarketShareSection
-  const allProductCodes = useMemo(() => {
-    return Array.from(new Set([
-      ...productsFilter,
-      ...laboratoriesFilter,
-      ...categoriesFilter
-    ]));
+  const hasFilters = useMemo(() => {
+    return productsFilter.length > 0 || 
+           laboratoriesFilter.length > 0 || 
+           categoriesFilter.length > 0;
   }, [productsFilter, laboratoriesFilter, categoriesFilter]);
 
-  // Vérification si comparaison est active
   const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
 
   const handleRefresh = () => {
     console.log('Refresh ventes page');
   };
 
-  // Contenu des tooltips basé sur l'analyse factuelle
   const tooltips = {
     kpis: `Indicateurs spécialisés pour l'analyse des ventes :
 
@@ -186,7 +176,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
       transition={{ duration: 0.5 }}
       className="space-y-8"
     >
-      {/* Section titre */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center space-x-3">
@@ -206,7 +195,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         </div>
       </div>
 
-      {/* Section KPI Ventes avec description + tooltip */}
       <SectionWithHelp
         title="KPI Spécialisés Ventes"
         description="Indicateurs dédiés aux ventes : quantités/CA, parts de marché CA/marge, références vendues et rentabilité avec comparaisons"
@@ -222,7 +210,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         />
       </SectionWithHelp>
 
-      {/* Section Parts de Marché avec description + tooltip */}
       <SectionWithHelp
         title="Parts de Marché par Hiérarchie"
         description="Analyse votre positionnement par univers, catégories et familles avec barres de progression et top laboratoires par segment"
@@ -236,22 +223,17 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         />
       </SectionWithHelp>
 
-      {/* Section Parts de Marché par Laboratoire */}
-      {allProductCodes.length > 0 && (
+      {hasFilters && (
         <SectionWithHelp
           title="Parts de Marché par Laboratoire"
           description="Répartition du CA et des marges entre laboratoires pour votre sélection de produits avec identification des référents"
           tooltipContent={tooltips.laboratoryshare}
           icon={<Building2 className="w-5 h-5 text-purple-600" />}
         >
-          <LaboratoryMarketShareSection
-            productCodes={allProductCodes}
-            dateRange={analysisDateRange}
-          />
+          <LaboratoryMarketShare />
         </SectionWithHelp>
       )}
       
-      {/* Tableau détaillé avec description + tooltip */}
       <SectionWithHelp
         title="Tableau Détaillé des Ventes"
         description="Vue complète produit par produit avec recherche, tri avancé, expansion graphique et export pour analyses approfondies"
