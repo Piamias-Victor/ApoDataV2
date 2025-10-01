@@ -185,28 +185,32 @@ async function executeAdminQuery(
   hasProductFilter: boolean = false
 ): Promise<RuptureProductRow[]> {
   const pharmacyFilter = pharmacyIds && pharmacyIds.length > 0
-    ? `AND ip.pharmacy_id = ANY($${hasProductFilter ? 4 : 3}::uuid[])`
+    ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
 
   const productFilter = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
-  const orderPharmacyFilter = pharmacyIds && pharmacyIds.length > 0
-    ? `AND o.pharmacy_id = ANY($${hasProductFilter ? 4 : 3}::uuid[])`
-    : '';
-
   const params = [];
+  let paramIndex = 1;
+  
   params.push(dateRange.start);
   params.push(dateRange.end);
   
   if (hasProductFilter) {
     params.push(productCodes);
+    paramIndex = 4;
+  } else {
+    paramIndex = 3;
   }
   
   if (pharmacyIds && pharmacyIds.length > 0) {
     params.push(pharmacyIds);
   }
+
+  const finalPharmacyFilter = pharmacyFilter.replace('$4', `$${paramIndex}`);
+  const orderPharmacyFilter = finalPharmacyFilter;
 
   const startDate = new Date(dateRange.start);
   const endDate = new Date(dateRange.end);
@@ -231,18 +235,16 @@ async function executeAdminQuery(
     WITH sales_data AS (
       SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name,
-        s.date as periode,
         SUM(s.quantity) as quantite_vendue,
+        s.date as periode,
         AVG(ins.weighted_average_price) as prix_achat_moyen
       FROM data_sales s
-      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-      JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE s.date >= $1::date
-        AND s.date <= $2::date
+      INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
+      WHERE s.date >= $1 AND s.date <= $2
         ${productFilter}
-        ${pharmacyFilter}
-      GROUP BY ip.code_13_ref_id, ip.name, s.date
+        ${finalPharmacyFilter}
+      GROUP BY ip.code_13_ref_id, s.date
     ),
     stock_data AS (
       SELECT DISTINCT ON (ip.code_13_ref_id, DATE_TRUNC('${stockGrouping}', ins.date))
@@ -250,11 +252,11 @@ async function executeAdminQuery(
         DATE_TRUNC('${stockGrouping}', ins.date) as periode,
         ins.stock as quantite_stock
       FROM data_inventorysnapshot ins
-      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE ins.date >= $1::date
         AND ins.date <= $2::date
         ${productFilter}
-        ${pharmacyFilter}
+        ${finalPharmacyFilter}
       ORDER BY ip.code_13_ref_id, DATE_TRUNC('${stockGrouping}', ins.date), ins.date DESC
     ),
     orders_data AS (
@@ -264,9 +266,9 @@ async function executeAdminQuery(
         SUM(po.qte) as quantite_commandee,
         SUM(po.qte_r) as quantite_receptionnee
       FROM data_order o
-      JOIN data_productorder po ON po.order_id = o.id
-      JOIN data_internalproduct ip ON po.product_id = ip.id
-      WHERE o.delivery_date >= $1::date
+      INNER JOIN data_productorder po ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      WHERE o.delivery_date >= $1::date 
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
         ${productFilter}
@@ -276,9 +278,6 @@ async function executeAdminQuery(
     combined_data AS (
       SELECT 
         COALESCE(s.code_13_ref_id, o.code_13_ref_id, st.code_13_ref_id) as code_13_ref_id,
-        COALESCE(s.product_name, 
-          (SELECT name FROM data_internalproduct WHERE code_13_ref_id = COALESCE(o.code_13_ref_id, st.code_13_ref_id) LIMIT 1)
-        ) as product_name,
         COALESCE(s.periode, o.periode, st.periode) as periode,
         COALESCE(s.quantite_vendue, 0) as quantite_vendue,
         COALESCE(o.quantite_commandee, 0) as quantite_commandee,
@@ -296,7 +295,6 @@ async function executeAdminQuery(
     period_data AS (
       SELECT 
         code_13_ref_id,
-        product_name,
         ${periodGrouping} as periode,
         SUM(quantite_vendue) as quantite_vendue,
         SUM(quantite_commandee) as quantite_commandee,
@@ -304,59 +302,59 @@ async function executeAdminQuery(
         AVG(quantite_stock) as quantite_stock,
         AVG(NULLIF(prix_achat_moyen, 0)) as prix_achat_moyen
       FROM combined_data
-      GROUP BY code_13_ref_id, product_name, ${periodGrouping}
+      GROUP BY code_13_ref_id, ${periodGrouping}
     ),
     all_results AS (
-      -- Détails par période
       SELECT 
-        product_name as nom,
-        code_13_ref_id as code_ean,
+        gp.name as nom,
+        gp.code_13_ref as code_ean,
         ${periodFormat} as periode,
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
-        quantite_vendue::numeric,
-        quantite_commandee::numeric,
-        quantite_receptionnee::numeric,
-        ROUND(quantite_stock::numeric, 0) as quantite_stock,
-        (quantite_commandee - quantite_receptionnee)::numeric as delta_quantite,
+        pd.quantite_vendue::numeric,
+        pd.quantite_commandee::numeric,
+        pd.quantite_receptionnee::numeric,
+        ROUND(pd.quantite_stock::numeric, 0) as quantite_stock,
+        (pd.quantite_commandee - pd.quantite_receptionnee)::numeric as delta_quantite,
         CASE 
-          WHEN quantite_commandee > 0 
-          THEN ROUND((quantite_receptionnee::numeric / quantite_commandee::numeric) * 100, 2)
+          WHEN pd.quantite_commandee > 0 
+          THEN ROUND((pd.quantite_receptionnee::numeric / pd.quantite_commandee::numeric) * 100, 2)
           ELSE 100
         END as taux_reception,
-        ROUND(COALESCE(prix_achat_moyen, 0), 2) as prix_achat_moyen,
-        ROUND((quantite_commandee - quantite_receptionnee) * COALESCE(prix_achat_moyen, 0), 2) as montant_delta,
-        periode as sort_periode,
+        ROUND(COALESCE(pd.prix_achat_moyen, 0), 2) as prix_achat_moyen,
+        ROUND((pd.quantite_commandee - pd.quantite_receptionnee) * COALESCE(pd.prix_achat_moyen, 0), 2) as montant_delta,
+        pd.periode as sort_periode,
         1 as sort_order
-      FROM period_data
-      WHERE quantite_vendue > 0 OR quantite_commandee > 0 OR quantite_receptionnee > 0
+      FROM period_data pd
+      INNER JOIN data_globalproduct gp ON pd.code_13_ref_id = gp.code_13_ref
+      WHERE pd.quantite_vendue > 0 OR pd.quantite_commandee > 0 OR pd.quantite_receptionnee > 0
       
       UNION ALL
       
-      -- Synthèse par produit
       SELECT 
-        product_name as nom,
-        code_13_ref_id as code_ean,
+        gp.name as nom,
+        gp.code_13_ref as code_ean,
         'TOTAL' as periode,
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
-        SUM(quantite_vendue)::numeric as quantite_vendue,
-        SUM(quantite_commandee)::numeric as quantite_commandee,
-        SUM(quantite_receptionnee)::numeric as quantite_receptionnee,
-        ROUND(AVG(quantite_stock)::numeric, 0) as quantite_stock,
-        (SUM(quantite_commandee) - SUM(quantite_receptionnee))::numeric as delta_quantite,
+        SUM(pd.quantite_vendue)::numeric as quantite_vendue,
+        SUM(pd.quantite_commandee)::numeric as quantite_commandee,
+        SUM(pd.quantite_receptionnee)::numeric as quantite_receptionnee,
+        ROUND(AVG(pd.quantite_stock)::numeric, 0) as quantite_stock,
+        (SUM(pd.quantite_commandee) - SUM(pd.quantite_receptionnee))::numeric as delta_quantite,
         CASE 
-          WHEN SUM(quantite_commandee) > 0 
-          THEN ROUND((SUM(quantite_receptionnee)::numeric / SUM(quantite_commandee)::numeric) * 100, 2)
+          WHEN SUM(pd.quantite_commandee) > 0 
+          THEN ROUND((SUM(pd.quantite_receptionnee)::numeric / SUM(pd.quantite_commandee)::numeric) * 100, 2)
           ELSE 100
         END as taux_reception,
-        ROUND(AVG(NULLIF(prix_achat_moyen, 0)), 2) as prix_achat_moyen,
-        ROUND((SUM(quantite_commandee) - SUM(quantite_receptionnee)) * AVG(NULLIF(prix_achat_moyen, 0)), 2) as montant_delta,
+        ROUND(AVG(NULLIF(pd.prix_achat_moyen, 0)), 2) as prix_achat_moyen,
+        ROUND((SUM(pd.quantite_commandee) - SUM(pd.quantite_receptionnee)) * AVG(NULLIF(pd.prix_achat_moyen, 0)), 2) as montant_delta,
         NULL as sort_periode,
         0 as sort_order
-      FROM period_data
-      GROUP BY product_name, code_13_ref_id
-      HAVING SUM(quantite_vendue) > 0 OR SUM(quantite_commandee) > 0 OR SUM(quantite_receptionnee) > 0
+      FROM period_data pd
+      INNER JOIN data_globalproduct gp ON pd.code_13_ref_id = gp.code_13_ref
+      GROUP BY gp.name, gp.code_13_ref
+      HAVING SUM(pd.quantite_vendue) > 0 OR SUM(pd.quantite_commandee) > 0 OR SUM(pd.quantite_receptionnee) > 0
     )
     SELECT 
       nom,

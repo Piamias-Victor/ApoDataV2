@@ -26,6 +26,9 @@ interface OrderReceptionMetricsResponse {
   readonly nb_commandes: number;
   readonly nb_lignes_commandes: number;
   readonly nb_fournisseurs: number;
+  readonly nb_references_total: number;
+  readonly nb_references_rupture: number;
+  readonly taux_references_rupture: number;
   readonly delai_moyen_reception_jours: number | null;
   readonly comparison?: {
     readonly quantite_commandee: number;
@@ -34,6 +37,9 @@ interface OrderReceptionMetricsResponse {
     readonly montant_receptionne_ht: number;
     readonly delta_quantite: number;
     readonly delta_montant: number;
+    readonly nb_references_total: number;
+    readonly nb_references_rupture: number;
+    readonly taux_references_rupture: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
@@ -67,6 +73,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<OrderRece
       montant_receptionne_ht: number;
       delta_quantite: number;
       delta_montant: number;
+      nb_references_total: number;
+      nb_references_rupture: number;
+      taux_references_rupture: number;
     } | undefined = undefined;
     
     if (validatedRequest.comparisonDateRange) {
@@ -85,7 +94,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<OrderRece
         montant_commande_ht: comparisonMetrics.montant_commande_ht,
         montant_receptionne_ht: comparisonMetrics.montant_receptionne_ht,
         delta_quantite: comparisonMetrics.delta_quantite,
-        delta_montant: comparisonMetrics.delta_montant
+        delta_montant: comparisonMetrics.delta_montant,
+        nb_references_total: comparisonMetrics.nb_references_total,
+        nb_references_rupture: comparisonMetrics.nb_references_rupture,
+        taux_references_rupture: comparisonMetrics.taux_references_rupture
       };
     }
 
@@ -134,7 +146,6 @@ async function calculateMetrics(request: OrderReceptionRequest): Promise<Omit<Or
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  // Construction des filtres
   const productFilter = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
@@ -159,6 +170,8 @@ async function calculateMetrics(request: OrderReceptionRequest): Promise<Omit<Or
         COUNT(DISTINCT o.id) as nb_commandes,
         COUNT(po.id) as nb_lignes_commandes,
         COUNT(DISTINCT o.supplier_id) as nb_fournisseurs,
+        COUNT(DISTINCT ip.code_13_ref_id) as nb_references_total,
+        COUNT(DISTINCT CASE WHEN po.qte_r < po.qte THEN ip.code_13_ref_id END) as nb_references_rupture,
         SUM(po.qte) as quantite_commandee,
         SUM(po.qte_r) as quantite_receptionnee,
         SUM(po.qte * COALESCE(latest_price.weighted_average_price, 0)) as montant_commande_ht,
@@ -200,6 +213,13 @@ async function calculateMetrics(request: OrderReceptionRequest): Promise<Omit<Or
       COALESCE(nb_commandes, 0) as nb_commandes,
       COALESCE(nb_lignes_commandes, 0) as nb_lignes_commandes,
       COALESCE(nb_fournisseurs, 0) as nb_fournisseurs,
+      COALESCE(nb_references_total, 0) as nb_references_total,
+      COALESCE(nb_references_rupture, 0) as nb_references_rupture,
+      CASE 
+        WHEN nb_references_total > 0 
+        THEN ROUND((nb_references_rupture::numeric / nb_references_total::numeric) * 100, 2)
+        ELSE 0
+      END as taux_references_rupture,
       NULL::numeric as delai_moyen_reception_jours
     FROM orders_data;
   `;
@@ -233,6 +253,9 @@ function getDefaultMetrics(): Omit<OrderReceptionMetricsResponse, 'comparison' |
     nb_commandes: 0,
     nb_lignes_commandes: 0,
     nb_fournisseurs: 0,
+    nb_references_total: 0,
+    nb_references_rupture: 0,
+    taux_references_rupture: 0,
     delai_moyen_reception_jours: null
   };
 }
@@ -250,6 +273,9 @@ function formatMetrics(row: any): Omit<OrderReceptionMetricsResponse, 'compariso
     nb_commandes: Number(row.nb_commandes) || 0,
     nb_lignes_commandes: Number(row.nb_lignes_commandes) || 0,
     nb_fournisseurs: Number(row.nb_fournisseurs) || 0,
+    nb_references_total: Number(row.nb_references_total) || 0,
+    nb_references_rupture: Number(row.nb_references_rupture) || 0,
+    taux_references_rupture: Number(row.taux_references_rupture) || 0,
     delai_moyen_reception_jours: null
   };
 }

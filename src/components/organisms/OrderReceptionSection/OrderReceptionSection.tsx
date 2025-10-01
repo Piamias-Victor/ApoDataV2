@@ -10,8 +10,8 @@ import {
   Euro,
   TrendingDown,
   AlertTriangle,
-  Hash,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import { useOrderReceptionMetrics } from '@/hooks/ruptures/useOrderReceptionMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
@@ -35,9 +35,6 @@ interface OrderReceptionSectionProps {
   readonly className?: string;
 }
 
-/**
- * OrderReceptionSection - Section métriques commandes/réceptions
- */
 export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
   dateRange,
   comparisonDateRange,
@@ -46,7 +43,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
   onRefresh,
   className = ''
 }) => {
-  // Hook métriques commandes/réceptions
   const { 
     data, 
     isLoading, 
@@ -61,14 +57,11 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
     filters
   });
 
-  // Hook export CSV
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // Transformation données pour dual cards
   const groupedKpis = useMemo(() => {
     if (!data) return null;
 
-    // Calcul des comparaisons
     const calculateEvolution = (current: number, previous?: number) => {
       if (!previous || previous === 0) return undefined;
       const percentage = ((current - previous) / previous) * 100;
@@ -80,7 +73,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
     };
 
     return {
-      // Card 1: Quantités
       quantities: {
         main: {
           title: 'Quantité Commandée',
@@ -99,8 +91,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
             undefined
         }
       },
-
-      // Card 2: Montants
       amounts: {
         main: {
           title: 'Montant Commandé HT',
@@ -119,8 +109,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
             undefined
         }
       },
-
-      // Card 3: Deltas
       deltas: {
         main: {
           title: 'Delta Montant',
@@ -138,11 +126,28 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
             calculateEvolution(data.delta_quantite, data.comparison.delta_quantite) : 
             undefined
         }
+      },
+      references: {
+        main: {
+          title: 'Références en Ecarts',
+          value: data.nb_references_rupture,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.nb_references_rupture, data.comparison.nb_references_rupture) : 
+            undefined
+        },
+        secondary: {
+          title: 'Taux Références en Ecarts',
+          value: data.taux_references_rupture,
+          unit: 'percentage' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.taux_references_rupture, data.comparison.taux_references_rupture) : 
+            undefined
+        }
       }
     };
   }, [data]);
 
-  // Préparation export CSV
   const prepareDataForExport = useCallback(() => {
     if (!data) return [];
     
@@ -200,11 +205,28 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
         'Valeur': data.taux_reception_montant.toFixed(2),
         'Unité': '%',
         'Période': currentPeriod
+      },
+      {
+        'Indicateur': 'Références Total',
+        'Valeur': data.nb_references_total,
+        'Unité': 'références',
+        'Période': currentPeriod
+      },
+      {
+        'Indicateur': 'Références en Rupture',
+        'Valeur': data.nb_references_rupture,
+        'Unité': 'références',
+        'Période': currentPeriod
+      },
+      {
+        'Indicateur': 'Taux Références en Rupture',
+        'Valeur': data.taux_references_rupture.toFixed(2),
+        'Unité': '%',
+        'Période': currentPeriod
       }
     ];
   }, [data, dateRange]);
 
-  // Handler export
   const handleExport = useCallback(() => {
     const exportData = prepareDataForExport();
     if (exportData.length === 0) {
@@ -214,7 +236,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
     
     const filename = CsvExporter.generateFilename('commandes_receptions');
     
-    // Vérification de l'existence du premier élément
     const firstItem = exportData[0];
     if (!firstItem) {
       console.error('Données export invalides');
@@ -230,13 +251,11 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
     });
   }, [prepareDataForExport, exportToCsv]);
 
-  // Handler refresh
   const handleRefresh = useCallback(async () => {
     await refetch();
     onRefresh?.();
   }, [refetch, onRefresh]);
 
-  // Rendu erreur
   if (error) {
     return (
       <section className={`${className}`}>
@@ -260,7 +279,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
 
   return (
     <section className={`${className}`}>
-      {/* Header avec actions */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
@@ -294,10 +312,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
         </div>
       </div>
       
-      {/* Grille 2x2 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Loading */}
         {isLoading && (
           <>
             <KpiCardSkeleton />
@@ -307,10 +322,8 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
           </>
         )}
         
-        {/* Data */}
         {!isLoading && groupedKpis && (
           <>
-            {/* Card 1: Quantités */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.quantities.main,
@@ -322,7 +335,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
-            {/* Card 2: Montants */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.amounts.main,
@@ -334,7 +346,6 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
-            {/* Card 3: Deltas */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.deltas.main,
@@ -346,18 +357,19 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
-            {/* Card 4: Placeholder */}
-            <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center p-8">
-              <div className="text-center text-gray-400">
-                <Hash className="w-8 h-8 mx-auto mb-2" />
-                <p className="text-sm">Espace réservé</p>
-                <p className="text-xs mt-1">KPI à définir</p>
-              </div>
-            </div>
+            <DualKpiCard
+              mainKpi={{
+                ...groupedKpis.references.main,
+                icon: <AlertCircle className="w-4 h-4 text-red-600" />
+              }}
+              secondaryKpi={{
+                ...groupedKpis.references.secondary,
+                icon: <AlertCircle className="w-4 h-4 text-red-500" />
+              }}
+            />
           </>
         )}
         
-        {/* Empty state */}
         {!isLoading && hasData && !data && (
           <div className="col-span-2 flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg">
             <Package className="w-12 h-12 text-gray-400 mb-4" />
