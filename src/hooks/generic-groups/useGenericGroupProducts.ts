@@ -33,12 +33,12 @@ export function useGenericGroupProducts() {
   const [error, setError] = useState<string | null>(null);
   
   const productCodes = useGenericGroupStore(state => state.productCodes);
-  const selectedGroup = useGenericGroupStore(state => state.selectedGroup);
+  const selectedGroups = useGenericGroupStore(state => state.selectedGroups);
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore(state => state.pharmacy);
 
   const fetchProducts = useCallback(async () => {
-    if (!selectedGroup || productCodes.length === 0) return;
+    if (selectedGroups.length === 0 || productCodes.length === 0) return;
     
     setIsLoading(true);
     setError(null);
@@ -70,7 +70,7 @@ export function useGenericGroupProducts() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedGroup, productCodes, analysisDateRange, pharmacyFilter]);
+  }, [selectedGroups.length, productCodes, analysisDateRange, pharmacyFilter]);
 
   useEffect(() => {
     fetchProducts();

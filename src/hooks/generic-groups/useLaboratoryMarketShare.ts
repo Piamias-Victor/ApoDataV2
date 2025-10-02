@@ -32,6 +32,7 @@ interface UseLaboratoryMarketShareReturn {
   readonly previousPage: () => void;
   readonly nextPage: () => void;
   readonly refetch: () => Promise<void>;
+  readonly isGlobalMode: boolean;
 }
 
 export function useLaboratoryMarketShare(
@@ -43,11 +44,12 @@ export function useLaboratoryMarketShare(
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [isGlobalMode, setIsGlobalMode] = useState(false);
 
   const { enabled, productCodes, dateRange, pageSize = 10 } = options;
 
   const fetchData = useCallback(async (page: number) => {
-    if (!enabled || productCodes.length === 0) return;
+    if (!enabled) return;
 
     setIsLoading(true);
     setError(null);
@@ -73,6 +75,7 @@ export function useLaboratoryMarketShare(
       setTotalPages(result.pagination.totalPages);
       setTotal(result.pagination.total);
       setCurrentPage(page);
+      setIsGlobalMode(result.isGlobalMode || false);
     } catch (err) {
       console.error('Erreur chargement parts de marché:', err);
       setError('Erreur lors du chargement des données');
@@ -112,6 +115,7 @@ export function useLaboratoryMarketShare(
     canNextPage: currentPage < totalPages,
     previousPage,
     nextPage,
-    refetch
+    refetch,
+    isGlobalMode
   };
 }

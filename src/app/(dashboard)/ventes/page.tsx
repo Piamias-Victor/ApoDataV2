@@ -118,12 +118,6 @@ export default function VentesPage() {
     pharmacies: pharmacyFilter
   }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
 
-  const hasFilters = useMemo(() => {
-    return productsFilter.length > 0 || 
-           laboratoriesFilter.length > 0 || 
-           categoriesFilter.length > 0;
-  }, [productsFilter, laboratoriesFilter, categoriesFilter]);
-
   const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
 
   const handleRefresh = () => {
@@ -223,7 +217,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         />
       </SectionWithHelp>
 
-      {hasFilters && (
         <SectionWithHelp
           title="Parts de Marché par Laboratoire"
           description="Répartition du CA et des marges entre laboratoires pour votre sélection de produits avec identification des référents"
@@ -232,7 +225,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         >
           <LaboratoryMarketShare />
         </SectionWithHelp>
-      )}
       
       <SectionWithHelp
         title="Tableau Détaillé des Ventes"

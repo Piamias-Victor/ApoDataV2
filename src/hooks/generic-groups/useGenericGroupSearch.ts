@@ -29,9 +29,10 @@ interface UseGenericGroupSearchReturn {
   readonly setSearchQuery: (query: string) => void;
   readonly searchMode: SearchMode;
   readonly setSearchMode: (mode: SearchMode) => void;
-  readonly selectedGroup: GenericGroup | null;
-  readonly selectGroup: (group: GenericGroup) => void;
+  readonly selectedGroups: GenericGroup[];
+  readonly toggleGroup: (group: GenericGroup) => void;
   readonly clearSelection: () => void;
+  readonly isGroupSelected: (groupName: string) => boolean;
   readonly productCodes: string[];
 }
 
@@ -42,11 +43,12 @@ export function useGenericGroupSearch(): UseGenericGroupSearchReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('group');
   
-  // Récupération depuis le store
-  const selectedGroup = useGenericGroupStore(state => state.selectedGroup);
+  const selectedGroups = useGenericGroupStore(state => state.selectedGroups);
   const productCodes = useGenericGroupStore(state => state.productCodes);
-  const setSelectedGroup = useGenericGroupStore(state => state.setSelectedGroup);
-  const clearSelectedGroup = useGenericGroupStore(state => state.clearSelectedGroup);
+  const addGroup = useGenericGroupStore(state => state.addGroup);
+  const removeGroup = useGenericGroupStore(state => state.removeGroup);
+  const clearSelection = useGenericGroupStore(state => state.clearSelection);
+  const isGroupSelected = useGenericGroupStore(state => state.isGroupSelected);
 
   const performSearch = useCallback(async (query: string, mode: SearchMode) => {
     if (!query || query.trim().length < 2) {
@@ -61,9 +63,7 @@ export function useGenericGroupSearch(): UseGenericGroupSearchReturn {
     try {
       const response = await fetch('/api/generic-groups/search', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           query: query.trim(),
           mode 
@@ -94,13 +94,13 @@ export function useGenericGroupSearch(): UseGenericGroupSearchReturn {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, searchMode, performSearch]);
 
-  const selectGroup = useCallback((group: GenericGroup) => {
-    setSelectedGroup(group);
-  }, [setSelectedGroup]);
-
-  const clearSelection = useCallback(() => {
-    clearSelectedGroup();
-  }, [clearSelectedGroup]);
+  const toggleGroup = useCallback((group: GenericGroup) => {
+    if (isGroupSelected(group.generic_group)) {
+      removeGroup(group.generic_group);
+    } else {
+      addGroup(group);
+    }
+  }, [isGroupSelected, addGroup, removeGroup]);
 
   return {
     groups,
@@ -110,9 +110,10 @@ export function useGenericGroupSearch(): UseGenericGroupSearchReturn {
     setSearchQuery,
     searchMode,
     setSearchMode,
-    selectedGroup,
-    selectGroup,
+    selectedGroups,
+    toggleGroup,
     clearSelection,
+    isGroupSelected,
     productCodes,
   };
 }
