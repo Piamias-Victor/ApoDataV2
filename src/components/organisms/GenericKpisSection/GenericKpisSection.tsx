@@ -48,7 +48,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
   onRefresh,
   className = ''
 }) => {
-  const selectedGroup = useGenericGroupStore((state) => state.selectedGroup);
+  const selectedGroups = useGenericGroupStore((state) => state.selectedGroups);
   const productCodes = useGenericGroupStore((state) => state.productCodes);
   
   const { 
@@ -95,27 +95,53 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     const comparisonPeriod = comparisonDateRange && includeComparison ? 
       formatDateRange(comparisonDateRange.start || '', comparisonDateRange.end || '') : '';
     
-    exportData.push({
-      'Indicateur': 'Groupe Générique',
-      'Valeur': selectedGroup?.generic_group || 'N/A',
-      'Unité': '',
-      'Période actuelle': currentPeriod,
-      'Valeur précédente': '',
-      'Période précédente': '',
-      'Evolution (%)': '',
-      'Evolution (valeur)': ''
-    });
-    
-    exportData.push({
-      'Indicateur': 'Référent',
-      'Valeur': selectedGroup?.referent_name || 'N/A',
-      'Unité': '',
-      'Période actuelle': currentPeriod,
-      'Valeur précédente': '',
-      'Période précédente': '',
-      'Evolution (%)': '',
-      'Evolution (valeur)': ''
-    });
+    if (selectedGroups.length === 1) {
+      exportData.push({
+        'Indicateur': 'Groupe Générique',
+        'Valeur': selectedGroups[0]?.generic_group || 'N/A',
+        'Unité': '',
+        'Période actuelle': currentPeriod,
+        'Valeur précédente': '',
+        'Période précédente': '',
+        'Evolution (%)': '',
+        'Evolution (valeur)': ''
+      });
+      
+      exportData.push({
+        'Indicateur': 'Référent',
+        'Valeur': selectedGroups[0]?.referent_name || 'N/A',
+        'Unité': '',
+        'Période actuelle': currentPeriod,
+        'Valeur précédente': '',
+        'Période précédente': '',
+        'Evolution (%)': '',
+        'Evolution (valeur)': ''
+      });
+    } else if (selectedGroups.length > 1) {
+      exportData.push({
+        'Indicateur': 'Groupes Génériques',
+        'Valeur': `${selectedGroups.length} groupes sélectionnés`,
+        'Unité': '',
+        'Période actuelle': currentPeriod,
+        'Valeur précédente': '',
+        'Période précédente': '',
+        'Evolution (%)': '',
+        'Evolution (valeur)': ''
+      });
+      
+      selectedGroups.forEach((group, index) => {
+        exportData.push({
+          'Indicateur': `Groupe ${index + 1}`,
+          'Valeur': group.generic_group,
+          'Unité': '',
+          'Période actuelle': currentPeriod,
+          'Valeur précédente': '',
+          'Période précédente': '',
+          'Evolution (%)': '',
+          'Evolution (valeur)': ''
+        });
+      });
+    }
     
     exportData.push({
       'Indicateur': 'CA TTC',
@@ -238,32 +264,24 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     });
     
     return exportData;
-  }, [data, dateRange, comparisonDateRange, includeComparison, selectedGroup]);
+  }, [data, dateRange, comparisonDateRange, includeComparison, selectedGroups]);
 
   const handleExport = useCallback(() => {
     const exportData = prepareKpiDataForExport();
     
-    if (exportData.length === 0) {
-      console.warn('Aucune donnée à exporter');
-      return;
-    }
+    if (exportData.length === 0) return;
     
-    const groupName = selectedGroup?.generic_group?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'generique';
+    const groupName = selectedGroups.length === 1
+      ? selectedGroups[0]?.generic_group?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'generique'
+      : `multi_groupes_${selectedGroups.length}`;
     const filename = CsvExporter.generateFilename(`apodata_kpis_${groupName}`);
     
-    if (!exportData[0]) {
-      console.error('Données export invalides');
-      return;
-    }
+    if (!exportData[0]) return;
     
     const headers = Object.keys(exportData[0]);
     
-    exportToCsv({
-      filename,
-      headers,
-      data: exportData
-    });
-  }, [prepareKpiDataForExport, exportToCsv, selectedGroup]);
+    exportToCsv({ filename, headers, data: exportData });
+  }, [prepareKpiDataForExport, exportToCsv, selectedGroups]);
 
   const handleRefresh = useCallback(async () => {
     await refetch();
@@ -279,7 +297,23 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     return hasData && data && !hasSignificantKpiData(data);
   }, [hasData, data]);
 
-  if (!selectedGroup || productCodes.length === 0) {
+  const headerText = useMemo(() => {
+    if (selectedGroups.length === 0) return 'Indicateurs Génériques';
+    if (selectedGroups.length === 1) return 'Indicateurs du Groupe Générique';
+    return `Indicateurs Agrégés (${selectedGroups.length} groupes)`;
+  }, [selectedGroups.length]);
+
+  const subtitleText = useMemo(() => {
+    if (selectedGroups.length === 0) return 'Aucune sélection';
+    if (selectedGroups.length === 1) {
+      const group = selectedGroups[0]!;
+      return `${group.generic_group} • ${group.product_count} produits • ${group.referent_name ? `Référent: ${group.referent_name}` : 'Pas de référent'}`;
+    }
+    const totalProducts = selectedGroups.reduce((sum, g) => sum + g.product_count, 0);
+    return `${totalProducts} produits au total dans ${selectedGroups.length} groupes`;
+  }, [selectedGroups]);
+
+  if (selectedGroups.length === 0 || productCodes.length === 0) {
     return (
       <section className={`px-6 py-6 ${className}`}>
         <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-gray-200">
@@ -288,7 +322,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
             Aucun groupe générique sélectionné
           </h3>
           <p className="text-gray-500 max-w-md">
-            Sélectionnez un groupe générique pour afficher les indicateurs clés.
+            Sélectionnez un ou plusieurs groupes génériques pour afficher les indicateurs clés.
           </p>
         </div>
       </section>
@@ -299,12 +333,8 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     return (
       <section className={`px-6 py-6 ${className}`}>
         <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Indicateurs du Groupe Générique
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {selectedGroup.generic_group} - {selectedGroup.product_count} produits
-          </p>
+          <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
+          <p className="text-sm text-gray-500 mt-1">{subtitleText}</p>
         </div>
         
         <div className="flex flex-col items-center justify-center py-12 text-center bg-red-50 rounded-lg border border-red-200">
@@ -318,9 +348,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
             Erreur de chargement des KPI
           </h3>
           
-          <p className="text-red-700 mb-4 max-w-md">
-            {errorMessage}
-          </p>
+          <p className="text-red-700 mb-4 max-w-md">{errorMessage}</p>
           
           <Button
             variant="secondary"
@@ -339,18 +367,8 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     <section className={`px-6 py-6 ${className}`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">
-            Indicateurs du Groupe Générique
-          </h2>
-          <div className="flex items-center gap-4 mt-1">
-            <span className="text-sm text-gray-600">
-              <span className="font-medium">{selectedGroup.generic_group}</span>
-            </span>
-            <span className="text-sm text-gray-500">
-              {selectedGroup.product_count} produits • 
-              {selectedGroup.referent_name ? ` Référent: ${selectedGroup.referent_name}` : ' Pas de référent'}
-            </span>
-          </div>
+          <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
+          <p className="text-sm text-gray-500 mt-1">{subtitleText}</p>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -495,7 +513,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
             </h3>
             
             <p className="text-gray-500 mb-4 max-w-md">
-              Aucune activité détectée pour ce groupe générique sur la période sélectionnée.
+              Aucune activité détectée pour la sélection sur la période.
             </p>
             
             <Button

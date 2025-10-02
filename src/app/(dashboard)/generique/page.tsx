@@ -1,7 +1,7 @@
 // src/app/(dashboard)/generiques/page.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Info, Pill, Building2, Package } from 'lucide-react';
 import { GenericGroupSelector } from '@/components/organisms/GenericGroupSelector/GenericGroupSelector';
@@ -69,7 +69,7 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
         </div>
         
         <p className="text-sm text-gray-700 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-2 border-l-4 border-blue-300 shadow-sm">
-          💡 {description}
+          {description}
         </p>
       </div>
       
@@ -79,7 +79,7 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 };
 
 export default function GeneriquesPage() {
-  const selectedGroup = useGenericGroupStore(state => state.selectedGroup);
+  const selectedGroups = useGenericGroupStore(state => state.selectedGroups);
   const productCodes = useGenericGroupStore(state => state.productCodes);
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore(state => state.comparisonDateRange);
@@ -90,6 +90,45 @@ export default function GeneriquesPage() {
     error: productsError,
     refetch: refetchProducts 
   } = useGenericGroupProducts();
+
+  const hasSelection = selectedGroups.length > 0 && productCodes.length > 0;
+
+  const marketShareConfig = useMemo(() => ({
+    title: hasSelection 
+      ? `Parts de Marché ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}` 
+      : 'Parts de Marché Génériques Globales',
+    description: hasSelection
+      ? selectedGroups.length > 1
+        ? `Analyse agrégée des ${selectedGroups.length} groupes génériques sélectionnés`
+        : 'Répartition du CA et des marges entre laboratoires pour ce groupe générique'
+      : 'Vue d\'ensemble des parts de marché sur l\'ensemble des génériques',
+    tooltip: hasSelection
+      ? selectedGroups.length > 1
+        ? `Analyse multi-groupes :
+
+- Agrégation de ${selectedGroups.length} groupes génériques
+- ${productCodes.length} produits au total
+- Parts de marché calculées sur l'ensemble de la sélection
+- Tri par CA décroissant
+
+Ajoutez ou retirez des groupes pour affiner l'analyse.`
+        : `Analyse détaillée d'un groupe :
+      
+- Part CA : % du chiffre d'affaires réalisé par chaque laboratoire
+- Part Marge : % de la marge totale captée par chaque laboratoire  
+- Badge Référent : Identifie le laboratoire du médicament référent
+- Pagination : Navigation entre les laboratoires (10 par page)
+
+Les laboratoires sont triés par CA décroissant.`
+      : `Vue globale des génériques :
+
+- Analyse sur l'ensemble des produits génériques de votre pharmacie
+- Parts de marché calculées sur tous les groupes génériques confondus
+- Filtres de dates actifs
+- Permet d'identifier les laboratoires leaders sur les génériques
+
+Sélectionnez un ou plusieurs groupes pour une analyse détaillée.`
+  }), [hasSelection, selectedGroups.length, productCodes.length]);
 
   return (
     <motion.div
@@ -116,25 +155,47 @@ export default function GeneriquesPage() {
 
       <SectionWithHelp
         title="Sélection du Groupe Générique"
-        description="Recherchez par nom de groupe, molécule/DCI ou code produit pour sélectionner un groupe à analyser"
-        tooltipContent={`3 modes de recherche disponibles :
+        description="Recherchez et sélectionnez un ou plusieurs groupes génériques pour une analyse comparative"
+        tooltipContent={`Multi-sélection disponible :
         
-- Groupe : Recherche directe par nom du groupe générique BCB
-- Molécule/DCI : Recherche par dénomination commune internationale
-- Code produit : Entrez un code CIP13 pour trouver son groupe générique
+- Cliquez sur un groupe pour l'ajouter à la sélection
+- Cliquez à nouveau pour le retirer
+- Analysez jusqu'à plusieurs groupes simultanément
+- Les KPIs et parts de marché s'agrègent automatiquement
 
-Le système affiche automatiquement le médicament référent et le nombre de génériques disponibles.`}
+3 modes de recherche :
+- Groupe : Nom du groupe générique BCB
+- Molécule/DCI : Dénomination commune internationale  
+- Code produit : Code CIP13`}
         icon={<Pill className="w-5 h-5 text-blue-600" />}
       >
         <GenericGroupSelector />
       </SectionWithHelp>
 
-      {selectedGroup && productCodes.length > 0 && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <SectionWithHelp
+          title={marketShareConfig.title}
+          description={marketShareConfig.description}
+          tooltipContent={marketShareConfig.tooltip}
+          icon={<Building2 className="w-5 h-5 text-purple-600" />}
+        >
+          <LaboratoryMarketShareSection
+            productCodes={productCodes}
+            dateRange={analysisDateRange}
+          />
+        </SectionWithHelp>
+      </motion.div>
+
+      {hasSelection && (
         <>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
           >
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
               <GenericKpisSection 
@@ -148,36 +209,11 @@ Le système affiche automatiquement le médicament référent et le nombre de g�
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <SectionWithHelp
-              title="Parts de Marché par Laboratoire"
-              description="Répartition du CA et des marges entre laboratoires pour ce groupe générique"
-              tooltipContent={`Analyse des parts de marché par laboratoire :
-              
-- Part CA : % du chiffre d'affaires réalisé par chaque laboratoire
-- Part Marge : % de la marge totale captée par chaque laboratoire  
-- Badge Référent : Identifie le laboratoire du médicament référent
-- Pagination : Navigation entre les laboratoires (10 par page)
-
-Les laboratoires sont triés par CA décroissant.`}
-              icon={<Building2 className="w-5 h-5 text-purple-600" />}
-            >
-              <LaboratoryMarketShareSection
-                productCodes={productCodes}
-                dateRange={analysisDateRange}
-              />
-            </SectionWithHelp>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.3 }}
           >
             <SectionWithHelp
-              title="Détail des Produits du Groupe"
-              description="Liste complète des produits du groupe générique avec leurs métriques détaillées"
+              title={`Détail des Produits ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}`}
+              description={`${productCodes.length} produits au total dans la sélection`}
               tooltipContent={`Tableau détaillé des produits :
               
 - Modes d'affichage : Totaux ou Moyennes
@@ -186,7 +222,7 @@ Les laboratoires sont triés par CA décroissant.`}
 - Export CSV : Téléchargez toutes les données
 - Pagination : 50 produits par page
 
-Les produits référents et génériques sont affichés ensemble.`}
+${selectedGroups.length > 1 ? 'Produits agrégés de tous les groupes sélectionnés.' : 'Produits référents et génériques affichés ensemble.'}`}
               icon={<Package className="w-5 h-5 text-indigo-600" />}
             >
               <ProductsTable 

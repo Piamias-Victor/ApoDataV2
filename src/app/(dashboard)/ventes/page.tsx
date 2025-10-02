@@ -118,12 +118,6 @@ export default function VentesPage() {
     pharmacies: pharmacyFilter
   }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
 
-  const hasFilters = useMemo(() => {
-    return productsFilter.length > 0 || 
-           laboratoriesFilter.length > 0 || 
-           categoriesFilter.length > 0;
-  }, [productsFilter, laboratoriesFilter, categoriesFilter]);
-
   const hasComparison = comparisonDateRange.start !== null && comparisonDateRange.end !== null;
 
   const handleRefresh = () => {

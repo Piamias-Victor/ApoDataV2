@@ -43,7 +43,8 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
     canPreviousPage,
     canNextPage,
     previousPage,
-    nextPage
+    nextPage,
+    isGlobalMode
   } = useLaboratoryMarketShare({
     enabled: true,
     productCodes,
@@ -117,16 +118,18 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
 
     if (exportData.length === 0) return;
 
-    const filename = CsvExporter.generateFilename('apodata_laboratoires_parts_marche');
+    const filename = CsvExporter.generateFilename(
+      isGlobalMode ? 'apodata_laboratoires_generiques_global' : 'apodata_laboratoires_parts_marche'
+    );
     const headers = Object.keys(exportData[0]!);
 
     exportToCsv({ filename, headers, data: exportData });
-  }, [filteredAndSortedData, exportToCsv]);
+  }, [filteredAndSortedData, exportToCsv, isGlobalMode]);
 
   if (error) {
     return (
       <Card variant="elevated" className="p-6 text-center">
-        <p className="text-red-600">❌ {error}</p>
+        <p className="text-red-600">{error}</p>
       </Card>
     );
   }
@@ -135,6 +138,12 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center space-x-4">
+          {isGlobalMode && (
+            <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+              Vue globale
+            </div>
+          )}
+          
           <div className="text-sm text-gray-500">
             {total} laboratoire{total > 1 ? 's' : ''}
           </div>

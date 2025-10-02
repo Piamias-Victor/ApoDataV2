@@ -1,61 +1,51 @@
 // src/stores/useGenericGroupStore.ts
 import { create } from 'zustand';
-
-export interface GenericGroup {
-  readonly generic_group: string;
-  readonly product_count: number;
-  readonly referent_name: string | null;
-  readonly referent_code: string | null;
-  readonly referent_lab: string | null;
-  readonly generic_count: number;
-  readonly product_codes: string[];
-}
+import type { GenericGroup } from '@/hooks/generic-groups/useGenericGroupSearch';
 
 interface GenericGroupState {
-  selectedGroup: GenericGroup | null;
+  selectedGroups: GenericGroup[];
   productCodes: string[];
-  isLoading: boolean;
+  addGroup: (group: GenericGroup) => void;
+  removeGroup: (groupName: string) => void;
+  clearSelection: () => void;
+  isGroupSelected: (groupName: string) => boolean;
 }
 
-interface GenericGroupActions {
-  setSelectedGroup: (group: GenericGroup | null) => void;
-  clearSelectedGroup: () => void;
-  setLoading: (loading: boolean) => void;
-  getProductCodes: () => string[];
-}
-
-const initialState: GenericGroupState = {
-  selectedGroup: null,
+export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
+  selectedGroups: [],
   productCodes: [],
-  isLoading: false,
-};
 
-export const useGenericGroupStore = create<GenericGroupState & GenericGroupActions>()((set, get) => ({
-  ...initialState,
+  addGroup: (group) => {
+    const { selectedGroups } = get();
+    if (selectedGroups.some(g => g.generic_group === group.generic_group)) return;
 
-  setSelectedGroup: (group: GenericGroup | null) => {
-    console.log('📦 [GenericGroupStore] Setting selected group:', group?.generic_group);
-    console.log('📦 [GenericGroupStore] Product codes count:', group?.product_codes?.length || 0);
-    
+    const newGroups = [...selectedGroups, group];
+    const allProductCodes = newGroups.flatMap(g => g.product_codes);
+    const uniqueProductCodes = Array.from(new Set(allProductCodes));
+
     set({ 
-      selectedGroup: group,
-      productCodes: group?.product_codes || []
+      selectedGroups: newGroups,
+      productCodes: uniqueProductCodes
     });
   },
 
-  clearSelectedGroup: () => {
-    console.log('🗑️ [GenericGroupStore] Clearing selected group');
+  removeGroup: (groupName) => {
+    const { selectedGroups } = get();
+    const newGroups = selectedGroups.filter(g => g.generic_group !== groupName);
+    const allProductCodes = newGroups.flatMap(g => g.product_codes);
+    const uniqueProductCodes = Array.from(new Set(allProductCodes));
+
     set({ 
-      selectedGroup: null,
-      productCodes: []
+      selectedGroups: newGroups,
+      productCodes: uniqueProductCodes
     });
   },
 
-  setLoading: (loading: boolean) => {
-    set({ isLoading: loading });
+  clearSelection: () => {
+    set({ selectedGroups: [], productCodes: [] });
   },
 
-  getProductCodes: () => {
-    return get().productCodes;
-  },
+  isGroupSelected: (groupName) => {
+    return get().selectedGroups.some(g => g.generic_group === groupName);
+  }
 }));

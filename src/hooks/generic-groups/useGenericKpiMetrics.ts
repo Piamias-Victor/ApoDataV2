@@ -35,25 +35,19 @@ interface UseGenericKpiMetricsOptions {
 
 interface UseGenericKpiMetricsReturn extends BaseHookReturn<KpiMetricsResponse> {}
 
-/**
- * Hook dédié pour récupérer les KPIs d'un groupe générique
- * Utilise UNIQUEMENT les productCodes du useGenericGroupStore
- * N'utilise PAS les filtres globaux du useFiltersStore
- */
 export function useGenericKpiMetrics(
   options: UseGenericKpiMetricsOptions
 ): UseGenericKpiMetricsReturn {
-  // Récupération directe des codes produits depuis GenericGroupStore
   const productCodes = useGenericGroupStore((state) => state.productCodes);
-  const selectedGroup = useGenericGroupStore((state) => state.selectedGroup);
+  const selectedGroups = useGenericGroupStore((state) => state.selectedGroups);
   
   console.log('🎯 [useGenericKpiMetrics] Using generic group product codes:', {
-    groupName: selectedGroup?.generic_group,
+    groupsCount: selectedGroups.length,
+    groupNames: selectedGroups.map(g => g.generic_group),
     productCodesCount: productCodes.length,
-    productCodes: productCodes.slice(0, 5) // Log premiers codes pour debug
+    productCodes: productCodes.slice(0, 5)
   });
 
-  // Vérification que nous avons des codes produits
   const hasValidData = productCodes.length > 0;
 
   return useStandardFetch<KpiMetricsResponse>('/api/kpis', {
@@ -62,9 +56,7 @@ export function useGenericKpiMetrics(
     comparisonDateRange: options.comparisonDateRange,
     includeComparison: options.includeComparison,
     filters: {
-      productCodes: productCodes,
-      // Pas de filtres laboratoires/catégories/pharmacies
-      // pour avoir les KPIs complets du groupe générique
+      productCodes: productCodes
     }
   });
 }

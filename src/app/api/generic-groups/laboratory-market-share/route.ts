@@ -21,7 +21,7 @@ interface LaboratoryMarketShareResult {
 
 interface RequestBody {
   readonly dateRange: { start: string; end: string };
-  readonly productCodes: string[];
+  readonly productCodes?: string[];
   readonly page?: number;
   readonly pageSize?: number;
 }
@@ -34,150 +34,291 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RequestBody = await request.json();
-    const { dateRange, productCodes, page = 1, pageSize = 10 } = body;
+    const { dateRange, productCodes = [], page = 1, pageSize = 10 } = body;
     
-    if (!productCodes || productCodes.length === 0) {
-      return NextResponse.json({ error: 'Product codes required' }, { status: 400 });
-    }
-
     const isAdmin = session.user.role === 'admin';
     const offset = (page - 1) * pageSize;
+    const isGlobalMode = productCodes.length === 0;
     
     let query: string;
     let params: any[];
 
     if (isAdmin) {
-      query = `
-        WITH group_total AS (
+      if (isGlobalMode) {
+        query = `
+          WITH generic_products AS (
+            SELECT DISTINCT dgp.code_13_ref
+            FROM data_globalproduct dgp
+            WHERE dgp.bcb_generic_group IS NOT NULL
+          ),
+          group_total AS (
+            SELECT 
+              SUM(s.quantity * ins.price_with_tax) as ca_total,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_total
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
+          ),
+          lab_metrics AS (
+            SELECT 
+              dgp.bcb_lab as laboratory_name,
+              SUM(s.quantity * ins.price_with_tax) as ca_selection,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_selection,
+              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              0 as is_referent
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND dgp.bcb_lab IS NOT NULL
+              AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
+            GROUP BY dgp.bcb_lab
+          ),
+          total_count AS (
+            SELECT COUNT(*) as total FROM lab_metrics
+          )
           SELECT 
-            SUM(s.quantity * ins.price_with_tax) as ca_total,
-            SUM(s.quantity * (
-              (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_total
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND ip.code_13_ref_id = ANY($3::text[])
-        ),
-        lab_metrics AS (
+            lm.laboratory_name,
+            lm.ca_selection,
+            gt.ca_total as ca_total_group,
+            CASE 
+              WHEN gt.ca_total > 0 
+              THEN (lm.ca_selection / gt.ca_total) * 100 
+              ELSE 0 
+            END as part_marche_ca_pct,
+            lm.marge_selection,
+            gt.marge_total as marge_total_group,
+            CASE 
+              WHEN gt.marge_total > 0 
+              THEN (lm.marge_selection / gt.marge_total) * 100 
+              ELSE 0 
+            END as part_marche_marge_pct,
+            lm.product_count,
+            lm.is_referent::boolean as is_referent,
+            tc.total
+          FROM lab_metrics lm
+          CROSS JOIN group_total gt
+          CROSS JOIN total_count tc
+          ORDER BY lm.ca_selection DESC
+          LIMIT $3 OFFSET $4
+        `;
+        params = [dateRange.start, dateRange.end, pageSize, offset];
+      } else {
+        query = `
+          WITH group_total AS (
+            SELECT 
+              SUM(s.quantity * ins.price_with_tax) as ca_total,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_total
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.code_13_ref_id = ANY($3::text[])
+          ),
+          lab_metrics AS (
+            SELECT 
+              dgp.bcb_lab as laboratory_name,
+              SUM(s.quantity * ins.price_with_tax) as ca_selection,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_selection,
+              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.code_13_ref_id = ANY($3::text[])
+              AND dgp.bcb_lab IS NOT NULL
+            GROUP BY dgp.bcb_lab
+          ),
+          total_count AS (
+            SELECT COUNT(*) as total FROM lab_metrics
+          )
           SELECT 
-            dgp.bcb_lab as laboratory_name,
-            SUM(s.quantity * ins.price_with_tax) as ca_selection,
-            SUM(s.quantity * (
-              (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_selection,
-            COUNT(DISTINCT ip.code_13_ref_id) as product_count,
-            MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND ip.code_13_ref_id = ANY($3::text[])
-            AND dgp.bcb_lab IS NOT NULL
-          GROUP BY dgp.bcb_lab
-        ),
-        total_count AS (
-          SELECT COUNT(*) as total FROM lab_metrics
-        )
-        SELECT 
-          lm.laboratory_name,
-          lm.ca_selection,
-          gt.ca_total as ca_total_group,
-          CASE 
-            WHEN gt.ca_total > 0 
-            THEN (lm.ca_selection / gt.ca_total) * 100 
-            ELSE 0 
-          END as part_marche_ca_pct,
-          lm.marge_selection,
-          gt.marge_total as marge_total_group,
-          CASE 
-            WHEN gt.marge_total > 0 
-            THEN (lm.marge_selection / gt.marge_total) * 100 
-            ELSE 0 
-          END as part_marche_marge_pct,
-          lm.product_count,
-          lm.is_referent::boolean as is_referent,
-          tc.total
-        FROM lab_metrics lm
-        CROSS JOIN group_total gt
-        CROSS JOIN total_count tc
-        ORDER BY lm.ca_selection DESC
-        LIMIT $4 OFFSET $5
-      `;
-      params = [dateRange.start, dateRange.end, productCodes, pageSize, offset];
+            lm.laboratory_name,
+            lm.ca_selection,
+            gt.ca_total as ca_total_group,
+            CASE 
+              WHEN gt.ca_total > 0 
+              THEN (lm.ca_selection / gt.ca_total) * 100 
+              ELSE 0 
+            END as part_marche_ca_pct,
+            lm.marge_selection,
+            gt.marge_total as marge_total_group,
+            CASE 
+              WHEN gt.marge_total > 0 
+              THEN (lm.marge_selection / gt.marge_total) * 100 
+              ELSE 0 
+            END as part_marche_marge_pct,
+            lm.product_count,
+            lm.is_referent::boolean as is_referent,
+            tc.total
+          FROM lab_metrics lm
+          CROSS JOIN group_total gt
+          CROSS JOIN total_count tc
+          ORDER BY lm.ca_selection DESC
+          LIMIT $4 OFFSET $5
+        `;
+        params = [dateRange.start, dateRange.end, productCodes, pageSize, offset];
+      }
     } else {
       if (!session.user.pharmacyId) {
         return NextResponse.json({ error: 'No pharmacy assigned' }, { status: 400 });
       }
 
-      query = `
-        WITH group_total AS (
+      if (isGlobalMode) {
+        query = `
+          WITH generic_products AS (
+            SELECT DISTINCT ip.code_13_ref_id
+            FROM data_internalproduct ip
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            WHERE ip.pharmacy_id = $3::uuid
+              AND dgp.bcb_generic_group IS NOT NULL
+          ),
+          group_total AS (
+            SELECT 
+              SUM(s.quantity * ins.price_with_tax) as ca_total,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_total
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.pharmacy_id = $3::uuid
+              AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
+          ),
+          lab_metrics AS (
+            SELECT 
+              dgp.bcb_lab as laboratory_name,
+              SUM(s.quantity * ins.price_with_tax) as ca_selection,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_selection,
+              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              0 as is_referent
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.pharmacy_id = $3::uuid
+              AND dgp.bcb_lab IS NOT NULL
+              AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
+            GROUP BY dgp.bcb_lab
+          ),
+          total_count AS (
+            SELECT COUNT(*) as total FROM lab_metrics
+          )
           SELECT 
-            SUM(s.quantity * ins.price_with_tax) as ca_total,
-            SUM(s.quantity * (
-              (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_total
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND ip.code_13_ref_id = ANY($3::text[])
-            AND ip.pharmacy_id = $4::uuid
-        ),
-        lab_metrics AS (
+            lm.laboratory_name,
+            lm.ca_selection,
+            gt.ca_total as ca_total_group,
+            CASE 
+              WHEN gt.ca_total > 0 
+              THEN (lm.ca_selection / gt.ca_total) * 100 
+              ELSE 0 
+            END as part_marche_ca_pct,
+            lm.marge_selection,
+            gt.marge_total as marge_total_group,
+            CASE 
+              WHEN gt.marge_total > 0 
+              THEN (lm.marge_selection / gt.marge_total) * 100 
+              ELSE 0 
+            END as part_marche_marge_pct,
+            lm.product_count,
+            lm.is_referent::boolean as is_referent,
+            tc.total
+          FROM lab_metrics lm
+          CROSS JOIN group_total gt
+          CROSS JOIN total_count tc
+          ORDER BY lm.ca_selection DESC
+          LIMIT $4 OFFSET $5
+        `;
+        params = [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset];
+      } else {
+        query = `
+          WITH group_total AS (
+            SELECT 
+              SUM(s.quantity * ins.price_with_tax) as ca_total,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_total
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.code_13_ref_id = ANY($3::text[])
+              AND ip.pharmacy_id = $4::uuid
+          ),
+          lab_metrics AS (
+            SELECT 
+              dgp.bcb_lab as laboratory_name,
+              SUM(s.quantity * ins.price_with_tax) as ca_selection,
+              SUM(s.quantity * (
+                (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+              )) as marge_selection,
+              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
+            FROM data_sales s
+            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+            JOIN data_internalproduct ip ON ins.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            WHERE s.date >= $1::date 
+              AND s.date <= $2::date
+              AND ip.code_13_ref_id = ANY($3::text[])
+              AND ip.pharmacy_id = $4::uuid
+              AND dgp.bcb_lab IS NOT NULL
+            GROUP BY dgp.bcb_lab
+          ),
+          total_count AS (
+            SELECT COUNT(*) as total FROM lab_metrics
+          )
           SELECT 
-            dgp.bcb_lab as laboratory_name,
-            SUM(s.quantity * ins.price_with_tax) as ca_selection,
-            SUM(s.quantity * (
-              (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_selection,
-            COUNT(DISTINCT ip.code_13_ref_id) as product_count,
-            MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND ip.code_13_ref_id = ANY($3::text[])
-            AND ip.pharmacy_id = $4::uuid
-            AND dgp.bcb_lab IS NOT NULL
-          GROUP BY dgp.bcb_lab
-        ),
-        total_count AS (
-          SELECT COUNT(*) as total FROM lab_metrics
-        )
-        SELECT 
-          lm.laboratory_name,
-          lm.ca_selection,
-          gt.ca_total as ca_total_group,
-          CASE 
-            WHEN gt.ca_total > 0 
-            THEN (lm.ca_selection / gt.ca_total) * 100 
-            ELSE 0 
-          END as part_marche_ca_pct,
-          lm.marge_selection,
-          gt.marge_total as marge_total_group,
-          CASE 
-            WHEN gt.marge_total > 0 
-            THEN (lm.marge_selection / gt.marge_total) * 100 
-            ELSE 0 
-          END as part_marche_marge_pct,
-          lm.product_count,
-          lm.is_referent::boolean as is_referent,
-          tc.total
-        FROM lab_metrics lm
-        CROSS JOIN group_total gt
-        CROSS JOIN total_count tc
-        ORDER BY lm.ca_selection DESC
-        LIMIT $5 OFFSET $6
-      `;
-      params = [dateRange.start, dateRange.end, productCodes, session.user.pharmacyId, pageSize, offset];
+            lm.laboratory_name,
+            lm.ca_selection,
+            gt.ca_total as ca_total_group,
+            CASE 
+              WHEN gt.ca_total > 0 
+              THEN (lm.ca_selection / gt.ca_total) * 100 
+              ELSE 0 
+            END as part_marche_ca_pct,
+            lm.marge_selection,
+            gt.marge_total as marge_total_group,
+            CASE 
+              WHEN gt.marge_total > 0 
+              THEN (lm.marge_selection / gt.marge_total) * 100 
+              ELSE 0 
+            END as part_marche_marge_pct,
+            lm.product_count,
+            lm.is_referent::boolean as is_referent,
+            tc.total
+          FROM lab_metrics lm
+          CROSS JOIN group_total gt
+          CROSS JOIN total_count tc
+          ORDER BY lm.ca_selection DESC
+          LIMIT $5 OFFSET $6
+        `;
+        params = [dateRange.start, dateRange.end, productCodes, session.user.pharmacyId, pageSize, offset];
+      }
     }
 
     const startTime = Date.now();
@@ -207,7 +348,8 @@ export async function POST(request: NextRequest) {
         total,
         totalPages
       },
-      queryTime
+      queryTime,
+      isGlobalMode
     });
 
   } catch (error) {
