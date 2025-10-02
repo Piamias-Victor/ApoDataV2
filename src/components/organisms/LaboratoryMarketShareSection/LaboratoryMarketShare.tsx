@@ -1,12 +1,30 @@
 // src/components/organisms/LaboratoryMarketShare/LaboratoryMarketShare.tsx
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLaboratoryMarketShareWithFilters } from '@/hooks/laboratory/useLaboratoryMarketShareWithFilters';
+import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
+import { LaboratoryTableHeader } from '@/components/molecules/LaboratoryTable/LaboratoryTableHeader';
+import { LaboratoryTableRow } from '@/components/molecules/LaboratoryTable/LaboratoryTableRow';
+import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
+import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
+import { useExportCsv } from '@/hooks/export/useExportCsv';
+import { CsvExporter } from '@/utils/export/csvExporter';
+import type { 
+  SortConfig, 
+  LaboratorySortableColumn,
+  SortDirection
+} from '@/components/organisms/LaboratoryMarketShareSection/types';
 
 export const LaboratoryMarketShare: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    column: null,
+    direction: null
+  });
+
   const {
     data,
     isLoading,
@@ -20,119 +38,158 @@ export const LaboratoryMarketShare: React.FC = () => {
     nextPage
   } = useLaboratoryMarketShareWithFilters({ pageSize: 10 });
 
-  const formatCurrency = useCallback((amount: number): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+  const { exportToCsv, isExporting } = useExportCsv();
+
+  const handleSort = useCallback((column: LaboratorySortableColumn) => {
+    setSortConfig(prev => {
+      if (prev.column === column) {
+        const newDirection: SortDirection = 
+          prev.direction === 'asc' ? 'desc' :
+          prev.direction === 'desc' ? null : 'asc';
+        
+        return {
+          column: newDirection ? column : null,
+          direction: newDirection
+        };
+      }
+      
+      return { column, direction: 'asc' };
+    });
   }, []);
 
-  const formatPercentage = useCallback((percentage: number): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'percent',
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1
-    }).format(percentage / 100);
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
   }, []);
+
+  const filteredAndSortedData = useMemo(() => {
+    let processed = [...data];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      processed = processed.filter(lab =>
+        lab.laboratory_name.toLowerCase().includes(query)
+      );
+    }
+
+    if (sortConfig.column && sortConfig.direction) {
+      processed.sort((a, b) => {
+        const aValue = a[sortConfig.column!];
+        const bValue = b[sortConfig.column!];
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          const comparison = aValue.localeCompare(bValue);
+          return sortConfig.direction === 'asc' ? comparison : -comparison;
+        }
+
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        return 0;
+      });
+    }
+
+    return processed;
+  }, [data, searchQuery, sortConfig]);
+
+  const handleExport = useCallback(() => {
+    const exportData = filteredAndSortedData.map(lab => ({
+      'Laboratoire': lab.laboratory_name,
+      'Nombre de produits': lab.product_count,
+      'CA Réalisé (€)': lab.ca_selection,
+      'Marge Réalisée (€)': lab.marge_selection,
+      'Part Marché CA (%)': (lab.part_marche_ca_pct / 100).toFixed(3),
+      'Part Marché Marge (%)': (lab.part_marche_marge_pct / 100).toFixed(3)
+    }));
+
+    if (exportData.length === 0) return;
+
+    const filename = CsvExporter.generateFilename('apodata_laboratoires_parts_marche');
+    const headers = Object.keys(exportData[0]!);
+
+    exportToCsv({ filename, headers, data: exportData });
+  }, [filteredAndSortedData, exportToCsv]);
 
   if (error) {
     return (
-      <div className="text-center py-8 text-red-500">
-        {error}
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="bg-gray-50 rounded-lg p-4 animate-pulse">
-            <div className="h-4 bg-gray-300 rounded w-32 mb-3"></div>
-            <div className="h-3 bg-gray-300 rounded mb-2"></div>
-            <div className="h-3 bg-gray-300 rounded w-24"></div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500">
-        Aucune donnée disponible
-      </div>
+      <Card variant="elevated" className="p-6 text-center">
+        <p className="text-red-600">❌ {error}</p>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-4">
-      {data.map((lab) => (
-        <div key={lab.laboratory_name} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
-          <div className="flex justify-between items-start mb-3">
-            <div className="flex-1 pr-4">
-              <h4 className="font-medium text-gray-900">
-                {lab.laboratory_name}
-              </h4>
-              <div className="text-sm text-gray-500 mt-1">
-                {lab.product_count} produit{lab.product_count > 1 ? 's' : ''}
-              </div>
-            </div>
-            
-            <div className="text-right">
-              <div className="text-sm font-medium text-gray-900">
-                {formatCurrency(lab.ca_selection)}
-              </div>
-              <div className="text-xs text-gray-500">CA Réalisé</div>
-            </div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-500">
+            {total} laboratoire{total > 1 ? 's' : ''}
           </div>
-
-          <div className="mb-3">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm font-medium text-gray-700">Part Marché CA</span>
-              <span className="text-sm font-semibold text-sky-600">
-                {formatPercentage(lab.part_marche_ca_pct)}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-sky-500 h-2.5 rounded-full transition-all duration-700"
-                style={{ width: `${Math.min(100, lab.part_marche_ca_pct)}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm font-medium text-gray-700">Part Marché Marge</span>
-              <span className="text-sm font-semibold text-green-600">
-                {formatPercentage(lab.part_marche_marge_pct)}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-green-500 h-2.5 rounded-full transition-all duration-700"
-                style={{ width: `${Math.min(100, lab.part_marche_marge_pct)}%` }}
-              />
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              Marge: {formatCurrency(lab.marge_selection)}
-            </div>
-          </div>
+          
+          <ExportButton
+            onClick={handleExport}
+            isExporting={isExporting}
+            disabled={filteredAndSortedData.length === 0}
+            label={`Export CSV (${filteredAndSortedData.length} lignes)`}
+          />
         </div>
-      ))}
+        
+        <SearchBar
+          onSearch={handleSearch}
+          placeholder="Rechercher un laboratoire..."
+        />
+      </div>
+
+      <Card variant="elevated" padding="none" className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <LaboratoryTableHeader
+              sortConfig={sortConfig}
+              onSort={handleSort}
+            />
+            
+            <tbody className="divide-y divide-gray-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span>Chargement...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredAndSortedData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                    {searchQuery 
+                      ? `Aucun laboratoire trouvé pour "${searchQuery}"`
+                      : 'Aucune donnée disponible'
+                    }
+                  </td>
+                </tr>
+              ) : (
+                filteredAndSortedData.map((lab, index) => (
+                  <LaboratoryTableRow
+                    key={lab.laboratory_name}
+                    laboratory={lab}
+                    isEven={index % 2 === 0}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 border-t">
+        <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} • {total} laboratoires
           </div>
           
           <div className="flex items-center space-x-2">
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={previousPage}
               disabled={!canPreviousPage}
@@ -142,7 +199,7 @@ export const LaboratoryMarketShare: React.FC = () => {
             </Button>
             
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={nextPage}
               disabled={!canNextPage}

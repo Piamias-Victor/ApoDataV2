@@ -1,12 +1,13 @@
 // src/app/(dashboard)/pharmacies/page.tsx
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { redirect } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { Info, TrendingUp, Building2, Map } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 import { PharmaciesKpisSection } from '@/components/organisms/PharmaciesKpisSection/PharmaciesKpisSection';
 import { PharmaciesTableAnalytics } from '@/components/organisms/PharmaciesTable/PharmaciesTableAnalytics';
 import { PharmaciesGeographicSection } from '@/components/organisms/PharmaciesGeographicSection/PharmaciesGeographicSection';
@@ -42,7 +43,6 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }
         <div className={`absolute z-50 ${positionClasses[position]}`}>
           <div className="bg-white/95 backdrop-blur-lg text-gray-800 text-sm rounded-xl px-6 py-4 w-[600px] shadow-2xl border border-white/20">
             <div className="whitespace-pre-line leading-relaxed">{content}</div>
-            {/* Flèche du tooltip */}
             <div 
               className={`absolute w-3 h-3 bg-white/95 border border-white/20 transform rotate-45 ${
                 position === 'top' ? 'top-full left-1/2 -translate-x-1/2 -mt-1.5' :
@@ -80,7 +80,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 }) => {
   return (
     <div className={`bg-white/50 backdrop-blur-sm rounded-2xl p-6 ${className}`}>
-      {/* Header avec titre, description et tooltip */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-3">
@@ -94,7 +93,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
           </div>
         </div>
         
-        {/* Description toujours visible */}
         <p className="text-sm text-gray-700 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-2 border-l-4 border-blue-300 shadow-sm">
           💡 {description}
         </p>
@@ -106,20 +104,18 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 };
 
 /**
- * Page Pharmacies - Accès Admin Uniquement avec descriptions et tooltips
- * 
- * SÉCURITÉ : Vérification côté client + serveur des droits admin
- * LAYOUT : Utilise le DashboardLayout partagé avec Header + FilterBar
- * FEATURES : KPIs d'analyse pharmacies avec filtres + Tableau analytics + Cartographie géographique
+ * Page Pharmacies avec KPI globaux
  */
 export default function PharmaciesPage() {
   const { data: session, status } = useSession();
   
-  // Store filtres globaux
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
+  const productsFilter = useFiltersStore((state) => state.products);
+  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
+  const categoriesFilter = useFiltersStore((state) => state.categories);
+  const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
   
-  // Hook analytics pharmacies
   const { 
     pharmacies, 
     isLoading: isLoadingAnalytics, 
@@ -127,7 +123,13 @@ export default function PharmaciesPage() {
     refetch: refetchAnalytics,
   } = usePharmaciesAnalytics();
   
-  // Protection admin - redirection si pas admin
+  const filters = useMemo(() => ({
+    products: productsFilter,
+    laboratories: laboratoriesFilter,
+    categories: categoriesFilter,
+    pharmacies: pharmacyFilter
+  }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
+  
   if (status === 'loading') {
     return (
       <div className="space-y-8">
@@ -144,15 +146,18 @@ export default function PharmaciesPage() {
     return null;
   }
 
-  // Vérification comparaison active
   const hasComparison = comparisonDateRange?.start && comparisonDateRange?.end;
 
-  const handleRefresh = () => {
-    refetchAnalytics();
-  };
-
-  // Contenu des tooltips
   const tooltips = {
+    globalKpis: `Indicateurs clés pour analyser vos performances globales :
+
+- Sell-out : Ventes vers les patients (CA + quantités)
+- Sell-in : Achats auprès des laboratoires  
+- Marge : Rentabilité de chaque produit
+- Stock : Gestion de votre inventaire
+
+Les comparaisons montrent l'évolution vs la période précédente.`,
+    
     kpis: `Indicateurs de performance du réseau pharmaceutique :
 
 - CA Total Réseau : Chiffre d'affaires global de vos pharmacies
@@ -188,7 +193,6 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
       transition={{ duration: 0.5 }}
       className="space-y-8"
     >
-      {/* Header page */}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center space-x-3">
@@ -206,10 +210,24 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
             Analysez la performance de vos produits à travers le réseau pharmaceutique
           </p>
         </div>
-        
       </div>
 
-      {/* Section KPIs Pharmacies avec description + tooltip */}
+      {/* NOUVEAU: Section KPI Globaux (Dashboard style) */}
+      <SectionWithHelp
+        title="Indicateurs Clés de Performance"
+        description="Analysez vos KPI sell-out (ventes), sell-in (achats), marges et stock en temps réel avec comparaisons période précédente"
+        tooltipContent={tooltips.globalKpis}
+        icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
+      >
+        <KpisSection
+          dateRange={analysisDateRange}
+          comparisonDateRange={comparisonDateRange}
+          filters={filters}
+          includeComparison={!!hasComparison}
+          onRefresh={refetchAnalytics}
+        />
+      </SectionWithHelp>
+
       <SectionWithHelp
         title="Indicateurs de Performance Réseau"
         description="Analysez les KPI globaux du réseau pharmaceutique : CA total, marges moyennes et évolutions comparatives"
@@ -223,7 +241,6 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         />
       </SectionWithHelp>
 
-      {/* Section Cartographie Géographique */}
       <SectionWithHelp
         title="Répartition Géographique"
         description="Visualisez la performance de vos produits par région française avec cartographie interactive et métriques détaillées"
@@ -237,7 +254,6 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         />
       </SectionWithHelp>
 
-      {/* Tableau Analytics Pharmacies avec description + tooltip */}
       <SectionWithHelp
         title="Tableau Détaillé des Performances"
         description="Analyse comparative complète par pharmacie avec métriques de performance, évolutions temporelles et positionnement relatif"
@@ -248,7 +264,7 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
           pharmacies={pharmacies}
           isLoading={isLoadingAnalytics}
           error={analyticsError}
-          onRefresh={handleRefresh}
+          onRefresh={refetchAnalytics}
         />
       </SectionWithHelp>
     </motion.div>

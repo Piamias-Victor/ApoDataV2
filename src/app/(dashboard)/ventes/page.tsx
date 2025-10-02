@@ -223,7 +223,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         />
       </SectionWithHelp>
 
-      {hasFilters && (
         <SectionWithHelp
           title="Parts de Marché par Laboratoire"
           description="Répartition du CA et des marges entre laboratoires pour votre sélection de produits avec identification des référents"
@@ -232,7 +231,6 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         >
           <LaboratoryMarketShare />
         </SectionWithHelp>
-      )}
       
       <SectionWithHelp
         title="Tableau Détaillé des Ventes"
