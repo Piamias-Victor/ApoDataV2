@@ -7,7 +7,22 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
-    // Protection routes admin - Admin seulement
+    console.log('🚨 MIDDLEWARE EXECUTION:', {
+      pathname,
+      hasToken: !!token,
+      twoFactorEnabled: token?.twoFactorEnabled,
+      email: token?.email
+    });
+
+    if (token && !token.twoFactorEnabled && pathname !== '/setup-2fa' && pathname !== '/login') {
+      console.log('🚀 REDIRECT TO /setup-2fa');
+      return NextResponse.redirect(new URL('/setup-2fa', req.url));
+    }
+
+    if (token?.twoFactorEnabled && pathname === '/setup-2fa') {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+
     if (pathname.startsWith('/admin')) {
       if (!token || token.role !== 'admin') {
         const loginUrl = new URL('/login', req.url);
@@ -16,7 +31,6 @@ export default withAuth(
       }
     }
 
-    // Protection routes dashboard - Tous utilisateurs connectés
     if (pathname.startsWith('/dashboard') || 
         pathname.startsWith('/ventes') || 
         pathname.startsWith('/stock') || 
@@ -29,11 +43,15 @@ export default withAuth(
       }
     }
 
-    // Redirection dashboard si connecté sur login
     if (pathname === '/login' && token) {
+      if (!token.twoFactorEnabled) {
+        console.log('🚀 REDIRECT FROM LOGIN TO /setup-2fa');
+        return NextResponse.redirect(new URL('/setup-2fa', req.url));
+      }
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
+    console.log('✅ MIDDLEWARE: pass through');
     return NextResponse.next();
   },
   {
@@ -41,12 +59,10 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
         
-        // Routes publiques toujours autorisées
-        if (pathname === '/' || pathname === '/login') {
+        if (pathname === '/' || pathname === '/login' || pathname === '/setup-2fa') {
           return true;
         }
         
-        // Routes protégées nécessitent token
         return !!token;
       },
     },
@@ -55,14 +71,13 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    /*
-     * Matcher pour toutes les routes sauf :
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (png, jpg, etc.)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)',
+    '/dashboard/:path*',
+    '/ventes/:path*',
+    '/stock/:path*',
+    '/pricing/:path*',
+    '/comparaisons/:path*',
+    '/admin/:path*',
+    '/setup-2fa',
+    '/login',
   ],
 };

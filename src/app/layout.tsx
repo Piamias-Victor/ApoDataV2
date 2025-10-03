@@ -1,8 +1,9 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
 import { SessionProvider } from '@/components/providers/SessionProvider';
-import './globals.css';
 import { PharmacyProvider } from '@/providers/PharmacyProvider';
+import { ProtectedLayout } from '@/components/templates/ProtectedLayout/ProtectedLayout';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ApoData Genesis - Dashboard Pharmaceutique',
@@ -20,9 +21,11 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
       <body className="min-h-screen bg-gray-50 antialiased">
         <SessionProvider>
           <PharmacyProvider>
-            <div id="root" className="min-h-screen">
-              {children}
-            </div>
+            <ProtectedLayout>
+              <div id="root" className="min-h-screen">
+                {children}
+              </div>
+            </ProtectedLayout>
           </PharmacyProvider>
         </SessionProvider>
       </body>
