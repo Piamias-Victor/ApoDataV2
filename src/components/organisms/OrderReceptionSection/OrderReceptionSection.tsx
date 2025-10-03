@@ -11,13 +11,15 @@ import {
   TrendingDown,
   AlertTriangle,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Percent
 } from 'lucide-react';
 import { useOrderReceptionMetrics } from '@/hooks/ruptures/useOrderReceptionMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { MemoizedDualKpiCard as DualKpiCard } from '@/components/molecules/DualKpiCard/DualKpiCard';
+import { MemoizedTripleKpiCard as TripleKpiCard } from '@/components/molecules/TripleKpiCard/TripleKpiCard';
 import { KpiCardSkeleton } from '@/components/molecules/KpiCard/KpiCardSkeleton';
 import { CsvExporter } from '@/utils/export/csvExporter';
 
@@ -72,6 +74,14 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
       };
     };
 
+    const tauxReceptionQuantite = data.quantite_commandee > 0 
+      ? (data.quantite_receptionnee / data.quantite_commandee) * 100 
+      : 0;
+
+    const tauxReceptionQuantiteComparison = data.comparison && data.comparison.quantite_commandee > 0
+      ? (data.comparison.quantite_receptionnee / data.comparison.quantite_commandee) * 100
+      : undefined;
+
     return {
       quantities: {
         main: {
@@ -88,6 +98,14 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
           unit: 'number' as const,
           comparison: data.comparison ? 
             calculateEvolution(data.quantite_receptionnee, data.comparison.quantite_receptionnee) : 
+            undefined
+        },
+        tertiary: {
+          title: 'Taux Réception',
+          value: tauxReceptionQuantite,
+          unit: 'percentage' as const,
+          comparison: tauxReceptionQuantiteComparison !== undefined ? 
+            calculateEvolution(tauxReceptionQuantite, tauxReceptionQuantiteComparison) : 
             undefined
         }
       },
@@ -156,6 +174,9 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
     };
     
     const currentPeriod = formatDateRange(dateRange.start, dateRange.end);
+    const tauxReceptionQuantite = data.quantite_commandee > 0 
+      ? (data.quantite_receptionnee / data.quantite_commandee) * 100 
+      : 0;
     
     return [
       {
@@ -196,13 +217,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
       },
       {
         'Indicateur': 'Taux Réception Quantité',
-        'Valeur': data.taux_reception_quantite.toFixed(2),
-        'Unité': '%',
-        'Période': currentPeriod
-      },
-      {
-        'Indicateur': 'Taux Réception Montant',
-        'Valeur': data.taux_reception_montant.toFixed(2),
+        'Valeur': tauxReceptionQuantite.toFixed(2),
         'Unité': '%',
         'Période': currentPeriod
       },
@@ -324,7 +339,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
         
         {!isLoading && groupedKpis && (
           <>
-            <DualKpiCard
+            <TripleKpiCard
               mainKpi={{
                 ...groupedKpis.quantities.main,
                 icon: <Package className="w-4 h-4 text-blue-600" />
@@ -332,6 +347,10 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               secondaryKpi={{
                 ...groupedKpis.quantities.secondary,
                 icon: <PackageCheck className="w-4 h-4 text-green-600" />
+              }}
+              tertiaryKpi={{
+                ...groupedKpis.quantities.tertiary,
+                icon: <Percent className="w-4 h-4 text-purple-600" />
               }}
             />
             
