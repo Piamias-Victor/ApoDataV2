@@ -11,6 +11,9 @@ export interface DatabaseUser {
   readonly role: UserRole;
   readonly pharmacy_id: string | null;
   readonly is_active: boolean;
+  readonly two_factor_secret: string | null;
+  readonly two_factor_enabled: boolean;
+  readonly two_factor_setup_at: Date | null;
   readonly created_at: Date;
   readonly updated_at: Date;
   readonly last_login_at: Date | null;
@@ -23,6 +26,7 @@ export interface AuthUser {
   readonly role: UserRole;
   readonly pharmacyId: string | null;
   readonly pharmacyName: string | null;
+  readonly twoFactorEnabled: boolean;
 }
 
 declare module 'next-auth' {
@@ -34,6 +38,7 @@ declare module 'next-auth' {
       role: UserRole;
       pharmacyId: string | null;
       pharmacyName: string | null;
+      twoFactorEnabled: boolean;
     };
   }
 
@@ -44,6 +49,7 @@ declare module 'next-auth' {
     role: UserRole;
     pharmacyId: string | null;
     pharmacyName: string | null;
+    twoFactorEnabled: boolean;
   }
 }
 
@@ -55,6 +61,7 @@ declare module 'next-auth/jwt' {
     role: UserRole;
     pharmacyId: string | null;
     pharmacyName: string | null;
+    twoFactorEnabled: boolean;
   }
 }
 
