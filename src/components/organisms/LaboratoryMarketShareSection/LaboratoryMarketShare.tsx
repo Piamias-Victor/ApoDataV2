@@ -1,22 +1,20 @@
 // src/components/organisms/LaboratoryMarketShare/LaboratoryMarketShare.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useLaboratoryMarketShareWithFilters } from '@/hooks/laboratory/useLaboratoryMarketShareWithFilters';
-import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
-import { LaboratoryTableHeader } from '@/components/molecules/LaboratoryTable/LaboratoryTableHeader';
-import { LaboratoryTableRow } from '@/components/molecules/LaboratoryTable/LaboratoryTableRow';
-import { Card } from '@/components/atoms/Card/Card';
-import { Button } from '@/components/atoms/Button/Button';
-import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
-import { useExportCsv } from '@/hooks/export/useExportCsv';
-import { CsvExporter } from '@/utils/export/csvExporter';
-import type { 
-  SortConfig, 
-  LaboratorySortableColumn,
-  SortDirection
-} from '@/components/organisms/LaboratoryMarketShareSection/types';
+import { Button } from "@/components/atoms/Button/Button";
+import { Card } from "@/components/atoms/Card/Card";
+import { ExportButton } from "@/components/molecules/ExportButton/ExportButton";
+import { LaboratoryTableHeader } from "@/components/molecules/LaboratoryTable/LaboratoryTableHeader";
+import { LaboratoryTableRow } from "@/components/molecules/LaboratoryTable/LaboratoryTableRow";
+import { SearchBar } from "@/components/molecules/SearchBar/SearchBar";
+import { useExportCsv } from "@/hooks/export/useExportCsv";
+import { useLaboratoryMarketShareWithFilters } from "@/hooks/laboratories/useLaboratoryMarketShareWithFilters";
+import { LaboratorySortableColumn, SortConfig, SortDirection } from "@/types/laboratory";
+import { CsvExporter } from "@/utils/export/csvExporter";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+
+
 
 export const LaboratoryMarketShare: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,6 +94,8 @@ export const LaboratoryMarketShare: React.FC = () => {
     const exportData = filteredAndSortedData.map(lab => ({
       'Laboratoire': lab.laboratory_name,
       'Nombre de produits': lab.product_count,
+      'Quantités vendues': lab.quantity_sold,
+      'Taux de marge (%)': lab.margin_rate_percent.toFixed(1),
       'CA Réalisé (€)': lab.ca_selection,
       'Marge Réalisée (€)': lab.marge_selection,
       'Part Marché CA (%)': (lab.part_marche_ca_pct / 100).toFixed(3),
@@ -113,7 +113,7 @@ export const LaboratoryMarketShare: React.FC = () => {
   if (error) {
     return (
       <Card variant="elevated" className="p-6 text-center">
-        <p className="text-red-600">❌ {error}</p>
+        <p className="text-red-600">{error}</p>
       </Card>
     );
   }
@@ -151,7 +151,7 @@ export const LaboratoryMarketShare: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement...</span>
@@ -160,7 +160,7 @@ export const LaboratoryMarketShare: React.FC = () => {
                 </tr>
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
                       : 'Aucune donnée disponible'

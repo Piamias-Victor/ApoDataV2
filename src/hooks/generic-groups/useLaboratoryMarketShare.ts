@@ -1,17 +1,6 @@
 // src/hooks/generic-groups/useLaboratoryMarketShare.ts
 import { useState, useEffect, useCallback } from 'react';
-
-export interface LaboratoryMarketShare {
-  readonly laboratory_name: string;
-  readonly ca_selection: number;
-  readonly ca_total_group: number;
-  readonly part_marche_ca_pct: number;
-  readonly marge_selection: number;
-  readonly marge_total_group: number;
-  readonly part_marche_marge_pct: number;
-  readonly product_count: number;
-  readonly is_referent: boolean;
-}
+import type { LaboratoryMarketShare } from '@/types/laboratory';
 
 interface UseLaboratoryMarketShareOptions {
   readonly enabled: boolean;

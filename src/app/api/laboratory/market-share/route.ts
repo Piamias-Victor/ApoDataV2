@@ -16,6 +16,8 @@ interface LaboratoryMarketShareResult {
   readonly marge_total_group: number;
   readonly part_marche_marge_pct: number;
   readonly product_count: number;
+  readonly quantity_sold: number;
+  readonly margin_rate_percent: number;
   readonly is_referent: boolean;
 }
 
@@ -86,6 +88,13 @@ export async function POST(request: NextRequest) {
                 (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              SUM(s.quantity) as quantity_sold,
+              CASE 
+                WHEN SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                ELSE 0
+              END as margin_rate_percent,
               MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -118,6 +127,8 @@ export async function POST(request: NextRequest) {
               ELSE 0 
             END as part_marche_marge_pct,
             lm.product_count,
+            lm.quantity_sold,
+            lm.margin_rate_percent,
             lm.is_referent::boolean as is_referent,
             tc.total
           FROM lab_metrics lm
@@ -152,6 +163,13 @@ export async function POST(request: NextRequest) {
                 (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+              SUM(s.quantity) as quantity_sold,
+              CASE 
+                WHEN SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                ELSE 0
+              END as margin_rate_percent,
               MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -183,6 +201,8 @@ export async function POST(request: NextRequest) {
               ELSE 0 
             END as part_marche_marge_pct,
             lm.product_count,
+            lm.quantity_sold,
+            lm.margin_rate_percent,
             lm.is_referent::boolean as is_referent,
             tc.total
           FROM lab_metrics lm
@@ -223,6 +243,13 @@ export async function POST(request: NextRequest) {
               (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
             )) as marge_selection,
             COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+            SUM(s.quantity) as quantity_sold,
+            CASE 
+              WHEN SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
+                (SUM(s.quantity * ((ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
+                 SUM(s.quantity * (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+              ELSE 0
+            END as margin_rate_percent,
             MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
           FROM data_sales s
           JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -255,6 +282,8 @@ export async function POST(request: NextRequest) {
             ELSE 0 
           END as part_marche_marge_pct,
           lm.product_count,
+          lm.quantity_sold,
+          lm.margin_rate_percent,
           lm.is_referent::boolean as is_referent,
           tc.total
         FROM lab_metrics lm
@@ -284,6 +313,8 @@ export async function POST(request: NextRequest) {
       marge_total_group: r.marge_total_group,
       part_marche_marge_pct: r.part_marche_marge_pct,
       product_count: r.product_count,
+      quantity_sold: r.quantity_sold,
+      margin_rate_percent: r.margin_rate_percent,
       is_referent: r.is_referent
     }));
 

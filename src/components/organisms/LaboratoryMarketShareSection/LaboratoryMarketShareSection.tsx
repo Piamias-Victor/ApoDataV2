@@ -16,7 +16,7 @@ import type {
   SortConfig, 
   LaboratorySortableColumn,
   SortDirection
-} from './types';
+} from '@/types/laboratory';
 
 interface LaboratoryMarketShareSectionProps {
   readonly productCodes: string[];
@@ -110,6 +110,8 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
     const exportData = filteredAndSortedData.map(lab => ({
       'Laboratoire': lab.laboratory_name,
       'Nombre de produits': lab.product_count,
+      'Quantités vendues': lab.quantity_sold,
+      'Taux de marge (%)': Number(lab.margin_rate_percent || 0).toFixed(1),
       'CA Réalisé (€)': lab.ca_selection,
       'Marge Réalisée (€)': lab.marge_selection,
       'Part Marché CA (%)': (lab.part_marche_ca_pct / 100).toFixed(3),
@@ -173,7 +175,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement...</span>
@@ -182,7 +184,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
                 </tr>
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
                       : 'Aucune donnée disponible'

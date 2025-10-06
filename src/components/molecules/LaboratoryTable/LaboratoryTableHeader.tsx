@@ -1,76 +1,108 @@
 // src/components/molecules/LaboratoryTable/LaboratoryTableHeader.tsx
-'use client';
-
 import React from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
-import type { SortConfig, LaboratorySortableColumn } from '@/components/organisms/LaboratoryMarketShareSection/types';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import type { SortConfig, LaboratorySortableColumn } from '@/types/laboratory';
 
 interface LaboratoryTableHeaderProps {
-  readonly sortConfig: SortConfig;
-  readonly onSort: (column: LaboratorySortableColumn) => void;
+  sortConfig: SortConfig;
+  onSort: (column: LaboratorySortableColumn) => void;
 }
 
 export const LaboratoryTableHeader: React.FC<LaboratoryTableHeaderProps> = ({
   sortConfig,
   onSort
 }) => {
-  const renderSortIcon = (column: LaboratorySortableColumn) => {
+  const getSortIcon = (column: LaboratorySortableColumn) => {
     if (sortConfig.column !== column) {
-      return <div className="w-4 h-4" />;
+      return <ArrowUpDown className="w-3 h-3 text-gray-400" />;
     }
-    
-    return sortConfig.direction === 'asc' ? (
-      <ChevronUp className="w-4 h-4" />
-    ) : (
-      <ChevronDown className="w-4 h-4" />
-    );
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-blue-600" />
+      : <ArrowDown className="w-3 h-3 text-blue-600" />;
   };
 
-  const headerClass = "px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors select-none";
-  const sortableClass = "flex items-center space-x-1";
-
+  const headerClass = "px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-50 transition-colors";
+  
   return (
     <thead className="bg-gray-50">
       <tr>
-        <th className={headerClass} onClick={() => onSort('laboratory_name')}>
-          <div className={sortableClass}>
+        <th 
+          onClick={() => onSort('laboratory_name')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
             <span>Laboratoire</span>
-            {renderSortIcon('laboratory_name')}
+            {getSortIcon('laboratory_name')}
           </div>
         </th>
         
-        <th className={headerClass} onClick={() => onSort('product_count')}>
-          <div className={sortableClass}>
-            <span>Produits</span>
-            {renderSortIcon('product_count')}
+        <th 
+          onClick={() => onSort('product_count')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
+            <span>Nb produits</span>
+            {getSortIcon('product_count')}
+          </div>
+        </th>
+
+        <th 
+          onClick={() => onSort('quantity_sold')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
+            <span>Qté vendues</span>
+            {getSortIcon('quantity_sold')}
+          </div>
+        </th>
+
+        <th 
+          onClick={() => onSort('margin_rate_percent')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
+            <span>Taux marge</span>
+            {getSortIcon('margin_rate_percent')}
           </div>
         </th>
         
-        <th className={headerClass} onClick={() => onSort('ca_selection')}>
-          <div className={sortableClass}>
+        <th 
+          onClick={() => onSort('ca_selection')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
             <span>CA Réalisé</span>
-            {renderSortIcon('ca_selection')}
+            {getSortIcon('ca_selection')}
           </div>
         </th>
         
-        <th className={headerClass} onClick={() => onSort('marge_selection')}>
-          <div className={sortableClass}>
+        <th 
+          onClick={() => onSort('marge_selection')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
             <span>Marge Réalisée</span>
-            {renderSortIcon('marge_selection')}
+            {getSortIcon('marge_selection')}
           </div>
         </th>
         
-        <th className={headerClass} onClick={() => onSort('part_marche_ca_pct')}>
-          <div className={sortableClass}>
+        <th 
+          onClick={() => onSort('part_marche_ca_pct')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
             <span>Part Marché CA</span>
-            {renderSortIcon('part_marche_ca_pct')}
+            {getSortIcon('part_marche_ca_pct')}
           </div>
         </th>
         
-        <th className={headerClass} onClick={() => onSort('part_marche_marge_pct')}>
-          <div className={sortableClass}>
+        <th 
+          onClick={() => onSort('part_marche_marge_pct')}
+          className={headerClass}
+        >
+          <div className="flex items-center space-x-1">
             <span>Part Marché Marge</span>
-            {renderSortIcon('part_marche_marge_pct')}
+            {getSortIcon('part_marche_marge_pct')}
           </div>
         </th>
       </tr>
