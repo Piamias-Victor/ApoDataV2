@@ -232,6 +232,13 @@ export default function LoginPage(): JSX.Element {
                     Se souvenir de moi
                   </span>
                 </label>
+
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  Mot de passe oublié ?
+                </Link>
               </div>
 
               {errors.general && (
