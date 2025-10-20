@@ -223,24 +223,24 @@ async function executeAdminQuery(
     WITH period_sales AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name, -- Un seul nom par code EAN
+        MIN(ip.name) as product_name,
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
-        AVG(ins.price_with_tax) as prix_vente_moyen_periode,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
         AVG(ins.weighted_average_price) as prix_achat_moyen_periode,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_periode,
-        SUM(s.quantity * ins.price_with_tax) as montant_ventes_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as montant_ventes_ttc,
         SUM(s.quantity * (
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN (ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
             ELSE 0 
           END
         )) as montant_marge_total
@@ -249,17 +249,18 @@ async function executeAdminQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
         ${finalPharmacyFilter}
-      GROUP BY ip.code_13_ref_id, ${periodGrouping} -- Groupement uniquement par code EAN et période
+      GROUP BY ip.code_13_ref_id, ${periodGrouping}
       HAVING SUM(s.quantity) > 0
     ),
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name -- Un seul nom par code EAN
+        MIN(ip.name) as product_name
       FROM data_internalproduct ip
       WHERE 1=1
         ${productFilter}
@@ -286,7 +287,6 @@ async function executeAdminQuery(
         ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
         ROUND(ps.taux_marge_moyen_periode, 2) as taux_marge_moyen,
         
-        -- Parts de marché sur sélection
         CASE 
           WHEN st.total_quantite_selection > 0 
           THEN ROUND((ps.quantite_vendue_periode * 100.0 / st.total_quantite_selection), 2)
@@ -310,7 +310,7 @@ async function executeAdminQuery(
       
       UNION ALL
       
-      -- Ligne synthèse par produit (agrégation par code EAN)
+      -- Ligne synthèse par produit
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
@@ -407,24 +407,24 @@ async function executeUserQuery(
     WITH period_sales AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name, -- Un seul nom par code EAN
+        MIN(ip.name) as product_name,
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
-        AVG(ins.price_with_tax) as prix_vente_moyen_periode,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
         AVG(ins.weighted_average_price) as prix_achat_moyen_periode,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_periode,
-        SUM(s.quantity * ins.price_with_tax) as montant_ventes_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as montant_ventes_ttc,
         SUM(s.quantity * (
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN (ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
             ELSE 0 
           END
         )) as montant_marge_total
@@ -433,17 +433,18 @@ async function executeUserQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
-      GROUP BY ip.code_13_ref_id, ${periodGrouping} -- Groupement uniquement par code EAN et période
+      GROUP BY ip.code_13_ref_id, ${periodGrouping}
       HAVING SUM(s.quantity) > 0
     ),
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name -- Un seul nom par code EAN
+        MIN(ip.name) as product_name
       FROM data_internalproduct ip
       WHERE ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
@@ -492,7 +493,7 @@ async function executeUserQuery(
       
       UNION ALL
       
-      -- Synthèse par produit (agrégation par code EAN)
+      -- Synthèse par produit
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,

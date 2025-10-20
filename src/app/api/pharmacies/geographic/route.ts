@@ -133,13 +133,12 @@ async function calculateGeographicData(request: GeographicRequest): Promise<Regi
 
   const query = `
     WITH 
-    -- Ventes par région avec données pharmacies
     ventes_par_region AS (
       SELECT 
         dp.area as region_code,
         dp.area as region_name,
         dp.id as pharmacy_id,
-        SUM(s.quantity * ins.price_with_tax) as ca_pharmacie,
+        SUM(s.quantity * s.unit_price_ttc) as ca_pharmacie,
         SUM(s.quantity) as quantite_pharmacie
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -148,13 +147,14 @@ async function calculateGeographicData(request: GeographicRequest): Promise<Regi
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.quantity > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND dp.area IS NOT NULL
         ${productFilterSales}
       GROUP BY dp.area, dp.id
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
+      HAVING SUM(s.quantity * s.unit_price_ttc) > 0
     ),
     
-    -- Agrégation par région
     regions_aggregated AS (
       SELECT 
         region_code,
@@ -167,7 +167,6 @@ async function calculateGeographicData(request: GeographicRequest): Promise<Regi
       GROUP BY region_code, region_name
     ),
     
-    -- Total pour calcul parts de marché
     total_ca AS (
       SELECT SUM(ca_total) as ca_total_global
       FROM regions_aggregated

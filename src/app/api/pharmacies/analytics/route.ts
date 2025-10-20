@@ -61,7 +61,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔥 [API] Pharmacies Analytics called');
     
-    // Sécurité admin obligatoire
     const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== 'admin') {
       console.log('❌ [API] Unauthorized - Admin only for pharmacies analytics');
@@ -75,7 +74,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
 
-    // Fusion codes produits
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -91,7 +89,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hasComparison: !!body.comparisonDateRange
     });
 
-    // Cache key
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
       ...(body.comparisonDateRange && { comparisonDateRange: body.comparisonDateRange }),
@@ -101,7 +98,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hasPharmacyFilter: hasPharmacyFilter
     });
 
-    // Tentative cache
     if (CACHE_ENABLED) {
       try {
         const cached = await redis.get(cacheKey);
@@ -118,7 +114,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // Exécution requête
     const pharmacies = await executePharmaciesAnalyticsQuery(
       body.dateRange,
       allProductCodes,
@@ -128,7 +123,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       body.comparisonDateRange
     );
 
-    // DEBUG: Logs des évolutions calculées
     if (body.comparisonDateRange) {
       const evolutionsDebug = pharmacies
         .filter(p => p.evolution_ca_pct !== null && p.evolution_ca_pct !== undefined)
@@ -157,7 +151,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cached: false
     };
 
-    // Cache result
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
@@ -192,12 +185,10 @@ async function executePharmaciesAnalyticsQuery(
   comparisonDateRange?: { start: string; end: string }
 ): Promise<PharmacyMetrics[]> {
   
-  // Construction filtres dynamiques
   const productFilter = hasProductFilter ? 'AND ip.code_13_ref_id = ANY($3::text[])' : '';
   const pharmacyFilterMain = hasPharmacyFilter ? 
     (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : '';
 
-  // Paramètres
   const params: any[] = [dateRange.start, dateRange.end];
   
   if (hasProductFilter) {
@@ -210,22 +201,18 @@ async function executePharmaciesAnalyticsQuery(
 
   const query = `
     WITH 
-    -- 1. MÉTRIQUES PAR PHARMACIE PÉRIODE PRINCIPALE
     pharmacy_metrics AS (
       SELECT 
         dp.id as pharmacy_id,
         dp.name as pharmacy_name,
         
-        -- CA et ventes
-        COALESCE(SUM(s.quantity * ins.price_with_tax), 0) as ca_ttc,
+        COALESCE(SUM(s.quantity * s.unit_price_ttc), 0) as ca_ttc,
         COALESCE(SUM(s.quantity), 0) as quantite_vendue,
         
-        -- Marge calculée
         COALESCE(SUM(s.quantity * (
-          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
         )), 0) as montant_marge,
         
-        -- Stock actuel (derniers snapshots)
         COALESCE(SUM(latest_stock.stock * latest_stock.weighted_average_price), 0) as valeur_stock_ht
         
       FROM data_pharmacy dp
@@ -233,6 +220,8 @@ async function executePharmaciesAnalyticsQuery(
       LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
       LEFT JOIN data_sales s ON ins.id = s.product_id 
         AND s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
       LEFT JOIN LATERAL (
         SELECT DISTINCT ON (ins2.product_id)
           ins2.stock, ins2.weighted_average_price
@@ -246,7 +235,6 @@ async function executePharmaciesAnalyticsQuery(
       GROUP BY dp.id, dp.name
     ),
     
-    -- 2. MÉTRIQUES ACHATS PAR PHARMACIE
     pharmacy_purchases AS (
       SELECT 
         dp.id as pharmacy_id,
@@ -273,7 +261,6 @@ async function executePharmaciesAnalyticsQuery(
       GROUP BY dp.id
     ),
     
-    -- 3. TOTAL GLOBAL POUR PARTS DE MARCHÉ
     global_totals AS (
       SELECT 
         SUM(pm.ca_ttc) as ca_total_selection
@@ -281,24 +268,24 @@ async function executePharmaciesAnalyticsQuery(
       WHERE pm.ca_ttc > 0
     )${comparisonDateRange ? `,
     
-    -- 4. MÉTRIQUES PÉRIODE COMPARAISON
     pharmacy_comparison AS (
       SELECT 
         dp.id as pharmacy_id,
-        COALESCE(SUM(s.quantity * ins.price_with_tax), 0) as ca_ttc_comparison
+        COALESCE(SUM(s.quantity * s.unit_price_ttc), 0) as ca_ttc_comparison
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
       LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
       LEFT JOIN data_sales s ON ins.id = s.product_id 
         AND s.date >= '${comparisonDateRange.start}'::date 
         AND s.date <= '${comparisonDateRange.end}'::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
       WHERE 1=1
         ${productFilter}
         ${pharmacyFilterMain}
       GROUP BY dp.id
     ),
     
-    -- 5. CALCUL MÉDIANE ÉVOLUTION AVEC FILTRAGE OUTLIERS
     evolution_stats AS (
       SELECT 
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY evolution_pct) as mediane_evolution,
@@ -317,10 +304,9 @@ async function executePharmaciesAnalyticsQuery(
         WHERE pc.ca_ttc_comparison > 0
       ) evolutions
       WHERE evolution_pct IS NOT NULL 
-        AND evolution_pct BETWEEN -100 AND 100  -- FILTRAGE: exclut évolutions anormales
+        AND evolution_pct BETWEEN -100 AND 100
     )` : ''}
     
-    -- RÉSULTAT FINAL
     SELECT 
       pm.pharmacy_id,
       pm.pharmacy_name,
@@ -335,21 +321,18 @@ async function executePharmaciesAnalyticsQuery(
       pm.quantite_vendue,
       COALESCE(pp.montant_achat_total, 0) as montant_achat_total,
       
-      -- Part de marché
       CASE 
         WHEN gt.ca_total_selection > 0 
         THEN ROUND((pm.ca_ttc * 100.0 / gt.ca_total_selection)::numeric, 2)
         ELSE 0 
       END as part_marche_pct${comparisonDateRange ? `,
       
-      -- Évolution CA
       CASE 
         WHEN pc.ca_ttc_comparison > 0 
         THEN ROUND(((pm.ca_ttc - pc.ca_ttc_comparison) * 100.0 / pc.ca_ttc_comparison)::numeric, 2)
         ELSE NULL 
       END as evolution_ca_pct,
       
-      -- Évolution Relative (vs médiane filtrée)
       CASE 
         WHEN pc.ca_ttc_comparison > 0 
              AND es.mediane_evolution IS NOT NULL

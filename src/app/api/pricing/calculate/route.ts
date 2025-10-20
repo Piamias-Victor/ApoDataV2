@@ -46,7 +46,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacy: body.pharmacyIds || []
     }, context);
 
-    // Utiliser exactement la même logique que products/list
     const products = context.isAdmin 
       ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!);
@@ -104,13 +103,15 @@ async function executeAdminQuery(
       SELECT 
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
         AVG(ip."TVA") as avg_tva_rate
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1 AND s.date <= $2
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ip.code_13_ref_id = ANY($3::text[])
         ${pharmacyFilter}
       GROUP BY ip.code_13_ref_id
@@ -193,13 +194,15 @@ async function executeUserQuery(
       SELECT 
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
         AVG(ip."TVA") as avg_tva_rate
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1 AND s.date <= $2
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ip.code_13_ref_id = ANY($3::text[])
         AND ip.pharmacy_id = $4::uuid
       GROUP BY ip.code_13_ref_id

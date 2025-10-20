@@ -19,7 +19,6 @@ const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
 const CACHE_TTL = 43200; // 12 heures
 
 interface MonthlyDetailsRequest {
-  // Plus de dateRange - toujours 12 derniers mois auto
   readonly productCodes: string[];
   readonly laboratoryCodes: string[];
   readonly categoryCodes: string[];
@@ -39,23 +38,14 @@ interface MonthlyDetailsRow {
   readonly taux_marge_moyen: number;
 }
 
-/**
- * Calcule automatiquement les 12 derniers mois
- */
-// src/app/api/products/monthly-details/route.ts (CORRECTED)
-/**
- * Calcule automatiquement les 12 derniers mois
- */
 function calculateLast12Months(): { start: string; end: string } {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Dernier jour du mois actuel
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   
-  // FIX: Assurer que les dates sont définies et au bon format
   const startString = startDate.toISOString().split('T')[0];
   const endString = endDate.toISOString().split('T')[0];
   
-  // Validation TypeScript strict
   if (!startString || !endString) {
     throw new Error('Date calculation failed');
   }
@@ -72,7 +62,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔥 [API] Monthly details API called');
     
-    // 1. Sécurité et validation
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
@@ -95,11 +84,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     
-    // 2. Calcul automatique 12 derniers mois (ignore filtres dates)
     const dateRange = calculateLast12Months();
     console.log('📅 [API] Auto-calculated 12 months range:', dateRange);
 
-    // 3. Fusion des codes EAN sans doublons
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -116,7 +103,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const hasProductFilter = allProductCodes.length > 0;
     console.log('🎯 [API] Has product filter:', hasProductFilter);
 
-    // 4. Application sécurité pharmacie
     const secureFilters = enforcePharmacySecurity({
       dateRange,
       pharmacy: body.pharmacyIds || []
@@ -124,7 +110,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🛡️ [API] Secure filters applied:', secureFilters);
 
-    // 5. Génération clé cache (avec dates fixes 12 mois)
     const cacheKey = generateCacheKey({
       dateRange,
       productCodes: allProductCodes,
@@ -135,7 +120,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🔑 [API] Cache key generated:', cacheKey);
 
-    // 6. Tentative cache
     if (CACHE_ENABLED) {
       console.log('💾 [API] Checking cache...');
       try {
@@ -157,7 +141,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('🚫 [API] Cache disabled');
     }
 
-    // 7. Exécution requête selon rôle (avec dates fixes)
     console.log('🗃️ [API] Executing database query...');
     console.log(`📊 [API] Query type: ${context.isAdmin ? 'ADMIN' : 'USER'}`);
     
@@ -178,12 +161,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = {
       monthlyData,
       count: monthlyData.length,
-      dateRange, // Retour des dates réellement utilisées
+      dateRange,
       queryTime: Date.now() - startTime,
       cached: false
     };
 
-    // 8. Mise en cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
@@ -222,18 +204,18 @@ async function executeAdminQuery(
   const params = [];
   let paramIndex = 1;
   
-  params.push(dateRange.start); // $1
-  params.push(dateRange.end);   // $2
+  params.push(dateRange.start);
+  params.push(dateRange.end);
   
   if (hasProductFilter) {
-    params.push(productCodes);  // $3
+    params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
   
   if (pharmacyIds && pharmacyIds.length > 0) {
-    params.push(pharmacyIds);   // $4 ou $3 selon hasProductFilter
+    params.push(pharmacyIds);
   }
 
   const finalPharmacyFilter = pharmacyFilter.replace('$4', `$${paramIndex}`);
@@ -251,13 +233,13 @@ async function executeAdminQuery(
         ip.name as product_name,
         DATE_TRUNC('month', s.date) as mois,
         SUM(s.quantity) as quantite_vendue_mois,
-        AVG(ins.price_with_tax) as prix_vente_moyen_mois,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_mois,
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_mois
@@ -266,7 +248,8 @@ async function executeAdminQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
         ${finalPharmacyFilter}
@@ -417,13 +400,13 @@ async function executeUserQuery(
         ip.name as product_name,
         DATE_TRUNC('month', s.date) as mois,
         SUM(s.quantity) as quantite_vendue_mois,
-        AVG(ins.price_with_tax) as prix_vente_moyen_mois,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_mois,
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_mois
@@ -432,7 +415,8 @@ async function executeUserQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}

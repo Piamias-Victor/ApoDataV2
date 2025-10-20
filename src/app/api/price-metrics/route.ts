@@ -63,7 +63,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   console.log('🔥 [API] Price Metrics Request started');
 
   try {
-    // 1. Sécurité et validation
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
@@ -77,7 +76,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacyId: context.pharmacyId
     });
 
-    // 2. Parse et validation du body
     let body: PriceMetricsRequest;
     try {
       body = await request.json();
@@ -87,7 +85,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    // 3. Validation des paramètres
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API] Missing date range');
       return NextResponse.json({ error: 'Date range is required' }, { status: 400 });
@@ -99,7 +96,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: periodError }, { status: 400 });
     }
 
-    // 4. Déterminer pharmacyId selon sécurité
     let targetPharmacyId: string | null = null;
     if (context.isAdmin) {
       targetPharmacyId = body.pharmacyId || null;
@@ -109,7 +105,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('👤 [API] User mode - forced pharmacy:', targetPharmacyId);
     }
 
-    // 5. Gestion productCodes
     const productCodes = (body.productCodes && body.productCodes.length > 0) 
       ? body.productCodes 
       : null;
@@ -120,7 +115,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacyId: targetPharmacyId || 'ALL_PHARMACIES'
     });
 
-    // 6. Cache key generation
     const cacheKey = `price_metrics:${crypto
       .createHash('md5')
       .update(JSON.stringify({
@@ -130,7 +124,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }))
       .digest('hex')}`;
 
-    // 7. Vérification cache
     if (CACHE_ENABLED) {
       try {
         const cached = await redis.get(cacheKey);
@@ -147,35 +140,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 8. Exécution requête SQL
     const queryStartTime = Date.now();
     console.log('📊 [API] Executing SQL query...');
 
     const params = [
-      body.dateRange.start,  // $1
-      body.dateRange.end,    // $2
-      productCodes,          // $3 (peut être null)
-      targetPharmacyId       // $4 (peut être null)
+      body.dateRange.start,
+      body.dateRange.end,
+      productCodes,
+      targetPharmacyId
     ];
 
     const sqlQuery = `
       WITH monthly_calendar AS (
-        -- Génération de tous les mois de la période
         SELECT 
           DATE_TRUNC('month', generate_series($1::date, $2::date, '1 month'::interval)) as mois
       ),
       monthly_sales AS (
-        -- Données ventes mensuelles simplifiées
         SELECT 
           DATE_TRUNC('month', s.date) as mois,
           SUM(s.quantity) as quantite_vendue_mois,
-          AVG(ins.price_with_tax) as prix_vente_moyen_ttc,
+          AVG(s.unit_price_ttc) as prix_vente_moyen_ttc,
           AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
           AVG(
             CASE 
-              WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-              THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                   (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+              WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+              THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                   (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
               ELSE 0 
             END
           ) as taux_marge_moyen_pourcentage
@@ -187,8 +177,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
           AND s.date >= $1::date 
           AND s.date <= $2::date
+          AND s.unit_price_ttc IS NOT NULL
+          AND s.unit_price_ttc > 0
           AND ins.weighted_average_price > 0
-          AND ins.price_with_tax > 0
         GROUP BY DATE_TRUNC('month', s.date)
       )
       SELECT 
@@ -212,7 +203,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lastEntry: rawResults[rawResults.length - 1] || null
     });
 
-    // 9. Formatage simple des résultats
     const results: PriceMetricsEntry[] = rawResults.map((row: any) => {
       const entry: PriceMetricsEntry = {
         mois: row.mois instanceof Date 
@@ -234,7 +224,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cached: false
     };
 
-    // 10. Mise en cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify({

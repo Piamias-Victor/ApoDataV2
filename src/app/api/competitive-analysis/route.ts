@@ -8,7 +8,6 @@ import crypto from 'crypto';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔥 [API] Competitive analysis API called');
     
-    // 1. Sécurité et validation
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
@@ -73,13 +71,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     
-    // Validation des dates
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API] Missing date range');
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
 
-    // 2. Fusion des codes EAN
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -95,7 +91,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const hasProductFilter = allProductCodes.length > 0;
 
-    // 3. Application sécurité pharmacie
     const secureFilters = enforcePharmacySecurity({
       dateRange: body.dateRange,
       pharmacy: body.pharmacyIds || []
@@ -103,7 +98,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🛡️ [API] Secure filters applied:', secureFilters);
 
-    // 4. Cache
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
       productCodes: allProductCodes,
@@ -128,7 +122,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 5. Exécution requête selon rôle
     console.log('🗃️ [API] Executing database query...');
     
     const products = context.isAdmin 
@@ -147,7 +140,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cached: false
     };
 
-    // 6. Cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
@@ -177,13 +169,11 @@ async function executeAdminQuery(
 
   const isNoPharmacySelected = !pharmacyIds || pharmacyIds.length === 0;
   
-  // Si admin SANS pharmacie sélectionnée → mes prix = prix marché global
   if (isNoPharmacySelected) {
     console.log('🔍 [API] Admin mode WITHOUT pharmacy selection - market = selection');
     return await executeMarketOnlyQuery(dateRange, productCodes, hasProductFilter);
   }
 
-  // Si admin AVEC pharmacie(s) → marché = toutes SAUF sélectionnées
   console.log('🔍 [API] Admin mode WITH pharmacy selection - market excludes selected');
   
   const productFilter = hasProductFilter 
@@ -193,51 +183,50 @@ async function executeAdminQuery(
   const params = [];
   let paramIndex = 1;
   
-  params.push(dateRange.start); // $1
-  params.push(dateRange.end);   // $2
+  params.push(dateRange.start);
+  params.push(dateRange.end);
   
   if (hasProductFilter) {
-    params.push(productCodes);  // $3
+    params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
   
-  params.push(pharmacyIds);   // $4 ou $3
+  params.push(pharmacyIds);
 
   const pharmacyParam = `$${paramIndex}::uuid[]`;
 
   const query = `
     WITH global_price_stats AS (
-      -- Prix marché concurrent (SANS les pharmacies sélectionnées)
       SELECT 
         ip.code_13_ref_id,
-        MIN(ins.price_with_tax) as prix_vente_min_global,
-        MAX(ins.price_with_tax) as prix_vente_max_global,
-        AVG(ins.price_with_tax) as prix_vente_moyen_global,
+        MIN(s.unit_price_ttc) as prix_vente_min_global,
+        MAX(s.unit_price_ttc) as prix_vente_max_global,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_global,
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendant
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
-        AND ip.pharmacy_id != ALL(${pharmacyParam})  -- EXCLUT les pharmacies sélectionnées
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
+        AND ip.pharmacy_id != ALL(${pharmacyParam})
         ${productFilter}
       GROUP BY ip.code_13_ref_id
     ),
     selection_stats AS (
-      -- Stats des pharmacies sélectionnées uniquement
       SELECT 
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_moyen_selection,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_selection,
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_selection
@@ -246,14 +235,14 @@ async function executeAdminQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
-        AND ip.pharmacy_id = ANY(${pharmacyParam})  -- LES pharmacies sélectionnées
+        AND ip.pharmacy_id = ANY(${pharmacyParam})
         ${productFilter}
       GROUP BY ip.code_13_ref_id
     ),
     product_info AS (
-      -- Infos produit de base
       SELECT DISTINCT
         gp.code_13_ref,
         gp.name as product_name
@@ -313,35 +302,34 @@ async function executeUserQuery(
 
   const query = `
     WITH global_price_stats AS (
-      -- Prix marché concurrent (SANS ma pharmacie)
       SELECT 
         ip.code_13_ref_id,
-        MIN(ins.price_with_tax) as prix_vente_min_global,
-        MAX(ins.price_with_tax) as prix_vente_max_global,
-        AVG(ins.price_with_tax) as prix_vente_moyen_global,
+        MIN(s.unit_price_ttc) as prix_vente_min_global,
+        MAX(s.unit_price_ttc) as prix_vente_max_global,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_global,
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendant
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
-        AND ip.pharmacy_id != ${pharmacyParam}  -- EXCLUT ma pharmacie
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
+        AND ip.pharmacy_id != ${pharmacyParam}
         ${productFilter}
       GROUP BY ip.code_13_ref_id
     ),
     my_pharmacy_stats AS (
-      -- Stats de MA pharmacie uniquement
       SELECT 
         ip.code_13_ref_id,
-        AVG(ins.price_with_tax) as prix_vente_moyen_selection,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_selection,
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_selection
@@ -350,14 +338,14 @@ async function executeUserQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
-        AND ip.pharmacy_id = ${pharmacyParam}  -- MA pharmacie
+        AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       GROUP BY ip.code_13_ref_id
     ),
     product_info AS (
-      -- Infos produit de base
       SELECT DISTINCT
         ip.name as product_name,
         ip.code_13_ref_id as code_13_ref
@@ -413,20 +401,19 @@ async function executeMarketOnlyQuery(
 
   const query = `
     WITH global_price_stats AS (
-      -- Prix marché global (toutes pharmacies)
       SELECT 
         ip.code_13_ref_id,
-        MIN(ins.price_with_tax) as prix_vente_min_global,
-        MAX(ins.price_with_tax) as prix_vente_max_global,
-        AVG(ins.price_with_tax) as prix_vente_moyen_global,
+        MIN(s.unit_price_ttc) as prix_vente_min_global,
+        MAX(s.unit_price_ttc) as prix_vente_max_global,
+        AVG(s.unit_price_ttc) as prix_vente_moyen_global,
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendant,
         AVG(
           CASE 
-            WHEN ins.price_with_tax > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (ins.price_with_tax / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
+            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
+                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_selection
@@ -435,13 +422,13 @@ async function executeMarketOnlyQuery(
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
-        AND ins.price_with_tax > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
       GROUP BY ip.code_13_ref_id
     ),
     product_info AS (
-      -- Infos produit de base
       SELECT DISTINCT
         gp.code_13_ref,
         gp.name as product_name
@@ -456,12 +443,11 @@ async function executeMarketOnlyQuery(
       ROUND(COALESCE(gps.prix_vente_max_global, 0), 2) as prix_vente_max_global, 
       ROUND(COALESCE(gps.prix_vente_moyen_global, 0), 2) as prix_vente_moyen_global,
       COALESCE(gps.nb_pharmacies_vendant, 0) as nb_pharmacies_vendant,
-      -- Mes prix = prix marché (même valeurs)
       ROUND(COALESCE(gps.prix_vente_moyen_global, 0), 2) as prix_vente_moyen_selection,
       ROUND(COALESCE(gps.prix_achat_moyen_ht, 0), 2) as prix_achat_moyen_ht,
       COALESCE(gps.quantite_vendue_selection, 0) as quantite_vendue_selection,
       ROUND(COALESCE(gps.taux_marge_moyen_selection, 0), 2) as taux_marge_moyen_selection,
-      0.00 as ecart_prix_vs_marche_pct  -- Aucun écart car mêmes prix
+      0.00 as ecart_prix_vs_marche_pct
     FROM product_info pi
     LEFT JOIN global_price_stats gps ON pi.code_13_ref = gps.code_13_ref_id
     WHERE gps.code_13_ref_id IS NOT NULL

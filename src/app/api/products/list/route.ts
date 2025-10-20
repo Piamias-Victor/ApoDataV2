@@ -52,7 +52,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🔥 [API] Products list API called');
     
-    // 1. Sécurité et validation
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
@@ -75,13 +74,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
     
-    // Validation des dates
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API] Missing date range');
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
 
-    // 2. Fusion des codes EAN sans doublons
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -95,11 +92,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       categoryCodes: body.categoryCodes?.length || 0
     });
 
-    // Si aucun code EAN sélectionné, on fait sans restriction (tous les produits)
     const hasProductFilter = allProductCodes.length > 0;
     console.log('🎯 [API] Has product filter:', hasProductFilter);
 
-    // 3. Application sécurité pharmacie
     const secureFilters = enforcePharmacySecurity({
       dateRange: body.dateRange,
       pharmacy: body.pharmacyIds || []
@@ -107,7 +102,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🛡️ [API] Secure filters applied:', secureFilters);
 
-    // 4. Génération clé cache
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
       productCodes: allProductCodes,
@@ -118,7 +112,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🔑 [API] Cache key generated:', cacheKey);
 
-    // 5. Tentative cache
     if (CACHE_ENABLED) {
       console.log('💾 [API] Checking cache...');
       try {
@@ -140,7 +133,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('🚫 [API] Cache disabled');
     }
 
-    // 6. Exécution requête selon rôle
     console.log('🗃️ [API] Executing database query...');
     console.log(`📊 [API] Query type: ${context.isAdmin ? 'ADMIN' : 'USER'}`);
     
@@ -164,7 +156,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       cached: false
     };
 
-    // 7. Mise en cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
@@ -203,18 +194,18 @@ async function executeAdminQuery(
   const params = [];
   let paramIndex = 1;
   
-  params.push(dateRange.start); // $1
-  params.push(dateRange.end);   // $2
+  params.push(dateRange.start);
+  params.push(dateRange.end);
   
   if (hasProductFilter) {
-    params.push(productCodes);  // $3
+    params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
   
   if (pharmacyIds && pharmacyIds.length > 0) {
-    params.push(pharmacyIds);   // $4 ou $3 selon hasProductFilter
+    params.push(pharmacyIds);
   }
 
   const finalPharmacyFilter = pharmacyFilter.replace('$4', `$${paramIndex}`);
@@ -224,13 +215,15 @@ async function executeAdminQuery(
       SELECT 
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
         AVG(ip."TVA") as avg_tva_rate
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1 AND s.date <= $2
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         ${productFilter}
         ${finalPharmacyFilter}
       GROUP BY ip.code_13_ref_id
@@ -353,13 +346,15 @@ async function executeUserQuery(
       SELECT 
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as total_ca_ttc,
-        AVG(ins.price_with_tax) as avg_sell_price_ttc,
+        SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
         AVG(ip."TVA") as avg_tva_rate
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1 AND s.date <= $2
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         ${productFilter}
         AND ip.pharmacy_id = ${pharmacyParam}
       GROUP BY ip.code_13_ref_id

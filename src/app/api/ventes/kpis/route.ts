@@ -150,20 +150,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<SalesKpiM
   }
 }
 
-// DÉTECTION ÉLIGIBILITÉ MATERIALIZED VIEW
 function canUseMaterializedView(dateRange: { start: string; end: string }, hasProductFilter: boolean): boolean {
   const startDate = new Date(dateRange.start);
   const endDate = new Date(dateRange.end);
   
-  // Vérifier si les dates sont alignées sur des mois complets
   const isStartOfMonth = startDate.getDate() === 1;
   const lastDayOfEndMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
   const isEndOfMonth = endDate.getDate() === lastDayOfEndMonth;
   
-  // Vérifier si dans la plage de données MV
   const isWithinMVRange = startDate >= new Date('2024-01-01');
   
-  // Pas de filtres produits
   const noProductFilters = !hasProductFilter;
   
   const eligible = isStartOfMonth && isEndOfMonth && isWithinMVRange && noProductFilters;
@@ -179,7 +175,6 @@ function canUseMaterializedView(dateRange: { start: string; end: string }, hasPr
   return eligible;
 }
 
-// REQUÊTE VIA MATERIALIZED VIEW
 async function fetchFromMaterializedView(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
   const { dateRange, pharmacyIds } = request;
   
@@ -230,7 +225,6 @@ async function fetchFromMaterializedView(request: SalesKpiRequest): Promise<Omit
   }
 }
 
-// REQUÊTE VIA TABLES BRUTES (CODE ORIGINAL)
 async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
   const { dateRange, productCodes = [], laboratoryCodes = [], categoryCodes = [], pharmacyIds } = request;
 
@@ -243,7 +237,6 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  // Construction des filtres pour sélection
   const productFilterSelection = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
@@ -252,12 +245,10 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
     ? (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])')
     : '';
 
-  // Construction des filtres pour global (pas de filtres produits)
   const pharmacyFilterGlobal = hasPharmacyFilter
     ? 'AND ip.pharmacy_id = ANY($' + (hasProductFilter ? '4' : '3') + '::uuid[])'
     : '';
 
-  // Construction des paramètres
   const params: any[] = [dateRange.start, dateRange.end];
   
   if (hasProductFilter) {
@@ -273,45 +264,51 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
       SELECT 
         COUNT(DISTINCT ip.code_13_ref_id) as nb_references_selection,
         SUM(s.quantity) as quantite_vendue_selection,
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_selection,
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_selection,
         SUM(s.quantity * (
-          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_selection
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilterSelection}
         ${pharmacyFilterSelection}
     ),
     global_metrics AS (
       SELECT 
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_global,
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_global,
         SUM(s.quantity * (
-          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_global
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${pharmacyFilterGlobal}
     ),
     products_ca_ranking AS (
       SELECT 
         ip.code_13_ref_id,
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_produit,
-        ROW_NUMBER() OVER (ORDER BY SUM(s.quantity * ins.price_with_tax) DESC) as rang
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_produit,
+        ROW_NUMBER() OVER (ORDER BY SUM(s.quantity * s.unit_price_ttc) DESC) as rang
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilterSelection}
         ${pharmacyFilterSelection}
       GROUP BY ip.code_13_ref_id
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
+      HAVING SUM(s.quantity * s.unit_price_ttc) > 0
     ),
     pareto_80_analysis AS (
       SELECT 
@@ -368,7 +365,6 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
   }
 }
 
-// FONCTION PRINCIPALE AVEC ROUTAGE INTELLIGENT
 async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
   const { productCodes = [], laboratoryCodes = [], categoryCodes = [] } = request;
 
@@ -380,7 +376,6 @@ async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<
 
   const hasProductFilter = allProductCodes.length > 0;
 
-  // DÉTECTION MV vs RAW TABLES
   const canUseMV = canUseMaterializedView(request.dateRange, hasProductFilter);
   
   if (canUseMV) {
@@ -390,7 +385,6 @@ async function calculateSalesKpiMetrics(request: SalesKpiRequest): Promise<Omit<
   }
 }
 
-// FONCTIONS UTILITAIRES
 function getDefaultSalesKpiResponse(usedMV: boolean): Omit<SalesKpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
   return {
     quantite_vendue: 0,

@@ -81,7 +81,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<Pharmacie
   console.log('🔥 [API] Pharmacies KPI Request started');
 
   try {
-    // Vérification sécurité admin
     const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== 'admin') {
       console.log('❌ [API] Unauthorized access attempt to pharmacies KPIs');
@@ -180,8 +179,6 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  // SUPPRESSION de la protection contre requêtes larges
-  // Les admins peuvent analyser tous les produits de toutes les pharmacies
   console.log('🎯 [API] Pharmacies analysis scope:', {
     hasProductFilter,
     hasPharmacyFilter,
@@ -189,7 +186,6 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
     pharmacyScope: hasPharmacyFilter ? 'Pharmacies filtrées' : 'Toutes les pharmacies'
   });
 
-  // Construction des filtres dynamiques - SEULEMENT si des filtres sont appliqués
   const buildFilters = (prefix: string, paramIndex: number) => {
     let filters = '';
     let paramCount = paramIndex;
@@ -211,7 +207,6 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
   const pharmacyFilterStock = hasPharmacyFilter ? 
     (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : '';
 
-  // Construction des paramètres conditionnelle
   const params: any[] = [dateRange.start, dateRange.end];
   
   if (hasProductFilter) {
@@ -224,14 +219,12 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
 
   const query = `
     WITH 
-    -- 1. BASE : PHARMACIES ET PRODUITS (filtrés ou tous)
     pharmacies_base AS (
       SELECT DISTINCT ip.pharmacy_id
       FROM data_internalproduct ip
       WHERE 1=1 ${productFilterStock} ${pharmacyFilterStock}
     ),
 
-    -- 2. PHARMACIES VENDEUSES ACTIVES  
     pharmacies_vendeuses AS (
       SELECT 
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendeuses
@@ -244,18 +237,16 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
         ${productFilterSales}
     ),
 
-    -- 3. TOTAL PHARMACIES AVEC PRODUITS (pour calcul %)
     total_pharmacies_produits AS (
       SELECT COUNT(*) as total_pharmacies
       FROM pharmacies_base
     ),
 
-    -- 4. ANALYSE CONCENTRATION VENTES (Pareto 80/20)
     pharmacies_ca_detail AS (
       SELECT 
         ip.pharmacy_id,
         dp.name as pharmacy_name,
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_pharmacie,
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_pharmacie,
         SUM(s.quantity) as quantite_vendue_pharmacie
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -264,12 +255,13 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.quantity > 0
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         ${productFilterSales}
       GROUP BY ip.pharmacy_id, dp.name
-      HAVING SUM(s.quantity * ins.price_with_tax) > 0
+      HAVING SUM(s.quantity * s.unit_price_ttc) > 0
     ),
 
-    -- 5. CALCUL CONCENTRATION 80% CA
     concentration_80pct AS (
       SELECT 
         COUNT(*) as nb_pharmacies_80pct_ca
@@ -289,7 +281,6 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
       )
     ),
 
-    -- 6. MÉTRIQUES CENTRALES
     metriques_centrales AS (
       SELECT 
         AVG(ca_ttc_pharmacie) as ca_moyen_pharmacie,
@@ -302,38 +293,31 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
       FROM pharmacies_ca_detail
     ),
 
-    -- 7. TAUX PÉNÉTRATION (toutes pharmacies réseau)
     taux_penetration AS (
       SELECT 
         (SELECT COUNT(*) FROM pharmacies_base) as pharmacies_avec_produit,
         (SELECT COUNT(*) FROM data_pharmacy) as total_pharmacies_reseau
     )
 
-    -- RÉSULTAT FINAL
     SELECT 
-      -- Pharmacies vendeuses
       COALESCE(pv.nb_pharmacies_vendeuses, 0) as nb_pharmacies_vendeuses,
       ROUND(
         COALESCE(pv.nb_pharmacies_vendeuses, 0) * 100.0 / 
         NULLIF(COALESCE(tpp.total_pharmacies, 1), 0), 1
       ) as pct_pharmacies_vendeuses_selection,
       
-      -- Concentration Pareto
       COALESCE(c80.nb_pharmacies_80pct_ca, 0) as nb_pharmacies_80pct_ca,
       ROUND(
         COALESCE(c80.nb_pharmacies_80pct_ca, 0) * 100.0 / 
         NULLIF(COALESCE(mc.nb_pharmacies_total, 1), 0), 1
       ) as pct_pharmacies_80pct_ca,
       
-      -- CA métriques
       ROUND(COALESCE(mc.ca_moyen_pharmacie, 0)::numeric, 2) as ca_moyen_pharmacie,
       ROUND(COALESCE(mc.ca_median_pharmacie, 0)::numeric, 2) as ca_median_pharmacie,
       
-      -- Quantités métriques
       ROUND(COALESCE(mc.quantite_moyenne_pharmacie, 0)::numeric, 0) as quantite_moyenne_pharmacie,
       ROUND(COALESCE(mc.quantite_mediane_pharmacie, 0)::numeric, 0) as quantite_mediane_pharmacie,
       
-      -- Taux pénétration
       ROUND(
         COALESCE(tp.pharmacies_avec_produit, 0) * 100.0 / 
         NULLIF(COALESCE(tp.total_pharmacies_reseau, 1), 0), 1
@@ -341,7 +325,6 @@ async function calculatePharmaciesKpiMetrics(request: PharmaciesKpiRequest): Pro
       COALESCE(tp.pharmacies_avec_produit, 0) as pharmacies_avec_produit,
       COALESCE(tp.total_pharmacies_reseau, 0) as total_pharmacies_reseau,
       
-      -- Totaux
       ROUND(COALESCE(mc.ca_total, 0), 2) as ca_total,
       COALESCE(mc.quantite_totale, 0) as quantite_totale,
       COALESCE(mc.nb_pharmacies_total, 0) as nb_pharmacies_vendeuses_total

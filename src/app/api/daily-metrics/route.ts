@@ -1,4 +1,4 @@
-// src/app/api/daily-metrics/route.ts - VERSION OPTIMISÉE AVEC MV
+// src/app/api/daily-metrics/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSecurityContext } from '@/lib/api-security';
 import { db } from '@/lib/db';
@@ -46,10 +46,6 @@ interface DailyMetricsResponse {
   usedMaterializedView?: boolean;
 }
 
-// ===================================================================
-// FONCTIONS DE DÉTECTION MV ELIGIBILITY
-// ===================================================================
-
 function detectDailyMVEligibility(
   dateRange: { start: string; end: string },
   hasProductFilters: boolean,
@@ -58,7 +54,6 @@ function detectDailyMVEligibility(
   const startDate = new Date(dateRange.start);
   const endDate = new Date(dateRange.end);
   
-  // Critères d'éligibilité MV quotidienne
   const isWithinMVRange = startDate >= new Date('2024-01-01') && endDate <= new Date();
   const noProductFilters = !hasProductFilters;
   const hasSinglePharmacy = hasSpecificPharmacy;
@@ -72,10 +67,6 @@ function detectDailyMVEligibility(
   
   return isWithinMVRange && noProductFilters && hasSinglePharmacy;
 }
-
-// ===================================================================
-// REQUÊTE OPTIMISÉE VIA MATERIALIZED VIEW QUOTIDIENNE
-// ===================================================================
 
 async function fetchFromDailyMaterializedView(
   dateRange: { start: string; end: string },
@@ -147,10 +138,6 @@ async function fetchFromDailyMaterializedView(
   }
 }
 
-// ===================================================================
-// REQUÊTE CLASSIQUE VIA TABLES BRUTES (fallback)
-// ===================================================================
-
 async function fetchFromRawTablesDaily(
   dateRange: { start: string; end: string },
   productCodes: string[] | null,
@@ -158,10 +145,10 @@ async function fetchFromRawTablesDaily(
 ): Promise<{ data: DailyMetricsEntry[]; usedMV: boolean }> {
   
   const params = [
-    dateRange.start,  // $1
-    dateRange.end,    // $2
-    productCodes,     // $3 (peut être null)
-    pharmacyId        // $4 (peut être null)
+    dateRange.start,
+    dateRange.end,
+    productCodes,
+    pharmacyId
   ];
 
   const sqlQuery = `
@@ -172,9 +159,9 @@ async function fetchFromRawTablesDaily(
       SELECT 
         s.date,
         SUM(s.quantity) as quantite_vendue_jour,
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_jour,
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_jour,
         SUM(s.quantity * (
-          (ins.price_with_tax / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price
         )) as montant_marge_jour
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -183,6 +170,8 @@ async function fetchFromRawTablesDaily(
         AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
         AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
         AND s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
       GROUP BY s.date
     ),
@@ -291,10 +280,6 @@ async function fetchFromRawTablesDaily(
   }
 }
 
-// ===================================================================
-// VALIDATION EXISTANTE
-// ===================================================================
-
 function validatePeriod(start: string, end: string): string | null {
   const startDate = new Date(start);
   const endDate = new Date(end);
@@ -315,23 +300,17 @@ function validatePeriod(start: string, end: string): string | null {
   return null;
 }
 
-// ===================================================================
-// ENDPOINT PRINCIPAL OPTIMISÉ
-// ===================================================================
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   console.log('🔥 [API] Daily Metrics Request started');
 
   try {
-    // 1. Sécurité et validation (IDENTIQUE)
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Parse et validation du body (IDENTIQUE)
     let body: DailyMetricsRequest;
     try {
       body = await request.json();
@@ -341,7 +320,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    // 3. Validation des paramètres (IDENTIQUE)
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API] Missing date range');
       return NextResponse.json({ error: 'Date range is required' }, { status: 400 });
@@ -353,7 +331,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: periodError }, { status: 400 });
     }
 
-    // 4. Déterminer pharmacyId selon sécurité (IDENTIQUE)
     let targetPharmacyId: string | null = null;
     if (context.isAdmin) {
       targetPharmacyId = body.pharmacyId || null;
@@ -363,7 +340,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('👤 [API] User mode - forced pharmacy:', targetPharmacyId);
     }
 
-    // 5. Gestion productCodes (IDENTIQUE)
     const productCodes = (body.productCodes && body.productCodes.length > 0) 
       ? body.productCodes 
       : null;
@@ -374,7 +350,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pharmacyId: targetPharmacyId || 'ALL_PHARMACIES'
     });
 
-    // 6. Cache key generation (IDENTIQUE)
     const cacheKey = `daily_metrics:${crypto
       .createHash('md5')
       .update(JSON.stringify({
@@ -384,7 +359,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }))
       .digest('hex')}`;
 
-    // 7. Vérification cache (IDENTIQUE)
     if (CACHE_ENABLED) {
       try {
         const cached = await redis.get(cacheKey);
@@ -401,14 +375,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 8. NOUVEAU : DÉTECTION ET ROUTAGE MV vs RAW TABLES
     const queryStartTime = Date.now();
     console.log('📊 [API] Starting query execution...');
 
     const hasProductFilters = productCodes !== null;
     const hasSpecificPharmacy = targetPharmacyId !== null;
     
-    // DÉTECTION MV ELIGIBILITY
     const canUseDailyMV = detectDailyMVEligibility(
       body.dateRange, 
       hasProductFilters, 
@@ -435,7 +407,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lastEntry: queryResult.data[queryResult.data.length - 1] || null
     });
 
-    // 9. Construction réponse finale
     const response: DailyMetricsResponse = {
       data: queryResult.data,
       queryTime: Date.now() - startTime,
@@ -443,7 +414,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       usedMaterializedView: queryResult.usedMV
     };
 
-    // 10. Mise en cache (IDENTIQUE)
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify({

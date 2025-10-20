@@ -65,7 +65,6 @@ interface KpiMetricsResponse {
   } | undefined;
   readonly queryTime: number;
   readonly cached: boolean;
-  readonly usedMaterializedView?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<KpiMetricsResponse | { error: string }>> {
@@ -121,8 +120,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<KpiMetric
     console.log('✅ [API] KPI calculation completed', {
       ca_ttc: response.ca_ttc,
       queryTime: response.queryTime,
-      hasComparison: !!comparison,
-      usedMV: response.usedMaterializedView
+      hasComparison: !!comparison
     });
 
     return NextResponse.json(response);
@@ -133,18 +131,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<KpiMetric
       error: error instanceof Error ? error.message : 'Internal server error' 
     }, { status: 500 });
   }
-}
-
-function detectMVEligibility(dateRange: { start: string; end: string }, hasProductFilter: boolean): boolean {
-  const startDate = new Date(dateRange.start);
-  const endDate = new Date(dateRange.end);
-  
-  const isMonthlyAligned = startDate.getDate() === 1 && 
-                          endDate.getDate() === new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
-  const isWithinMVRange = startDate >= new Date('2024-01-01');
-  const noProductFilters = !hasProductFilter;
-  
-  return isMonthlyAligned && isWithinMVRange && noProductFilters;
 }
 
 function getDefaultKpiResponse(): Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
@@ -159,12 +145,11 @@ function getDefaultKpiResponse(): Omit<KpiMetricsResponse, 'queryTime' | 'cached
     quantite_achetee: 0,
     jours_de_stock: null,
     nb_references_produits: 0,
-    nb_pharmacies: 0,
-    usedMaterializedView: false
+    nb_pharmacies: 0
   };
 }
 
-function formatKpiResponse(row: any, usedMV: boolean): Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
+function formatKpiResponse(row: any): Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'> {
   return {
     ca_ttc: Number(row.ca_ttc) || 0,
     montant_achat_ht: Number(row.montant_achat_ht) || 0,
@@ -176,79 +161,8 @@ function formatKpiResponse(row: any, usedMV: boolean): Omit<KpiMetricsResponse, 
     quantite_achetee: Number(row.quantite_achetee) || 0,
     jours_de_stock: row.jours_de_stock ? Number(row.jours_de_stock) : null,
     nb_references_produits: Number(row.nb_references_produits) || 0,
-    nb_pharmacies: Number(row.nb_pharmacies) || 0,
-    usedMaterializedView: usedMV
+    nb_pharmacies: Number(row.nb_pharmacies) || 0
   };
-}
-
-async function fetchFromMaterializedView(request: KpiRequest): Promise<Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
-  const { dateRange, pharmacyIds } = request;
-  
-  const params: (string | string[])[] = [dateRange.start, dateRange.end];
-  let pharmacyFilter = '';
-  let pharmacyFilterForReferences = '';
-  
-  if (pharmacyIds && pharmacyIds.length > 0) {
-    pharmacyFilter = 'AND pharmacy_id = ANY($3::uuid[])';
-    pharmacyFilterForReferences = 'AND ip.pharmacy_id = ANY($3::uuid[])';
-    params.push(pharmacyIds);
-  }
-  
-  const query = `
-    WITH mv_aggregates AS (
-      SELECT 
-        SUM(ca_ttc_total) as ca_ttc,
-        SUM(montant_achat_ht_total) as montant_achat_ht,
-        SUM(montant_marge_reel) as montant_marge,
-        CASE 
-          WHEN SUM(ca_ttc_total) > 0 
-          THEN (SUM(montant_marge_reel) / SUM(ca_ttc_total)) * 100
-          ELSE 0
-        END as pourcentage_marge,
-        SUM(valeur_stock_ht_total) as valeur_stock_ht,
-        SUM(quantite_stock_total) as quantite_stock,
-        SUM(total_quantity_sold) as quantite_vendue,
-        SUM(total_quantity_bought) as quantite_achetee,
-        CASE 
-          WHEN SUM(total_quantity_sold) > 0 AND SUM(quantite_stock_total) > 0
-          THEN ROUND(SUM(quantite_stock_total) / (SUM(total_quantity_sold) / 365))
-          ELSE NULL
-        END as jours_de_stock,
-        COUNT(DISTINCT pharmacy_id) as nb_pharmacies
-      FROM mv_kpi_monthly
-      WHERE periode >= DATE_TRUNC('month', $1::date)
-        AND periode <= DATE_TRUNC('month', $2::date)
-        ${pharmacyFilter}
-    ),
-    unique_references AS (
-      SELECT COUNT(DISTINCT ip.code_13_ref_id) as nb_references_produits
-      FROM data_internalproduct ip
-      WHERE 1=1 ${pharmacyFilterForReferences}
-    )
-    SELECT 
-      mv.*,
-      ur.nb_references_produits
-    FROM mv_aggregates mv, unique_references ur
-  `;
-  
-  console.log('🚀 [API] Executing MV query:', { 
-    dateRange, 
-    hasPharmacyFilter: !!pharmacyFilter,
-    paramsLength: params.length 
-  });
-  
-  try {
-    const result = await db.query(query, params);
-    
-    if (result.length === 0) {
-      return { ...getDefaultKpiResponse(), usedMaterializedView: true };
-    }
-    
-    return formatKpiResponse(result[0], true);
-  } catch (error) {
-    console.error('❌ [API] MV query failed:', error);
-    throw error;
-  }
 }
 
 async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
@@ -291,14 +205,16 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
         COUNT(DISTINCT ip.code_13_ref_id) as nb_references_produits,
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies,
         SUM(s.quantity) as total_quantity_sold,
-        SUM(s.quantity * ins.price_with_tax) as ca_ttc_total,
+        SUM(s.quantity * s.unit_price_ttc) as ca_ttc_total,
         SUM(s.quantity * (
-          (ins.price_with_tax / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_reel
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
       WHERE s.date >= $1::date AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
         ${productFilter}
         ${pharmacyFilter}
@@ -379,10 +295,10 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
     const result = await db.query(query, params);
 
     if (result.length === 0) {
-      return { ...getDefaultKpiResponse(), usedMaterializedView: false };
+      return getDefaultKpiResponse();
     }
 
-    return formatKpiResponse(result[0], false);
+    return formatKpiResponse(result[0]);
   } catch (error) {
     console.error('❌ [API] Database query failed:', error);
     throw error;
@@ -390,23 +306,6 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
 }
 
 async function calculateKpiMetrics(request: KpiRequest): Promise<Omit<KpiMetricsResponse, 'queryTime' | 'cached' | 'comparison'>> {
-  const { dateRange, productCodes = [], laboratoryCodes = [], categoryCodes = [] } = request;
-
-  const allProductCodes = Array.from(new Set([
-    ...productCodes,
-    ...laboratoryCodes,
-    ...categoryCodes
-  ]));
-
-  const hasProductFilter = allProductCodes.length > 0;
-
-  const canUseMV = detectMVEligibility(dateRange, hasProductFilter);
-  
-  if (canUseMV) {
-    console.log('🚀 [API] Using Materialized View - Fast path');
-    return await fetchFromMaterializedView(request);
-  } else {
-    console.log('🔍 [API] Using Raw Tables - Flexible path');
-    return await fetchFromRawTables(request);
-  }
+  console.log('🔍 [API] Using Raw Tables - Direct path');
+  return await fetchFromRawTables(request);
 }
