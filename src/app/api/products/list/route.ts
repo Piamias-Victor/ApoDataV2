@@ -230,8 +230,8 @@ async function executeAdminQuery(
     product_purchases AS (
       SELECT 
         ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        SUM(po.qte_r) as total_quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
         AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
@@ -247,7 +247,7 @@ async function executeAdminQuery(
       WHERE o.delivery_date >= $1::date 
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
-        AND po.qte > 0
+        AND po.qte_r > 0
         ${productFilter}
         ${finalPharmacyFilter}
       GROUP BY ip.code_13_ref_id
@@ -361,8 +361,8 @@ async function executeUserQuery(
     product_purchases AS (
       SELECT 
         ip.code_13_ref_id,
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
+        SUM(po.qte_r) as total_quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as total_purchase_amount,
         AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
@@ -378,7 +378,7 @@ async function executeUserQuery(
       WHERE o.delivery_date >= $1::date 
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
-        AND po.qte > 0
+        AND po.qte_r > 0
         ${productFilter}
         AND ip.pharmacy_id = ${pharmacyParam}
       GROUP BY ip.code_13_ref_id
