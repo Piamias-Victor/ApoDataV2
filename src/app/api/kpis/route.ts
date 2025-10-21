@@ -206,23 +206,27 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies,
         SUM(s.quantity) as total_quantity_sold,
         SUM(s.quantity * s.unit_price_ttc) as ca_ttc_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_total,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_reel
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${productFilter}
         ${pharmacyFilter}
     ),
     period_purchases AS (
       SELECT 
-        SUM(po.qte) as total_quantity_bought,
-        SUM(po.qte * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_total
+        SUM(po.qte_r) as total_quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as montant_achat_ht_total
       FROM data_productorder po
       INNER JOIN data_order o ON po.order_id = o.id
       INNER JOIN data_internalproduct ip ON po.product_id = ip.id
@@ -237,7 +241,7 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
       WHERE o.delivery_date >= $1::date 
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
-        AND po.qte > 0
+        AND po.qte_r > 0
         ${productFilter}
         ${pharmacyFilter}
     ),
@@ -262,8 +266,8 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
       COALESCE(pp.montant_achat_ht_total, 0) as montant_achat_ht,
       COALESCE(ps.montant_marge_reel, 0) as montant_marge,
       CASE 
-        WHEN COALESCE(ps.ca_ttc_total, 0) > 0 
-        THEN (COALESCE(ps.montant_marge_reel, 0) / COALESCE(ps.ca_ttc_total, 0)) * 100
+        WHEN COALESCE(ps.ca_ht_total, 0) > 0 
+        THEN (COALESCE(ps.montant_marge_reel, 0) / COALESCE(ps.ca_ht_total, 0)) * 100
         ELSE 0
       END as pourcentage_marge,
       COALESCE(cs.valeur_stock_ht_total, 0) as valeur_stock_ht,
