@@ -57,16 +57,19 @@ export async function POST(request: NextRequest) {
             SELECT 
               SUM(s.quantity * s.unit_price_ttc) as ca_total,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_total
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
             JOIN data_internalproduct ip ON ins.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
             WHERE s.date >= $1::date 
               AND s.date <= $2::date
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
           ),
           lab_metrics AS (
@@ -74,14 +77,14 @@ export async function POST(request: NextRequest) {
               dgp.bcb_lab as laboratory_name,
               SUM(s.quantity * s.unit_price_ttc) as ca_selection,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
               SUM(s.quantity) as quantity_sold,
               CASE 
-                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
-                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
-                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)))) * 100
                 ELSE 0
               END as margin_rate_percent,
               0 as is_referent
@@ -94,6 +97,8 @@ export async function POST(request: NextRequest) {
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
             GROUP BY dgp.bcb_lab
@@ -135,16 +140,19 @@ export async function POST(request: NextRequest) {
             SELECT 
               SUM(s.quantity * s.unit_price_ttc) as ca_total,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_total
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
             JOIN data_internalproduct ip ON ins.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
             WHERE s.date >= $1::date 
               AND s.date <= $2::date
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
               AND ip.code_13_ref_id = ANY($3::text[])
           ),
           lab_metrics AS (
@@ -152,14 +160,14 @@ export async function POST(request: NextRequest) {
               dgp.bcb_lab as laboratory_name,
               SUM(s.quantity * s.unit_price_ttc) as ca_selection,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
               SUM(s.quantity) as quantity_sold,
               CASE 
-                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
-                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
-                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)))) * 100
                 ELSE 0
               END as margin_rate_percent,
               MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
@@ -172,6 +180,8 @@ export async function POST(request: NextRequest) {
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND ip.code_13_ref_id = ANY($3::text[])
               AND dgp.bcb_lab IS NOT NULL
             GROUP BY dgp.bcb_lab
@@ -226,16 +236,19 @@ export async function POST(request: NextRequest) {
             SELECT 
               SUM(s.quantity * s.unit_price_ttc) as ca_total,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_total
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
             JOIN data_internalproduct ip ON ins.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
             WHERE s.date >= $1::date 
               AND s.date <= $2::date
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
               AND ip.pharmacy_id = $3::uuid
               AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
           ),
@@ -244,14 +257,14 @@ export async function POST(request: NextRequest) {
               dgp.bcb_lab as laboratory_name,
               SUM(s.quantity * s.unit_price_ttc) as ca_selection,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
               SUM(s.quantity) as quantity_sold,
               CASE 
-                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
-                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
-                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)))) * 100
                 ELSE 0
               END as margin_rate_percent,
               0 as is_referent
@@ -264,6 +277,8 @@ export async function POST(request: NextRequest) {
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND ip.pharmacy_id = $3::uuid
               AND dgp.bcb_lab IS NOT NULL
               AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
@@ -306,16 +321,19 @@ export async function POST(request: NextRequest) {
             SELECT 
               SUM(s.quantity * s.unit_price_ttc) as ca_total,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_total
             FROM data_sales s
             JOIN data_inventorysnapshot ins ON s.product_id = ins.id
             JOIN data_internalproduct ip ON ins.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
             WHERE s.date >= $1::date 
               AND s.date <= $2::date
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
               AND ip.code_13_ref_id = ANY($3::text[])
               AND ip.pharmacy_id = $4::uuid
           ),
@@ -324,14 +342,14 @@ export async function POST(request: NextRequest) {
               dgp.bcb_lab as laboratory_name,
               SUM(s.quantity * s.unit_price_ttc) as ca_selection,
               SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
               )) as marge_selection,
               COUNT(DISTINCT ip.code_13_ref_id) as product_count,
               SUM(s.quantity) as quantity_sold,
               CASE 
-                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0))) > 0 THEN
-                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price)) / 
-                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)))) * 100
+                WHEN SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0))) > 0 THEN
+                  (SUM(s.quantity * ((s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price)) / 
+                   SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)))) * 100
                 ELSE 0
               END as margin_rate_percent,
               MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
@@ -344,6 +362,8 @@ export async function POST(request: NextRequest) {
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
+              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND ip.code_13_ref_id = ANY($3::text[])
               AND ip.pharmacy_id = $4::uuid
               AND dgp.bcb_lab IS NOT NULL

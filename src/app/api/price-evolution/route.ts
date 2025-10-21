@@ -213,20 +213,24 @@ async function executeAdminQuery(
         s.unit_price_ttc as prix_vente_debut,
         ins.weighted_average_price as prix_achat_debut,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_debut,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         AND ip.pharmacy_id = ANY(${pharmacyParam})
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date ASC
@@ -237,20 +241,24 @@ async function executeAdminQuery(
         s.unit_price_ttc as prix_vente_fin,
         ins.weighted_average_price as prix_achat_fin,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_fin,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         AND ip.pharmacy_id = ANY(${pharmacyParam})
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date DESC
@@ -366,20 +374,24 @@ async function executeUserQuery(
         s.unit_price_ttc as prix_vente_debut,
         ins.weighted_average_price as prix_achat_debut,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_debut,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date ASC
@@ -390,20 +402,24 @@ async function executeUserQuery(
         s.unit_price_ttc as prix_vente_fin,
         ins.weighted_average_price as prix_achat_fin,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_fin,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date DESC
@@ -516,20 +532,24 @@ async function executeMarketEvolutionQuery(
         s.unit_price_ttc as prix_vente_debut,
         ins.weighted_average_price as prix_achat_debut,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_debut,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date ASC
     ),
@@ -539,20 +559,24 @@ async function executeMarketEvolutionQuery(
         s.unit_price_ttc as prix_vente_fin,
         ins.weighted_average_price as prix_achat_fin,
         CASE 
-          WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-          THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-               (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+          WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          THEN (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
           ELSE 0 
         END as marge_pct_fin,
         s.date
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date 
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${productFilter}
       ORDER BY ip.code_13_ref_id, s.date DESC
     ),

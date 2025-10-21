@@ -210,7 +210,7 @@ async function executePharmaciesAnalyticsQuery(
         COALESCE(SUM(s.quantity), 0) as quantite_vendue,
         
         COALESCE(SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )), 0) as montant_marge,
         
         COALESCE(SUM(latest_stock.stock * latest_stock.weighted_average_price), 0) as valeur_stock_ht
@@ -218,10 +218,13 @@ async function executePharmaciesAnalyticsQuery(
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
       LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       LEFT JOIN data_sales s ON ins.id = s.product_id 
         AND s.date >= $1::date AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       LEFT JOIN LATERAL (
         SELECT DISTINCT ON (ins2.product_id)
           ins2.stock, ins2.weighted_average_price
@@ -275,11 +278,14 @@ async function executePharmaciesAnalyticsQuery(
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
       LEFT JOIN data_inventorysnapshot ins ON ip.id = ins.product_id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       LEFT JOIN data_sales s ON ins.id = s.product_id 
         AND s.date >= '${comparisonDateRange.start}'::date 
         AND s.date <= '${comparisonDateRange.end}'::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       WHERE 1=1
         ${productFilter}
         ${pharmacyFilterMain}

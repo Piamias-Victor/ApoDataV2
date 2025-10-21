@@ -104,8 +104,7 @@ async function executeAdminQuery(
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
         SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
-        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
-        AVG(ip."TVA") as avg_tva_rate
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -157,17 +156,17 @@ async function executeAdminQuery(
       gp.code_13_ref as code_ean,
       COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
       COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
-      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
-      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
+      COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) as tva_rate,
+      COALESCE(ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0)/100), 0) as avg_sell_price_ht,
       CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
+        WHEN ps.avg_sell_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL) THEN
+          ((ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
+          (ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) * 100
         ELSE 0 
       END as margin_rate_percent,
       CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
+        WHEN ps.avg_sell_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL) THEN
+          (ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
         ELSE 0 
       END as unit_margin_ht,
       COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
@@ -179,6 +178,8 @@ async function executeAdminQuery(
     LEFT JOIN product_purchases pp ON gp.code_13_ref = pp.code_13_ref_id
     LEFT JOIN avg_buy_price abp ON gp.code_13_ref = abp.code_13_ref_id
     WHERE gp.code_13_ref = ANY($3::text[])
+      AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+      AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
     ORDER BY ps.total_quantity_sold DESC NULLS LAST`;
 
   return await db.query(query, params);
@@ -195,8 +196,7 @@ async function executeUserQuery(
         ip.code_13_ref_id,
         SUM(s.quantity) as total_quantity_sold,
         SUM(s.quantity * s.unit_price_ttc) as total_ca_ttc,
-        AVG(s.unit_price_ttc) as avg_sell_price_ttc,
-        AVG(ip."TVA") as avg_tva_rate
+        AVG(s.unit_price_ttc) as avg_sell_price_ttc
       FROM data_sales s
       INNER JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       INNER JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -244,33 +244,36 @@ async function executeUserQuery(
       GROUP BY ip.code_13_ref_id
     )
     SELECT 
-      ip.name as product_name,
-      ip.code_13_ref_id as code_ean,
+      gp.name as product_name,
+      gp.code_13_ref as code_ean,
       COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
       COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
-      COALESCE(ps.avg_tva_rate, 0) as tva_rate,
-      COALESCE(ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate/100), 0) as avg_sell_price_ht,
+      COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) as tva_rate,
+      COALESCE(ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0)/100), 0) as avg_sell_price_ht,
       CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          ((ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) * 100
+        WHEN ps.avg_sell_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL) THEN
+          ((ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) - COALESCE(abp.avg_buy_price_ht, 0)) /
+          (ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) * 100
         ELSE 0 
       END as margin_rate_percent,
       CASE 
-        WHEN ps.avg_sell_price_ttc > 0 AND ps.avg_tva_rate IS NOT NULL THEN
-          (ps.avg_sell_price_ttc / (1 + ps.avg_tva_rate / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
+        WHEN ps.avg_sell_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL) THEN
+          (ps.avg_sell_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100)) - COALESCE(abp.avg_buy_price_ht, 0)
         ELSE 0 
       END as unit_margin_ht,
       COALESCE(ps.total_quantity_sold, 0) as quantity_sold,
       COALESCE(ps.total_ca_ttc, 0) as ca_ttc,
       COALESCE(pp.total_quantity_bought, 0) as quantity_bought,
       COALESCE(pp.total_purchase_amount, 0) as purchase_amount
-    FROM data_internalproduct ip
-    LEFT JOIN product_sales ps ON ip.code_13_ref_id = ps.code_13_ref_id
-    LEFT JOIN product_purchases pp ON ip.code_13_ref_id = pp.code_13_ref_id
-    LEFT JOIN avg_buy_price abp ON ip.code_13_ref_id = abp.code_13_ref_id
+    FROM data_globalproduct gp
+    INNER JOIN data_internalproduct ip ON gp.code_13_ref = ip.code_13_ref_id
+    LEFT JOIN product_sales ps ON gp.code_13_ref = ps.code_13_ref_id
+    LEFT JOIN product_purchases pp ON gp.code_13_ref = pp.code_13_ref_id
+    LEFT JOIN avg_buy_price abp ON gp.code_13_ref = abp.code_13_ref_id
     WHERE ip.pharmacy_id = $4::uuid
-      AND ip.code_13_ref_id = ANY($3::text[])
+      AND gp.code_13_ref = ANY($3::text[])
+      AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+      AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
     ORDER BY ps.total_quantity_sold DESC NULLS LAST`;
 
   return await db.query(query, [

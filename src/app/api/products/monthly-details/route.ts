@@ -237,20 +237,24 @@ async function executeAdminQuery(
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
         AVG(
           CASE 
-            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+            THEN (
+              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_mois
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${productFilter}
         ${finalPharmacyFilter}
       GROUP BY ip.code_13_ref_id, ip.name, DATE_TRUNC('month', s.date)
@@ -404,20 +408,24 @@ async function executeUserQuery(
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
         AVG(
           CASE 
-            WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-            THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                 (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+            THEN (
+              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
             ELSE 0 
           END
         ) as taux_marge_moyen_mois
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date
         AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         AND ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       GROUP BY ip.code_13_ref_id, ip.name, DATE_TRUNC('month', s.date)

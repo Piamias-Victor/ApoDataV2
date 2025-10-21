@@ -266,15 +266,18 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
         SUM(s.quantity) as quantite_vendue_selection,
         SUM(s.quantity * s.unit_price_ttc) as ca_ttc_selection,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_selection
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${productFilterSelection}
         ${pharmacyFilterSelection}
     ),
@@ -282,15 +285,18 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
       SELECT 
         SUM(s.quantity * s.unit_price_ttc) as ca_ttc_global,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as montant_marge_global
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE s.date >= $1::date AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         ${pharmacyFilterGlobal}
     ),
     products_ca_ranking AS (

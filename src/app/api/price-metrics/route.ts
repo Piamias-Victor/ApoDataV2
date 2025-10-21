@@ -163,15 +163,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
           AVG(
             CASE 
-              WHEN s.unit_price_ttc > 0 AND ip."TVA" IS NOT NULL 
-              THEN ((s.unit_price_ttc / (1 + ip."TVA" / 100.0)) - ins.weighted_average_price) / 
-                   (s.unit_price_ttc / (1 + ip."TVA" / 100.0)) * 100
+              WHEN s.unit_price_ttc > 0 AND gp.tva_percentage IS NOT NULL 
+              THEN (
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+              ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
+              WHEN s.unit_price_ttc > 0 AND gp.bcb_tva_rate IS NOT NULL
+              THEN (
+                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+              ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
               ELSE 0 
             END
           ) as taux_marge_moyen_pourcentage
         FROM data_sales s
         JOIN data_inventorysnapshot ins ON s.product_id = ins.id
         JOIN data_internalproduct ip ON ins.product_id = ip.id
+        LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
         WHERE 1=1
           AND ($3::text[] IS NULL OR ip.code_13_ref_id = ANY($3::text[]))
           AND ($4::uuid IS NULL OR ip.pharmacy_id = $4::uuid)
@@ -180,6 +186,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           AND s.unit_price_ttc IS NOT NULL
           AND s.unit_price_ttc > 0
           AND ins.weighted_average_price > 0
+          AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
+          AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
         GROUP BY DATE_TRUNC('month', s.date)
       )
       SELECT 

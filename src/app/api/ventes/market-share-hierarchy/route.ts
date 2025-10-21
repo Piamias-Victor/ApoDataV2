@@ -177,7 +177,7 @@ async function calculateMarketShareHierarchyBCB(
         ${hierarchyField} as segment_name,
         SUM(s.quantity * s.unit_price_ttc) as ca_selection,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as marge_selection
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -187,6 +187,8 @@ async function calculateMarketShareHierarchyBCB(
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
         AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
         ${productFilterSelection}
         ${pharmacyFilterAll}
@@ -197,7 +199,7 @@ async function calculateMarketShareHierarchyBCB(
         ${hierarchyField} as segment_name,
         SUM(s.quantity * s.unit_price_ttc) as ca_total_segment,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as marge_total_segment
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -207,6 +209,8 @@ async function calculateMarketShareHierarchyBCB(
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
         AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
         ${pharmacyFilterAll}
       GROUP BY ${hierarchyField}
@@ -217,7 +221,7 @@ async function calculateMarketShareHierarchyBCB(
         dgp.bcb_lab,
         SUM(s.quantity * s.unit_price_ttc) as ca_brand_lab,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as marge_brand_lab,
         ROW_NUMBER() OVER (
           PARTITION BY ${hierarchyField} 
@@ -231,6 +235,8 @@ async function calculateMarketShareHierarchyBCB(
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
         AND ${hierarchyField} IN (SELECT segment_name FROM segments_with_selection)
         AND dgp.bcb_lab IS NOT NULL
         ${pharmacyFilterAll}
@@ -296,7 +302,7 @@ async function calculateMarketShareHierarchyBCB(
         ${hierarchyField} as segment_name,
         SUM(s.quantity * s.unit_price_ttc) as ca_total_segment,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as marge_total_segment
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
@@ -306,6 +312,8 @@ async function calculateMarketShareHierarchyBCB(
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
         AND ${hierarchyField} IS NOT NULL
         ${pharmacyFilterAll}
       GROUP BY ${hierarchyField}
@@ -317,7 +325,7 @@ async function calculateMarketShareHierarchyBCB(
         dgp.bcb_lab,
         SUM(s.quantity * s.unit_price_ttc) as ca_brand_lab,
         SUM(s.quantity * (
-          (s.unit_price_ttc / (1 + COALESCE(ip."TVA", 0) / 100.0)) - ins.weighted_average_price
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )) as marge_brand_lab,
         ROW_NUMBER() OVER (
           PARTITION BY ${hierarchyField} 
@@ -331,6 +339,8 @@ async function calculateMarketShareHierarchyBCB(
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
         AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
         AND ${hierarchyField} IS NOT NULL
         AND dgp.bcb_lab IS NOT NULL
         ${pharmacyFilterAll}
