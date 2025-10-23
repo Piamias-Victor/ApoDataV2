@@ -235,15 +235,10 @@ async function executeAdminQuery(
         SUM(s.quantity) as quantite_vendue_mois,
         AVG(s.unit_price_ttc) as prix_vente_moyen_mois,
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_mois
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_mois,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_mois
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -296,7 +291,11 @@ async function executeAdminQuery(
         COALESCE(mst.quantite_stock_fin_mois, 0) as quantite_stock,
         ROUND(COALESCE(ms.prix_achat_moyen_mois, 0), 2) as prix_achat_moyen,
         ROUND(COALESCE(ms.prix_vente_moyen_mois, 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(ms.taux_marge_moyen_mois, 0), 2) as taux_marge_moyen,
+        CASE 
+          WHEN ms.ca_ht_mois > 0 THEN
+            ROUND((ms.montant_marge_mois / ms.ca_ht_mois) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         1 as sort_order
         
       FROM product_info pi
@@ -327,7 +326,11 @@ async function executeAdminQuery(
         
         ROUND(COALESCE(AVG(ms.prix_achat_moyen_mois), 0), 2) as prix_achat_moyen,
         ROUND(COALESCE(AVG(ms.prix_vente_moyen_mois), 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(AVG(ms.taux_marge_moyen_mois), 0), 2) as taux_marge_moyen,
+        CASE 
+          WHEN SUM(ms.ca_ht_mois) > 0 THEN
+            ROUND((SUM(ms.montant_marge_mois) / SUM(ms.ca_ht_mois)) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         0 as sort_order
         
       FROM product_info pi
@@ -406,15 +409,10 @@ async function executeUserQuery(
         SUM(s.quantity) as quantite_vendue_mois,
         AVG(s.unit_price_ttc) as prix_vente_moyen_mois,
         AVG(ins.weighted_average_price) as prix_achat_moyen_mois,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_mois
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_mois,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_mois
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -466,7 +464,11 @@ async function executeUserQuery(
         COALESCE(mst.quantite_stock_fin_mois, 0) as quantite_stock,
         ROUND(COALESCE(ms.prix_achat_moyen_mois, 0), 2) as prix_achat_moyen,
         ROUND(COALESCE(ms.prix_vente_moyen_mois, 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(ms.taux_marge_moyen_mois, 0), 2) as taux_marge_moyen,
+        CASE 
+          WHEN ms.ca_ht_mois > 0 THEN
+            ROUND((ms.montant_marge_mois / ms.ca_ht_mois) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         1 as sort_order
         
       FROM product_info pi
@@ -497,7 +499,11 @@ async function executeUserQuery(
         
         ROUND(COALESCE(AVG(ms.prix_achat_moyen_mois), 0), 2) as prix_achat_moyen,
         ROUND(COALESCE(AVG(ms.prix_vente_moyen_mois), 0), 2) as prix_vente_moyen,
-        ROUND(COALESCE(AVG(ms.taux_marge_moyen_mois), 0), 2) as taux_marge_moyen,
+        CASE 
+          WHEN SUM(ms.ca_ht_mois) > 0 THEN
+            ROUND((SUM(ms.montant_marge_mois) / SUM(ms.ca_ht_mois)) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         0 as sort_order
         
       FROM product_info pi

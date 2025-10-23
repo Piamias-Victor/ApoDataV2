@@ -228,23 +228,11 @@ async function executeAdminQuery(
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
         AVG(ins.weighted_average_price) as prix_achat_moyen_periode,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_periode,
         SUM(s.quantity * s.unit_price_ttc) as montant_ventes_ttc,
         SUM(s.quantity * (
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ELSE 0 
-          END
-        )) as montant_marge_total
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as montant_ca_ht
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -289,7 +277,11 @@ async function executeAdminQuery(
         ps.quantite_vendue_periode as quantite_vendue,
         ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
         ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
-        ROUND(ps.taux_marge_moyen_periode, 2) as taux_marge_moyen,
+        CASE 
+          WHEN ps.montant_ca_ht > 0 THEN
+            ROUND((ps.montant_marge_total / ps.montant_ca_ht) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
@@ -325,7 +317,11 @@ async function executeAdminQuery(
         SUM(ps.quantite_vendue_periode) as quantite_vendue,
         ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
         ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
-        ROUND(AVG(ps.taux_marge_moyen_periode), 2) as taux_marge_moyen,
+        CASE 
+          WHEN SUM(ps.montant_ca_ht) > 0 THEN
+            ROUND((SUM(ps.montant_marge_total) / SUM(ps.montant_ca_ht)) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
@@ -416,23 +412,11 @@ async function executeUserQuery(
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
         AVG(ins.weighted_average_price) as prix_achat_moyen_periode,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_periode,
         SUM(s.quantity * s.unit_price_ttc) as montant_ventes_ttc,
         SUM(s.quantity * (
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ELSE 0 
-          END
-        )) as montant_marge_total
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as montant_ca_ht
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -476,7 +460,11 @@ async function executeUserQuery(
         ps.quantite_vendue_periode as quantite_vendue,
         ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
         ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
-        ROUND(ps.taux_marge_moyen_periode, 2) as taux_marge_moyen,
+        CASE 
+          WHEN ps.montant_ca_ht > 0 THEN
+            ROUND((ps.montant_marge_total / ps.montant_ca_ht) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 
@@ -512,7 +500,11 @@ async function executeUserQuery(
         SUM(ps.quantite_vendue_periode) as quantite_vendue,
         ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
         ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
-        ROUND(AVG(ps.taux_marge_moyen_periode), 2) as taux_marge_moyen,
+        CASE 
+          WHEN SUM(ps.montant_ca_ht) > 0 THEN
+            ROUND((SUM(ps.montant_marge_total) / SUM(ps.montant_ca_ht)) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen,
         
         CASE 
           WHEN st.total_quantite_selection > 0 

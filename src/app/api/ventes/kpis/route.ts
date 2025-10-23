@@ -199,8 +199,8 @@ async function fetchFromMaterializedView(request: SalesKpiRequest): Promise<Omit
       0 as nb_references_80pct_ca,
       SUM(montant_marge) as montant_marge,
       CASE 
-        WHEN SUM(ca_ttc) > 0 
-        THEN (SUM(montant_marge) / SUM(ca_ttc)) * 100
+        WHEN SUM(ca_ht) > 0 
+        THEN (SUM(montant_marge) / SUM(ca_ht)) * 100
         ELSE 0
       END as taux_marge_pct
     FROM mv_sales_kpi_monthly
@@ -267,7 +267,8 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
         SUM(s.quantity * s.unit_price_ttc) as ca_ttc_selection,
         SUM(s.quantity * (
           (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-        )) as montant_marge_selection
+        )) as montant_marge_selection,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_selection
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -346,8 +347,8 @@ async function fetchFromRawTables(request: SalesKpiRequest): Promise<Omit<SalesK
       COALESCE(p80.nb_references_80pct_ca, 0) as nb_references_80pct_ca,
       COALESCE(sm.montant_marge_selection, 0) as montant_marge,
       CASE 
-        WHEN COALESCE(sm.ca_ttc_selection, 0) > 0 
-        THEN (COALESCE(sm.montant_marge_selection, 0) / COALESCE(sm.ca_ttc_selection, 0)) * 100
+        WHEN COALESCE(sm.ca_ht_selection, 0) > 0 
+        THEN (COALESCE(sm.montant_marge_selection, 0) / COALESCE(sm.ca_ht_selection, 0)) * 100
         ELSE 0
       END as taux_marge_pct
     FROM selection_metrics sm

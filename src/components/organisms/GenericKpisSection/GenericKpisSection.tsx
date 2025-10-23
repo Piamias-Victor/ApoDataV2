@@ -410,22 +410,6 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
         
         {!isLoading && groupedKpis && (
           <>
-            <DualKpiCard
-              mainKpi={{
-                title: groupedKpis.caSales.main.title,
-                value: groupedKpis.caSales.main.value,
-                unit: groupedKpis.caSales.main.unit,
-                comparison: groupedKpis.caSales.main.comparison,
-                icon: <ShoppingCart className="w-4 h-4 text-blue-600" />
-              }}
-              secondaryKpi={{
-                title: groupedKpis.caSales.secondary.title,
-                value: groupedKpis.caSales.secondary.value,
-                unit: groupedKpis.caSales.secondary.unit,
-                comparison: groupedKpis.caSales.secondary.comparison,
-                icon: <Activity className="w-4 h-4 text-blue-500" />
-              }}
-            />
             
             <DualKpiCard
               mainKpi={{
@@ -441,6 +425,23 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
                 unit: groupedKpis.purchaseQuantity.secondary.unit,
                 comparison: groupedKpis.purchaseQuantity.secondary.comparison,
                 icon: <ShoppingBag className="w-4 h-4 text-green-500" />
+              }}
+            />
+
+            <DualKpiCard
+              mainKpi={{
+                title: groupedKpis.caSales.main.title,
+                value: groupedKpis.caSales.main.value,
+                unit: groupedKpis.caSales.main.unit,
+                comparison: groupedKpis.caSales.main.comparison,
+                icon: <ShoppingCart className="w-4 h-4 text-blue-600" />
+              }}
+              secondaryKpi={{
+                title: groupedKpis.caSales.secondary.title,
+                value: groupedKpis.caSales.secondary.value,
+                unit: groupedKpis.caSales.secondary.unit,
+                comparison: groupedKpis.caSales.secondary.comparison,
+                icon: <Activity className="w-4 h-4 text-blue-500" />
               }}
             />
             

@@ -213,6 +213,8 @@ async function executePharmaciesAnalyticsQuery(
           (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
         )), 0) as montant_marge,
         
+        COALESCE(SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))), 0) as ca_ht,
+        
         COALESCE(SUM(latest_stock.stock * latest_stock.weighted_average_price), 0) as valeur_stock_ht
         
       FROM data_pharmacy dp
@@ -223,6 +225,7 @@ async function executePharmaciesAnalyticsQuery(
         AND s.date >= $1::date AND s.date <= $2::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
+        AND ins.weighted_average_price > 0
         AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
         AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       LEFT JOIN LATERAL (
@@ -284,6 +287,7 @@ async function executePharmaciesAnalyticsQuery(
         AND s.date <= '${comparisonDateRange.end}'::date
         AND s.unit_price_ttc IS NOT NULL
         AND s.unit_price_ttc > 0
+        AND ins.weighted_average_price > 0
         AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
         AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       WHERE 1=1
@@ -319,8 +323,8 @@ async function executePharmaciesAnalyticsQuery(
       pm.ca_ttc,
       pm.montant_marge,
       CASE 
-        WHEN pm.ca_ttc > 0 
-        THEN ROUND((pm.montant_marge / pm.ca_ttc * 100)::numeric, 2)
+        WHEN pm.ca_ht > 0 
+        THEN ROUND((pm.montant_marge / pm.ca_ht * 100)::numeric, 2)
         ELSE 0 
       END as pourcentage_marge,
       pm.valeur_stock_ht,

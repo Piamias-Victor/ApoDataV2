@@ -60,22 +60,24 @@ export function useLaboratoryMarketShareWithFilters(
     setError(null);
 
     try {
-      const response = await fetch('/api/laboratory/market-share', {
+      const allProductCodes = [...products, ...laboratories, ...categories];
+      
+      const requestBody: any = {
+        dateRange: analysisDateRange,
+        productCodes: allProductCodes,
+        page,
+        pageSize
+      };
+
+      // Ajouter pharmacyIds seulement si des pharmacies sont sélectionnées
+      if (pharmacy && pharmacy.length > 0) {
+        requestBody.pharmacyIds = pharmacy;
+      }
+
+      const response = await fetch('/api/generic-groups/laboratory-market-share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filters: {
-            productCodes: products,
-            laboratoryCodes: laboratories,
-            categoryCodes: categories,
-            pharmacyIds: pharmacy,
-            dateRange: analysisDateRange
-          },
-          pagination: {
-            page,
-            pageSize
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {

@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'crypto';
 
+
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -222,15 +224,10 @@ async function executeAdminQuery(
         AVG(s.unit_price_ttc) as prix_vente_moyen_selection,
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_selection
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_total
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -265,7 +262,11 @@ async function executeAdminQuery(
       ROUND(COALESCE(ss.prix_vente_moyen_selection, 0), 2) as prix_vente_moyen_selection,
       ROUND(COALESCE(ss.prix_achat_moyen_ht, 0), 2) as prix_achat_moyen_ht,
       COALESCE(ss.quantite_vendue_selection, 0) as quantite_vendue_selection,
-      ROUND(COALESCE(ss.taux_marge_moyen_selection, 0), 2) as taux_marge_moyen_selection,
+      CASE 
+        WHEN ss.ca_ht_total > 0 THEN
+          ROUND((ss.montant_marge_total / ss.ca_ht_total) * 100, 2)
+        ELSE 0
+      END as taux_marge_moyen_selection,
       CASE 
         WHEN gps.prix_vente_moyen_global > 0 
         THEN ROUND(
@@ -329,15 +330,10 @@ async function executeUserQuery(
         AVG(s.unit_price_ttc) as prix_vente_moyen_selection,
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_selection
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_total
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -371,7 +367,11 @@ async function executeUserQuery(
       ROUND(COALESCE(mps.prix_vente_moyen_selection, 0), 2) as prix_vente_moyen_selection,
       ROUND(COALESCE(mps.prix_achat_moyen_ht, 0), 2) as prix_achat_moyen_ht,
       COALESCE(mps.quantite_vendue_selection, 0) as quantite_vendue_selection,
-      ROUND(COALESCE(mps.taux_marge_moyen_selection, 0), 2) as taux_marge_moyen_selection,
+      CASE 
+        WHEN mps.ca_ht_total > 0 THEN
+          ROUND((mps.montant_marge_total / mps.ca_ht_total) * 100, 2)
+        ELSE 0
+      END as taux_marge_moyen_selection,
       CASE 
         WHEN gps.prix_vente_moyen_global > 0 
         THEN ROUND(
@@ -417,15 +417,10 @@ async function executeMarketOnlyQuery(
         AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
         SUM(s.quantity) as quantite_vendue_selection,
         COUNT(DISTINCT ip.pharmacy_id) as nb_pharmacies_vendant,
-        AVG(
-          CASE 
-            WHEN s.unit_price_ttc > 0 AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            THEN (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-            ELSE 0 
-          END
-        ) as taux_marge_moyen_selection
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as montant_marge_total,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_total
       FROM data_sales s
       JOIN data_inventorysnapshot ins ON s.product_id = ins.id
       JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -458,7 +453,11 @@ async function executeMarketOnlyQuery(
       ROUND(COALESCE(gps.prix_vente_moyen_global, 0), 2) as prix_vente_moyen_selection,
       ROUND(COALESCE(gps.prix_achat_moyen_ht, 0), 2) as prix_achat_moyen_ht,
       COALESCE(gps.quantite_vendue_selection, 0) as quantite_vendue_selection,
-      ROUND(COALESCE(gps.taux_marge_moyen_selection, 0), 2) as taux_marge_moyen_selection,
+      CASE 
+        WHEN gps.ca_ht_total > 0 THEN
+          ROUND((gps.montant_marge_total / gps.ca_ht_total) * 100, 2)
+        ELSE 0
+      END as taux_marge_moyen_selection,
       0.00 as ecart_prix_vs_marche_pct
     FROM product_info pi
     LEFT JOIN global_price_stats gps ON pi.code_13_ref = gps.code_13_ref_id

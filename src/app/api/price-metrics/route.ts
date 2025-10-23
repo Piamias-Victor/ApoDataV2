@@ -161,19 +161,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           SUM(s.quantity) as quantite_vendue_mois,
           AVG(s.unit_price_ttc) as prix_vente_moyen_ttc,
           AVG(ins.weighted_average_price) as prix_achat_moyen_ht,
-          AVG(
-            CASE 
-              WHEN s.unit_price_ttc > 0 AND gp.tva_percentage IS NOT NULL 
-              THEN (
-                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-              WHEN s.unit_price_ttc > 0 AND gp.bcb_tva_rate IS NOT NULL
-              THEN (
-                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              ) / (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) * 100
-              ELSE 0 
-            END
-          ) as taux_marge_moyen_pourcentage
+          SUM(s.quantity * (
+            (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+          )) as montant_marge_total,
+          SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0))) as ca_ht_total
         FROM data_sales s
         JOIN data_inventorysnapshot ins ON s.product_id = ins.id
         JOIN data_internalproduct ip ON ins.product_id = ip.id
@@ -195,7 +186,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         COALESCE(ms.quantite_vendue_mois, 0) as quantite_vendue_mois,
         ROUND(COALESCE(ms.prix_vente_moyen_ttc, 0), 2) as prix_vente_ttc_moyen,
         ROUND(COALESCE(ms.prix_achat_moyen_ht, 0), 2) as prix_achat_ht_moyen,
-        ROUND(COALESCE(ms.taux_marge_moyen_pourcentage, 0), 2) as taux_marge_moyen_pourcentage
+        CASE 
+          WHEN ms.ca_ht_total > 0 THEN
+            ROUND((ms.montant_marge_total / ms.ca_ht_total) * 100, 2)
+          ELSE 0
+        END as taux_marge_moyen_pourcentage
       FROM monthly_calendar mc
       LEFT JOIN monthly_sales ms ON mc.mois = ms.mois
       ORDER BY mc.mois ASC;

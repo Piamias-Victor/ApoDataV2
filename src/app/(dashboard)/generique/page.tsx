@@ -1,4 +1,4 @@
-// src/app/(dashboard)/generiques/page.tsx
+// src/app/(dashboard)/generique/page.tsx
 'use client';
 
 import React, { useMemo } from 'react';
@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Info, Pill, Building2, Package } from 'lucide-react';
 import { GenericGroupSelector } from '@/components/organisms/GenericGroupSelector/GenericGroupSelector';
 import { GenericKpisSection } from '@/components/organisms/GenericKpisSection/GenericKpisSection';
-import { LaboratoryMarketShareSection } from '@/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShareSection';
+import { LaboratoryMarketShareGenericSection } from '@/components/organisms/LaboratoryMarketShareGenericSection/LaboratoryMarketShareGenericSection';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -96,38 +96,48 @@ export default function GeneriquesPage() {
   const marketShareConfig = useMemo(() => ({
     title: hasSelection 
       ? `Parts de Marché ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}` 
-      : 'Parts de Marché Génériques Globales',
+      : 'Parts de Marché Génériques',
     description: hasSelection
       ? selectedGroups.length > 1
-        ? `Analyse agrégée des ${selectedGroups.length} groupes génériques sélectionnés`
-        : 'Répartition du CA et des marges entre laboratoires pour ce groupe générique'
-      : 'Vue d\'ensemble des parts de marché sur l\'ensemble des génériques',
+        ? `Analyse agrégée des ${selectedGroups.length} groupes génériques sélectionnés avec ${productCodes.length} produits`
+        : 'Analyse achats/ventes par laboratoire pour ce groupe générique'
+      : 'Sélectionnez un ou plusieurs groupes pour voir les parts de marché',
     tooltip: hasSelection
       ? selectedGroups.length > 1
         ? `Analyse multi-groupes :
 
 - Agrégation de ${selectedGroups.length} groupes génériques
 - ${productCodes.length} produits au total
-- Parts de marché calculées sur l'ensemble de la sélection
-- Tri par CA décroissant
+- Colonnes achats : volume, CA, part de marché
+- Colonnes ventes : volume, CA, part de marché
+- Taux de marge moyen par laboratoire
+- Tri par CA ventes décroissant
 
 Ajoutez ou retirez des groupes pour affiner l'analyse.`
         : `Analyse détaillée d'un groupe :
       
-- Part CA : % du chiffre d'affaires réalisé par chaque laboratoire
-- Part Marge : % de la marge totale captée par chaque laboratoire  
-- Badge Référent : Identifie le laboratoire du médicament référent
-- Pagination : Navigation entre les laboratoires (10 par page)
+- Volume achats : Quantités commandées/reçues
+- CA Achats : Montant total des achats HT
+- PM Achat : Part du laboratoire sur total achats du groupe
+- Taux marge : Rentabilité moyenne (%)
+- Volume ventes : Quantités vendues aux patients
+- CA Ventes : Chiffre d'affaires TTC réalisé
+- PM Vente : Part du laboratoire sur total ventes du groupe
+- Badge Référent : Identifie le médicament de référence
 
-Les laboratoires sont triés par CA décroissant.`
-      : `Vue globale des génériques :
+Pagination : 10 laboratoires par page, triés par CA ventes.`
+      : `Sélectionnez des groupes :
 
-- Analyse sur l'ensemble des produits génériques de votre pharmacie
-- Parts de marché calculées sur tous les groupes génériques confondus
-- Filtres de dates actifs
-- Permet d'identifier les laboratoires leaders sur les génériques
+- Utilisez la recherche ci-dessus pour trouver des groupes génériques
+- Cliquez sur un groupe pour l'ajouter à la sélection
+- Multi-sélection disponible pour analyses comparatives
+- Les parts de marché se calculeront automatiquement
 
-Sélectionnez un ou plusieurs groupes pour une analyse détaillée.`
+Les données incluront :
+→ Volumes et CA d'achats par laboratoire
+→ Volumes et CA de ventes par laboratoire
+→ Parts de marché achats et ventes
+→ Taux de marge moyens`
   }), [hasSelection, selectedGroups.length, productCodes.length]);
 
   return (
@@ -183,7 +193,7 @@ Sélectionnez un ou plusieurs groupes pour une analyse détaillée.`
           tooltipContent={marketShareConfig.tooltip}
           icon={<Building2 className="w-5 h-5 text-purple-600" />}
         >
-          <LaboratoryMarketShareSection
+          <LaboratoryMarketShareGenericSection
             productCodes={productCodes}
             dateRange={analysisDateRange}
           />
