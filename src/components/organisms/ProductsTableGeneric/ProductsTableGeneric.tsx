@@ -21,7 +21,9 @@ type SortableColumn =
   | 'laboratory_name'
   | 'product_name'
   | 'code_ean'
+  | 'prix_brut_grossiste'
   | 'avg_buy_price_ht'
+  | 'remise_percent'
   | 'quantity_bought'
   | 'ca_achats'
   | 'quantity_sold'
@@ -79,7 +81,9 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
       'Laboratoire': product.laboratory_name,
       'Produit': product.product_name,
       'Code EAN': product.code_ean,
+      'Prix Brut Grossiste (€)': product.prix_brut_grossiste !== null ? Number(product.prix_brut_grossiste).toFixed(2) : 'N/A',
       'Prix Achat (€)': Number(product.avg_buy_price_ht).toFixed(2),
+      'Remise (%)': Number(product.remise_percent).toFixed(2),
       'Volume Achats': Number(product.quantity_bought),
       'CA Acheté (€)': Number(product.ca_achats).toFixed(2),
       'Volume Ventes': Number(product.quantity_sold),
@@ -111,6 +115,12 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     return 'text-red-700 bg-red-50';
   };
 
+  const getRemiseColorClass = (remise: number) => {
+    if (remise >= 15) return 'text-green-700 bg-green-50';
+    if (remise >= 5) return 'text-blue-700 bg-blue-50';
+    return 'text-gray-700 bg-gray-50';
+  };
+
   const SortIcon: React.FC<{ column: SortableColumn }> = ({ column }) => {
     if (sortConfig.column !== column) {
       return <ChevronUp className="w-4 h-4 text-gray-400" />;
@@ -131,7 +141,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
@@ -161,7 +170,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
           )}
         </div>
         
-        {/* Barre de recherche */}
         <div className="flex items-center space-x-2">
           <div className="relative">
             <input
@@ -185,7 +193,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
         </div>
       </div>
 
-      {/* Tableau */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -194,16 +201,16 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               <tr>
                 <th 
                   onClick={() => handleSort('laboratory_name')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
                 >
                   <div className="flex items-center space-x-1">
-                    <span>Laboratoire</span>
+                    <span>Labo</span>
                     <SortIcon column="laboratory_name" />
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('product_name')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-40"
                 >
                   <div className="flex items-center space-x-1">
                     <span>Produit</span>
@@ -212,64 +219,82 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 </th>
                 <th 
                   onClick={() => handleSort('code_ean')}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-28"
                 >
                   <div className="flex items-center space-x-1">
-                    <span>Code EAN</span>
+                    <span>EAN</span>
                     <SortIcon column="code_ean" />
                   </div>
                 </th>
                 <th 
-                  onClick={() => handleSort('avg_buy_price_ht')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('prix_brut_grossiste')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center justify-end space-x-1">
-                    <span>Prix Achat</span>
+                    <span>P.Brut</span>
+                    <SortIcon column="prix_brut_grossiste" />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('avg_buy_price_ht')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>P.Achat</span>
                     <SortIcon column="avg_buy_price_ht" />
                   </div>
                 </th>
                 <th 
+                  onClick={() => handleSort('remise_percent')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>%R</span>
+                    <SortIcon column="remise_percent" />
+                  </div>
+                </th>
+                <th 
                   onClick={() => handleSort('quantity_bought')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center justify-end space-x-1">
-                    <span>Vol. Achats</span>
+                    <span>Vol.A</span>
                     <SortIcon column="quantity_bought" />
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('ca_achats')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center justify-end space-x-1">
-                    <span>CA Acheté</span>
+                    <span>CA.A</span>
                     <SortIcon column="ca_achats" />
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('quantity_sold')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center justify-end space-x-1">
-                    <span>Vol. Ventes</span>
+                    <span>Vol.V</span>
                     <SortIcon column="quantity_sold" />
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('ca_ventes')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center justify-end space-x-1">
-                    <span>CA Ventes</span>
+                    <span>CA.V</span>
                     <SortIcon column="ca_ventes" />
                   </div>
                 </th>
                 <th 
                   onClick={() => handleSort('margin_rate_percent')}
-                  className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
-                  <div className="flex items-center justify-end space-x-1">
-                    <span>% Marge</span>
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>%M</span>
                     <SortIcon column="margin_rate_percent" />
                   </div>
                 </th>
@@ -279,7 +304,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des produits...</span>
@@ -288,7 +313,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-12 text-center text-gray-500">
                     Aucun produit trouvé
                   </td>
                 </tr>
@@ -300,34 +325,47 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                       index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
                     }`}
                   >
-                    <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                      {product.laboratory_name}
+                    <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
+                      <div className="max-w-[120px] truncate" title={product.laboratory_name}>
+                        {product.laboratory_name}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      <div className="max-w-[180px] truncate" title={product.product_name}>
+                    <td className="px-2 py-2 text-[11px] text-gray-900">
+                      <div className="max-w-[250px] truncate" title={product.product_name}>
                         {product.product_name}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 font-mono">
+                    <td className="px-2 py-2 text-[10px] text-gray-600 font-mono">
                       {product.code_ean}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                      {product.prix_brut_grossiste !== null 
+                        ? `${product.prix_brut_grossiste.toFixed(2)} €`
+                        : <span className="text-gray-400">N/A</span>
+                      }
+                    </td>
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {product.avg_buy_price_ht.toFixed(2)} €
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                    <td className="px-2 py-2 text-center">
+                      <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getRemiseColorClass(product.remise_percent)}`}>
+                        {product.remise_percent.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatNumber(product.quantity_bought)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatCurrency(product.ca_achats)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatNumber(product.quantity_sold)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatCurrency(product.ca_ventes)}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-md ${getMarginColorClass(product.margin_rate_percent)}`}>
+                    <td className="px-2 py-2 text-center">
+                      <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getMarginColorClass(product.margin_rate_percent)}`}>
                         {product.margin_rate_percent.toFixed(1)}%
                       </span>
                     </td>
@@ -340,7 +378,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
         </div>
       </Card>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">

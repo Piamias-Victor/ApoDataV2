@@ -5,7 +5,9 @@ export interface GenericProductMetrics {
   readonly laboratory_name: string;
   readonly product_name: string;
   readonly code_ean: string;
+  readonly prix_brut_grossiste: number | null;
   readonly avg_buy_price_ht: number;
+  readonly remise_percent: number;
   readonly quantity_bought: number;
   readonly ca_achats: number;
   readonly quantity_sold: number;

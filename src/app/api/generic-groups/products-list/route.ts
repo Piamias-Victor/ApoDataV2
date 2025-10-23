@@ -11,7 +11,9 @@ interface GenericProductMetrics {
   readonly laboratory_name: string;
   readonly product_name: string;
   readonly code_ean: string;
+  readonly prix_brut_grossiste: number | null;
   readonly avg_buy_price_ht: number;
+  readonly remise_percent: number;
   readonly quantity_bought: number;
   readonly ca_achats: number;
   readonly quantity_sold: number;
@@ -47,7 +49,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const offset = (page - 1) * pageSize;
     const isAdmin = session.user.role === 'admin';
 
-    // Construction filtres search
     const searchFilter = searchQuery 
       ? `AND (
           LOWER(dgp.name) LIKE LOWER($${isAdmin ? 5 : 6}) 
@@ -56,12 +57,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         )`
       : '';
 
-    // Mapping colonnes tri
     const sortColumnMap: Record<string, string> = {
       'laboratory_name': 'laboratory_name',
       'product_name': 'product_name',
       'code_ean': 'code_ean',
+      'prix_brut_grossiste': 'prix_brut_grossiste',
       'avg_buy_price_ht': 'avg_buy_price_ht',
+      'remise_percent': 'remise_percent',
       'quantity_bought': 'quantity_bought',
       'ca_achats': 'ca_achats',
       'quantity_sold': 'quantity_sold',
@@ -76,7 +78,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let params: any[];
 
     if (isAdmin) {
-      // Mode ADMIN : multi-pharmacies
       query = `
         WITH product_sales AS (
           SELECT 
@@ -134,7 +135,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
             ps.name as product_name,
             COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
+            pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
             COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
+            CASE 
+              WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
+                AND pbcb.prix_achat_ht_grossiste > 0 
+                AND pp.avg_buy_price_ht IS NOT NULL
+              THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+              ELSE 0
+            END as remise_percent,
             COALESCE(pp.quantity_bought, 0) as quantity_bought,
             COALESCE(pp.ca_achats, 0) as ca_achats,
             COALESCE(ps.quantity_sold, 0) as quantity_sold,
@@ -146,6 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             END as margin_rate_percent
           FROM product_sales ps
           FULL OUTER JOIN product_purchases pp ON ps.code_13_ref = pp.code_13_ref
+          LEFT JOIN data_globalproduct_prices_bcb pbcb ON COALESCE(ps.code_13_ref, pp.code_13_ref) = pbcb.code_13_ref
           WHERE COALESCE(ps.bcb_lab, pp.bcb_lab) IS NOT NULL
             ${searchFilter}
         ),
@@ -156,7 +166,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pm.laboratory_name,
           pm.product_name,
           pm.code_ean,
+          pm.prix_brut_grossiste,
           pm.avg_buy_price_ht,
+          pm.remise_percent,
           pm.quantity_bought,
           pm.ca_achats,
           pm.quantity_sold,
@@ -165,7 +177,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           tc.total
         FROM product_metrics pm
         CROSS JOIN total_count tc
-        ORDER BY pm.${validSortColumn} ${validSortDirection}
+        ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
         LIMIT $4 OFFSET $5
       `;
 
@@ -174,7 +186,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : [dateRange.start, dateRange.end, productCodes, pageSize, offset];
 
     } else {
-      // Mode USER : single pharmacy
       query = `
         WITH product_sales AS (
           SELECT 
@@ -234,7 +245,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
             ps.name as product_name,
             COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
+            pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
             COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
+            CASE 
+              WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
+                AND pbcb.prix_achat_ht_grossiste > 0 
+                AND pp.avg_buy_price_ht IS NOT NULL
+              THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+              ELSE 0
+            END as remise_percent,
             COALESCE(pp.quantity_bought, 0) as quantity_bought,
             COALESCE(pp.ca_achats, 0) as ca_achats,
             COALESCE(ps.quantity_sold, 0) as quantity_sold,
@@ -246,6 +265,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             END as margin_rate_percent
           FROM product_sales ps
           FULL OUTER JOIN product_purchases pp ON ps.code_13_ref = pp.code_13_ref
+          LEFT JOIN data_globalproduct_prices_bcb pbcb ON COALESCE(ps.code_13_ref, pp.code_13_ref) = pbcb.code_13_ref
           WHERE COALESCE(ps.bcb_lab, pp.bcb_lab) IS NOT NULL
             ${searchFilter}
         ),
@@ -256,7 +276,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pm.laboratory_name,
           pm.product_name,
           pm.code_ean,
+          pm.prix_brut_grossiste,
           pm.avg_buy_price_ht,
+          pm.remise_percent,
           pm.quantity_bought,
           pm.ca_achats,
           pm.quantity_sold,
@@ -265,7 +287,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           tc.total
         FROM product_metrics pm
         CROSS JOIN total_count tc
-        ORDER BY pm.${validSortColumn} ${validSortDirection}
+        ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
         LIMIT $5 OFFSET $6
       `;
 
@@ -281,7 +303,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       laboratory_name: row.laboratory_name,
       product_name: row.product_name,
       code_ean: row.code_ean,
+      prix_brut_grossiste: row.prix_brut_grossiste !== null ? Number(row.prix_brut_grossiste) : null,
       avg_buy_price_ht: Number(row.avg_buy_price_ht),
+      remise_percent: Number(row.remise_percent),
       quantity_bought: Number(row.quantity_bought),
       ca_achats: Number(row.ca_achats),
       quantity_sold: Number(row.quantity_sold),
