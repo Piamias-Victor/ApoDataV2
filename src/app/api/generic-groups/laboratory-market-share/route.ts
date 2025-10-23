@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
             SELECT DISTINCT dgp.code_13_ref
             FROM data_globalproduct dgp
             WHERE dgp.bcb_generic_group IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
           ),
-          -- ACHATS par laboratoire
           lab_achats AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
             GROUP BY dgp.bcb_lab
           ),
-          -- VENTES par laboratoire
           lab_ventes AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -103,10 +103,10 @@ export async function POST(request: NextRequest) {
               AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
               AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
             GROUP BY dgp.bcb_lab
           ),
-          -- Totaux groupe pour PM
           group_totals AS (
             SELECT 
               SUM(la.ca_achats) as ca_achats_total,
@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
             FROM lab_achats la
             FULL OUTER JOIN lab_ventes lv ON la.laboratory_name = lv.laboratory_name
           ),
-          -- Fusion achats + ventes
           lab_metrics AS (
             SELECT 
               COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,
@@ -165,9 +164,7 @@ export async function POST(request: NextRequest) {
         params = [dateRange.start, dateRange.end, pageSize, offset];
       } else {
         query = `
-          WITH 
-          -- ACHATS par laboratoire
-          lab_achats AS (
+          WITH lab_achats AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
               SUM(po.qte_r) as quantity_bought,
@@ -189,10 +186,10 @@ export async function POST(request: NextRequest) {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id = ANY($3::text[])
             GROUP BY dgp.bcb_lab
           ),
-          -- VENTES par laboratoire
           lab_ventes AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -216,10 +213,10 @@ export async function POST(request: NextRequest) {
               AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
               AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id = ANY($3::text[])
             GROUP BY dgp.bcb_lab
           ),
-          -- Totaux groupe pour PM
           group_totals AS (
             SELECT 
               SUM(la.ca_achats) as ca_achats_total,
@@ -227,7 +224,6 @@ export async function POST(request: NextRequest) {
             FROM lab_achats la
             FULL OUTER JOIN lab_ventes lv ON la.laboratory_name = lv.laboratory_name
           ),
-          -- Fusion achats + ventes
           lab_metrics AS (
             SELECT 
               COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,
@@ -290,8 +286,8 @@ export async function POST(request: NextRequest) {
             JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
             WHERE ip.pharmacy_id = $3::uuid
               AND dgp.bcb_generic_group IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
           ),
-          -- ACHATS par laboratoire
           lab_achats AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -314,11 +310,11 @@ export async function POST(request: NextRequest) {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.pharmacy_id = $3::uuid
               AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
             GROUP BY dgp.bcb_lab
           ),
-          -- VENTES par laboratoire
           lab_ventes AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -342,11 +338,11 @@ export async function POST(request: NextRequest) {
               AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
               AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.pharmacy_id = $3::uuid
               AND ip.code_13_ref_id IN (SELECT code_13_ref_id FROM generic_products)
             GROUP BY dgp.bcb_lab
           ),
-          -- Totaux groupe pour PM
           group_totals AS (
             SELECT 
               SUM(la.ca_achats) as ca_achats_total,
@@ -354,7 +350,6 @@ export async function POST(request: NextRequest) {
             FROM lab_achats la
             FULL OUTER JOIN lab_ventes lv ON la.laboratory_name = lv.laboratory_name
           ),
-          -- Fusion achats + ventes
           lab_metrics AS (
             SELECT 
               COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,
@@ -405,9 +400,7 @@ export async function POST(request: NextRequest) {
         params = [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset];
       } else {
         query = `
-          WITH 
-          -- ACHATS par laboratoire
-          lab_achats AS (
+          WITH lab_achats AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
               SUM(po.qte_r) as quantity_bought,
@@ -429,11 +422,11 @@ export async function POST(request: NextRequest) {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id = ANY($3::text[])
               AND ip.pharmacy_id = $4::uuid
             GROUP BY dgp.bcb_lab
           ),
-          -- VENTES par laboratoire
           lab_ventes AS (
             SELECT 
               dgp.bcb_lab as laboratory_name,
@@ -457,11 +450,11 @@ export async function POST(request: NextRequest) {
               AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
               AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id = ANY($3::text[])
               AND ip.pharmacy_id = $4::uuid
             GROUP BY dgp.bcb_lab
           ),
-          -- Totaux groupe pour PM
           group_totals AS (
             SELECT 
               SUM(la.ca_achats) as ca_achats_total,
@@ -469,7 +462,6 @@ export async function POST(request: NextRequest) {
             FROM lab_achats la
             FULL OUTER JOIN lab_ventes lv ON la.laboratory_name = lv.laboratory_name
           ),
-          -- Fusion achats + ventes
           lab_metrics AS (
             SELECT 
               COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,

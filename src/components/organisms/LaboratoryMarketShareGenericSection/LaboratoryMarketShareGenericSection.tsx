@@ -45,7 +45,7 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     previousPage,
     nextPage
   } = useLaboratoryMarketShare({
-    enabled: productCodes.length > 0,
+    enabled: true,
     productCodes,
     dateRange,
     pageSize: 10
@@ -125,27 +125,6 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
 
     exportToCsv({ filename, headers, data: exportData });
   }, [filteredAndSortedData, exportToCsv]);
-
-  // Pas de productCodes = pas de données
-  if (productCodes.length === 0) {
-    return (
-      <Card variant="elevated" className="p-8 text-center">
-        <div className="space-y-3">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              <ChevronRight className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-gray-600 font-medium">
-            Sélectionnez un ou plusieurs groupes génériques
-          </p>
-          <p className="text-sm text-gray-500">
-            Les parts de marché par laboratoire s'afficheront ici
-          </p>
-        </div>
-      </Card>
-    );
-  }
 
   if (error) {
     return (
