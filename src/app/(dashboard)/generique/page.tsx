@@ -7,10 +7,9 @@ import { Info, Pill, Building2, Package } from 'lucide-react';
 import { GenericGroupSelector } from '@/components/organisms/GenericGroupSelector/GenericGroupSelector';
 import { GenericKpisSection } from '@/components/organisms/GenericKpisSection/GenericKpisSection';
 import { LaboratoryMarketShareGenericSection } from '@/components/organisms/LaboratoryMarketShareGenericSection/LaboratoryMarketShareGenericSection';
-import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
+import { ProductsTableGeneric } from '@/components/organisms/ProductsTableGeneric/ProductsTableGeneric';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
 import { useFiltersStore } from '@/stores/useFiltersStore';
-import { useGenericGroupProducts } from '@/hooks/generic-groups/useGenericGroupProducts';
 
 const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({ 
   content, 
@@ -83,13 +82,6 @@ export default function GeneriquesPage() {
   const productCodes = useGenericGroupStore(state => state.productCodes);
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore(state => state.comparisonDateRange);
-  
-  const { 
-    products, 
-    isLoading: isLoadingProducts, 
-    error: productsError,
-    refetch: refetchProducts 
-  } = useGenericGroupProducts();
 
   const hasSelection = selectedGroups.length > 0 && productCodes.length > 0;
 
@@ -224,22 +216,24 @@ Les données incluront :
             <SectionWithHelp
               title={`Détail des Produits ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}`}
               description={`${productCodes.length} produits au total dans la sélection`}
-              tooltipContent={`Tableau détaillé des produits :
+              tooltipContent={`Tableau détaillé des produits par laboratoire :
               
-- Modes d'affichage : Totaux ou Moyennes
-- Tri multi-colonnes : CA, quantités, marges, stock
-- Recherche : Par nom ou code produit
+- Laboratoire : Fabricant du produit générique
+- Prix Achat : Coût moyen d'achat HT
+- Volume/CA Achats : Quantités et montants approvisionnés
+- Volume/CA Ventes : Quantités et montants vendus patients
+- % Marge : Rentabilité par produit
+- Tri multi-colonnes : Toutes les colonnes triables
+- Recherche : Par nom, laboratoire ou code EAN
 - Export CSV : Téléchargez toutes les données
 - Pagination : 50 produits par page
 
-${selectedGroups.length > 1 ? 'Produits agrégés de tous les groupes sélectionnés.' : 'Produits référents et génériques affichés ensemble.'}`}
+${selectedGroups.length > 1 ? 'Produits agrégés de tous les groupes sélectionnés.' : 'Vue détaillée du groupe sélectionné.'}`}
               icon={<Package className="w-5 h-5 text-indigo-600" />}
             >
-              <ProductsTable 
-                products={products}
-                isLoading={isLoadingProducts}
-                error={productsError}
-                onRefresh={refetchProducts}
+              <ProductsTableGeneric 
+                productCodes={productCodes}
+                dateRange={analysisDateRange}
               />
             </SectionWithHelp>
           </motion.div>
