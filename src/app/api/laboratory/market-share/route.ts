@@ -7,16 +7,23 @@ import { db } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-interface LaboratoryMarketShareResult {
+interface LaboratoryResult {
   readonly laboratory_name: string;
-  readonly ca_selection: number;
-  readonly ca_total_group: number;
-  readonly part_marche_ca_pct: number;
-  readonly marge_selection: number;
-  readonly marge_total_group: number;
-  readonly part_marche_marge_pct: number;
   readonly product_count: number;
+  readonly quantity_bought: number;
+  readonly ca_achats: number;
+  readonly quantity_sold: number;
+  readonly ca_selection: number;
+  readonly part_marche_ca_pct: number;
+  readonly margin_rate_percent: number;
   readonly is_referent: boolean;
+}
+
+interface LaboratoryComparisonResult {
+  readonly laboratory_name: string;
+  readonly ca_achats: number;
+  readonly ca_selection: number;
+  readonly part_marche_ca_pct: number;
 }
 
 interface RequestBody {
@@ -26,6 +33,7 @@ interface RequestBody {
     readonly categoryCodes: string[];
     readonly pharmacyIds: string[];
     readonly dateRange: { start: string; end: string };
+    readonly comparisonDateRange?: { start: string | null; end: string | null };
   };
   readonly pagination?: {
     readonly page?: number;
@@ -42,7 +50,14 @@ export async function POST(request: NextRequest) {
 
     const body: RequestBody = await request.json();
     const { filters, pagination } = body;
-    const { productCodes, laboratoryCodes, categoryCodes, pharmacyIds, dateRange } = filters;
+    const { 
+      productCodes, 
+      laboratoryCodes, 
+      categoryCodes, 
+      pharmacyIds, 
+      dateRange,
+      comparisonDateRange 
+    } = filters;
     const { page = 1, pageSize = 10 } = pagination || {};
 
     const allCodes = [
@@ -56,279 +71,122 @@ export async function POST(request: NextRequest) {
     }
 
     const isAdmin = session.user.role === 'admin';
-    const offset = (page - 1) * pageSize;
-    
-    let query: string;
-    let params: any[];
+    const hasComparison = comparisonDateRange?.start && comparisonDateRange?.end;
+    const userPharmacyId = session.user.pharmacyId ?? undefined;
 
-    if (isAdmin) {
-      if (pharmacyIds?.length > 0) {
-        query = `
-          WITH group_total AS (
-            SELECT 
-              SUM(s.quantity * s.unit_price_ttc) as ca_total,
-              SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              )) as marge_total
-            FROM data_sales s
-            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-            JOIN data_internalproduct ip ON ins.product_id = ip.id
-            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
-            WHERE s.date >= $1::date 
-              AND s.date <= $2::date
-              AND s.unit_price_ttc IS NOT NULL
-              AND s.unit_price_ttc > 0
-              AND ins.weighted_average_price > 0
-              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
-              ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-              AND ip.pharmacy_id = ANY($${allCodes.length > 0 ? 4 : 3}::uuid[])
-          ),
-          lab_metrics AS (
-            SELECT 
-              dgp.bcb_lab as laboratory_name,
-              SUM(s.quantity * s.unit_price_ttc) as ca_selection,
-              SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              )) as marge_selection,
-              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
-              MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
-            FROM data_sales s
-            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-            JOIN data_internalproduct ip ON ins.product_id = ip.id
-            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
-            WHERE s.date >= $1::date 
-              AND s.date <= $2::date
-              AND s.unit_price_ttc IS NOT NULL
-              AND s.unit_price_ttc > 0
-              AND ins.weighted_average_price > 0
-              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
-              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
-              ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-              AND ip.pharmacy_id = ANY($${allCodes.length > 0 ? 4 : 3}::uuid[])
-              AND dgp.bcb_lab IS NOT NULL
-            GROUP BY dgp.bcb_lab
-          ),
-          total_count AS (
-            SELECT COUNT(*) as total FROM lab_metrics
-          )
-          SELECT 
-            lm.laboratory_name,
-            lm.ca_selection,
-            gt.ca_total as ca_total_group,
-            CASE 
-              WHEN gt.ca_total > 0 
-              THEN (lm.ca_selection / gt.ca_total) * 100 
-              ELSE 0 
-            END as part_marche_ca_pct,
-            lm.marge_selection,
-            gt.marge_total as marge_total_group,
-            CASE 
-              WHEN gt.marge_total > 0 
-              THEN (lm.marge_selection / gt.marge_total) * 100 
-              ELSE 0 
-            END as part_marche_marge_pct,
-            lm.product_count,
-            lm.is_referent::boolean as is_referent,
-            tc.total
-          FROM lab_metrics lm
-          CROSS JOIN group_total gt
-          CROSS JOIN total_count tc
-          ORDER BY lm.ca_selection DESC
-          LIMIT $${allCodes.length > 0 ? 5 : 4} OFFSET $${allCodes.length > 0 ? 6 : 5}
-        `;
-        params = allCodes.length > 0 
-          ? [dateRange.start, dateRange.end, allCodes, pharmacyIds, pageSize, offset]
-          : [dateRange.start, dateRange.end, pharmacyIds, pageSize, offset];
-      } else {
-        query = `
-          WITH group_total AS (
-            SELECT 
-              SUM(s.quantity * s.unit_price_ttc) as ca_total,
-              SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              )) as marge_total
-            FROM data_sales s
-            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-            JOIN data_internalproduct ip ON ins.product_id = ip.id
-            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
-            WHERE s.date >= $1::date 
-              AND s.date <= $2::date
-              AND s.unit_price_ttc IS NOT NULL
-              AND s.unit_price_ttc > 0
-              AND ins.weighted_average_price > 0
-              AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-              AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
-              ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-          ),
-          lab_metrics AS (
-            SELECT 
-              dgp.bcb_lab as laboratory_name,
-              SUM(s.quantity * s.unit_price_ttc) as ca_selection,
-              SUM(s.quantity * (
-                (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-              )) as marge_selection,
-              COUNT(DISTINCT ip.code_13_ref_id) as product_count,
-              MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
-            FROM data_sales s
-            JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-            JOIN data_internalproduct ip ON ins.product_id = ip.id
-            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
-            WHERE s.date >= $1::date 
-              AND s.date <= $2::date
-              AND s.unit_price_ttc IS NOT NULL
-              AND s.unit_price_ttc > 0
-              AND ins.weighted_average_price > 0
-              AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
-              AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
-              ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-              AND dgp.bcb_lab IS NOT NULL
-            GROUP BY dgp.bcb_lab
-          ),
-          total_count AS (
-            SELECT COUNT(*) as total FROM lab_metrics
-          )
-          SELECT 
-            lm.laboratory_name,
-            lm.ca_selection,
-            gt.ca_total as ca_total_group,
-            CASE 
-              WHEN gt.ca_total > 0 
-              THEN (lm.ca_selection / gt.ca_total) * 100 
-              ELSE 0 
-            END as part_marche_ca_pct,
-            lm.marge_selection,
-            gt.marge_total as marge_total_group,
-            CASE 
-              WHEN gt.marge_total > 0 
-              THEN (lm.marge_selection / gt.marge_total) * 100 
-              ELSE 0 
-            END as part_marche_marge_pct,
-            lm.product_count,
-            lm.is_referent::boolean as is_referent,
-            tc.total
-          FROM lab_metrics lm
-          CROSS JOIN group_total gt
-          CROSS JOIN total_count tc
-          ORDER BY lm.ca_selection DESC
-          LIMIT $${allCodes.length > 0 ? 4 : 3} OFFSET $${allCodes.length > 0 ? 5 : 4}
-        `;
-        params = allCodes.length > 0 
-          ? [dateRange.start, dateRange.end, allCodes, pageSize, offset]
-          : [dateRange.start, dateRange.end, pageSize, offset];
-      }
-    } else {
-      if (!session.user.pharmacyId) {
-        return NextResponse.json({ error: 'No pharmacy assigned' }, { status: 400 });
-      }
-
-      query = `
-        WITH group_total AS (
-          SELECT 
-            SUM(s.quantity * s.unit_price_ttc) as ca_total,
-            SUM(s.quantity * (
-              (s.unit_price_ttc / (1 + COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_total
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND s.unit_price_ttc IS NOT NULL
-            AND s.unit_price_ttc > 0
-            AND ins.weighted_average_price > 0
-            AND (gp.tva_percentage IS NOT NULL OR gp.bcb_tva_rate IS NOT NULL)
-            AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
-            ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-            AND ip.pharmacy_id = $${allCodes.length > 0 ? 4 : 3}::uuid
-        ),
-        lab_metrics AS (
-          SELECT 
-            dgp.bcb_lab as laboratory_name,
-            SUM(s.quantity * s.unit_price_ttc) as ca_selection,
-            SUM(s.quantity * (
-              (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
-            )) as marge_selection,
-            COUNT(DISTINCT ip.code_13_ref_id) as product_count,
-            MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
-          FROM data_sales s
-          JOIN data_inventorysnapshot ins ON s.product_id = ins.id
-          JOIN data_internalproduct ip ON ins.product_id = ip.id
-          JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
-          WHERE s.date >= $1::date 
-            AND s.date <= $2::date
-            AND s.unit_price_ttc IS NOT NULL
-            AND s.unit_price_ttc > 0
-            AND ins.weighted_average_price > 0
-            AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
-            AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
-            ${allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : ''}
-            AND ip.pharmacy_id = $${allCodes.length > 0 ? 4 : 3}::uuid
-            AND dgp.bcb_lab IS NOT NULL
-          GROUP BY dgp.bcb_lab
-        ),
-        total_count AS (
-          SELECT COUNT(*) as total FROM lab_metrics
-        )
-        SELECT 
-          lm.laboratory_name,
-          lm.ca_selection,
-          gt.ca_total as ca_total_group,
-          CASE 
-            WHEN gt.ca_total > 0 
-            THEN (lm.ca_selection / gt.ca_total) * 100 
-            ELSE 0 
-          END as part_marche_ca_pct,
-          lm.marge_selection,
-          gt.marge_total as marge_total_group,
-          CASE 
-            WHEN gt.marge_total > 0 
-            THEN (lm.marge_selection / gt.marge_total) * 100 
-            ELSE 0 
-          END as part_marche_marge_pct,
-          lm.product_count,
-          lm.is_referent::boolean as is_referent,
-          tc.total
-        FROM lab_metrics lm
-        CROSS JOIN group_total gt
-        CROSS JOIN total_count tc
-        ORDER BY lm.ca_selection DESC
-        LIMIT $${allCodes.length > 0 ? 5 : 4} OFFSET $${allCodes.length > 0 ? 6 : 5}
-      `;
-      params = allCodes.length > 0 
-        ? [dateRange.start, dateRange.end, allCodes, session.user.pharmacyId, pageSize, offset]
-        : [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset];
-    }
+    // ========== REQUÊTE PÉRIODE ACTUELLE ==========
+    const currentQuery = buildCurrentPeriodQuery(isAdmin, allCodes, pharmacyIds);
+    const currentParams = buildCurrentPeriodParams(
+      isAdmin,
+      dateRange,
+      allCodes,
+      pharmacyIds,
+      userPharmacyId
+    );
 
     const startTime = Date.now();
-    const results = await db.query<LaboratoryMarketShareResult & { total: number }>(query, params);
+    const currentResults = await db.query<LaboratoryResult>(
+      currentQuery,
+      currentParams
+    );
+    
+    // ========== REQUÊTE PÉRIODE COMPARAISON ==========
+    let comparisonResults: LaboratoryComparisonResult[] = [];
+    
+    if (hasComparison) {
+      const comparisonQuery = buildComparisonPeriodQuery(isAdmin, allCodes, pharmacyIds);
+      const comparisonParams = buildComparisonPeriodParams(
+        isAdmin,
+        { start: comparisonDateRange.start!, end: comparisonDateRange.end! },
+        allCodes,
+        pharmacyIds,
+        userPharmacyId
+      );
+
+      comparisonResults = await db.query<LaboratoryComparisonResult>(
+        comparisonQuery,
+        comparisonParams
+      );
+    }
+
     const queryTime = Date.now() - startTime;
 
-    const total = results[0]?.total || 0;
-    const totalPages = Math.ceil(total / pageSize);
+    // ========== CALCUL RANGS + ÉVOLUTIONS ==========
+    const comparisonMap = new Map(
+      comparisonResults.map(r => [r.laboratory_name, r])
+    );
+
+    const sortedByCurrentCA = [...currentResults].sort((a, b) => b.ca_selection - a.ca_selection);
     
-    const laboratories = results.map(r => ({
-      laboratory_name: r.laboratory_name,
-      ca_selection: r.ca_selection,
-      ca_total_group: r.ca_total_group,
-      part_marche_ca_pct: r.part_marche_ca_pct,
-      marge_selection: r.marge_selection,
-      marge_total_group: r.marge_total_group,
-      part_marche_marge_pct: r.part_marche_marge_pct,
-      product_count: r.product_count,
-      is_referent: r.is_referent
-    }));
+    const previousRankMap = new Map<string, number>();
+    if (hasComparison) {
+      const sortedByComparisonCA = [...comparisonResults].sort((a, b) => b.ca_selection - a.ca_selection);
+      sortedByComparisonCA.forEach((lab, index) => {
+        previousRankMap.set(lab.laboratory_name, index + 1);
+      });
+    }
+
+    const laboratoriesWithRanking = sortedByCurrentCA.map((current, index) => {
+      const comparison = comparisonMap.get(current.laboratory_name);
+      const rang_actuel = index + 1;
+      const rang_precedent = previousRankMap.get(current.laboratory_name) || null;
+      const gain_rang = rang_precedent !== null ? rang_precedent - rang_actuel : null;
+      
+      const evol_achats_pct = comparison
+        ? ((current.ca_achats - comparison.ca_achats) / comparison.ca_achats) * 100
+        : null;
+
+      const evol_ventes_pct = comparison
+        ? ((current.ca_selection - comparison.ca_selection) / comparison.ca_selection) * 100
+        : null;
+
+      const evol_pdm_pct = comparison
+        ? current.part_marche_ca_pct - comparison.part_marche_ca_pct
+        : null;
+
+      return {
+        laboratory_name: current.laboratory_name,
+        product_count: current.product_count,
+        
+        rang_actuel,
+        rang_precedent,
+        gain_rang,
+        
+        ca_achats: current.ca_achats,
+        ca_achats_comparison: comparison?.ca_achats || null,
+        evol_achats_pct,
+        
+        ca_selection: current.ca_selection,
+        ca_selection_comparison: comparison?.ca_selection || null,
+        evol_ventes_pct,
+        
+        part_marche_ca_pct: current.part_marche_ca_pct,
+        part_marche_ca_pct_comparison: comparison?.part_marche_ca_pct || null,
+        evol_pdm_pct,
+        
+        quantity_bought: current.quantity_bought,
+        quantity_sold: current.quantity_sold,
+        margin_rate_percent: current.margin_rate_percent,
+        is_referent: current.is_referent
+      };
+    });
+
+    // ========== PAGINATION ==========
+    const total = laboratoriesWithRanking.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const offset = (page - 1) * pageSize;
+    const paginatedLaboratories = laboratoriesWithRanking.slice(offset, offset + pageSize);
 
     return NextResponse.json({
-      laboratories,
+      laboratories: paginatedLaboratories,
       pagination: {
         page,
         pageSize,
         total,
         totalPages
       },
-      queryTime
+      queryTime,
+      hasComparison
     });
 
   } catch (error) {
@@ -337,5 +195,243 @@ export async function POST(request: NextRequest) {
       { error: 'Erreur serveur' },
       { status: 500 }
     );
+  }
+}
+
+// ========== BUILDERS REQUÊTES ==========
+
+function buildCurrentPeriodQuery(
+  isAdmin: boolean,
+  allCodes: string[],
+  pharmacyIds: string[]
+): string {
+  const hasPharmacyFilter = isAdmin && pharmacyIds?.length > 0;
+  const pharmacyFilterGlobal = hasPharmacyFilter 
+    ? `AND ip.pharmacy_id = ANY($${allCodes.length > 0 ? 4 : 3}::uuid[])`
+    : !isAdmin 
+      ? `AND ip.pharmacy_id = $${allCodes.length > 0 ? 4 : 3}::uuid`
+      : '';
+
+  const productFilter = allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : '';
+
+  return `
+    WITH lab_achats AS (
+      SELECT 
+        dgp.bcb_lab as laboratory_name,
+        SUM(po.qte_r) as quantity_bought,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as ca_achats
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      INNER JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
+        AND dgp.bcb_lab IS NOT NULL
+        ${productFilter}
+        ${pharmacyFilterGlobal}
+      GROUP BY dgp.bcb_lab
+    ),
+    lab_ventes AS (
+      SELECT 
+        dgp.bcb_lab as laboratory_name,
+        COUNT(DISTINCT ip.code_13_ref_id) as product_count,
+        SUM(s.quantity) as quantity_sold,
+        SUM(s.quantity * s.unit_price_ttc) as ca_selection,
+        SUM(s.quantity * (
+          (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0)) - ins.weighted_average_price
+        )) as marge_selection,
+        SUM(s.quantity * (s.unit_price_ttc / (1 + COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) / 100.0))) as ca_ht_selection,
+        MAX(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 ELSE 0 END) as is_referent
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
+        AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
+        AND dgp.bcb_lab IS NOT NULL
+        ${productFilter}
+        ${pharmacyFilterGlobal}
+      GROUP BY dgp.bcb_lab
+    ),
+    group_totals AS (
+      SELECT 
+        SUM(lv.ca_selection) as ca_ventes_total
+      FROM lab_ventes lv
+    )
+    SELECT 
+      COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,
+      COALESCE(lv.product_count, 0) as product_count,
+      COALESCE(la.quantity_bought, 0) as quantity_bought,
+      COALESCE(la.ca_achats, 0) as ca_achats,
+      COALESCE(lv.quantity_sold, 0) as quantity_sold,
+      COALESCE(lv.ca_selection, 0) as ca_selection,
+      CASE 
+        WHEN gt.ca_ventes_total > 0 
+        THEN (COALESCE(lv.ca_selection, 0) / gt.ca_ventes_total) * 100 
+        ELSE 0 
+      END as part_marche_ca_pct,
+      CASE 
+        WHEN COALESCE(lv.ca_ht_selection, 0) > 0 
+        THEN (COALESCE(lv.marge_selection, 0) / lv.ca_ht_selection) * 100
+        ELSE 0
+      END as margin_rate_percent,
+      COALESCE(lv.is_referent, 0)::boolean as is_referent
+    FROM lab_ventes lv
+    FULL OUTER JOIN lab_achats la ON lv.laboratory_name = la.laboratory_name
+    CROSS JOIN group_totals gt
+    WHERE COALESCE(lv.laboratory_name, la.laboratory_name) IS NOT NULL
+    ORDER BY COALESCE(lv.ca_selection, 0) DESC
+  `;
+}
+
+function buildComparisonPeriodQuery(
+  isAdmin: boolean,
+  allCodes: string[],
+  pharmacyIds: string[]
+): string {
+  const hasPharmacyFilter = isAdmin && pharmacyIds?.length > 0;
+  const pharmacyFilterGlobal = hasPharmacyFilter 
+    ? `AND ip.pharmacy_id = ANY($${allCodes.length > 0 ? 4 : 3}::uuid[])`
+    : !isAdmin 
+      ? `AND ip.pharmacy_id = $${allCodes.length > 0 ? 4 : 3}::uuid`
+      : '';
+
+  const productFilter = allCodes.length > 0 ? 'AND ip.code_13_ref_id = ANY($3::text[])' : '';
+
+  return `
+    WITH lab_achats AS (
+      SELECT 
+        dgp.bcb_lab as laboratory_name,
+        SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)) as ca_achats
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      INNER JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      LEFT JOIN LATERAL (
+        SELECT weighted_average_price
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = po.product_id
+          AND ins2.weighted_average_price > 0
+        ORDER BY ins2.date DESC
+        LIMIT 1
+      ) closest_snap ON true
+      WHERE o.delivery_date >= $1::date 
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
+        AND dgp.bcb_lab IS NOT NULL
+        ${productFilter}
+        ${pharmacyFilterGlobal}
+      GROUP BY dgp.bcb_lab
+    ),
+    lab_ventes AS (
+      SELECT 
+        dgp.bcb_lab as laboratory_name,
+        SUM(s.quantity * s.unit_price_ttc) as ca_selection
+      FROM data_sales s
+      JOIN data_inventorysnapshot ins ON s.product_id = ins.id
+      JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+      WHERE s.date >= $1::date 
+        AND s.date <= $2::date
+        AND s.unit_price_ttc IS NOT NULL
+        AND s.unit_price_ttc > 0
+        AND ins.weighted_average_price > 0
+        AND (dgp.tva_percentage IS NOT NULL OR dgp.bcb_tva_rate IS NOT NULL)
+        AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
+        AND dgp.bcb_lab IS NOT NULL
+        ${productFilter}
+        ${pharmacyFilterGlobal}
+      GROUP BY dgp.bcb_lab
+    ),
+    group_totals AS (
+      SELECT 
+        SUM(lv.ca_selection) as ca_ventes_total
+      FROM lab_ventes lv
+    )
+    SELECT 
+      COALESCE(lv.laboratory_name, la.laboratory_name) as laboratory_name,
+      COALESCE(la.ca_achats, 0) as ca_achats,
+      COALESCE(lv.ca_selection, 0) as ca_selection,
+      CASE 
+        WHEN gt.ca_ventes_total > 0 
+        THEN (COALESCE(lv.ca_selection, 0) / gt.ca_ventes_total) * 100 
+        ELSE 0 
+      END as part_marche_ca_pct
+    FROM lab_ventes lv
+    FULL OUTER JOIN lab_achats la ON lv.laboratory_name = la.laboratory_name
+    CROSS JOIN group_totals gt
+    WHERE COALESCE(lv.laboratory_name, la.laboratory_name) IS NOT NULL
+  `;
+}
+
+function buildCurrentPeriodParams(
+  isAdmin: boolean,
+  dateRange: { start: string; end: string },
+  allCodes: string[],
+  pharmacyIds: string[],
+  userPharmacyId: string | undefined
+): any[] {
+  const hasPharmacyFilter = isAdmin && pharmacyIds?.length > 0;
+
+  if (allCodes.length > 0) {
+    if (hasPharmacyFilter) {
+      return [dateRange.start, dateRange.end, allCodes, pharmacyIds];
+    } else if (!isAdmin && userPharmacyId) {
+      return [dateRange.start, dateRange.end, allCodes, userPharmacyId];
+    } else {
+      return [dateRange.start, dateRange.end, allCodes];
+    }
+  } else {
+    if (hasPharmacyFilter) {
+      return [dateRange.start, dateRange.end, pharmacyIds];
+    } else if (!isAdmin && userPharmacyId) {
+      return [dateRange.start, dateRange.end, userPharmacyId];
+    } else {
+      return [dateRange.start, dateRange.end];
+    }
+  }
+}
+
+function buildComparisonPeriodParams(
+  isAdmin: boolean,
+  comparisonDateRange: { start: string; end: string },
+  allCodes: string[],
+  pharmacyIds: string[],
+  userPharmacyId: string | undefined
+): any[] {
+  const hasPharmacyFilter = isAdmin && pharmacyIds?.length > 0;
+
+  if (allCodes.length > 0) {
+    if (hasPharmacyFilter) {
+      return [comparisonDateRange.start, comparisonDateRange.end, allCodes, pharmacyIds];
+    } else if (!isAdmin && userPharmacyId) {
+      return [comparisonDateRange.start, comparisonDateRange.end, allCodes, userPharmacyId];
+    } else {
+      return [comparisonDateRange.start, comparisonDateRange.end, allCodes];
+    }
+  } else {
+    if (hasPharmacyFilter) {
+      return [comparisonDateRange.start, comparisonDateRange.end, pharmacyIds];
+    } else if (!isAdmin && userPharmacyId) {
+      return [comparisonDateRange.start, comparisonDateRange.end, userPharmacyId];
+    } else {
+      return [comparisonDateRange.start, comparisonDateRange.end];
+    }
   }
 }

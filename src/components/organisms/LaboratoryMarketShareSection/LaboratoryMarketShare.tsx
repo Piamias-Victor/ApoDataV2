@@ -1,26 +1,25 @@
-// src/components/organisms/LaboratoryMarketShare/LaboratoryMarketShare.tsx
+// src/components/organisms/LaboratoryMarketShareSection/LaboratoryMarketShare.tsx
 'use client';
 
 import { Button } from "@/components/atoms/Button/Button";
 import { Card } from "@/components/atoms/Card/Card";
 import { ExportButton } from "@/components/molecules/ExportButton/ExportButton";
-import { LaboratoryTableHeader } from "@/components/molecules/LaboratoryTable/LaboratoryTableHeader";
-import { LaboratoryTableRow } from "@/components/molecules/LaboratoryTable/LaboratoryTableRow";
+import { LaboratoryTableHeaderWithRanking } from "@/components/molecules/LaboratoryTable/LaboratoryTableHeaderWithRanking";
+import { LaboratoryTableRowWithRanking } from "@/components/molecules/LaboratoryTable/LaboratoryTableRowWithRanking";
 import { SearchBar } from "@/components/molecules/SearchBar/SearchBar";
 import { useExportCsv } from "@/hooks/export/useExportCsv";
 import { useLaboratoryMarketShareWithFilters } from "@/hooks/laboratories/useLaboratoryMarketShareWithFilters";
+import { formatBigNumber, formatEvolutionPercentage, formatPDM, formatRankGain } from "@/hooks/utils/formatters/ranking";
 import { LaboratorySortableColumn, SortConfig, SortDirection } from "@/types/laboratory";
 import { CsvExporter } from "@/utils/export/csvExporter";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
 
-
-
 export const LaboratoryMarketShare: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    column: null,
-    direction: null
+    column: 'rang_actuel',
+    direction: 'asc'
   });
 
   const {
@@ -33,7 +32,8 @@ export const LaboratoryMarketShare: React.FC = () => {
     canPreviousPage,
     canNextPage,
     previousPage,
-    nextPage
+    nextPage,
+    hasComparison
   } = useLaboratoryMarketShareWithFilters({ pageSize: 10 });
 
   const { exportToCsv, isExporting } = useExportCsv();
@@ -74,6 +74,9 @@ export const LaboratoryMarketShare: React.FC = () => {
         const aValue = a[sortConfig.column!];
         const bValue = b[sortConfig.column!];
 
+        if (aValue === null || aValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1;
+        if (bValue === null || bValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1;
+
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           const comparison = aValue.localeCompare(bValue);
           return sortConfig.direction === 'asc' ? comparison : -comparison;
@@ -91,24 +94,40 @@ export const LaboratoryMarketShare: React.FC = () => {
   }, [data, searchQuery, sortConfig]);
 
   const handleExport = useCallback(() => {
-    const exportData = filteredAndSortedData.map(lab => ({
-      'Laboratoire': lab.laboratory_name,
-      'Nombre de produits': lab.product_count,
-      'Quantités vendues': lab.quantity_sold,
-      'Taux de marge (%)': lab.margin_rate_percent.toFixed(1),
-      'CA Réalisé (€)': lab.ca_selection,
-      'Marge Réalisée (€)': lab.marge_selection,
-      'Part Marché CA (%)': (lab.part_marche_ca_pct / 100).toFixed(3),
-      'Part Marché Marge (%)': (lab.part_marche_marge_pct / 100).toFixed(3)
-    }));
+    const exportData = filteredAndSortedData.map(lab => {
+      const baseData: Record<string, any> = {
+        'Laboratoire': lab.laboratory_name,
+        'Rang': lab.rang_actuel,
+      };
+
+      if (hasComparison) {
+        baseData['Gain Rang'] = formatRankGain(lab.gain_rang);
+      }
+
+      baseData['Montant achat'] = formatBigNumber(lab.ca_achats);
+      baseData['Montant ventes'] = formatBigNumber(lab.ca_selection);
+
+      if (hasComparison) {
+        baseData['Evol % achat'] = formatEvolutionPercentage(lab.evol_achats_pct);
+        baseData['Evol % ventes'] = formatEvolutionPercentage(lab.evol_ventes_pct);
+      }
+
+      baseData['PDM'] = formatPDM(lab.part_marche_ca_pct);
+
+      if (hasComparison) {
+        baseData['Evol PDM %'] = formatEvolutionPercentage(lab.evol_pdm_pct);
+      }
+
+      return baseData;
+    });
 
     if (exportData.length === 0) return;
 
-    const filename = CsvExporter.generateFilename('apodata_laboratoires_parts_marche');
+    const filename = CsvExporter.generateFilename('apodata_laboratoires_ranking');
     const headers = Object.keys(exportData[0]!);
 
     exportToCsv({ filename, headers, data: exportData });
-  }, [filteredAndSortedData, exportToCsv]);
+  }, [filteredAndSortedData, exportToCsv, hasComparison]);
 
   if (error) {
     return (
@@ -143,15 +162,16 @@ export const LaboratoryMarketShare: React.FC = () => {
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <LaboratoryTableHeader
+            <LaboratoryTableHeaderWithRanking
               sortConfig={sortConfig}
               onSort={handleSort}
+              hasComparison={hasComparison}
             />
             
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={hasComparison ? 9 : 5} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement...</span>
@@ -160,7 +180,7 @@ export const LaboratoryMarketShare: React.FC = () => {
                 </tr>
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={hasComparison ? 9 : 5} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
                       : 'Aucune donnée disponible'
@@ -169,10 +189,11 @@ export const LaboratoryMarketShare: React.FC = () => {
                 </tr>
               ) : (
                 filteredAndSortedData.map((lab, index) => (
-                  <LaboratoryTableRow
+                  <LaboratoryTableRowWithRanking
                     key={lab.laboratory_name}
                     laboratory={lab}
                     isEven={index % 2 === 0}
+                    hasComparison={hasComparison}
                   />
                 ))
               )}
