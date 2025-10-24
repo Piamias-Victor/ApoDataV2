@@ -116,7 +116,7 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
       'Nombre de produits': lab.product_count,
       'Volume achats': lab.quantity_bought,
       'CA Achats (€)': lab.ca_achats,
-      'Part Marché Achat (%)': (lab.part_marche_achats_pct / 100).toFixed(3),
+      'Part Marché Achat (%)': (lab.part_marche_achats_pct || 0 / 100).toFixed(3),
       'Taux de marge (%)': Number(lab.margin_rate_percent || 0).toFixed(1),
       'Volume ventes': lab.quantity_sold,
       'CA Ventes (€)': lab.ca_selection,
