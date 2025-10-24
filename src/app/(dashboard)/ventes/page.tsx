@@ -188,7 +188,7 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
           </p>
         </div>
       </div>
-
+{/* 
       <SectionWithHelp
         title="KPI Spécialisés Ventes"
         description="Indicateurs dédiés aux ventes : quantités/CA, parts de marché CA/marge, références vendues et rentabilité avec comparaisons"
@@ -202,9 +202,9 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
           includeComparison={hasComparison}
           onRefresh={handleRefresh}
         />
-      </SectionWithHelp>
+      </SectionWithHelp> */}
 
-      <SectionWithHelp
+      {/* <SectionWithHelp
         title="Parts de Marché par Hiérarchie"
         description="Analyse votre positionnement par univers, catégories et familles avec barres de progression et top laboratoires par segment"
         tooltipContent={tooltips.marketshare}
@@ -215,7 +215,7 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
           filters={filters}
           onRefresh={handleRefresh}
         />
-      </SectionWithHelp>
+      </SectionWithHelp> */}
 
         <SectionWithHelp
           title="Parts de Marché par Laboratoire"
@@ -226,7 +226,7 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
           <LaboratoryMarketShare />
         </SectionWithHelp>
       
-      <SectionWithHelp
+      {/* <SectionWithHelp
         title="Tableau Détaillé des Ventes"
         description="Vue complète produit par produit avec recherche, tri avancé, expansion graphique et export pour analyses approfondies"
         tooltipContent={tooltips.salesdetail}
@@ -235,7 +235,7 @@ Cliquez sur l'icône œil pour voir l'évolution d'un produit spécifique.`
         <SalesTable 
           onRefresh={handleRefresh}
         />
-      </SectionWithHelp>
+      </SectionWithHelp> */}
     </motion.div>
   );
 }

@@ -36,36 +36,61 @@ export function useLaboratoryMarketShareWithFilters(
 
   const { enabled = true, pageSize = 10 } = options;
 
-  const {
-    products,
-    laboratories,
-    categories,
-    pharmacy,
-    analysisDateRange,
-    comparisonDateRange
-  } = useFiltersStore();
+  // ✅ Récupérer chaque propriété individuellement
+  const products = useFiltersStore((state) => state.products);
+  const laboratories = useFiltersStore((state) => state.laboratories);
+  const categories = useFiltersStore((state) => state.categories);
+  const pharmacy = useFiltersStore((state) => state.pharmacy);
+  const analysisDateRangeStart = useFiltersStore((state) => state.analysisDateRange.start);
+  const analysisDateRangeEnd = useFiltersStore((state) => state.analysisDateRange.end);
+  const comparisonDateRangeStart = useFiltersStore((state) => state.comparisonDateRange.start);
+  const comparisonDateRangeEnd = useFiltersStore((state) => state.comparisonDateRange.end);
 
-  // Stabiliser les références pour éviter les re-renders inutiles
-  const prevFiltersRef = useRef<string>('');
+  // ✅ Ref pour abort controller
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async (page: number) => {
     if (!enabled) return;
 
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Créer un nouveau controller
+    abortControllerRef.current = new AbortController();
+
     setIsLoading(true);
     setError(null);
+
+    console.log('🔍 [fetchData] Calling API with filters:', {
+      products: products.length,
+      laboratories: laboratories.length,
+      categories: categories.length,
+      pharmacy: pharmacy.length,
+      dateRange: `${analysisDateRangeStart} → ${analysisDateRangeEnd}`,
+      page
+    });
 
     try {
       const response = await fetch('/api/laboratory/market-share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           filters: {
             productCodes: products,
             laboratoryCodes: laboratories,
             categoryCodes: categories,
             pharmacyIds: pharmacy,
-            dateRange: analysisDateRange,
-            comparisonDateRange: comparisonDateRange
+            dateRange: {
+              start: analysisDateRangeStart,
+              end: analysisDateRangeEnd
+            },
+            comparisonDateRange: {
+              start: comparisonDateRangeStart,
+              end: comparisonDateRangeEnd
+            }
           },
           pagination: {
             page,
@@ -79,46 +104,67 @@ export function useLaboratoryMarketShareWithFilters(
       }
 
       const result = await response.json();
+      
+      console.log('✅ [fetchData] Response received:', {
+        totalLabs: result.pagination?.total,
+        currentPage: result.pagination?.page,
+        hasComparison: result.hasComparison
+      });
+
       setData(result.laboratories || []);
       setTotalPages(result.pagination?.totalPages || 1);
       setTotal(result.pagination?.total || 0);
       setCurrentPage(page);
       setHasComparison(result.hasComparison || false);
-    } catch (err) {
-      console.error('Erreur chargement parts de marché:', err);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('⛔ [fetchData] Request aborted');
+        return;
+      }
+      console.error('❌ [fetchData] Error:', err);
       setError('Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   }, [
-    enabled, 
-    products, 
-    laboratories, 
-    categories, 
-    pharmacy, 
-    analysisDateRange, 
-    comparisonDateRange,
+    enabled,
+    products,
+    laboratories,
+    categories,
+    pharmacy,
+    analysisDateRangeStart,
+    analysisDateRangeEnd,
+    comparisonDateRangeStart,
+    comparisonDateRangeEnd,
     pageSize
   ]);
 
+  // ✅ useEffect déclenché UNIQUEMENT par les deps primitives
   useEffect(() => {
-    // Créer une clé unique des filtres pour détecter les vrais changements
-    const filtersKey = JSON.stringify({
-      products,
-      laboratories,
-      categories,
-      pharmacy,
-      analysisDateRange,
-      comparisonDateRange
-    });
+    console.log('🎯 [useEffect] Filters changed, fetching page 1');
+    setCurrentPage(1);
+    fetchData(1);
+  }, [
+    products,
+    laboratories,
+    categories,
+    pharmacy,
+    analysisDateRangeStart,
+    analysisDateRangeEnd,
+    comparisonDateRangeStart,
+    comparisonDateRangeEnd,
+    fetchData
+  ]);
 
-    // Ne fetch que si les filtres ont vraiment changé
-    if (filtersKey !== prevFiltersRef.current) {
-      prevFiltersRef.current = filtersKey;
-      setCurrentPage(1);
-      fetchData(1);
-    }
-  }, [products, laboratories, categories, pharmacy, analysisDateRange, comparisonDateRange, fetchData]);
+  // ✅ Cleanup
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const previousPage = useCallback(() => {
     if (currentPage > 1) {

@@ -62,7 +62,7 @@ export const GenericLaboratoryTableRow: React.FC<GenericLaboratoryTableRowProps>
 
       <td className={`${cellClass} text-right`}>
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-          {formatPercent(laboratory.part_marche_achats_pct)}
+          {formatPercent(laboratory.part_marche_achats_pct || 0)}
         </span>
       </td>
 
