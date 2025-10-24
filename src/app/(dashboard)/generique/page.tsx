@@ -238,7 +238,6 @@ Complétez avec le drawer des filtres pour :
           >
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
               <GenericKpisSection 
-                productCodes={productCodes}
                 dateRange={analysisDateRange}
                 comparisonDateRange={comparisonDateRange}
                 includeComparison={true}

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Database } from 'lucide-react';
 import { useLaboratoryMarketShare } from '@/hooks/generic-groups/useLaboratoryMarketShare';
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { GenericLaboratoryTableHeader } from '@/components/molecules/LaboratoryTable/GenericLaboratoryTableHeader';
@@ -33,6 +33,8 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     direction: null
   });
 
+  const hasFilters = productCodes.length > 0;
+
   const {
     data,
     isLoading,
@@ -43,12 +45,15 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     canPreviousPage,
     canNextPage,
     previousPage,
-    nextPage
+    nextPage,
+    isGlobalMode,
+    manualFetch
   } = useLaboratoryMarketShare({
     enabled: true,
     productCodes,
     dateRange,
-    pageSize: 10
+    pageSize: 10,
+    autoFetch: hasFilters
   });
 
   const { exportToCsv, isExporting } = useExportCsv();
@@ -134,13 +139,56 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     );
   }
 
+  if (!hasFilters && data.length === 0 && !isLoading) {
+    return (
+      <Card variant="elevated" className="p-8">
+        <div className="flex flex-col items-center justify-center space-y-4 text-center">
+          <Database className="w-12 h-12 text-gray-400" />
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Analyse Globale des Laboratoires
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Aucun filtre actif. Lancez l'analyse globale pour voir tous les laboratoires.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={manualFetch}
+            disabled={isLoading}
+          >
+            Charger tous les laboratoires
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
             {total} laboratoire{total > 1 ? 's' : ''}
+            {isGlobalMode && (
+              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                Vue globale
+              </span>
+            )}
           </div>
+
+          {!hasFilters && data.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={manualFetch}
+              disabled={isLoading}
+              iconLeft={<Database className="w-4 h-4" />}
+            >
+              Actualiser
+            </Button>
+          )}
           
           <ExportButton
             onClick={handleExport}

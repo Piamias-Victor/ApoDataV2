@@ -7,6 +7,7 @@ interface UseLaboratoryMarketShareOptions {
   readonly productCodes: string[];
   readonly dateRange: { start: string; end: string };
   readonly pageSize?: number;
+  readonly autoFetch?: boolean; // Nouveau: contrôle le fetch auto
 }
 
 interface UseLaboratoryMarketShareReturn {
@@ -22,6 +23,7 @@ interface UseLaboratoryMarketShareReturn {
   readonly nextPage: () => void;
   readonly refetch: () => Promise<void>;
   readonly isGlobalMode: boolean;
+  readonly manualFetch: () => Promise<void>; // Nouveau: fetch manuel
 }
 
 export function useLaboratoryMarketShare(
@@ -35,7 +37,7 @@ export function useLaboratoryMarketShare(
   const [total, setTotal] = useState(0);
   const [isGlobalMode, setIsGlobalMode] = useState(false);
 
-  const { enabled, productCodes, dateRange, pageSize = 10 } = options;
+  const { enabled, productCodes, dateRange, pageSize = 10, autoFetch = true } = options;
 
   const fetchData = useCallback(async (page: number) => {
     if (!enabled) return;
@@ -73,9 +75,12 @@ export function useLaboratoryMarketShare(
     }
   }, [enabled, productCodes, dateRange, pageSize]);
 
+  // Auto-fetch seulement si autoFetch=true ET qu'il y a des filtres
   useEffect(() => {
-    fetchData(1);
-  }, [fetchData]);
+    if (autoFetch && productCodes.length > 0) {
+      fetchData(1);
+    }
+  }, [fetchData, autoFetch, productCodes.length]);
 
   const previousPage = useCallback(() => {
     if (currentPage > 1) {
@@ -93,6 +98,10 @@ export function useLaboratoryMarketShare(
     await fetchData(currentPage);
   }, [currentPage, fetchData]);
 
+  const manualFetch = useCallback(async () => {
+    await fetchData(1);
+  }, [fetchData]);
+
   return {
     data,
     isLoading,
@@ -105,6 +114,7 @@ export function useLaboratoryMarketShare(
     previousPage,
     nextPage,
     refetch,
-    isGlobalMode
+    isGlobalMode,
+    manualFetch
   };
 }
