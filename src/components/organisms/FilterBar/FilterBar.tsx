@@ -244,7 +244,7 @@ export const FilterBar: React.FC = () => {
       label: 'Produits', 
       icon: <Package className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons'] 
+      hiddenRoutes: ['/comparaisons', '/generique'] 
     },
     { 
       id: 'laboratories', 
