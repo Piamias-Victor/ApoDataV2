@@ -17,10 +17,12 @@ import {
   Building, 
   Calendar,
   X,
+  Filter,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
 
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | null;
+type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | null;
 
 interface FilterChipProps {
   readonly icon: React.ReactNode;
@@ -107,6 +109,7 @@ interface FilterButton {
   readonly icon: React.ReactNode;
   readonly adminOnly: boolean;
   readonly hiddenRoutes?: string[];
+  readonly visibleOnlyRoutes?: string[];
 }
 
 export const FilterBar: React.FC = () => {
@@ -241,7 +244,7 @@ export const FilterBar: React.FC = () => {
       label: 'Produits', 
       icon: <Package className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons', '/generique'] 
+      hiddenRoutes: ['/comparaisons'] 
     },
     { 
       id: 'laboratories', 
@@ -269,6 +272,13 @@ export const FilterBar: React.FC = () => {
       icon: <Calendar className="w-full h-full" />, 
       adminOnly: false 
     },
+    { 
+      id: 'filter', 
+      label: 'Filtre', 
+      icon: <Filter className="w-full h-full" />, 
+      adminOnly: false,
+      visibleOnlyRoutes: ['/generique']
+    },
   ];
 
   const visibleButtons = filterButtons.filter(button => {
@@ -276,6 +286,9 @@ export const FilterBar: React.FC = () => {
       return false;
     }
     if (button.hiddenRoutes?.includes(pathname)) {
+      return false;
+    }
+    if (button.visibleOnlyRoutes && !button.visibleOnlyRoutes.includes(pathname)) {
       return false;
     }
     return true;
@@ -295,7 +308,8 @@ export const FilterBar: React.FC = () => {
     laboratories: selectedLaboratories?.length || 0,
     categories: selectedCategories?.length || 0,
     pharmacy: selectedPharmacies?.length || 0,
-    date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0
+    date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
+    filter: 0
   };
 
   return (
@@ -483,6 +497,14 @@ export const FilterBar: React.FC = () => {
         
         {activeDrawer === 'date' && (
           <DateDrawer
+            isOpen={true}
+            onClose={handleDrawerClose}
+            onCountChange={() => {}}
+          />
+        )}
+        
+        {activeDrawer === 'filter' && (
+          <GenericFilterDrawer
             isOpen={true}
             onClose={handleDrawerClose}
             onCountChange={() => {}}

@@ -78,59 +78,87 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 };
 
 export default function GeneriquesPage() {
+  // Récupérer toutes les sources de sélection
   const selectedGroups = useGenericGroupStore(state => state.selectedGroups);
+  const selectedProducts = useGenericGroupStore(state => state.selectedProducts);
+  const selectedLaboratories = useGenericGroupStore(state => state.selectedLaboratories);
   const productCodes = useGenericGroupStore(state => state.productCodes);
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore(state => state.comparisonDateRange);
 
-  const hasSelection = selectedGroups.length > 0 && productCodes.length > 0;
+  // Nouvelle logique : hasSelection si AU MOINS une source est active ET qu'il y a des productCodes
+  const hasSelection = productCodes.length > 0;
+  
+  // Calculer le nombre total de sources
+  const totalSelectionSources = selectedGroups.length + selectedProducts.length + selectedLaboratories.length;
+
+  // Générer un texte descriptif pour la sélection
+  const selectionSummary = useMemo(() => {
+    const parts: string[] = [];
+    
+    if (selectedGroups.length > 0) {
+      parts.push(`${selectedGroups.length} groupe${selectedGroups.length > 1 ? 's' : ''}`);
+    }
+    if (selectedProducts.length > 0) {
+      parts.push(`${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}`);
+    }
+    if (selectedLaboratories.length > 0) {
+      parts.push(`${selectedLaboratories.length} laboratoire${selectedLaboratories.length > 1 ? 's' : ''}`);
+    }
+    
+    return parts.join(' + ');
+  }, [selectedGroups.length, selectedProducts.length, selectedLaboratories.length]);
 
   const marketShareConfig = useMemo(() => ({
     title: hasSelection 
-      ? `Parts de Marché ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}` 
+      ? `Parts de Marché ${totalSelectionSources > 1 ? `(${selectionSummary})` : ''}` 
       : 'Parts de Marché Génériques',
     description: hasSelection
-      ? selectedGroups.length > 1
-        ? `Analyse agrégée des ${selectedGroups.length} groupes génériques sélectionnés avec ${productCodes.length} produits`
-        : 'Analyse achats/ventes par laboratoire pour ce groupe générique'
-      : 'Sélectionnez un ou plusieurs groupes pour voir les parts de marché',
+      ? totalSelectionSources > 1
+        ? `Analyse agrégée : ${selectionSummary} → ${productCodes.length} produits au total`
+        : selectedGroups.length === 1
+          ? 'Analyse achats/ventes par laboratoire pour ce groupe générique'
+          : selectedProducts.length === 1
+            ? 'Analyse d\'un produit générique individuel'
+            : 'Analyse des produits d\'un laboratoire générique'
+      : 'Sélectionnez des groupes, produits ou laboratoires pour voir les parts de marché',
     tooltip: hasSelection
-      ? selectedGroups.length > 1
-        ? `Analyse multi-groupes :
+      ? totalSelectionSources > 1
+        ? `Analyse multi-sources :
 
-- Agrégation de ${selectedGroups.length} groupes génériques
+- ${selectionSummary}
 - ${productCodes.length} produits au total
 - Colonnes achats : volume, CA, part de marché
 - Colonnes ventes : volume, CA, part de marché
 - Taux de marge moyen par laboratoire
 - Tri par CA ventes décroissant
 
-Ajoutez ou retirez des groupes pour affiner l'analyse.`
-        : `Analyse détaillée d'un groupe :
+Gérez vos sélections via le drawer des filtres génériques.`
+        : `Analyse détaillée :
       
 - Volume achats : Quantités commandées/reçues
 - CA Achats : Montant total des achats HT
-- PM Achat : Part du laboratoire sur total achats du groupe
+- PM Achat : Part du laboratoire sur total achats
 - Taux marge : Rentabilité moyenne (%)
 - Volume ventes : Quantités vendues aux patients
 - CA Ventes : Chiffre d'affaires TTC réalisé
-- PM Vente : Part du laboratoire sur total ventes du groupe
+- PM Vente : Part du laboratoire sur total ventes
 - Badge Référent : Identifie le médicament de référence
 
 Pagination : 10 laboratoires par page, triés par CA ventes.`
-      : `Sélectionnez des groupes :
+      : `Sélectionnez des éléments :
 
-- Utilisez la recherche ci-dessus pour trouver des groupes génériques
-- Cliquez sur un groupe pour l'ajouter à la sélection
-- Multi-sélection disponible pour analyses comparatives
-- Les parts de marché se calculeront automatiquement
+3 modes de sélection disponibles :
+→ Groupes génériques (via recherche principale)
+→ Produits individuels (via drawer filtres)
+→ Laboratoires (via drawer filtres)
 
 Les données incluront :
 → Volumes et CA d'achats par laboratoire
 → Volumes et CA de ventes par laboratoire
 → Parts de marché achats et ventes
 → Taux de marge moyens`
-  }), [hasSelection, selectedGroups.length, productCodes.length]);
+  }), [hasSelection, totalSelectionSources, selectionSummary, productCodes.length, selectedGroups.length, selectedProducts.length]);
 
   return (
     <motion.div
@@ -151,6 +179,11 @@ Les données incluront :
           </div>
           <p className="text-gray-600 mt-1">
             Recherche et analyse des groupes génériques BCB
+            {hasSelection && (
+              <span className="ml-2 text-indigo-600 font-medium">
+                • {selectionSummary} • {productCodes.length} produits
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -168,7 +201,11 @@ Les données incluront :
 3 modes de recherche :
 - Groupe : Nom du groupe générique BCB
 - Molécule/DCI : Dénomination commune internationale  
-- Code produit : Code CIP13`}
+- Code produit : Code CIP13
+
+Complétez avec le drawer des filtres pour :
+- Ajouter des produits individuels
+- Ajouter des laboratoires complets`}
         icon={<Pill className="w-5 h-5 text-blue-600" />}
       >
         <GenericGroupSelector />
@@ -201,6 +238,7 @@ Les données incluront :
           >
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
               <GenericKpisSection 
+                productCodes={productCodes}
                 dateRange={analysisDateRange}
                 comparisonDateRange={comparisonDateRange}
                 includeComparison={true}
@@ -214,7 +252,7 @@ Les données incluront :
             transition={{ duration: 0.3, delay: 0.3 }}
           >
             <SectionWithHelp
-              title={`Détail des Produits ${selectedGroups.length > 1 ? `(${selectedGroups.length} groupes)` : ''}`}
+              title={`Détail des Produits ${totalSelectionSources > 1 ? `(${selectionSummary})` : ''}`}
               description={`${productCodes.length} produits au total dans la sélection`}
               tooltipContent={`Tableau détaillé des produits par laboratoire :
               
@@ -228,7 +266,7 @@ Les données incluront :
 - Export CSV : Téléchargez toutes les données
 - Pagination : 50 produits par page
 
-${selectedGroups.length > 1 ? 'Produits agrégés de tous les groupes sélectionnés.' : 'Vue détaillée du groupe sélectionné.'}`}
+${totalSelectionSources > 1 ? `Produits agrégés depuis ${selectionSummary}.` : 'Vue détaillée de la sélection.'}`}
               icon={<Package className="w-5 h-5 text-indigo-600" />}
             >
               <ProductsTableGeneric 

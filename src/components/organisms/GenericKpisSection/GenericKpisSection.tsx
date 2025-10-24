@@ -1,6 +1,7 @@
 // src/components/organisms/GenericKpisSection/GenericKpisSection.tsx
 'use client';
 
+
 import React, { useMemo, useCallback } from 'react';
 import { 
   RotateCcw, 
@@ -313,7 +314,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     return `${totalProducts} produits au total dans ${selectedGroups.length} groupes`;
   }, [selectedGroups]);
 
-  if (selectedGroups.length === 0 || productCodes.length === 0) {
+  if (productCodes.length === 0) {
     return (
       <section className={`px-6 py-6 ${className}`}>
         <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-gray-200">
