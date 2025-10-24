@@ -229,7 +229,7 @@ Complétez avec le drawer des filtres pour :
         </SectionWithHelp>
       </motion.div>
 
-      {hasSelection && (
+      
         <>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -275,7 +275,7 @@ ${totalSelectionSources > 1 ? `Produits agrégés depuis ${selectionSummary}.` :
             </SectionWithHelp>
           </motion.div>
         </>
-      )}
+      
     </motion.div>
   );
 }

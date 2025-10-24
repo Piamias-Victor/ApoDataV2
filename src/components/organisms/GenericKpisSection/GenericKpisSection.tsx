@@ -1,7 +1,6 @@
 // src/components/organisms/GenericKpisSection/GenericKpisSection.tsx
 'use client';
 
-
 import React, { useMemo, useCallback } from 'react';
 import { 
   RotateCcw, 
@@ -15,7 +14,7 @@ import {
   Calendar,
   Hash,
   Percent,
-  Pill
+  Globe
 } from 'lucide-react';
 import { useGenericKpiMetrics } from '@/hooks/generic-groups/useGenericKpiMetrics';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
@@ -50,6 +49,8 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
   className = ''
 }) => {
   const selectedGroups = useGenericGroupStore((state) => state.selectedGroups);
+  const selectedProducts = useGenericGroupStore((state) => state.selectedProducts);
+  const selectedLaboratories = useGenericGroupStore((state) => state.selectedLaboratories);
   const productCodes = useGenericGroupStore((state) => state.productCodes);
   
   const { 
@@ -57,7 +58,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     isLoading, 
     error, 
     refetch,
-    hasData 
+    isGlobalMode
   } = useGenericKpiMetrics({
     enabled: true,
     includeComparison,
@@ -82,6 +83,43 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     }
   }, [transformedKpis]);
 
+  // Textes dynamiques selon le mode
+  const headerText = useMemo(() => {
+    if (isGlobalMode) {
+      return 'KPI Globaux - Génériques & Référents';
+    }
+    if (selectedGroups.length === 1) {
+      return `KPI - ${selectedGroups[0]?.generic_group || 'Groupe Générique'}`;
+    }
+    if (selectedGroups.length > 1) {
+      return `KPI - ${selectedGroups.length} Groupes Génériques`;
+    }
+    if (selectedProducts.length > 0 || selectedLaboratories.length > 0) {
+      const parts = [];
+      if (selectedProducts.length > 0) parts.push(`${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}`);
+      if (selectedLaboratories.length > 0) parts.push(`${selectedLaboratories.length} labo${selectedLaboratories.length > 1 ? 's' : ''}`);
+      return `KPI - ${parts.join(' + ')}`;
+    }
+    return 'KPI Génériques';
+  }, [isGlobalMode, selectedGroups, selectedProducts, selectedLaboratories]);
+
+  const subtitleText = useMemo(() => {
+    if (isGlobalMode) {
+      return 'Tous les produits génériques et référents';
+    }
+    if (selectedGroups.length === 1) {
+      const group = selectedGroups[0];
+      return `${group?.referent_name || 'Référent inconnu'} • ${productCodes.length} produit${productCodes.length > 1 ? 's' : ''}`;
+    }
+    if (selectedGroups.length > 1) {
+      return `${productCodes.length} produits au total`;
+    }
+    if (selectedProducts.length > 0 || selectedLaboratories.length > 0) {
+      return `${productCodes.length} produit${productCodes.length > 1 ? 's' : ''} sélectionné${productCodes.length > 1 ? 's' : ''}`;
+    }
+    return 'Indicateurs de performance';
+  }, [isGlobalMode, selectedGroups, selectedProducts, selectedLaboratories, productCodes.length]);
+
   const prepareKpiDataForExport = useCallback(() => {
     if (!data) return [];
     
@@ -96,7 +134,21 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     const comparisonPeriod = comparisonDateRange && includeComparison ? 
       formatDateRange(comparisonDateRange.start || '', comparisonDateRange.end || '') : '';
     
-    if (selectedGroups.length === 1) {
+    // Mode global
+    if (isGlobalMode) {
+      exportData.push({
+        'Indicateur': 'Mode',
+        'Valeur': 'Global - Génériques & Référents',
+        'Unité': '',
+        'Période actuelle': currentPeriod,
+        'Valeur précédente': '',
+        'Période précédente': '',
+        'Evolution (%)': '',
+        'Evolution (valeur)': ''
+      });
+    }
+    // Mode groupe unique
+    else if (selectedGroups.length === 1) {
       exportData.push({
         'Indicateur': 'Groupe Générique',
         'Valeur': selectedGroups[0]?.generic_group || 'N/A',
@@ -118,7 +170,9 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
         'Evolution (%)': '',
         'Evolution (valeur)': ''
       });
-    } else if (selectedGroups.length > 1) {
+    }
+    // Mode groupes multiples
+    else if (selectedGroups.length > 1) {
       exportData.push({
         'Indicateur': 'Groupes Génériques',
         'Valeur': `${selectedGroups.length} groupes sélectionnés`,
@@ -226,7 +280,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       'Evolution (%)': data.comparison ? 
         ((data.quantite_vendue - data.comparison.quantite_vendue) / data.comparison.quantite_vendue * 100).toFixed(2) : '',
       'Evolution (valeur)': data.comparison ? 
-        (data.quantite_vendue - data.comparison.quantite_vendue) : ''
+        (data.quantite_vendue - data.comparison.quantite_vendue).toFixed(0) : ''
     });
     
     exportData.push({
@@ -239,12 +293,12 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       'Evolution (%)': data.comparison ? 
         ((data.quantite_achetee - data.comparison.quantite_achetee) / data.comparison.quantite_achetee * 100).toFixed(2) : '',
       'Evolution (valeur)': data.comparison ? 
-        (data.quantite_achetee - data.comparison.quantite_achetee) : ''
+        (data.quantite_achetee - data.comparison.quantite_achetee).toFixed(0) : ''
     });
     
     exportData.push({
       'Indicateur': 'Jours de Stock',
-      'Valeur': data.jours_de_stock || 'N/A',
+      'Valeur': data.jours_de_stock !== null ? data.jours_de_stock.toFixed(0) : 'N/A',
       'Unité': 'jours',
       'Période actuelle': currentPeriod,
       'Valeur précédente': '',
@@ -254,9 +308,9 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     });
     
     exportData.push({
-      'Indicateur': 'Nombre de Références',
+      'Indicateur': 'Nb Références',
       'Valeur': data.nb_references_produits,
-      'Unité': 'références',
+      'Unité': '',
       'Période actuelle': currentPeriod,
       'Valeur précédente': '',
       'Période précédente': '',
@@ -264,84 +318,56 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       'Evolution (valeur)': ''
     });
     
+    exportData.push({
+      'Indicateur': 'Nb Pharmacies',
+      'Valeur': data.nb_pharmacies,
+      'Unité': '',
+      'Période actuelle': currentPeriod,
+      'Valeur précédente': '',
+      'Période précédente': '',
+      'Evolution (%)': '',
+      'Evolution (valeur)': ''
+    });
+
     return exportData;
-  }, [data, dateRange, comparisonDateRange, includeComparison, selectedGroups]);
+  }, [data, dateRange, comparisonDateRange, includeComparison, isGlobalMode, selectedGroups]);
 
   const handleExport = useCallback(() => {
     const exportData = prepareKpiDataForExport();
     
-    if (exportData.length === 0) return;
-    
-    const groupName = selectedGroups.length === 1
-      ? selectedGroups[0]?.generic_group?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'generique'
-      : `multi_groupes_${selectedGroups.length}`;
-    const filename = CsvExporter.generateFilename(`apodata_kpis_${groupName}`);
-    
-    if (!exportData[0]) return;
-    
-    const headers = Object.keys(exportData[0]);
-    
-    exportToCsv({ filename, headers, data: exportData });
-  }, [prepareKpiDataForExport, exportToCsv, selectedGroups]);
+    if (exportData.length === 0) {
+      console.warn('No data to export');
+      return;
+    }
 
-  const handleRefresh = useCallback(async () => {
-    await refetch();
-    onRefresh?.();
+    const filename = CsvExporter.generateFilename(
+      isGlobalMode ? 'apodata_kpi_generiques_global' : 'apodata_kpi_generiques'
+    );
+    const headers = Object.keys(exportData[0] || {});
+
+    exportToCsv({ filename, headers, data: exportData });
+  }, [exportToCsv, prepareKpiDataForExport, isGlobalMode]);
+
+  const handleRefresh = useCallback(() => {
+    console.log('🔄 Refreshing KPI data');
+    refetch();
+    if (onRefresh) {
+      onRefresh();
+    }
   }, [refetch, onRefresh]);
 
-  const errorMessage = useMemo(() => {
-    if (!error) return null;
-    return getKpiErrorMessage(error);
-  }, [error]);
-
   const isEmpty = useMemo(() => {
-    return hasData && data && !hasSignificantKpiData(data);
-  }, [hasData, data]);
-
-  const headerText = useMemo(() => {
-    if (selectedGroups.length === 0) return 'Indicateurs Génériques';
-    if (selectedGroups.length === 1) return 'Indicateurs du Groupe Générique';
-    return `Indicateurs Agrégés (${selectedGroups.length} groupes)`;
-  }, [selectedGroups.length]);
-
-  const subtitleText = useMemo(() => {
-    if (selectedGroups.length === 0) return 'Aucune sélection';
-    if (selectedGroups.length === 1) {
-      const group = selectedGroups[0]!;
-      return `${group.generic_group} • ${group.product_count} produits • ${group.referent_name ? `Référent: ${group.referent_name}` : 'Pas de référent'}`;
-    }
-    const totalProducts = selectedGroups.reduce((sum, g) => sum + g.product_count, 0);
-    return `${totalProducts} produits au total dans ${selectedGroups.length} groupes`;
-  }, [selectedGroups]);
-
-  if (productCodes.length === 0) {
-    return (
-      <section className={`px-6 py-6 ${className}`}>
-        <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-gray-200">
-          <Pill className="w-12 h-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Aucun groupe générique sélectionné
-          </h3>
-          <p className="text-gray-500 max-w-md">
-            Sélectionnez un ou plusieurs groupes génériques pour afficher les indicateurs clés.
-          </p>
-        </div>
-      </section>
-    );
-  }
+    return data && !hasSignificantKpiData(data);
+  }, [data]);
 
   if (error) {
+    const errorMessage = getKpiErrorMessage(error);
     return (
       <section className={`px-6 py-6 ${className}`}>
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
-          <p className="text-sm text-gray-500 mt-1">{subtitleText}</p>
-        </div>
-        
         <div className="flex flex-col items-center justify-center py-12 text-center bg-red-50 rounded-lg border border-red-200">
-          <div className="text-red-600 mb-4">
+          <div className="text-red-400 mb-4">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           
@@ -367,9 +393,19 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
   return (
     <section className={`px-6 py-6 ${className}`}>
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
-          <p className="text-sm text-gray-500 mt-1">{subtitleText}</p>
+        <div className="flex items-center space-x-3">
+          <div>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
+              {isGlobalMode && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <Globe className="w-3 h-3 mr-1" />
+                  Global
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 mt-1">{subtitleText}</p>
+          </div>
         </div>
         
         <div className="flex items-center space-x-2">

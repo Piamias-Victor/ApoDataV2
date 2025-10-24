@@ -20,6 +20,8 @@ interface UseGenericProductsListOptions {
   readonly productCodes: string[];
   readonly dateRange: { start: string; end: string };
   readonly pageSize?: number;
+  readonly showGlobalTop?: boolean;
+  readonly autoFetch?: boolean;
 }
 
 interface UseGenericProductsListReturn {
@@ -36,6 +38,8 @@ interface UseGenericProductsListReturn {
   readonly refetch: () => Promise<void>;
   readonly search: (query: string) => void;
   readonly sort: (column: string, direction: 'asc' | 'desc') => void;
+  readonly isGlobalMode: boolean;
+  readonly manualFetch: () => void;
 }
 
 export function useGenericProductsList(
@@ -48,16 +52,31 @@ export function useGenericProductsList(
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortColumn, setSortColumn] = useState('ca_ventes');
+  const [sortColumn, setSortColumn] = useState('quantity_sold');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [isGlobalMode, setIsGlobalMode] = useState(false);
 
-  const { enabled, productCodes, dateRange, pageSize = 50 } = options;
+  const { 
+    enabled, 
+    productCodes, 
+    dateRange, 
+    pageSize = 50,
+    showGlobalTop = false,
+    autoFetch = true
+  } = options;
 
-  const fetchData = useCallback(async (page: number) => {
-    if (!enabled || productCodes.length === 0) return;
+  const fetchData = useCallback(async (page: number, forceGlobal = false) => {
+    const shouldUseGlobalMode = forceGlobal || (showGlobalTop && productCodes.length === 0);
+    
+    if (!enabled || (!shouldUseGlobalMode && productCodes.length === 0)) {
+      setData([]);
+      setIsGlobalMode(false);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
+    setIsGlobalMode(shouldUseGlobalMode);
 
     try {
       const response = await fetch('/api/generic-groups/products-list', {
@@ -65,12 +84,13 @@ export function useGenericProductsList(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dateRange,
-          productCodes,
+          productCodes: shouldUseGlobalMode ? [] : productCodes,
           page,
           pageSize,
           searchQuery,
-          sortColumn,
-          sortDirection
+          sortColumn: shouldUseGlobalMode ? 'quantity_sold' : sortColumn,
+          sortDirection: shouldUseGlobalMode ? 'desc' : sortDirection,
+          showGlobalTop: shouldUseGlobalMode
         })
       });
 
@@ -89,11 +109,13 @@ export function useGenericProductsList(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection]);
+  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop]);
 
   useEffect(() => {
-    fetchData(1);
-  }, [fetchData]);
+    if (autoFetch) {
+      fetchData(1);
+    }
+  }, [fetchData, autoFetch]);
 
   const previousPage = useCallback(() => {
     if (currentPage > 1) {
@@ -110,6 +132,10 @@ export function useGenericProductsList(
   const refetch = useCallback(async () => {
     await fetchData(currentPage);
   }, [currentPage, fetchData]);
+
+  const manualFetch = useCallback(() => {
+    fetchData(1, true);
+  }, [fetchData]);
 
   const search = useCallback((query: string) => {
     setSearchQuery(query);
@@ -135,6 +161,8 @@ export function useGenericProductsList(
     nextPage,
     refetch,
     search,
-    sort
+    sort,
+    isGlobalMode,
+    manualFetch
   };
 }

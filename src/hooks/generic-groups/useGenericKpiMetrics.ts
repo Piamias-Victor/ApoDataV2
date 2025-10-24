@@ -33,7 +33,9 @@ interface UseGenericKpiMetricsOptions {
   readonly comparisonDateRange?: { start: string | null; end: string | null } | undefined;
 }
 
-interface UseGenericKpiMetricsReturn extends BaseHookReturn<KpiMetricsResponse> {}
+interface UseGenericKpiMetricsReturn extends BaseHookReturn<KpiMetricsResponse> {
+  readonly isGlobalMode: boolean;
+}
 
 export function useGenericKpiMetrics(
   options: UseGenericKpiMetricsOptions
@@ -41,22 +43,32 @@ export function useGenericKpiMetrics(
   const productCodes = useGenericGroupStore((state) => state.productCodes);
   const selectedGroups = useGenericGroupStore((state) => state.selectedGroups);
   
-  console.log('🎯 [useGenericKpiMetrics] Using generic group product codes:', {
+  // Mode global si aucun code de produit sélectionné
+  const isGlobalMode = productCodes.length === 0;
+  
+  console.log('🎯 [useGenericKpiMetrics] Mode detection:', {
+    isGlobalMode,
     groupsCount: selectedGroups.length,
     groupNames: selectedGroups.map(g => g.generic_group),
     productCodesCount: productCodes.length,
     productCodes: productCodes.slice(0, 5)
   });
 
-  const hasValidData = productCodes.length > 0;
-
-  return useStandardFetch<KpiMetricsResponse>('/api/kpis', {
-    enabled: options.enabled && hasValidData,
+  // Utiliser l'API globale si pas de codes, sinon l'API classique
+  const apiEndpoint = isGlobalMode ? '/api/kpis/generic-global' : '/api/kpis';
+  
+  const fetchResult = useStandardFetch<KpiMetricsResponse>(apiEndpoint, {
+    enabled: options.enabled,
     dateRange: options.dateRange,
     comparisonDateRange: options.comparisonDateRange,
     includeComparison: options.includeComparison,
-    filters: {
+    filters: isGlobalMode ? {} : {
       productCodes: productCodes
     }
   });
+
+  return {
+    ...fetchResult,
+    isGlobalMode
+  };
 }

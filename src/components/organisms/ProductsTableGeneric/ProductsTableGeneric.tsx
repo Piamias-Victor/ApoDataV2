@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RotateCcw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RotateCcw, Search, Database } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
@@ -42,6 +42,8 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     direction: 'desc'
   });
 
+  const hasFilters = productCodes.length > 0;
+
   const {
     data: products,
     isLoading,
@@ -54,12 +56,15 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     previousPage,
     nextPage,
     search,
-    sort
+    sort,
+    isGlobalMode,
+    manualFetch
   } = useGenericProductsList({
-    enabled: productCodes.length > 0,
+    enabled: true,
     productCodes,
     dateRange,
-    pageSize: 50
+    pageSize: 50,
+    autoFetch: hasFilters
   });
 
   const { exportToCsv, isExporting } = useExportCsv();
@@ -138,6 +143,33 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     );
   }
 
+  if (!hasFilters && products.length === 0 && !isLoading) {
+    return (
+      <Card variant="elevated" className={`p-8 ${className}`}>
+        <div className="flex flex-col items-center justify-center space-y-4 text-center">
+          <Database className="w-12 h-12 text-gray-400" />
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Chargement Global
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Aucun filtre actif. Cliquez pour charger tous les produits.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={manualFetch}
+            disabled={isLoading}
+            iconLeft={<Database className="w-4 h-4" />}
+          >
+            Charger Tout
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className={`space-y-4 ${className}`}>
       
@@ -145,6 +177,11 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
             {total} produit{total > 1 ? 's' : ''}
+            {isGlobalMode && (
+              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                Global
+              </span>
+            )}
           </div>
           
           <ExportButton
@@ -154,7 +191,22 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
             label={`Export CSV (${total} lignes)`}
           />
           
-          {onRefresh && (
+          {!hasFilters && products.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={manualFetch}
+              disabled={isLoading}
+              iconLeft={
+                <Database className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              }
+              className="text-gray-600 hover:text-gray-900"
+            >
+              {isLoading ? 'Chargement...' : 'Recharger'}
+            </Button>
+          )}
+
+          {onRefresh && hasFilters && (
             <Button
               variant="ghost"
               size="sm"
@@ -201,7 +253,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               <tr>
                 <th 
                   onClick={() => handleSort('laboratory_name')}
-                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-24"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-32"
                 >
                   <div className="flex items-center space-x-1">
                     <span>Labo</span>
@@ -210,7 +262,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 </th>
                 <th 
                   onClick={() => handleSort('product_name')}
-                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-40"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center space-x-1">
                     <span>Produit</span>

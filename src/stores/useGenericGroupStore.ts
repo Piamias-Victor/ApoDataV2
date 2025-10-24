@@ -12,6 +12,10 @@ interface GenericGroupState {
   // Résultat calculé
   productCodes: string[];
   
+  // Mode global
+  showGlobalTop: boolean;
+  setShowGlobalTop: (show: boolean) => void;
+  
   // Gestion des groupes génériques
   addGroup: (group: GenericGroup) => void;
   removeGroup: (groupName: string) => void;
@@ -43,6 +47,13 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   selectedProducts: [],
   selectedLaboratories: [],
   productCodes: [],
+  showGlobalTop: false,
+
+  // ===== MODE GLOBAL =====
+  setShowGlobalTop: (show) => {
+    console.log('🌍 [GenericGroupStore] Setting global mode:', show);
+    set({ showGlobalTop: show });
+  },
 
   // Recalculer tous les product codes
   recalculateProductCodes: () => {
@@ -245,7 +256,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedGroups: [],
       selectedProducts: [],
       selectedLaboratories: [],
-      productCodes: []
+      productCodes: [],
+      showGlobalTop: false
     });
   }
 }));
