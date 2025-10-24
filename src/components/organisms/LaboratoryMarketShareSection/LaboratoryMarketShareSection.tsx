@@ -115,7 +115,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
       'CA Réalisé (€)': lab.ca_selection,
       'Marge Réalisée (€)': lab.marge_selection,
       'Part Marché CA (%)': (lab.part_marche_ca_pct / 100).toFixed(3),
-      'Part Marché Marge (%)': (lab.part_marche_marge_pct / 100).toFixed(3)
+      'Part Marché Marge (%)': (lab.part_marche_marge_pct || 0 / 100).toFixed(3)
     }));
 
     if (exportData.length === 0) return;
