@@ -370,6 +370,10 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   </div>
                 </th>
                 
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Évolution
+                </th>
+                
                 <th 
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('prix_achat_moyen')}
@@ -469,6 +473,28 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                         </div>
                       </td>
                       
+                      {/* Évolution */}
+                      <td className="px-4 py-3 text-right">
+                        {(() => {
+                          if (product.quantite_vendue_comparison === null || product.quantite_vendue_comparison === undefined) {
+                            return <span className="text-xs text-gray-400">-</span>;
+                          }
+                          
+                          if (product.quantite_vendue_comparison === 0) {
+                            return <span className="text-xs font-semibold text-blue-600">Nouveau</span>;
+                          }
+                          
+                          const evolution = ((product.quantite_vendue - product.quantite_vendue_comparison) / product.quantite_vendue_comparison) * 100;
+                          const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
+                          
+                          return (
+                            <span className={`text-sm font-semibold ${colorClass}`}>
+                              {evolution > 0 ? '+' : ''}{evolution.toFixed(1)}%
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      
                       {/* Prix achat */}
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
@@ -536,7 +562,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     {/* Ligne expansion avec graphique - SORT DU TABLE LAYOUT */}
                     {isExpanded && hasDetailData && (
                       <tr>
-                        <td colSpan={11} className="p-0 relative">
+                        <td colSpan={12} className="p-0 relative">
                           <div className="absolute left-0 right-0 bg-gray-50 border-t border-gray-200 z-10">
                             <div className="p-6">
                               <SalesProductChart

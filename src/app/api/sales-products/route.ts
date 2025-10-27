@@ -20,6 +20,7 @@ const CACHE_TTL = 3600; // 1 heure pour données ventes
 
 interface SalesProductsRequest {
   readonly dateRange: { start: string; end: string; };
+  readonly comparisonDateRange?: { start: string; end: string; }; // AJOUT
   readonly productCodes: string[];
   readonly laboratoryCodes: string[];
   readonly categoryCodes: string[];
@@ -40,22 +41,22 @@ interface SalesProductRow {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
+  readonly quantite_vendue_comparison: number | null; // AJOUT
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
-    console.log('🔥 [API] Sales products API called');
+    console.log('🔥 [API Sales Products] Request started');
     
-    // 1. Sécurité et validation
     const context = await getSecurityContext();
     if (!context) {
-      console.log('❌ [API] Unauthorized - no security context');
+      console.log('❌ [API Sales Products] Unauthorized');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('🔐 [API] Security context:', {
+    console.log('🔐 [API Sales Products] Security context:', {
       userId: context.userId,
       role: context.userRole,
       isAdmin: context.isAdmin,
@@ -65,26 +66,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let body: SalesProductsRequest;
     try {
       body = await request.json();
-      console.log('📥 [API] Request body received:', body);
+      console.log('📥 [API Sales Products] Request body:', {
+        dateRange: body.dateRange,
+        hasComparisonDateRange: !!body.comparisonDateRange,
+        comparisonDateRange: body.comparisonDateRange
+      });
     } catch (jsonError) {
-      console.log('💥 [API] JSON parsing error:', jsonError);
+      console.log('💥 [API Sales Products] JSON parsing error:', jsonError);
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    // Validation des dates
     if (!body.dateRange?.start || !body.dateRange?.end) {
-      console.log('❌ [API] Missing date range');
+      console.log('❌ [API Sales Products] Missing date range');
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
     
-    // 2. Fusion des codes EAN sans doublons
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
       ...(body.categoryCodes || [])
     ]));
 
-    console.log('📦 [API] Product codes merged:', {
+    console.log('📦 [API Sales Products] Product codes merged:', {
       totalCodes: allProductCodes.length,
       productCodes: body.productCodes?.length || 0,
       laboratoryCodes: body.laboratoryCodes?.length || 0,
@@ -93,17 +96,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const hasProductFilter = allProductCodes.length > 0;
 
-    // 3. Application sécurité pharmacie
     const secureFilters = enforcePharmacySecurity({
       dateRange: body.dateRange,
       pharmacy: body.pharmacyIds || []
     }, context);
 
-    console.log('🛡️ [API] Secure filters applied:', secureFilters);
+    console.log('🛡️ [API Sales Products] Secure filters applied:', secureFilters);
 
-    // 4. Cache
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
+      comparisonDateRange: body.comparisonDateRange, // AJOUT
       productCodes: allProductCodes,
       pharmacyIds: secureFilters.pharmacy || [],
       role: context.userRole,
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       try {
         const cached = await redis.get(cacheKey);
         if (cached) {
-          console.log('✅ [API] Cache HIT - returning cached data');
+          console.log('✅ [API Sales Products] Cache HIT');
           return NextResponse.json({
             ...(cached as any),
             cached: true,
@@ -122,45 +124,89 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
         }
       } catch (cacheError) {
-        console.warn('⚠️ [API] Cache read error:', cacheError);
+        console.warn('⚠️ [API Sales Products] Cache read error:', cacheError);
       }
     }
 
-    // 5. Exécution requête selon rôle
-    console.log('🗃️ [API] Executing database query...');
+    // ========== PÉRIODE PRINCIPALE ==========
+    console.log('🗃️ [API Sales Products] Executing main period query...');
     
     const salesData = context.isAdmin 
       ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
-    console.log('📈 [API] Query completed:', {
+    console.log('📈 [API Sales Products] Main query completed:', {
       dataFound: salesData.length,
-      dateRangeUsed: body.dateRange,
       queryTimeMs: Date.now() - startTime
     });
 
+    // ========== PÉRIODE DE COMPARAISON (UNIQUEMENT SYNTHESE) ==========
+    let comparisonMap = new Map<string, number>();
+    
+    if (body.comparisonDateRange?.start && body.comparisonDateRange?.end) {
+      console.log('📊 [API Sales Products] Calculating comparison period');
+      
+      const comparisonSales = context.isAdmin
+        ? await executeAdminQuery(body.comparisonDateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
+        : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
+      
+      // Ne garder que les lignes SYNTHESE pour la comparaison
+      const comparisonSyntheses = comparisonSales.filter(row => row.type_ligne === 'SYNTHESE');
+      
+      comparisonSyntheses.forEach(row => {
+        comparisonMap.set(row.code_ean, row.quantite_vendue);
+      });
+      
+      console.log('✅ [API Sales Products] Comparison data loaded:', {
+        comparisonCount: comparisonSyntheses.length,
+        sampleComparison: comparisonSyntheses[0] ? {
+          code_ean: comparisonSyntheses[0].code_ean,
+          quantite_vendue: comparisonSyntheses[0].quantite_vendue
+        } : null
+      });
+    }
+
+    // ========== FUSION DES RÉSULTATS ==========
+    const salesDataWithComparison = salesData.map(row => ({
+      ...row,
+      // Ajouter la comparaison uniquement pour les lignes SYNTHESE
+      quantite_vendue_comparison: row.type_ligne === 'SYNTHESE' 
+        ? (comparisonMap.get(row.code_ean) ?? null)
+        : null
+    }));
+
+    if (salesDataWithComparison.length > 0 && salesDataWithComparison[0]) {
+      const sampleSynthese = salesDataWithComparison.find(r => r.type_ligne === 'SYNTHESE');
+      if (sampleSynthese) {
+        console.log('🔍 [API Sales Products] Sample SYNTHESE with comparison:', {
+          code_ean: sampleSynthese.code_ean,
+          quantite_vendue: sampleSynthese.quantite_vendue,
+          quantite_vendue_comparison: sampleSynthese.quantite_vendue_comparison
+        });
+      }
+    }
+
     const result = {
-      salesData,
-      count: salesData.length,
+      salesData: salesDataWithComparison,
+      count: salesDataWithComparison.length,
       dateRange: body.dateRange,
       queryTime: Date.now() - startTime,
       cached: false
     };
 
-    // 6. Cache
     if (CACHE_ENABLED) {
       try {
         await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
-        console.log('💾 [API] Result cached successfully');
+        console.log('💾 [API Sales Products] Result cached');
       } catch (cacheError) {
-        console.warn('⚠️ [API] Cache write error:', cacheError);
+        console.warn('⚠️ [API Sales Products] Cache write error:', cacheError);
       }
     }
 
     return NextResponse.json(result);
 
   } catch (error) {
-    console.error('💥 [API] Sales products API error:', error);
+    console.error('💥 [API Sales Products] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error', queryTime: Date.now() - startTime },
       { status: 500 }
@@ -173,7 +219,7 @@ async function executeAdminQuery(
   productCodes: string[],
   pharmacyIds?: string[],
   hasProductFilter: boolean = true
-): Promise<SalesProductRow[]> {
+): Promise<Omit<SalesProductRow, 'quantite_vendue_comparison'>[]> {
   const pharmacyFilter = pharmacyIds && pharmacyIds.length > 0
     ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
@@ -266,7 +312,7 @@ async function executeAdminQuery(
       FROM period_sales ps
     ),
     all_results AS (
-      -- Résultats détaillés par période
+      -- Détails par période
       SELECT 
         ps.product_name as nom,
         ps.code_13_ref_id as code_ean,
@@ -306,7 +352,7 @@ async function executeAdminQuery(
       
       UNION ALL
       
-      -- Ligne synthèse par produit
+      -- Synthèse par produit
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
@@ -373,7 +419,7 @@ async function executeUserQuery(
   productCodes: string[],
   pharmacyId: string,
   hasProductFilter: boolean = true
-): Promise<SalesProductRow[]> {
+): Promise<Omit<SalesProductRow, 'quantite_vendue_comparison'>[]> {
   
   const productFilter = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
@@ -553,6 +599,7 @@ async function executeUserQuery(
 
 function generateCacheKey(params: {
   dateRange: { start: string; end: string };
+  comparisonDateRange?: { start: string; end: string } | undefined;
   productCodes: string[];
   pharmacyIds: string[];
   role: string;
@@ -560,6 +607,7 @@ function generateCacheKey(params: {
 }): string {
   const data = JSON.stringify({
     dateRange: params.dateRange,
+    comparisonDateRange: params.comparisonDateRange,
     productCodes: params.hasProductFilter ? params.productCodes.sort() : [],
     pharmacyIds: params.pharmacyIds.sort(),
     role: params.role,

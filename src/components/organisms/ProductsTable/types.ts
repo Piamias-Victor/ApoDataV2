@@ -12,6 +12,7 @@ export interface ProductMetrics {
   readonly avg_sell_price_ttc: number;
   readonly avg_buy_price_ht: number;
   readonly unit_margin_ht: number;
+  readonly quantity_sold_comparison: number | null; // AJOUT pour comparaison
 }
 
 export type ViewMode = 'totals' | 'averages';
@@ -23,6 +24,7 @@ export type SortableColumn =
   | 'code_ean' 
   | 'current_stock'
   | 'quantity_sold'
+  | 'quantity_sold_evolution' // AJOUT pour tri sur évolution
   | 'ca_ttc'
   | 'purchase_amount'
   | 'total_margin_ht'

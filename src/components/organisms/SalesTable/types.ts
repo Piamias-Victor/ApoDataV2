@@ -19,6 +19,7 @@ export interface SalesProductRow {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
+  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
 }
 
 export interface ProductSalesSummary {
@@ -32,6 +33,7 @@ export interface ProductSalesSummary {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
+  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
 }
 
 // Types pour tri des colonnes

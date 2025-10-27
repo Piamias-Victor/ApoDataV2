@@ -32,7 +32,7 @@ interface ProductsTableProps {
 
 /**
  * ProductsTable - Tableau avancé produits pharmaceutiques
- * Avec export CSV intégré
+ * Avec export CSV intégré et évolution des quantités vendues
  */
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
@@ -76,15 +76,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         direction: 'asc'
       };
     });
-    
-    // Reset page lors du tri
-    // setCurrentPage(1);
   }, []);
 
   // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    // setCurrentPage(1); // Reset page lors de la recherche
   }, []);
 
   // Gestion changement de vue
@@ -92,23 +88,21 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     setViewMode(newViewMode);
     // Reset tri car colonnes différentes
     setSortConfig({ column: null, direction: null });
-    // setCurrentPage(1);
   }, []);
 
-  // Au début de ProductsTable, après tes useState
-const renderCount = useRef(0);
-renderCount.current += 1;
+  // Debug render count
+  const renderCount = useRef(0);
+  renderCount.current += 1;
 
-console.log('🔄 ProductsTable render #', renderCount.current, {
-  currentPage,
-  productsLength: products.length,
-  timestamp: new Date().toISOString()
-});
+  console.log('🔄 ProductsTable render #', renderCount.current, {
+    currentPage,
+    productsLength: products.length,
+    timestamp: new Date().toISOString()
+  });
 
-// Ajoute aussi ce useEffect pour tracker les changements de currentPage
-useEffect(() => {
-  console.log('📄 currentPage changed to:', currentPage);
-}, [currentPage]);
+  useEffect(() => {
+    console.log('📄 currentPage changed to:', currentPage);
+  }, [currentPage]);
 
   // Traitement des données (filtrage + tri)
   const processedDataBeforePagination = useMemo(() => {
@@ -154,6 +148,15 @@ useEffect(() => {
     
     if (!dataToExport || dataToExport.length === 0) return [];
     
+    // Fonction helper pour calculer l'évolution
+    const calculateEvolutionForExport = (product: ProductMetrics): string => {
+      if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === 0) {
+        return 'N/A';
+      }
+      const evolution = ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
+      return evolution.toFixed(1);
+    };
+    
     // Export selon le mode de vue actuel
     return dataToExport.map(product => {
       const exportRow: any = {
@@ -162,14 +165,14 @@ useEffect(() => {
       };
 
       if (viewMode === 'totals') {
-        // Mode Totaux - Utilisation des propriétés correctes avec conversion sécurisée
+        // Mode Totaux
         exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
+        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
         exportRow['Montant achat (€)'] = Number(product.purchase_amount || 0);
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
         exportRow['Marge totale HT (€)'] = Number(product.total_margin_ht || 0);
         
-        // Conversion sécurisée pour le taux de marge
         const marginRate = Number(product.margin_rate_percent || 0);
         exportRow['Taux marge (%)'] = marginRate.toFixed(2);
         
@@ -188,17 +191,17 @@ useEffect(() => {
           exportRow['Jours de stock'] = joursStock.toFixed(1);
         }
       } else {
-        // Mode Moyennes - Utilisation des propriétés correctes avec conversion sécurisée
+        // Mode Moyennes
         exportRow['Prix moyen vente TTC (€)'] = Number(product.avg_sell_price_ttc || 0);
         exportRow['Prix moyen achat HT (€)'] = Number(product.avg_buy_price_ht || 0);
+        exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
+        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
         exportRow['Marge unitaire HT (€)'] = Number(product.unit_margin_ht || 0);
         
-        // Conversion sécurisée pour le taux de marge
         const marginRate = Number(product.margin_rate_percent || 0);
         exportRow['Taux marge (%)'] = marginRate.toFixed(2);
         
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
-        exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
         
         // Calcul rotation stock
         const currentStock = Number(product.current_stock || 0);
@@ -321,7 +324,7 @@ useEffect(() => {
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des produits...</span>
@@ -330,7 +333,7 @@ useEffect(() => {
                 </tr>
               ) : processedData.products.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun produit trouvé pour "${searchQuery}"`
                       : 'Aucun produit disponible'
