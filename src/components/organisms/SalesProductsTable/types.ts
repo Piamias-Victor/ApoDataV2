@@ -15,6 +15,7 @@ export interface SalesProductMetrics {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
+  quantite_vendue_comparison?: number;
 }
 
 // CORRECTION : Alias pour compatibilité avec hook useSalesProducts

@@ -14,7 +14,6 @@ import type {
   SalesSortConfig, 
   SalesSortableColumn, 
   SortDirection,
-  ProductSalesSummary  // CORRECTION : Import correct
 } from './types';
 import { 
   formatLargeNumber,
@@ -29,6 +28,7 @@ import {
   sortProductSummaries, 
   paginateProductSummaries 
 } from '../SalesTable/utils';
+import { ProductSalesSummary } from '../SalesTable/types';
 
 export const SalesProductsTable: React.FC<SalesProductsTableProps> = ({
   dateRange,
