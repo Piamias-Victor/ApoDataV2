@@ -25,6 +25,7 @@ interface GenericProductMetrics {
 interface RequestBody {
   readonly dateRange: { start: string; end: string };
   readonly productCodes?: string[];
+  readonly pharmacyIds?: string[]; // 🔥 AJOUT
   readonly page?: number;
   readonly pageSize?: number;
   readonly searchQuery?: string;
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { 
       dateRange, 
       productCodes = [], 
+      pharmacyIds = [], // 🔥 AJOUT
       page = 1, 
       pageSize = 50, 
       searchQuery = '', 
@@ -60,13 +62,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const isAdmin = session.user.role === 'admin';
     const isGlobalMode = showGlobalTop && productCodes.length === 0;
 
+    // 🔥 GESTION FILTRE PHARMACY
+    // Admin avec filtre pharmacy : utiliser pharmacyIds
+    // Admin sans filtre : toutes les pharmacies
+    // Non-admin : forcer sa pharmacie uniquement
+    const effectivePharmacyIds = isAdmin 
+      ? pharmacyIds // Admin : utilise le filtre ou [] pour toutes
+      : (session.user.pharmacyId ? [session.user.pharmacyId] : []); // Non-admin : force sa pharmacy
+
+    const hasPharmacyFilter = effectivePharmacyIds.length > 0;
+
+    // 🔥 CALCUL INDICES PARAMS DYNAMIQUES
+    let paramIndex = 3; // Commence après dateRange.start et dateRange.end
+    
+    if (hasPharmacyFilter) {
+      paramIndex++; // +1 pour pharmacyIds
+    }
+    
+    if (!isGlobalMode && productCodes.length > 0) {
+      paramIndex++; // +1 pour productCodes
+    }
+
     const searchFilter = searchQuery 
       ? `AND (
-          LOWER(dgp.name) LIKE LOWER($${isAdmin ? (isGlobalMode ? 4 : 5) : (isGlobalMode ? 5 : 6)}) 
-          OR dgp.code_13_ref LIKE $${isAdmin ? (isGlobalMode ? 4 : 5) : (isGlobalMode ? 5 : 6)}
-          OR LOWER(dgp.bcb_lab) LIKE LOWER($${isAdmin ? (isGlobalMode ? 4 : 5) : (isGlobalMode ? 5 : 6)})
+          LOWER(dgp.name) LIKE LOWER($${paramIndex}) 
+          OR dgp.code_13_ref LIKE $${paramIndex}
+          OR LOWER(dgp.bcb_lab) LIKE LOWER($${paramIndex})
         )`
       : '';
+
+    if (searchQuery) {
+      paramIndex++; // +1 pour searchQuery
+    }
 
     const sortColumnMap: Record<string, string> = {
       'laboratory_name': 'laboratory_name',
@@ -88,9 +115,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let query: string;
     let params: any[];
 
+    // 🔥 CONSTRUCTION FILTRE PHARMACY SQL
+    const pharmacyFilter = hasPharmacyFilter 
+      ? `AND ip.pharmacy_id = ANY($3::uuid[])`
+      : '';
+
     if (isAdmin) {
       if (isGlobalMode) {
-        // MODE GLOBAL ADMIN : Top 1000 tous produits génériques/référents
+        // MODE GLOBAL ADMIN
         query = `
           WITH top_products AS (
             SELECT 
@@ -104,6 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND s.date <= $2::date
               AND s.unit_price_ttc IS NOT NULL
               AND s.unit_price_ttc > 0
+              ${pharmacyFilter}
               AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_group IS NOT NULL
@@ -132,6 +165,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
               AND dgp.bcb_lab IS NOT NULL
+              ${pharmacyFilter}
               AND dgp.code_13_ref IN (SELECT code_13_ref FROM top_products)
             GROUP BY dgp.bcb_lab, dgp.name, dgp.code_13_ref
           ),
@@ -159,6 +193,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
+              ${pharmacyFilter}
               AND dgp.code_13_ref IN (SELECT code_13_ref FROM top_products)
             GROUP BY dgp.bcb_lab, dgp.code_13_ref
           ),
@@ -210,15 +245,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           FROM product_metrics pm
           CROSS JOIN total_count tc
           ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
-          LIMIT $3 OFFSET $4
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        params = searchQuery
-          ? [dateRange.start, dateRange.end, pageSize, offset, `%${searchQuery}%`]
-          : [dateRange.start, dateRange.end, pageSize, offset];
+        // Construction params
+        params = [dateRange.start, dateRange.end];
+        if (hasPharmacyFilter) params.push(effectivePharmacyIds);
+        if (searchQuery) params.push(`%${searchQuery}%`);
+        params.push(pageSize, offset);
 
       } else {
-        // MODE SÉLECTION ADMIN (code existant)
+        // MODE SÉLECTION ADMIN
         query = `
           WITH product_sales AS (
             SELECT 
@@ -241,7 +278,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND s.unit_price_ttc > 0
               AND ins.weighted_average_price > 0
               AND dgp.bcb_lab IS NOT NULL
-              AND ip.code_13_ref_id = ANY($3::text[])
+              ${pharmacyFilter}
+              AND ip.code_13_ref_id = ANY($${hasPharmacyFilter ? 4 : 3}::text[])
             GROUP BY dgp.bcb_lab, dgp.name, dgp.code_13_ref
           ),
           product_purchases AS (
@@ -268,7 +306,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
-              AND ip.code_13_ref_id = ANY($3::text[])
+              ${pharmacyFilter}
+              AND ip.code_13_ref_id = ANY($${hasPharmacyFilter ? 4 : 3}::text[])
             GROUP BY dgp.bcb_lab, dgp.code_13_ref
           ),
           product_metrics AS (
@@ -319,18 +358,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           FROM product_metrics pm
           CROSS JOIN total_count tc
           ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
-          LIMIT $4 OFFSET $5
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        params = searchQuery
-          ? [dateRange.start, dateRange.end, productCodes, pageSize, offset, `%${searchQuery}%`]
-          : [dateRange.start, dateRange.end, productCodes, pageSize, offset];
+        // Construction params
+        params = [dateRange.start, dateRange.end];
+        if (hasPharmacyFilter) params.push(effectivePharmacyIds);
+        params.push(productCodes);
+        if (searchQuery) params.push(`%${searchQuery}%`);
+        params.push(pageSize, offset);
       }
 
     } else {
-      // MODE NON-ADMIN
+      // MODE NON-ADMIN (toujours avec filtre pharmacy)
       if (isGlobalMode) {
-        // MODE GLOBAL NON-ADMIN : Top 1000 pour la pharmacie
+        // MODE GLOBAL NON-ADMIN
         query = `
           WITH top_products AS (
             SELECT 
@@ -453,15 +495,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           FROM product_metrics pm
           CROSS JOIN total_count tc
           ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
-          LIMIT $4 OFFSET $5
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        params = searchQuery
-          ? [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset, `%${searchQuery}%`]
-          : [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset];
+        params = [dateRange.start, dateRange.end, session.user.pharmacyId];
+        if (searchQuery) params.push(`%${searchQuery}%`);
+        params.push(pageSize, offset);
 
       } else {
-        // MODE SÉLECTION NON-ADMIN (code existant)
+        // MODE SÉLECTION NON-ADMIN
         query = `
           WITH product_sales AS (
             SELECT 
@@ -564,12 +606,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           FROM product_metrics pm
           CROSS JOIN total_count tc
           ORDER BY pm.${validSortColumn} ${validSortDirection} NULLS LAST
-          LIMIT $5 OFFSET $6
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        params = searchQuery
-          ? [dateRange.start, dateRange.end, session.user.pharmacyId, productCodes, pageSize, offset, `%${searchQuery}%`]
-          : [dateRange.start, dateRange.end, session.user.pharmacyId, productCodes, pageSize, offset];
+        params = [dateRange.start, dateRange.end, session.user.pharmacyId, productCodes];
+        if (searchQuery) params.push(`%${searchQuery}%`);
+        params.push(pageSize, offset);
       }
     }
 

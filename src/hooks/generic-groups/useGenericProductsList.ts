@@ -1,5 +1,6 @@
 // src/hooks/generic-groups/useGenericProductsList.ts
 import { useState, useEffect, useCallback } from 'react';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 export interface GenericProductMetrics {
   readonly laboratory_name: string;
@@ -56,6 +57,9 @@ export function useGenericProductsList(
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isGlobalMode, setIsGlobalMode] = useState(false);
 
+  // 🔥 AJOUT : Récupération du filtre pharmacy depuis le store
+  const pharmacyIds = useFiltersStore(state => state.pharmacy);
+
   const { 
     enabled, 
     productCodes, 
@@ -85,6 +89,7 @@ export function useGenericProductsList(
         body: JSON.stringify({
           dateRange,
           productCodes: shouldUseGlobalMode ? [] : productCodes,
+          pharmacyIds, // 🔥 AJOUT : Envoi des pharmacy IDs
           page,
           pageSize,
           searchQuery,
@@ -109,7 +114,7 @@ export function useGenericProductsList(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop]);
+  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds]); // 🔥 AJOUT dans deps
 
   useEffect(() => {
     if (autoFetch) {
