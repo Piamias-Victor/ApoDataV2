@@ -56,8 +56,9 @@ export function useGenericProductsList(
   const [sortColumn, setSortColumn] = useState('quantity_sold');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isGlobalMode, setIsGlobalMode] = useState(false);
+  const [hasLoadedGlobal, setHasLoadedGlobal] = useState(false); // 🔥 NOUVEAU
 
-  // 🔥 AJOUT : Récupération du filtre pharmacy depuis le store
+  // Récupération du filtre pharmacy depuis le store
   const pharmacyIds = useFiltersStore(state => state.pharmacy);
 
   const { 
@@ -69,12 +70,19 @@ export function useGenericProductsList(
     autoFetch = true
   } = options;
 
-  const fetchData = useCallback(async (page: number, forceGlobal = false) => {
-    const shouldUseGlobalMode = forceGlobal || (showGlobalTop && productCodes.length === 0);
+  const fetchData = useCallback(async (
+    page: number, 
+    forceGlobal = false,
+    customSort?: { column: string; direction: 'asc' | 'desc' },
+    customSearch?: string
+  ) => {
+    // 🔥 CORRECTION : Si hasLoadedGlobal est true ET productCodes vide, on reste en global
+    const shouldUseGlobalMode = forceGlobal || hasLoadedGlobal || (showGlobalTop && productCodes.length === 0);
     
     if (!enabled || (!shouldUseGlobalMode && productCodes.length === 0)) {
       setData([]);
       setIsGlobalMode(false);
+      setHasLoadedGlobal(false);
       return;
     }
 
@@ -89,12 +97,12 @@ export function useGenericProductsList(
         body: JSON.stringify({
           dateRange,
           productCodes: shouldUseGlobalMode ? [] : productCodes,
-          pharmacyIds, // 🔥 AJOUT : Envoi des pharmacy IDs
+          pharmacyIds,
           page,
           pageSize,
-          searchQuery,
-          sortColumn: shouldUseGlobalMode ? 'quantity_sold' : sortColumn,
-          sortDirection: shouldUseGlobalMode ? 'desc' : sortDirection,
+          searchQuery: customSearch !== undefined ? customSearch : searchQuery,
+          sortColumn: customSort?.column || sortColumn,
+          sortDirection: customSort?.direction || sortDirection,
           showGlobalTop: shouldUseGlobalMode
         })
       });
@@ -108,19 +116,31 @@ export function useGenericProductsList(
       setTotalPages(result.pagination.totalPages);
       setTotal(result.pagination.total);
       setCurrentPage(page);
+      
+      // 🔥 NOUVEAU : Mémoriser qu'on a chargé en global
+      if (shouldUseGlobalMode) {
+        setHasLoadedGlobal(true);
+      }
     } catch (err) {
       console.error('Erreur chargement produits génériques:', err);
       setError('Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds]); // 🔥 AJOUT dans deps
+  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds, hasLoadedGlobal]);
 
   useEffect(() => {
     if (autoFetch) {
       fetchData(1);
     }
-  }, [fetchData, autoFetch]);
+  }, [autoFetch, productCodes, dateRange, pharmacyIds, showGlobalTop]);
+
+  // 🔥 NOUVEAU : Reset hasLoadedGlobal quand productCodes change (passage en mode sélection)
+  useEffect(() => {
+    if (productCodes.length > 0) {
+      setHasLoadedGlobal(false);
+    }
+  }, [productCodes.length]);
 
   const previousPage = useCallback(() => {
     if (currentPage > 1) {
@@ -144,14 +164,14 @@ export function useGenericProductsList(
 
   const search = useCallback((query: string) => {
     setSearchQuery(query);
-    setCurrentPage(1);
-  }, []);
+    fetchData(1, false, undefined, query);
+  }, [fetchData]);
 
   const sort = useCallback((column: string, direction: 'asc' | 'desc') => {
     setSortColumn(column);
     setSortDirection(direction);
-    setCurrentPage(1);
-  }, []);
+    fetchData(1, false, { column, direction });
+  }, [fetchData]);
 
   return {
     data,

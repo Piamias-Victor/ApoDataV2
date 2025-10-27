@@ -143,7 +143,8 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     );
   }
 
-  if (!hasFilters && products.length === 0 && !isLoading) {
+  // ✅ CORRECTION : Ajouter !isGlobalMode pour ne pas afficher ce message en mode global
+  if (!hasFilters && products.length === 0 && !isLoading && !isGlobalMode) {
     return (
       <Card variant="elevated" className={`p-8 ${className}`}>
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
@@ -200,60 +201,56 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               iconLeft={
                 <Database className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               }
-              className="text-gray-600 hover:text-gray-900"
             >
-              {isLoading ? 'Chargement...' : 'Recharger'}
-            </Button>
-          )}
-
-          {onRefresh && hasFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isLoading}
-              iconLeft={
-                <RotateCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              }
-              className="text-gray-600 hover:text-gray-900"
-            >
-              {isLoading ? 'Actualisation...' : 'Actualiser'}
+              Recharger
             </Button>
           )}
         </div>
-        
+
         <div className="flex items-center space-x-2">
-          <div className="relative">
+          <div className="relative flex-1 sm:flex-initial">
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
-              placeholder="Rechercher produit, labo, EAN..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              placeholder="Rechercher..."
+              className="w-full sm:w-64 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
+          
           <Button
-            variant="primary"
+            variant="secondary"
             size="sm"
             onClick={handleSearchSubmit}
             disabled={isLoading}
           >
             Rechercher
           </Button>
+
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isLoading}
+              iconLeft={<RotateCcw className="w-4 h-4" />}
+            >
+              Actualiser
+            </Button>
+          )}
         </div>
       </div>
 
-      <Card variant="elevated" padding="none" className="overflow-hidden">
+      <Card variant="elevated" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            
             <thead className="bg-gray-50">
               <tr>
                 <th 
                   onClick={() => handleSort('laboratory_name')}
-                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-32"
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
                   <div className="flex items-center space-x-1">
                     <span>Labo</span>
