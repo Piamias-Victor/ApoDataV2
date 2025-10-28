@@ -5,11 +5,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useSavedFilters } from '@/hooks/filters/useSavedFilters';
 import { ProductsDrawer } from '@/components/organisms/ProductsDrawer/ProductsDrawer';
 import { LaboratoriesDrawer } from '@/components/organisms/LaboratoriesDrawer/LaboratoriesDrawer';
 import { CategoriesDrawer } from '@/components/organisms/CategoriesDrawer/CategoriesDrawer';
 import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDrawer';
 import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
+import { SaveFilterModal } from '@/components/organisms/SaveFilterModal/SaveFilterModal';
+import { LoadFiltersDrawer } from '@/components/organisms/LoadFiltersDrawer/LoadFiltersDrawer';
 import { 
   Package, 
   TestTube, 
@@ -18,11 +21,13 @@ import {
   Calendar,
   X,
   Filter,
+  Save,
+  FolderOpen,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
 
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | null;
+type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | null;
 
 interface FilterChipProps {
   readonly icon: React.ReactNode;
@@ -118,6 +123,20 @@ export const FilterBar: React.FC = () => {
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showActiveFilters] = useState(true);
   
+  // Hook filtres sauvegardés
+  const {
+    savedFilters,
+    isLoading: isLoadingSavedFilters,
+    isSaving,
+    isLoadingFilter,
+    isDeletingFilter,
+    isRenamingFilter,
+    loadFilter,
+    saveCurrentFilters,
+    renameFilter,
+    deleteFilter,
+  } = useSavedFilters();
+  
   const {
     selectedProducts,
     selectedLaboratories,
@@ -131,6 +150,13 @@ export const FilterBar: React.FC = () => {
     clearAllFilters,
     isPharmacyLocked
   } = useFiltersStore();
+
+  // Compteur total de filtres sauvegardables (produits + labos + catégories)
+  const totalFiltersCount = useMemo(() => {
+    return (selectedProducts?.length || 0) + 
+           (selectedLaboratories?.length || 0) + 
+           (selectedCategories?.length || 0);
+  }, [selectedProducts, selectedLaboratories, selectedCategories]);
 
   // Formater les dates
   const formatDateRange = useMemo(() => {
@@ -244,21 +270,21 @@ export const FilterBar: React.FC = () => {
       label: 'Produits', 
       icon: <Package className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons', '/generique'] 
+      hiddenRoutes: ['/generique']
     },
     { 
       id: 'laboratories', 
       label: 'Laboratoires', 
       icon: <TestTube className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons', '/generique'] 
+      hiddenRoutes: ['/generique']
     },
     { 
       id: 'categories', 
       label: 'Catégories', 
       icon: <Tag className="w-full h-full" />, 
       adminOnly: false,
-      hiddenRoutes: ['/comparaisons', '/generique'] 
+      hiddenRoutes: ['/generique']
     },
     { 
       id: 'pharmacy', 
@@ -268,7 +294,7 @@ export const FilterBar: React.FC = () => {
     },
     { 
       id: 'date', 
-      label: 'Date', 
+      label: 'Période', 
       icon: <Calendar className="w-full h-full" />, 
       adminOnly: false 
     },
@@ -302,6 +328,16 @@ export const FilterBar: React.FC = () => {
     setActiveDrawer(null);
   };
 
+  const handleSaveFilter = async (name: string) => {
+    await saveCurrentFilters(name);
+    setActiveDrawer(null);
+  };
+
+  const handleLoadFilter = async (id: string) => {
+    await loadFilter(id);
+    setActiveDrawer(null);
+  };
+
   // Calculer les counts pour les badges
   const filterCounts = {
     products: selectedProducts?.length || 0,
@@ -311,6 +347,8 @@ export const FilterBar: React.FC = () => {
     date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
     filter: 0
   };
+
+  const isGeneriquePage = pathname === '/generique';
 
   return (
     <>
@@ -363,8 +401,61 @@ export const FilterBar: React.FC = () => {
               ))}
             </div>
 
-            {/* Toggle pour afficher/masquer les filtres actifs */}
+            {/* Boutons Sauvegarder / Charger - AJOUT ICI */}
+            {!isGeneriquePage && (
+              <div className="flex items-center space-x-2">
+                <motion.button
+                  onClick={() => handleFilterClick('save')}
+                  disabled={totalFiltersCount === 0}
+                  className={`
+                    flex items-center space-x-2 px-3 py-2 
+                    rounded-xl border transition-all duration-300
+                    ${activeDrawer === 'save'
+                      ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+                      : totalFiltersCount === 0
+                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
+                    }
+                  `}
+                  whileHover={totalFiltersCount > 0 ? { scale: 1.02, y: -1 } : {}}
+                  whileTap={totalFiltersCount > 0 ? { scale: 0.98 } : {}}
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="font-medium text-sm">Sauvegarder</span>
+                </motion.button>
 
+                <motion.button
+                  onClick={() => handleFilterClick('load')}
+                  className={`
+                    relative flex items-center space-x-2 px-3 py-2 
+                    rounded-xl border transition-all duration-300
+                    ${activeDrawer === 'load'
+                      ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+                      : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
+                    }
+                  `}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span className="font-medium text-sm">Charger</span>
+                  
+                  <AnimatePresence>
+                    {savedFilters.length > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                      >
+                        <Badge variant="primary" size="sm">
+                          {savedFilters.length}
+                        </Badge>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </div>
+            )}
           </div>
 
           {/* Ligne des filtres actifs */}
@@ -508,6 +599,35 @@ export const FilterBar: React.FC = () => {
             isOpen={true}
             onClose={handleDrawerClose}
             onCountChange={() => {}}
+          />
+        )}
+
+        {/* Modal Sauvegarder */}
+        {activeDrawer === 'save' && (
+          <SaveFilterModal
+            isOpen={true}
+            onClose={handleDrawerClose}
+            onSave={handleSaveFilter}
+            isSaving={isSaving}
+            productsCount={selectedProducts?.length || 0}
+            laboratoriesCount={selectedLaboratories?.length || 0}
+            categoriesCount={selectedCategories?.length || 0}
+          />
+        )}
+
+        {/* Drawer Charger */}
+        {activeDrawer === 'load' && (
+          <LoadFiltersDrawer
+            isOpen={true}
+            onClose={handleDrawerClose}
+            savedFilters={savedFilters}
+            onLoad={handleLoadFilter}
+            onRename={renameFilter}
+            onDelete={deleteFilter}
+            isLoading={isLoadingSavedFilters}
+            isLoadingFilter={isLoadingFilter}
+            isDeletingFilter={isDeletingFilter}
+            isRenamingFilter={isRenamingFilter}
           />
         )}
       </AnimatePresence>
