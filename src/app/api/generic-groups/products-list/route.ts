@@ -202,13 +202,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
               ps.name as product_name,
               COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
-              pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
               CASE 
-                WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
-                  AND pbcb.prix_achat_ht_grossiste > 0 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
                   AND pp.avg_buy_price_ht IS NOT NULL
-                THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+                THEN ((pbcb.prix_achat_ht_fabricant - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_fabricant) * 100
                 ELSE 0
               END as remise_percent,
               COALESCE(pp.quantity_bought, 0) as quantity_bought,
@@ -315,13 +315,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
               ps.name as product_name,
               COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
-              pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
               CASE 
-                WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
-                  AND pbcb.prix_achat_ht_grossiste > 0 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
                   AND pp.avg_buy_price_ht IS NOT NULL
-                THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+                THEN ((pbcb.prix_achat_ht_fabricant - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_fabricant) * 100
                 ELSE 0
               END as remise_percent,
               COALESCE(pp.quantity_bought, 0) as quantity_bought,
@@ -452,13 +452,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
               ps.name as product_name,
               COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
-              pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
               CASE 
-                WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
-                  AND pbcb.prix_achat_ht_grossiste > 0 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
                   AND pp.avg_buy_price_ht IS NOT NULL
-                THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+                THEN ((pbcb.prix_achat_ht_fabricant - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_fabricant) * 100
                 ELSE 0
               END as remise_percent,
               COALESCE(pp.quantity_bought, 0) as quantity_bought,
@@ -563,13 +563,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               COALESCE(ps.bcb_lab, pp.bcb_lab) as laboratory_name,
               ps.name as product_name,
               COALESCE(ps.code_13_ref, pp.code_13_ref) as code_ean,
-              pbcb.prix_achat_ht_grossiste as prix_brut_grossiste,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               COALESCE(pp.avg_buy_price_ht, 0) as avg_buy_price_ht,
               CASE 
-                WHEN pbcb.prix_achat_ht_grossiste IS NOT NULL 
-                  AND pbcb.prix_achat_ht_grossiste > 0 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
                   AND pp.avg_buy_price_ht IS NOT NULL
-                THEN ((pbcb.prix_achat_ht_grossiste - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_grossiste) * 100
+                THEN ((pbcb.prix_achat_ht_fabricant - pp.avg_buy_price_ht) / pbcb.prix_achat_ht_fabricant) * 100
                 ELSE 0
               END as remise_percent,
               COALESCE(pp.quantity_bought, 0) as quantity_bought,
