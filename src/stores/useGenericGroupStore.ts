@@ -3,11 +3,28 @@ import { create } from 'zustand';
 import type { GenericGroup } from '@/hooks/generic-groups/useGenericGroupSearch';
 import type { GenericProduct, GenericLaboratory } from '@/hooks/generic-filters/useGenericFilterSearch';
 
+interface PriceRange {
+  min: number | null;
+  max: number | null;
+}
+
+interface PriceFilters {
+  prixFabricant: PriceRange;
+  prixNetRemise: PriceRange;
+  remise: PriceRange;
+}
+
 interface GenericGroupState {
   // Sources de sélection
   selectedGroups: GenericGroup[];
   selectedProducts: GenericProduct[];
   selectedLaboratories: GenericLaboratory[];
+  
+  // Filtres de prix
+  priceFilters: PriceFilters;
+  setPriceFilters: (filters: Partial<PriceFilters>) => Promise<void>;
+  clearPriceFilters: () => void;
+  hasPriceFilters: () => boolean;
   
   // Résultat calculé
   productCodes: string[];
@@ -42,12 +59,19 @@ interface GenericGroupState {
   recalculateProductCodes: () => void;
 }
 
+const defaultPriceFilters: PriceFilters = {
+  prixFabricant: { min: null, max: null },
+  prixNetRemise: { min: null, max: null },
+  remise: { min: null, max: null }
+};
+
 export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   selectedGroups: [],
   selectedProducts: [],
   selectedLaboratories: [],
   productCodes: [],
   showGlobalTop: false,
+  priceFilters: defaultPriceFilters,
 
   // ===== MODE GLOBAL =====
   setShowGlobalTop: (show) => {
@@ -55,37 +79,190 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     set({ showGlobalTop: show });
   },
 
+  // ===== FILTRES DE PRIX =====
+  setPriceFilters: async (filters) => {
+    const { priceFilters } = get();
+    const newPriceFilters = { ...priceFilters, ...filters };
+    
+    console.log('💰 [GenericGroupStore] Setting price filters:', newPriceFilters);
+    
+    set({ priceFilters: newPriceFilters });
+    
+    console.log('🔄 [GenericGroupStore] Calling recalculateProductCodes...');
+    await get().recalculateProductCodes();
+    console.log('✅ [GenericGroupStore] Price filters applied and codes recalculated');
+  },
+
+  clearPriceFilters: () => {
+    console.log('🗑️ [GenericGroupStore] Clearing price filters');
+    set({ priceFilters: defaultPriceFilters });
+    get().recalculateProductCodes();
+  },
+
+  hasPriceFilters: () => {
+    const { priceFilters } = get();
+    return (
+      priceFilters.prixFabricant.min !== null ||
+      priceFilters.prixFabricant.max !== null ||
+      priceFilters.prixNetRemise.min !== null ||
+      priceFilters.prixNetRemise.max !== null ||
+      priceFilters.remise.min !== null ||
+      priceFilters.remise.max !== null
+    );
+  },
+
   // Recalculer tous les product codes
-  recalculateProductCodes: () => {
-    const { selectedGroups, selectedProducts, selectedLaboratories } = get();
+  recalculateProductCodes: async () => {
+    console.log('🔄 [GenericGroupStore] === START RECALCULATE ===');
     
-    const allCodes = new Set<string>();
+    const { selectedGroups, selectedProducts, selectedLaboratories, priceFilters, hasPriceFilters } = get();
     
-    // Codes des groupes génériques
+    const hasSelections = selectedGroups.length > 0 || selectedProducts.length > 0 || selectedLaboratories.length > 0;
+    
+    console.log('📊 [GenericGroupStore] Current state:', {
+      hasSelections,
+      hasPriceFilters: hasPriceFilters(),
+      groups: selectedGroups.length,
+      products: selectedProducts.length,
+      laboratories: selectedLaboratories.length
+    });
+    
+    // Cas 1 : Aucune sélection ET aucun filtre prix → vide
+    if (!hasSelections && !hasPriceFilters()) {
+      console.log('ℹ️ [GenericGroupStore] No selections and no price filters → empty');
+      set({ productCodes: [] });
+      console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
+      return;
+    }
+    
+    // Cas 2 : Filtres prix SEULS (sans sélections) → rechercher TOUS les génériques/référents
+    if (!hasSelections && hasPriceFilters()) {
+      console.log('💰 [GenericGroupStore] PRICE FILTERS ONLY MODE');
+      console.log('💰 [GenericGroupStore] Fetching ALL generic/referent products from DB...');
+      
+      try {
+        const startTime = Date.now();
+        
+        // Appel API spécial pour filtres prix seuls
+        const response = await fetch('/api/generic-filters/price-ranges', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productCodes: null, // null = chercher dans toute la base
+            priceFilters
+          })
+        });
+
+        const duration = Date.now() - startTime;
+
+        if (response.ok) {
+          const data = await response.json();
+          const filteredCodes = data.productCodes;
+          
+          console.log('✅ [GenericGroupStore] PRICE FILTERS ONLY SUCCESS:', {
+            duration: `${duration}ms`,
+            totalFound: filteredCodes.length
+          });
+          
+          set({ productCodes: filteredCodes });
+          console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
+          return;
+        } else {
+          console.error('❌ [GenericGroupStore] API ERROR:', {
+            status: response.status,
+            statusText: response.statusText
+          });
+          set({ productCodes: [] });
+          console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
+          return;
+        }
+      } catch (error) {
+        console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
+        set({ productCodes: [] });
+        console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
+        return;
+      }
+    }
+    
+    // Cas 3 : Sélections avec ou sans filtres prix
+    console.log('📦 [GenericGroupStore] Collecting base codes from selections...');
+    
+    // Étape 1 : Collecter tous les codes de base
+    const baseCodes = new Set<string>();
+    
     selectedGroups.forEach(group => {
-      group.product_codes.forEach(code => allCodes.add(code));
+      group.product_codes.forEach(code => baseCodes.add(code));
     });
     
-    // Codes des produits individuels
     selectedProducts.forEach(product => {
-      allCodes.add(product.code_13_ref);
+      baseCodes.add(product.code_13_ref);
     });
     
-    // Codes des laboratoires
     selectedLaboratories.forEach(lab => {
-      lab.product_codes.forEach(code => allCodes.add(code));
+      lab.product_codes.forEach(code => baseCodes.add(code));
     });
+
+    console.log('📦 [GenericGroupStore] Base codes collected:', baseCodes.size);
+
+    let finalCodes = Array.from(baseCodes);
+
+    // Étape 2 : Appliquer les filtres de prix si présents (intersection)
+    if (hasPriceFilters() && finalCodes.length > 0) {
+      console.log('💰 [GenericGroupStore] Price filters detected, filtering base codes via API...');
+      console.log('💰 [GenericGroupStore] Filters:', priceFilters);
+      console.log('💰 [GenericGroupStore] Codes to filter:', finalCodes.length);
+      
+      try {
+        const startTime = Date.now();
+        
+        const response = await fetch('/api/generic-filters/price-ranges', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productCodes: finalCodes,
+            priceFilters
+          })
+        });
+
+        const duration = Date.now() - startTime;
+
+        if (response.ok) {
+          const data = await response.json();
+          finalCodes = data.productCodes;
+          
+          console.log('✅ [GenericGroupStore] API SUCCESS:', {
+            duration: `${duration}ms`,
+            before: baseCodes.size,
+            after: finalCodes.length,
+            filtered: baseCodes.size - finalCodes.length,
+            percentage: `${((finalCodes.length / baseCodes.size) * 100).toFixed(1)}%`
+          });
+        } else {
+          console.error('❌ [GenericGroupStore] API ERROR:', {
+            status: response.status,
+            statusText: response.statusText
+          });
+        }
+      } catch (error) {
+        console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
+      }
+    } else if (hasPriceFilters() && finalCodes.length === 0) {
+      console.log('⚠️ [GenericGroupStore] Price filters active but no base codes to filter');
+    } else {
+      console.log('ℹ️ [GenericGroupStore] No price filters, using base codes as-is');
+    }
     
-    const uniqueProductCodes = Array.from(allCodes);
-    
-    console.log('🔄 [GenericGroupStore] Recalculated product codes:', {
+    console.log('🔄 [GenericGroupStore] Final result:', {
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
-      totalCodes: uniqueProductCodes.length
+      totalCodes: finalCodes.length,
+      priceFiltersActive: hasPriceFilters()
     });
     
-    set({ productCodes: uniqueProductCodes });
+    set({ productCodes: finalCodes });
+    
+    console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
   },
 
   // ===== GROUPES GÉNÉRIQUES =====
@@ -207,7 +384,6 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     const { selectedProducts } = get();
     const existingCodes = new Set(selectedProducts.map(p => p.code_13_ref));
     
-    // Filtrer les produits non déjà sélectionnés
     const newProducts = products.filter(p => !existingCodes.has(p.code_13_ref));
     
     if (newProducts.length === 0) {
@@ -230,7 +406,6 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     const { selectedLaboratories } = get();
     const existingNames = new Set(selectedLaboratories.map(l => l.laboratory_name));
     
-    // Filtrer les laboratoires non déjà sélectionnés
     const newLaboratories = laboratories.filter(l => !existingNames.has(l.laboratory_name));
     
     if (newLaboratories.length === 0) {
@@ -257,7 +432,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedProducts: [],
       selectedLaboratories: [],
       productCodes: [],
-      showGlobalTop: false
+      showGlobalTop: false,
+      priceFilters: defaultPriceFilters
     });
   }
 }));
