@@ -30,10 +30,6 @@ interface ProductsTableProps {
   readonly onRefresh?: () => void;
 }
 
-/**
- * ProductsTable - Tableau avancé produits pharmaceutiques
- * Avec export CSV intégré et évolution des quantités vendues
- */
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
   isLoading = false,
@@ -41,7 +37,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   className = '',
   onRefresh
 }) => {
-  // États locaux du tableau
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('totals');
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -51,15 +46,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   
   const itemsPerPage = 50;
-
-  // Hook export CSV
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // Gestion du tri
   const handleSort = useCallback((column: SortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        // Cycle : asc → desc → null
         const newDirection: SortDirection = 
           prev.direction === 'asc' ? 'desc' :
           prev.direction === 'desc' ? null : 'asc';
@@ -70,7 +61,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         };
       }
       
-      // Nouvelle colonne, commence par asc
       return {
         column,
         direction: 'asc'
@@ -78,19 +68,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     });
   }, []);
 
-  // Gestion recherche
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
 
-  // Gestion changement de vue
   const handleViewChange = useCallback((newViewMode: ViewMode) => {
     setViewMode(newViewMode);
-    // Reset tri car colonnes différentes
     setSortConfig({ column: null, direction: null });
   }, []);
 
-  // Debug render count
   const renderCount = useRef(0);
   renderCount.current += 1;
 
@@ -104,12 +90,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     console.log('📄 currentPage changed to:', currentPage);
   }, [currentPage]);
 
-  // Traitement des données (filtrage + tri)
   const processedDataBeforePagination = useMemo(() => {
-    // 1. Filtrage par recherche
     const filteredProducts = filterProducts(products, searchQuery);
-    
-    // 2. Tri
     const sortedProducts = sortProducts(
       filteredProducts, 
       sortConfig.column || 'product_name',
@@ -119,7 +101,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     return sortedProducts;
   }, [products, searchQuery, sortConfig]);
 
-  // Pagination
   const processedData = useMemo(() => {
     const paginationResult = paginateProducts(
       processedDataBeforePagination, 
@@ -141,14 +122,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     };
   }, [processedDataBeforePagination, currentPage]);
 
-  // Préparation données pour export CSV
   const prepareTableDataForExport = useCallback(() => {
-    // Utiliser toutes les données filtrées/triées (sans pagination)
     const dataToExport = processedDataBeforePagination;
     
     if (!dataToExport || dataToExport.length === 0) return [];
     
-    // Fonction helper pour calculer l'évolution
     const calculateEvolutionForExport = (product: ProductMetrics): string => {
       if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === 0) {
         return 'N/A';
@@ -157,15 +135,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       return evolution.toFixed(1);
     };
     
-    // Export selon le mode de vue actuel
     return dataToExport.map(product => {
       const exportRow: any = {
         'Code EAN': product.code_ean || '',
-        'Nom produit': product.product_name || ''
+        'Nom produit': product.product_name || '',
+        'Laboratoire': product.bcb_lab || '-'
       };
 
       if (viewMode === 'totals') {
-        // Mode Totaux
         exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
         exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
@@ -176,7 +153,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         const marginRate = Number(product.margin_rate_percent || 0);
         exportRow['Taux marge (%)'] = marginRate.toFixed(2);
         
-        // Calculs additionnels si disponibles
         const qtySold = Number(product.quantity_sold || 0);
         const caTtc = Number(product.ca_ttc || 0);
         const currentStock = Number(product.current_stock || 0);
@@ -191,7 +167,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           exportRow['Jours de stock'] = joursStock.toFixed(1);
         }
       } else {
-        // Mode Moyennes
         exportRow['Prix moyen vente TTC (€)'] = Number(product.avg_sell_price_ttc || 0);
         exportRow['Prix moyen achat HT (€)'] = Number(product.avg_buy_price_ht || 0);
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
@@ -203,7 +178,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
         
-        // Calcul rotation stock
         const currentStock = Number(product.current_stock || 0);
         const qtySold = Number(product.quantity_sold || 0);
         
@@ -217,7 +191,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     });
   }, [processedDataBeforePagination, viewMode]);
 
-  // Handler export
   const handleExport = useCallback(() => {
     const exportData = prepareTableDataForExport();
     
@@ -226,11 +199,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       return;
     }
     
-    // Nom de fichier avec contexte
     const modeLabel = viewMode === 'totals' ? 'totaux' : 'moyennes';
     const filename = CsvExporter.generateFilename(`apodata_produits_${modeLabel}`);
     
-    // Vérification et extraction des headers
     if (!exportData[0]) {
       console.error('Données export invalides');
       return;
@@ -245,7 +216,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     });
   }, [prepareTableDataForExport, exportToCsv, viewMode]);
 
-  // Gestion pagination
   const handlePrevPage = useCallback(() => {
     setCurrentPage(prev => Math.max(1, prev - 1));
   }, []);
@@ -254,7 +224,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     setCurrentPage(prev => Math.min(processedData.pagination.totalPages, prev + 1));
   }, [processedData.pagination.totalPages]);
 
-  // États d'erreur et loading
   if (error) {
     return (
       <Card variant="elevated" className={`p-6 text-center ${className}`}>
@@ -266,7 +235,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <ViewToggle
@@ -277,7 +245,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             {processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''}
           </div>
           
-          {/* Boutons d'action */}
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
@@ -285,7 +252,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             label={`Export CSV (${processedDataBeforePagination.length} lignes)`}
           />
           
-          {/* Bouton refresh */}
           {onRefresh && (
             <Button
               variant="ghost"
@@ -310,7 +276,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         />
       </div>
 
-      {/* Tableau principal */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -324,7 +289,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des produits...</span>
@@ -333,7 +298,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 </tr>
               ) : processedData.products.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun produit trouvé pour "${searchQuery}"`
                       : 'Aucun produit disponible'
@@ -356,7 +321,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         </div>
       </Card>
 
-      {/* Pagination */}
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">

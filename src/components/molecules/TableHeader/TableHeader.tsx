@@ -1,4 +1,6 @@
 // src/components/molecules/TableHeader/TableHeader.tsx
+'use client';
+
 import React from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { ViewMode, SortConfig, SortableColumn } from '@/components/organisms/ProductsTable/types';
@@ -45,6 +47,12 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             <div className={sortableClass}>
               <span>Code EAN</span>
               {getSortIcon('code_ean')}
+            </div>
+          </th>
+          <th className={headerClass} onClick={() => handleHeaderClick('bcb_lab')}>
+            <div className={sortableClass}>
+              <span>Laboratoire</span>
+              {getSortIcon('bcb_lab')}
             </div>
           </th>
           <th className={`${headerClass} text-right`} onClick={() => handleHeaderClick('ca_ttc')}>
@@ -108,6 +116,12 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
           <div className={sortableClass}>
             <span>Code EAN</span>
             {getSortIcon('code_ean')}
+          </div>
+        </th>
+        <th className={headerClass} onClick={() => handleHeaderClick('bcb_lab')}>
+          <div className={sortableClass}>
+            <span>Laboratoire</span>
+            {getSortIcon('bcb_lab')}
           </div>
         </th>
         <th className={`${headerClass} text-right`} onClick={() => handleHeaderClick('avg_sell_price_ttc')}>

@@ -8,6 +8,7 @@
 export interface SalesProductRow {
   readonly nom: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null;
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
@@ -19,12 +20,13 @@ export interface SalesProductRow {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
-  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
+  readonly quantite_vendue_comparison: number | null;
 }
 
 export interface ProductSalesSummary {
   readonly nom: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -33,13 +35,13 @@ export interface ProductSalesSummary {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
-  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
+  readonly quantite_vendue_comparison: number | null;
 }
 
-// Types pour tri des colonnes
 export type SalesSortableColumn = 
   | 'nom' 
   | 'code_ean'
+  | 'bcb_lab'
   | 'quantite_vendue'
   | 'prix_achat_moyen'
   | 'prix_vente_moyen'
@@ -56,7 +58,6 @@ export interface SalesSortConfig {
   direction: SortDirection;
 }
 
-// Types pour pagination
 export interface SalesPaginationInfo {
   readonly totalItems: number;
   readonly totalPages: number;
@@ -65,13 +66,11 @@ export interface SalesPaginationInfo {
   readonly endIndex: number;
 }
 
-// Props du composant principal
 export interface SalesTableProps {
   readonly className?: string;
   readonly onRefresh?: () => void;
 }
 
-// Types pour le traitement des données
 export interface ProcessedSalesData {
   readonly products: ProductSalesSummary[];
   readonly pagination: SalesPaginationInfo;

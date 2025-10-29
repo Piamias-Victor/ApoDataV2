@@ -27,17 +27,10 @@ import type {
   SortDirection
 } from './types';
 
-/**
- * SalesTable - Tableau des ventes avec design identique à ProductsMonthlyTable
- * Avec export CSV intégré
- * 
- * Architecture complète : recherche, tri, pagination, expansion graphique, export CSV
- */
 export const SalesTable: React.FC<SalesTableProps> = ({
   className = '',
   onRefresh
 }) => {
-  // États locaux
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SalesSortConfig>({
@@ -48,7 +41,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   
   const itemsPerPage = 50;
 
-  // Hook principal - utilise automatiquement les filtres du store
   const { 
     productSummaries, 
     getSalesDetails, 
@@ -59,10 +51,8 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     hasData 
   } = useSalesProducts();
 
-  // Hook export CSV
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // Traitement données avec filtrage, tri, pagination
   const processedData = useMemo(() => {
     return processProductSummaries(
       productSummaries,
@@ -73,16 +63,15 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }, [productSummaries, searchQuery, sortConfig, currentPage, itemsPerPage]);
 
-  // Préparation données pour export CSV
   const prepareSalesDataForExport = useCallback(() => {
     if (!productSummaries || productSummaries.length === 0) return [];
     
     const exportData = [];
     
-    // En-tête avec informations générales
     exportData.push({
       'Produit': 'INFORMATIONS GÉNÉRALES',
       'Code EAN': '',
+      'Laboratoire': '',
       'Quantité Recherche': searchQuery || 'Toutes',
       'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
       'Page Actuelle': currentPage.toString(),
@@ -98,10 +87,10 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       'Montant Marge (€)': ''
     });
 
-    // Ligne de séparation
     exportData.push({
       'Produit': '--- DONNÉES PRODUITS ---',
       'Code EAN': '',
+      'Laboratoire': '',
       'Quantité Recherche': '',
       'Tri Actuel': '',
       'Page Actuelle': '',
@@ -117,11 +106,11 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       'Montant Marge (€)': ''
     });
     
-    // Export de tous les produits (pas seulement la page actuelle pour un export complet)
     productSummaries.forEach(product => {
       exportData.push({
         'Produit': product.nom,
         'Code EAN': product.code_ean,
+        'Laboratoire': product.bcb_lab || '-',
         'Quantité Recherche': searchQuery || 'Toutes',
         'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
         'Page Actuelle': currentPage.toString(),
@@ -141,7 +130,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     return exportData;
   }, [productSummaries, searchQuery, sortConfig, currentPage, queryTime]);
 
-  // Handler export avec vérification
   const handleExport = useCallback(() => {
     const exportData = prepareSalesDataForExport();
     
@@ -153,7 +141,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     const searchSuffix = searchQuery ? `_recherche_${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
     const filename = CsvExporter.generateFilename(`apodata_tableau_ventes${searchSuffix}`);
     
-    // Vérification que le premier élément existe avant d'obtenir les headers
     if (!exportData[0]) {
       console.error('Données export invalides');
       return;
@@ -168,7 +155,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     });
   }, [prepareSalesDataForExport, exportToCsv, searchQuery]);
 
-  // Handlers
   const toggleProductExpansion = useCallback((codeEan: string) => {
     setExpandedProducts(prev => {
       const newSet = new Set(prev);
@@ -190,7 +176,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       
       return {
         column,
-        direction: column === 'nom' || column === 'code_ean' ? 'asc' : 'desc'
+        direction: column === 'nom' || column === 'code_ean' || column === 'bcb_lab' ? 'asc' : 'desc'
       };
     });
   }, []);
@@ -212,13 +198,11 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     setCurrentPage(prev => Math.min(processedData.pagination.totalPages, prev + 1));
   }, [processedData.pagination.totalPages]);
 
-  // Helper pour icônes de tri
   const getSortIndicator = (column: SalesSortableColumn) => {
     if (sortConfig.column !== column) return null;
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  // Header avec bouton actualiser et export - TOUJOURS VISIBLE
   const renderHeader = () => (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-center space-x-4">
@@ -232,7 +216,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
           </div>
         </div>
         
-        {/* Boutons d'action */}
         <div className="flex items-center space-x-2">
           <ExportButton
             onClick={handleExport}
@@ -263,7 +246,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     </div>
   );
 
-  // Rendu conditionnel - Loading (identique à ProductsMonthlyTable)
   if (isLoading) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -282,7 +264,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - Error
   if (error) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -298,7 +279,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }
 
-  // Rendu conditionnel - No Data
   if (!hasData || processedData.products.length === 0) {
     return (
       <div className={`space-y-4 ${className}`}>
@@ -329,15 +309,12 @@ export const SalesTable: React.FC<SalesTableProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles TOUJOURS VISIBLE */}
       {renderHeader()}
 
-      {/* Tableau principal avec design identique à ProductsMonthlyTable */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             
-            {/* Header tableau avec colonnes triables */}
             <thead className="bg-gray-50">
               <tr>
                 <th 
@@ -357,6 +334,16 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   <div className="flex items-center space-x-1">
                     <span>Code EAN</span>
                     <span className="text-gray-400">{getSortIndicator('code_ean')}</span>
+                  </div>
+                </th>
+
+                <th 
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('bcb_lab')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Laboratoire</span>
+                    <span className="text-gray-400">{getSortIndicator('bcb_lab')}</span>
                   </div>
                 </th>
                 
@@ -449,31 +436,32 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                 return (
                   <React.Fragment key={product.code_ean}>
                     
-                    {/* Ligne principale produit avec alternance couleurs */}
                     <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
                       
-                      {/* Nom produit - FORCÉ À largeur réduite avec div contrainte */}
                       <td className="px-1 py-3">
                         <div className="text-xs font-medium text-gray-900 truncate w-32 overflow-hidden" title={product.nom}>
                           {product.nom}
                         </div>
                       </td>
                       
-                      {/* Code EAN */}
                       <td className="px-4 py-3">
                         <div className="text-sm text-gray-600 font-mono">
                           {product.code_ean}
                         </div>
                       </td>
+
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-700">
+                          {product.bcb_lab || '-'}
+                        </div>
+                      </td>
                       
-                      {/* Quantité vendue */}
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm font-medium text-gray-900">
                           {formatLargeNumber(product.quantite_vendue)}
                         </div>
                       </td>
                       
-                      {/* Évolution */}
                       <td className="px-4 py-3 text-right">
                         {(() => {
                           if (product.quantite_vendue_comparison === null || product.quantite_vendue_comparison === undefined) {
@@ -495,49 +483,42 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                         })()}
                       </td>
                       
-                      {/* Prix achat */}
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatCurrency(product.prix_achat_moyen)}
                         </div>
                       </td>
                       
-                      {/* Prix vente */}
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatCurrency(product.prix_vente_moyen)}
                         </div>
                       </td>
                       
-                      {/* Taux marge avec couleur */}
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarginColorClass(product.taux_marge_moyen)}`}>
                           {formatPercentage(product.taux_marge_moyen)}
                         </div>
                       </td>
                       
-                      {/* Part marché quantité */}
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarketShareColorClass(product.part_marche_quantite_pct)}`}>
                           {formatPercentage(product.part_marche_quantite_pct)}
                         </div>
                       </td>
                       
-                      {/* Part marché marge */}
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarketShareColorClass(product.part_marche_marge_pct)}`}>
                           {formatPercentage(product.part_marche_marge_pct)}
                         </div>
                       </td>
                       
-                      {/* Montant TTC */}
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm font-medium text-gray-900">
                           {formatCurrency(product.montant_ventes_ttc)}
                         </div>
                       </td>
                       
-                      {/* Toggle expansion à droite */}
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleProductExpansion(product.code_ean)}
@@ -559,7 +540,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                       
                     </tr>
                     
-                    {/* Ligne expansion avec graphique - SORT DU TABLE LAYOUT */}
                     {isExpanded && hasDetailData && (
                       <tr>
                         <td colSpan={12} className="p-0 relative">
@@ -584,7 +564,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         </div>
       </Card>
 
-      {/* Pagination */}
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">

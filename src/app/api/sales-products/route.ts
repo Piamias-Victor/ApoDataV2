@@ -20,7 +20,7 @@ const CACHE_TTL = 3600; // 1 heure pour données ventes
 
 interface SalesProductsRequest {
   readonly dateRange: { start: string; end: string; };
-  readonly comparisonDateRange?: { start: string; end: string; }; // AJOUT
+  readonly comparisonDateRange?: { start: string; end: string; };
   readonly productCodes: string[];
   readonly laboratoryCodes: string[];
   readonly categoryCodes: string[];
@@ -30,6 +30,7 @@ interface SalesProductsRequest {
 interface SalesProductRow {
   readonly nom: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null; // AJOUT
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
@@ -41,7 +42,7 @@ interface SalesProductRow {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
-  readonly quantite_vendue_comparison: number | null; // AJOUT
+  readonly quantite_vendue_comparison: number | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
-      comparisonDateRange: body.comparisonDateRange, // AJOUT
+      comparisonDateRange: body.comparisonDateRange,
       productCodes: allProductCodes,
       pharmacyIds: secureFilters.pharmacy || [],
       role: context.userRole,
@@ -150,7 +151,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ? await executeAdminQuery(body.comparisonDateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
         : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
       
-      // Ne garder que les lignes SYNTHESE pour la comparaison
       const comparisonSyntheses = comparisonSales.filter(row => row.type_ligne === 'SYNTHESE');
       
       comparisonSyntheses.forEach(row => {
@@ -169,7 +169,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ========== FUSION DES RÉSULTATS ==========
     const salesDataWithComparison = salesData.map(row => ({
       ...row,
-      // Ajouter la comparaison uniquement pour les lignes SYNTHESE
       quantite_vendue_comparison: row.type_ligne === 'SYNTHESE' 
         ? (comparisonMap.get(row.code_ean) ?? null)
         : null
@@ -231,23 +230,22 @@ async function executeAdminQuery(
   const params = [];
   let paramIndex = 1;
   
-  params.push(dateRange.start); // $1
-  params.push(dateRange.end);   // $2
+  params.push(dateRange.start);
+  params.push(dateRange.end);
   
   if (hasProductFilter) {
-    params.push(productCodes);  // $3
+    params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
   
   if (pharmacyIds && pharmacyIds.length > 0) {
-    params.push(pharmacyIds);   // $4 ou $3 selon hasProductFilter
+    params.push(pharmacyIds);
   }
 
   const finalPharmacyFilter = pharmacyFilter.replace('$4', `$${paramIndex}`);
 
-  // Calcul granularité : si plus de 62 jours, grouper par mois
   const startDate = new Date(dateRange.start);
   const endDate = new Date(dateRange.end);
   const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -270,6 +268,7 @@ async function executeAdminQuery(
       SELECT 
         ip.code_13_ref_id,
         MIN(ip.name) as product_name,
+        MIN(gp.bcb_lab) as bcb_lab,
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
@@ -298,8 +297,10 @@ async function executeAdminQuery(
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name
+        MIN(ip.name) as product_name,
+        MIN(gp.bcb_lab) as bcb_lab
       FROM data_internalproduct ip
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE 1=1
         ${productFilter}
         ${finalPharmacyFilter}
@@ -312,10 +313,10 @@ async function executeAdminQuery(
       FROM period_sales ps
     ),
     all_results AS (
-      -- Détails par période
       SELECT 
         ps.product_name as nom,
         ps.code_13_ref_id as code_ean,
+        ps.bcb_lab,
         ${periodFormat} as periode,
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
@@ -352,10 +353,10 @@ async function executeAdminQuery(
       
       UNION ALL
       
-      -- Synthèse par produit
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
+        pi.bcb_lab,
         'TOTAL' as periode,
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
@@ -390,12 +391,13 @@ async function executeAdminQuery(
       FROM product_info pi
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
-      GROUP BY pi.product_name, pi.code_13_ref_id, st.total_quantite_selection, st.total_marge_selection
+      GROUP BY pi.product_name, pi.code_13_ref_id, pi.bcb_lab, st.total_quantite_selection, st.total_marge_selection
       HAVING SUM(ps.quantite_vendue_periode) > 0
     )
     SELECT 
       nom,
       code_ean,
+      bcb_lab,
       periode,
       periode_libelle,
       type_ligne,
@@ -431,7 +433,6 @@ async function executeUserQuery(
 
   const pharmacyParam = hasProductFilter ? '$4::uuid' : '$3::uuid';
 
-  // Même logique granularité
   const startDate = new Date(dateRange.start);
   const endDate = new Date(dateRange.end);
   const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -454,6 +455,7 @@ async function executeUserQuery(
       SELECT 
         ip.code_13_ref_id,
         MIN(ip.name) as product_name,
+        MIN(gp.bcb_lab) as bcb_lab,
         ${periodGrouping} as periode,
         SUM(s.quantity) as quantite_vendue_periode,
         AVG(s.unit_price_ttc) as prix_vente_moyen_periode,
@@ -482,8 +484,10 @@ async function executeUserQuery(
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
-        MIN(ip.name) as product_name
+        MIN(ip.name) as product_name,
+        MIN(gp.bcb_lab) as bcb_lab
       FROM data_internalproduct ip
+      LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
       WHERE ip.pharmacy_id = ${pharmacyParam}
         ${productFilter}
       GROUP BY ip.code_13_ref_id
@@ -495,10 +499,10 @@ async function executeUserQuery(
       FROM period_sales ps
     ),
     all_results AS (
-      -- Détails par période
       SELECT 
         ps.product_name as nom,
         ps.code_13_ref_id as code_ean,
+        ps.bcb_lab,
         ${periodFormat} as periode,
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
@@ -535,10 +539,10 @@ async function executeUserQuery(
       
       UNION ALL
       
-      -- Synthèse par produit
       SELECT 
         pi.product_name as nom,
         pi.code_13_ref_id as code_ean,
+        pi.bcb_lab,
         'TOTAL' as periode,
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
@@ -573,12 +577,13 @@ async function executeUserQuery(
       FROM product_info pi
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
-      GROUP BY pi.product_name, pi.code_13_ref_id, st.total_quantite_selection, st.total_marge_selection
+      GROUP BY pi.product_name, pi.code_13_ref_id, pi.bcb_lab, st.total_quantite_selection, st.total_marge_selection
       HAVING SUM(ps.quantite_vendue_periode) > 0
     )
     SELECT 
       nom,
       code_ean,
+      bcb_lab,
       periode,
       periode_libelle,
       type_ligne,

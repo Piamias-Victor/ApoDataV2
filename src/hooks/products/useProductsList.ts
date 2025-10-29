@@ -7,6 +7,7 @@ import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/c
 export interface ProductMetrics {
   readonly product_name: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null;
   readonly avg_sell_price_ttc: number;
   readonly avg_buy_price_ht: number;
   readonly margin_rate_percent: number;
@@ -23,6 +24,7 @@ export interface ProductMetrics {
 interface ProductMetricsRaw {
   readonly product_name: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null;
   readonly avg_sell_price_ttc: string | number;
   readonly avg_buy_price_ht: string | number;
   readonly margin_rate_percent: string | number;
@@ -66,6 +68,7 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
   return {
     product_name: raw.product_name,
     code_ean: raw.code_ean,
+    bcb_lab: raw.bcb_lab,
     avg_sell_price_ttc: Number(raw.avg_sell_price_ttc) || 0,
     avg_buy_price_ht: Number(raw.avg_buy_price_ht) || 0,
     margin_rate_percent: Number(raw.margin_rate_percent) || 0,

@@ -23,7 +23,7 @@ interface ProductListRequest {
     readonly start: string;
     readonly end: string;
   };
-  readonly comparisonDateRange?: {  // AJOUT pour comparaison
+  readonly comparisonDateRange?: {
     readonly start: string;
     readonly end: string;
   };
@@ -36,6 +36,7 @@ interface ProductListRequest {
 interface ProductMetrics {
   readonly product_name: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null;
   readonly avg_sell_price_ttc: number;
   readonly avg_buy_price_ht: number;
   readonly tva_rate: number;
@@ -48,7 +49,7 @@ interface ProductMetrics {
   readonly ca_ttc: number;
   readonly quantity_bought: number;
   readonly purchase_amount: number;
-  readonly quantity_sold_comparison: number | null;  // AJOUT pour comparaison
+  readonly quantity_sold_comparison: number | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const cacheKey = generateCacheKey({
       dateRange: body.dateRange,
-      comparisonDateRange: body.comparisonDateRange,  // AJOUT dans cache key
+      comparisonDateRange: body.comparisonDateRange,
       productCodes: allProductCodes,
       pharmacyIds: secureFilters.pharmacy || [],
       role: context.userRole,
@@ -155,7 +156,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       queryTimeMs: Date.now() - startTime
     });
 
-    // ========== PÉRIODE DE COMPARAISON (EXACTEMENT COMME KPIs) ==========
+    // ========== PÉRIODE DE COMPARAISON ==========
     let comparisonMap = new Map<string, number>();
     
     if (body.comparisonDateRange?.start && body.comparisonDateRange?.end) {
@@ -165,7 +166,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ? await executeAdminQuery(body.comparisonDateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
         : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
       
-      // Créer Map avec quantités vendues de la période de comparaison
       comparisonProducts.forEach(product => {
         comparisonMap.set(product.code_ean, product.quantity_sold);
       });
@@ -334,6 +334,7 @@ async function executeAdminQuery(
     SELECT 
       gp.name as product_name,
       gp.code_13_ref as code_ean,
+      gp.bcb_lab,
       COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
       COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
       COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) as tva_rate,
@@ -465,6 +466,7 @@ async function executeUserQuery(
     SELECT 
       gp.name as product_name,
       gp.code_13_ref as code_ean,
+      gp.bcb_lab,
       COALESCE(ps.avg_sell_price_ttc, 0) as avg_sell_price_ttc,
       COALESCE(abp.avg_buy_price_ht, 0) as avg_buy_price_ht,
       COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) as tva_rate,

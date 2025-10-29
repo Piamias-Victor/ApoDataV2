@@ -1,4 +1,6 @@
 // src/components/molecules/TableRow/TableRow.tsx
+'use client';
+
 import React from 'react';
 import type { ProductMetrics, ViewMode } from '@/components/organisms/ProductsTable/types';
 
@@ -70,6 +72,9 @@ export const TableRow: React.FC<TableRowProps> = ({
         <td className={`${cellClass} text-gray-600 font-mono text-xs`}>
           {product.code_ean}
         </td>
+        <td className={`${cellClass} text-gray-700`}>
+          {product.bcb_lab || '-'}
+        </td>
         <td className={`${cellClass} ${numberClass} text-gray-900`}>
           {formatCurrency(product.ca_ttc)}
         </td>
@@ -103,6 +108,9 @@ export const TableRow: React.FC<TableRowProps> = ({
       </td>
       <td className={`${cellClass} text-gray-600 font-mono text-xs`}>
         {product.code_ean}
+      </td>
+      <td className={`${cellClass} text-gray-700`}>
+        {product.bcb_lab || '-'}
       </td>
       <td className={`${cellClass} ${numberClass} text-gray-900`}>
         {formatCurrency(product.avg_sell_price_ttc)}

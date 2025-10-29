@@ -3,6 +3,7 @@
 export interface ProductMetrics {
   readonly product_name: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null; // AJOUT laboratoire
   readonly current_stock: number;
   readonly quantity_sold: number;
   readonly ca_ttc: number;
@@ -12,7 +13,7 @@ export interface ProductMetrics {
   readonly avg_sell_price_ttc: number;
   readonly avg_buy_price_ht: number;
   readonly unit_margin_ht: number;
-  readonly quantity_sold_comparison: number | null; // AJOUT pour comparaison
+  readonly quantity_sold_comparison: number | null;
 }
 
 export type ViewMode = 'totals' | 'averages';
@@ -21,10 +22,11 @@ export type SortDirection = 'asc' | 'desc' | null;
 
 export type SortableColumn = 
   | 'product_name'
+  | 'bcb_lab' // AJOUT tri laboratoire
   | 'code_ean' 
   | 'current_stock'
   | 'quantity_sold'
-  | 'quantity_sold_evolution' // AJOUT pour tri sur évolution
+  | 'quantity_sold_evolution'
   | 'ca_ttc'
   | 'purchase_amount'
   | 'total_margin_ht'

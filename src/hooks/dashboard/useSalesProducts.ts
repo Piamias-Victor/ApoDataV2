@@ -7,6 +7,7 @@ import type { StandardFilters } from '@/hooks/common/types';
 interface SalesProductRow {
   readonly nom: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null; // AJOUT
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
@@ -18,7 +19,7 @@ interface SalesProductRow {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
-  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
+  readonly quantite_vendue_comparison: number | null;
 }
 
 interface SalesProductsResponse {
@@ -32,6 +33,7 @@ interface SalesProductsResponse {
 export interface ProductSalesSummary {
   readonly nom: string;
   readonly code_ean: string;
+  readonly bcb_lab: string | null; // AJOUT
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -40,13 +42,13 @@ export interface ProductSalesSummary {
   readonly part_marche_marge_pct: number;
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
-  readonly quantite_vendue_comparison: number | null; // AJOUT pour comparaison
+  readonly quantite_vendue_comparison: number | null;
 }
 
 interface UseSalesProductsOptions {
   readonly enabled?: boolean | undefined;
   readonly dateRange?: { start: string; end: string } | undefined;
-  readonly comparisonDateRange?: { start: string | null; end: string | null } | undefined; // AJOUT
+  readonly comparisonDateRange?: { start: string | null; end: string | null } | undefined;
   readonly filters?: {
     products?: string[];
     laboratories?: string[];
@@ -83,7 +85,7 @@ export function useSalesProducts(
   options: UseSalesProductsOptions = {}
 ): UseSalesProductsReturn {
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
-  const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange); // AJOUT
+  const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const productsFilter = useFiltersStore((state) => state.products);
   const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
   const categoriesFilter = useFiltersStore((state) => state.categories);
@@ -108,8 +110,8 @@ export function useSalesProducts(
   } = useStandardFetch<SalesProductsResponse>('/api/sales-products', {
     enabled: options.enabled,
     dateRange: options.dateRange || analysisDateRange,
-    comparisonDateRange: options.comparisonDateRange || comparisonDateRange, // AJOUT
-    includeComparison: true, // AJOUT
+    comparisonDateRange: options.comparisonDateRange || comparisonDateRange,
+    includeComparison: true,
     filters: standardFilters
   });
 
@@ -121,6 +123,7 @@ export function useSalesProducts(
     return syntheses.map(row => ({
       nom: row.nom,
       code_ean: row.code_ean,
+      bcb_lab: row.bcb_lab, // AJOUT
       quantite_vendue: parseNumericValue(row.quantite_vendue),
       prix_achat_moyen: parseNumericValue(row.prix_achat_moyen),
       prix_vente_moyen: parseNumericValue(row.prix_vente_moyen),
@@ -129,7 +132,7 @@ export function useSalesProducts(
       part_marche_marge_pct: parseNumericValue(row.part_marche_marge_pct),
       montant_ventes_ttc: parseNumericValue(row.montant_ventes_ttc),
       montant_marge_total: parseNumericValue(row.montant_marge_total),
-      quantite_vendue_comparison: row.quantite_vendue_comparison ?? null // AJOUT
+      quantite_vendue_comparison: row.quantite_vendue_comparison ?? null
     }));
   }, [data?.salesData]);
 
