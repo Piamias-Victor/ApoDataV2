@@ -34,7 +34,7 @@ export const LaboratoryMarketShare: React.FC = () => {
     previousPage,
     nextPage,
     hasComparison
-  } = useLaboratoryMarketShareWithFilters({ pageSize: 10 });
+  } = useLaboratoryMarketShareWithFilters({ pageSize: 50 });
 
   const { exportToCsv, isExporting } = useExportCsv();
 

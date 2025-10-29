@@ -10,11 +10,19 @@ interface StockMetricsResponse {
   readonly jours_de_stock_actuels: number | null;
   readonly nb_references_produits: number;
   readonly nb_pharmacies: number;
+  readonly quantite_commandee: number;
+  readonly quantite_receptionnee: number;
+  readonly montant_commande_ht: number;
+  readonly montant_receptionne_ht: number;
   readonly comparison?: {
     readonly quantite_stock_actuel_total: number;
     readonly montant_stock_actuel_total: number;
     readonly stock_moyen_12_mois: number;
     readonly jours_de_stock_actuels: number | null;
+    readonly quantite_commandee: number;
+    readonly quantite_receptionnee: number;
+    readonly montant_commande_ht: number;
+    readonly montant_receptionne_ht: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
@@ -54,14 +62,12 @@ export function useStockMetrics(
   const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // Construction des filtres sans spread conditionnel
   const standardFilters: StandardFilters & Record<string, any> = {
     productCodes: options.filters?.products || productsFilter,
     laboratoryCodes: options.filters?.laboratories || laboratoriesFilter,
     categoryCodes: options.filters?.categories || categoriesFilter,
   };
 
-  // Ajout conditionnel des pharmacyIds
   const effectivePharmacies = options.filters?.pharmacies || pharmacyFilter;
   if (effectivePharmacies.length > 0) {
     standardFilters.pharmacyIds = effectivePharmacies;
