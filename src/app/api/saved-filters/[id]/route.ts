@@ -93,17 +93,20 @@ export async function GET(
     };
 
     // 2. Résoudre les codes produits pour chaque laboratoire
+    // FIX: Utiliser bcb_lab (pas brand_lab) + normalisation espaces
     const resolvedLaboratories: LoadFilterResult['resolvedLaboratories'] = [];
     
     if (filter.laboratory_names.length > 0) {
       const labQuery = `
         SELECT 
-          brand_lab as laboratory_name,
+          bcb_lab as laboratory_name,
           ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
           COUNT(DISTINCT code_13_ref) as product_count
         FROM public.data_globalproduct
-        WHERE brand_lab = ANY($1)
-        GROUP BY brand_lab
+        WHERE REGEXP_REPLACE(TRIM(bcb_lab), '\\s+', ' ', 'g') = ANY(
+          SELECT REGEXP_REPLACE(TRIM(unnest($1::text[])), '\\s+', ' ', 'g')
+        )
+        GROUP BY bcb_lab
       `;
 
       const labRows = await db.query(labQuery, [filter.laboratory_names]);
@@ -118,6 +121,7 @@ export async function GET(
     }
 
     // 3. Résoudre les codes produits pour chaque catégorie
+    // FIX: Normalisation espaces pour matching robuste
     const resolvedCategories: LoadFilterResult['resolvedCategories'] = [];
     
     if (filter.category_names.length > 0) {
@@ -135,7 +139,7 @@ export async function GET(
             ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
             COUNT(DISTINCT code_13_ref) as product_count
           FROM public.data_globalproduct
-          WHERE ${column} = $1
+          WHERE REGEXP_REPLACE(TRIM(${column}), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM($1), '\\s+', ' ', 'g')
         `;
 
         const catRows = await db.query(catQuery, [categoryName]);
