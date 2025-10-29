@@ -8,182 +8,310 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 interface PriceRange {
-  min: number | null;
-  max: number | null;
+  readonly min: number | null;
+  readonly max: number | null;
 }
 
 interface PriceFilters {
-  prixFabricant: PriceRange;
-  prixNetRemise: PriceRange;
-  remise: PriceRange;
+  readonly prixFabricant: PriceRange;
+  readonly prixNetRemise: PriceRange;
+  readonly remise: PriceRange;
 }
 
 interface RequestBody {
-  productCodes: string[] | null;  // null = chercher dans toute la base
-  priceFilters: PriceFilters;
+  readonly productCodes: string[] | null;
+  readonly priceFilters: PriceFilters;
+  readonly dateRange: { start: string; end: string };
 }
 
-/**
- * API Route - Filtrage produits par tranches de prix
- * 
- * POST /api/generic-filters/price-ranges
- * Body: { productCodes: string[], priceFilters: PriceFilters }
- * 
- * Filtre les produits selon :
- * - Prix fabricant (prix_achat_ht_fabricant)
- * - Prix net remise (prix_achat_ht_moyen)
- * - Remise (remise)
- * 
- * Applique une intersection (ET) des filtres actifs
- */
-export async function POST(request: NextRequest) {
-  console.log('');
-  console.log('🔵 [API /price-ranges] ========================================');
-  console.log('🔵 [API /price-ranges] NEW REQUEST');
-  console.log('🔵 [API /price-ranges] ========================================');
-  
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    console.log('');
+    console.log('🚀 [price-ranges API] ========================================');
+    console.log('🚀 [price-ranges API] NEW REQUEST');
+    
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      console.log('❌ [API /price-ranges] Unauthorized');
+      console.log('❌ [price-ranges API] Unauthorized');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { productCodes, priceFilters }: RequestBody = await request.json();
-    
-    const isGlobalSearch = productCodes === null;
-    
-    console.log('📊 [API /price-ranges] Request body:', {
-      mode: isGlobalSearch ? 'GLOBAL (all generics/referents)' : 'FILTERED (specific codes)',
-      productCodesCount: productCodes?.length || 'ALL',
-      priceFilters
+    const body: RequestBody = await request.json();
+    const { productCodes, priceFilters, dateRange } = body;
+
+    console.log('📊 [price-ranges API] Request params:', {
+      productCodes: productCodes ? `${productCodes.length} codes` : 'ALL (global mode)',
+      dateRange,
+      priceFilters,
+      user: session.user.email,
+      role: session.user.role
     });
-    
-    if (!isGlobalSearch && productCodes.length === 0) {
-      console.log('⚠️ [API /price-ranges] No product codes provided, returning empty array');
-      return NextResponse.json({ productCodes: [] });
+
+    // Validation
+    if (!dateRange?.start || !dateRange?.end) {
+      console.log('❌ [price-ranges API] Missing dateRange');
+      return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
 
-    // Construction des conditions WHERE dynamiques
-    const conditions: string[] = [];
-    const params: any[] = [];
-    let paramIndex = 1;
+    const isAdmin = session.user.role === 'admin';
+    const pharmacyId = session.user.pharmacyId;
 
-    console.log('🔨 [API /price-ranges] Building SQL conditions...');
+    // Construction des filtres SQL
+    const priceFilterConditions: string[] = [];
     
-    // Condition de base : seulement génériques et référents
-    if (isGlobalSearch) {
-      console.log('  🌍 GLOBAL MODE: Searching ALL generic/referent products');
-      conditions.push(`bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')`);
-    } else {
-      console.log(`  🎯 FILTERED MODE: Searching within ${productCodes.length} specific codes`);
-      conditions.push(`code_13_ref = ANY($${paramIndex}::text[])`);
-      params.push(productCodes);
-      paramIndex++;
-    }
-
-    // Filtre prix fabricant
     if (priceFilters.prixFabricant.min !== null) {
-      conditions.push(`prix_achat_ht_fabricant >= $${paramIndex}`);
-      params.push(priceFilters.prixFabricant.min);
-      console.log(`  ✓ Prix fabricant MIN: ${priceFilters.prixFabricant.min}€`);
-      paramIndex++;
+      priceFilterConditions.push(`prix_brut_grossiste >= ${priceFilters.prixFabricant.min}`);
     }
     if (priceFilters.prixFabricant.max !== null) {
-      conditions.push(`prix_achat_ht_fabricant <= $${paramIndex}`);
-      params.push(priceFilters.prixFabricant.max);
-      console.log(`  ✓ Prix fabricant MAX: ${priceFilters.prixFabricant.max}€`);
-      paramIndex++;
+      priceFilterConditions.push(`prix_brut_grossiste <= ${priceFilters.prixFabricant.max}`);
     }
-
-    // Filtre prix net remise
     if (priceFilters.prixNetRemise.min !== null) {
-      conditions.push(`prix_achat_ht_moyen >= $${paramIndex}`);
-      params.push(priceFilters.prixNetRemise.min);
-      console.log(`  ✓ Prix net MIN: ${priceFilters.prixNetRemise.min}€`);
-      paramIndex++;
+      priceFilterConditions.push(`avg_buy_price_ht >= ${priceFilters.prixNetRemise.min}`);
     }
     if (priceFilters.prixNetRemise.max !== null) {
-      conditions.push(`prix_achat_ht_moyen <= $${paramIndex}`);
-      params.push(priceFilters.prixNetRemise.max);
-      console.log(`  ✓ Prix net MAX: ${priceFilters.prixNetRemise.max}€`);
-      paramIndex++;
+      priceFilterConditions.push(`avg_buy_price_ht <= ${priceFilters.prixNetRemise.max}`);
     }
-
-    // Filtre remise
     if (priceFilters.remise.min !== null) {
-      conditions.push(`remise >= $${paramIndex}`);
-      params.push(priceFilters.remise.min);
-      console.log(`  ✓ Remise MIN: ${priceFilters.remise.min}%`);
-      paramIndex++;
+      priceFilterConditions.push(`remise_percent >= ${priceFilters.remise.min}`);
     }
     if (priceFilters.remise.max !== null) {
-      conditions.push(`remise <= $${paramIndex}`);
-      params.push(priceFilters.remise.max);
-      console.log(`  ✓ Remise MAX: ${priceFilters.remise.max}%`);
-      paramIndex++;
+      priceFilterConditions.push(`remise_percent <= ${priceFilters.remise.max}`);
     }
 
-    // Si mode global et aucun filtre prix, retourner tous les génériques/référents
-    if (isGlobalSearch && conditions.length === 1) {
-      console.log('⚠️ [API /price-ranges] Global mode but no price filters → would return ALL generics/referents');
-      console.log('⚠️ [API /price-ranges] This is probably not intended, returning empty array');
-      return NextResponse.json({ productCodes: [] });
+    const priceFilterSQL = priceFilterConditions.length > 0 
+      ? `AND ${priceFilterConditions.join(' AND ')}`
+      : '';
+
+    console.log('🔍 [price-ranges API] Price filters SQL:', priceFilterSQL || 'NONE');
+
+    let query: string;
+    let params: any[];
+
+    if (isAdmin) {
+      // MODE ADMIN (toutes pharmacies)
+      if (productCodes === null || productCodes.length === 0) {
+        // MODE GLOBAL : Calculer pour TOUS les génériques/référents
+        console.log('🌍 [price-ranges API] ADMIN - GLOBAL MODE');
+        
+        query = `
+          WITH product_purchases AS (
+            SELECT 
+              dgp.code_13_ref,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
+              AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
+              CASE 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
+                  AND AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+                THEN ((pbcb.prix_achat_ht_fabricant - AVG(COALESCE(closest_snap.weighted_average_price, 0))) / pbcb.prix_achat_ht_fabricant) * 100
+                ELSE 0
+              END as remise_percent
+            FROM data_productorder po
+            JOIN data_order o ON po.order_id = o.id
+            JOIN data_internalproduct ip ON po.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            LEFT JOIN data_globalproduct_prices_bcb pbcb ON dgp.code_13_ref = pbcb.code_13_ref
+            LEFT JOIN LATERAL (
+              SELECT weighted_average_price
+              FROM data_inventorysnapshot ins2
+              WHERE ins2.product_id = po.product_id
+                AND ins2.weighted_average_price > 0
+              ORDER BY ins2.date DESC
+              LIMIT 1
+            ) closest_snap ON true
+            WHERE o.delivery_date >= $1::date 
+              AND o.delivery_date <= $2::date
+              AND o.delivery_date IS NOT NULL
+              AND po.qte_r > 0
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
+              AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_group IS NOT NULL
+            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+          )
+          SELECT code_13_ref
+          FROM product_purchases
+          WHERE 1=1
+            ${priceFilterSQL}
+        `;
+
+        params = [dateRange.start, dateRange.end];
+
+      } else {
+        // MODE SÉLECTION : Calculer pour les productCodes fournis
+        console.log(`🎯 [price-ranges API] ADMIN - SELECTION MODE (${productCodes.length} codes)`);
+        
+        query = `
+          WITH product_purchases AS (
+            SELECT 
+              dgp.code_13_ref,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
+              AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
+              CASE 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
+                  AND AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+                THEN ((pbcb.prix_achat_ht_fabricant - AVG(COALESCE(closest_snap.weighted_average_price, 0))) / pbcb.prix_achat_ht_fabricant) * 100
+                ELSE 0
+              END as remise_percent
+            FROM data_productorder po
+            JOIN data_order o ON po.order_id = o.id
+            JOIN data_internalproduct ip ON po.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            LEFT JOIN data_globalproduct_prices_bcb pbcb ON dgp.code_13_ref = pbcb.code_13_ref
+            LEFT JOIN LATERAL (
+              SELECT weighted_average_price
+              FROM data_inventorysnapshot ins2
+              WHERE ins2.product_id = po.product_id
+                AND ins2.weighted_average_price > 0
+              ORDER BY ins2.date DESC
+              LIMIT 1
+            ) closest_snap ON true
+            WHERE o.delivery_date >= $1::date 
+              AND o.delivery_date <= $2::date
+              AND o.delivery_date IS NOT NULL
+              AND po.qte_r > 0
+              AND ip.code_13_ref_id = ANY($3::text[])
+            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+          )
+          SELECT code_13_ref
+          FROM product_purchases
+          WHERE 1=1
+            ${priceFilterSQL}
+        `;
+
+        params = [dateRange.start, dateRange.end, productCodes];
+      }
+
+    } else {
+      // MODE NON-ADMIN (filtre pharmacy obligatoire)
+      if (!pharmacyId) {
+        console.log('❌ [price-ranges API] Non-admin without pharmacyId');
+        return NextResponse.json({ error: 'Pharmacy ID required' }, { status: 400 });
+      }
+
+      if (productCodes === null || productCodes.length === 0) {
+        // MODE GLOBAL : Calculer pour TOUS les génériques/référents de cette pharmacie
+        console.log('🌍 [price-ranges API] NON-ADMIN - GLOBAL MODE');
+        
+        query = `
+          WITH product_purchases AS (
+            SELECT 
+              dgp.code_13_ref,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
+              AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
+              CASE 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
+                  AND AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+                THEN ((pbcb.prix_achat_ht_fabricant - AVG(COALESCE(closest_snap.weighted_average_price, 0))) / pbcb.prix_achat_ht_fabricant) * 100
+                ELSE 0
+              END as remise_percent
+            FROM data_productorder po
+            JOIN data_order o ON po.order_id = o.id
+            JOIN data_internalproduct ip ON po.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            LEFT JOIN data_globalproduct_prices_bcb pbcb ON dgp.code_13_ref = pbcb.code_13_ref
+            LEFT JOIN LATERAL (
+              SELECT weighted_average_price
+              FROM data_inventorysnapshot ins2
+              WHERE ins2.product_id = po.product_id
+                AND ins2.weighted_average_price > 0
+              ORDER BY ins2.date DESC
+              LIMIT 1
+            ) closest_snap ON true
+            WHERE o.delivery_date >= $1::date 
+              AND o.delivery_date <= $2::date
+              AND o.delivery_date IS NOT NULL
+              AND po.qte_r > 0
+              AND ip.pharmacy_id = $3::uuid
+              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
+              AND dgp.bcb_lab IS NOT NULL
+              AND dgp.bcb_generic_group IS NOT NULL
+            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+          )
+          SELECT code_13_ref
+          FROM product_purchases
+          WHERE 1=1
+            ${priceFilterSQL}
+        `;
+
+        params = [dateRange.start, dateRange.end, pharmacyId];
+
+      } else {
+        // MODE SÉLECTION : Calculer pour les productCodes fournis
+        console.log(`🎯 [price-ranges API] NON-ADMIN - SELECTION MODE (${productCodes.length} codes)`);
+        
+        query = `
+          WITH product_purchases AS (
+            SELECT 
+              dgp.code_13_ref,
+              pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
+              AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
+              CASE 
+                WHEN pbcb.prix_achat_ht_fabricant IS NOT NULL 
+                  AND pbcb.prix_achat_ht_fabricant > 0 
+                  AND AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+                THEN ((pbcb.prix_achat_ht_fabricant - AVG(COALESCE(closest_snap.weighted_average_price, 0))) / pbcb.prix_achat_ht_fabricant) * 100
+                ELSE 0
+              END as remise_percent
+            FROM data_productorder po
+            JOIN data_order o ON po.order_id = o.id
+            JOIN data_internalproduct ip ON po.product_id = ip.id
+            JOIN data_globalproduct dgp ON ip.code_13_ref_id = dgp.code_13_ref
+            LEFT JOIN data_globalproduct_prices_bcb pbcb ON dgp.code_13_ref = pbcb.code_13_ref
+            LEFT JOIN LATERAL (
+              SELECT weighted_average_price
+              FROM data_inventorysnapshot ins2
+              WHERE ins2.product_id = po.product_id
+                AND ins2.weighted_average_price > 0
+              ORDER BY ins2.date DESC
+              LIMIT 1
+            ) closest_snap ON true
+            WHERE o.delivery_date >= $1::date 
+              AND o.delivery_date <= $2::date
+              AND o.delivery_date IS NOT NULL
+              AND po.qte_r > 0
+              AND ip.pharmacy_id = $3::uuid
+              AND ip.code_13_ref_id = ANY($4::text[])
+            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
+          )
+          SELECT code_13_ref
+          FROM product_purchases
+          WHERE 1=1
+            ${priceFilterSQL}
+        `;
+
+        params = [dateRange.start, dateRange.end, pharmacyId, productCodes];
+      }
     }
-    
-    // Si mode filtré et aucun filtre prix, retourner tous les codes fournis
-    if (!isGlobalSearch && conditions.length === 1) {
-      console.log('⚠️ [API /price-ranges] Filtered mode but no price filters, returning all input codes');
-      return NextResponse.json({ productCodes });
-    }
 
-    const whereClause = conditions.join(' AND ');
-
-    const query = `
-      SELECT code_13_ref
-      FROM data_globalproduct
-      WHERE ${whereClause}
-    `;
-
-    console.log('📝 [API /price-ranges] SQL Query:', {
-      mode: isGlobalSearch ? 'GLOBAL' : 'FILTERED',
-      conditions: conditions.length,
-      whereClause,
-      paramsCount: params.length
-    });
-    
-    console.log('🔍 [API /price-ranges] Full SQL:');
-    console.log(query);
-
+    console.log('🔄 [price-ranges API] Executing query...');
     const startTime = Date.now();
-    const result = await db.query<{ code_13_ref: string }>(query, params);
-    const duration = Date.now() - startTime;
     
+    const result = await db.query<{ code_13_ref: string }>(query, params);
+    
+    const duration = Date.now() - startTime;
     const filteredCodes = result.map(row => row.code_13_ref);
 
-    if (isGlobalSearch) {
-      console.log('✅ [API /price-ranges] GLOBAL search completed:', {
-        duration: `${duration}ms`,
-        totalFound: filteredCodes.length
-      });
-    } else {
-      console.log('✅ [API /price-ranges] FILTERED search completed:', {
-        duration: `${duration}ms`,
-        inputCodes: productCodes!.length,
-        outputCodes: filteredCodes.length,
-        filtered: productCodes!.length - filteredCodes.length,
-        percentage: `${((filteredCodes.length / productCodes!.length) * 100).toFixed(1)}%`
-      });
-    }
-    
-    console.log('🔵 [API /price-ranges] ========================================');
+    console.log('✅ [price-ranges API] Query success:', {
+      duration: `${duration}ms`,
+      codesFound: filteredCodes.length,
+      inputCodes: productCodes ? productCodes.length : 'ALL'
+    });
+    console.log('🚀 [price-ranges API] ========================================');
     console.log('');
 
-    return NextResponse.json({ productCodes: filteredCodes });
+    return NextResponse.json({
+      productCodes: filteredCodes
+    });
 
   } catch (error) {
-    console.error('❌ [API /price-ranges] ERROR:', error);
-    console.log('🔵 [API /price-ranges] ========================================');
+    console.error('❌ [price-ranges API] ERROR:', error);
+    console.log('🚀 [price-ranges API] ========================================');
     console.log('');
     return NextResponse.json(
       { error: 'Internal server error' },

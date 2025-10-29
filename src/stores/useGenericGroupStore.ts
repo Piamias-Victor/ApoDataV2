@@ -33,6 +33,10 @@ interface GenericGroupState {
   showGlobalTop: boolean;
   setShowGlobalTop: (show: boolean) => void;
   
+  // 🔥 NOUVEAU - Date range
+  dateRange: { start: string; end: string } | null;
+  setDateRange: (range: { start: string; end: string }) => void;
+  
   // Gestion des groupes génériques
   addGroup: (group: GenericGroup) => void;
   removeGroup: (groupName: string) => void;
@@ -72,6 +76,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   productCodes: [],
   showGlobalTop: false,
   priceFilters: defaultPriceFilters,
+  dateRange: null, // 🔥 NOUVEAU
 
   // ===== MODE GLOBAL =====
   setShowGlobalTop: (show) => {
@@ -79,12 +84,28 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     set({ showGlobalTop: show });
   },
 
+  // 🔥 NOUVEAU - DATE RANGE =====
+  setDateRange: (range) => {
+    console.log('📅 [GenericGroupStore] Setting date range:', range);
+    set({ dateRange: range });
+  },
+
   // ===== FILTRES DE PRIX =====
   setPriceFilters: async (filters) => {
-    const { priceFilters } = get();
+    const { priceFilters, dateRange } = get(); // 🔥 AJOUT dateRange
+    
+    // 🔥 VALIDATION DATE RANGE
+    if (!dateRange) {
+      console.error('❌ [GenericGroupStore] Cannot apply price filters without date range');
+      return;
+    }
+    
     const newPriceFilters = { ...priceFilters, ...filters };
     
-    console.log('💰 [GenericGroupStore] Setting price filters:', newPriceFilters);
+    console.log('💰 [GenericGroupStore] Setting price filters:', {
+      filters: newPriceFilters,
+      dateRange // 🔥 LOG DATE RANGE
+    });
     
     set({ priceFilters: newPriceFilters });
     
@@ -115,7 +136,14 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   recalculateProductCodes: async () => {
     console.log('🔄 [GenericGroupStore] === START RECALCULATE ===');
     
-    const { selectedGroups, selectedProducts, selectedLaboratories, priceFilters, hasPriceFilters } = get();
+    const { 
+      selectedGroups, 
+      selectedProducts, 
+      selectedLaboratories, 
+      priceFilters, 
+      hasPriceFilters,
+      dateRange // 🔥 EXTRACTION DATE RANGE
+    } = get();
     
     const hasSelections = selectedGroups.length > 0 || selectedProducts.length > 0 || selectedLaboratories.length > 0;
     
@@ -124,7 +152,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       hasPriceFilters: hasPriceFilters(),
       groups: selectedGroups.length,
       products: selectedProducts.length,
-      laboratories: selectedLaboratories.length
+      laboratories: selectedLaboratories.length,
+      dateRange // 🔥 LOG DATE RANGE
     });
     
     // Cas 1 : Aucune sélection ET aucun filtre prix → vide
@@ -138,18 +167,28 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     // Cas 2 : Filtres prix SEULS (sans sélections) → rechercher TOUS les génériques/référents
     if (!hasSelections && hasPriceFilters()) {
       console.log('💰 [GenericGroupStore] PRICE FILTERS ONLY MODE');
+      
+      // 🔥 VALIDATION DATE RANGE
+      if (!dateRange) {
+        console.error('❌ [GenericGroupStore] Date range required for price filters');
+        set({ productCodes: [] });
+        console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
+        return;
+      }
+      
       console.log('💰 [GenericGroupStore] Fetching ALL generic/referent products from DB...');
       
       try {
         const startTime = Date.now();
         
-        // Appel API spécial pour filtres prix seuls
+        // 🔥 APPEL API AVEC DATE RANGE
         const response = await fetch('/api/generic-filters/price-ranges', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            productCodes: null, // null = chercher dans toute la base
-            priceFilters
+            productCodes: null,
+            priceFilters,
+            dateRange // 🔥 PASSAGE DATE RANGE
           })
         });
 
@@ -160,9 +199,12 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           const filteredCodes = data.productCodes;
           
           console.log('✅ [GenericGroupStore] PRICE FILTERS ONLY SUCCESS:', {
-            duration: `${duration}ms`,
-            totalFound: filteredCodes.length
-          });
+  duration: `${duration}ms`,
+  totalFound: filteredCodes.length
+});
+
+// 🔥 AJOUTER CE LOG
+console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slice(0, 5));
           
           set({ productCodes: filteredCodes });
           console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
@@ -208,43 +250,50 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
 
     // Étape 2 : Appliquer les filtres de prix si présents (intersection)
     if (hasPriceFilters() && finalCodes.length > 0) {
-      console.log('💰 [GenericGroupStore] Price filters detected, filtering base codes via API...');
-      console.log('💰 [GenericGroupStore] Filters:', priceFilters);
-      console.log('💰 [GenericGroupStore] Codes to filter:', finalCodes.length);
-      
-      try {
-        const startTime = Date.now();
+      // 🔥 VALIDATION DATE RANGE
+      if (!dateRange) {
+        console.error('❌ [GenericGroupStore] Date range required for price filters');
+      } else {
+        console.log('💰 [GenericGroupStore] Price filters detected, filtering base codes via API...');
+        console.log('💰 [GenericGroupStore] Filters:', priceFilters);
+        console.log('💰 [GenericGroupStore] Codes to filter:', finalCodes.length);
         
-        const response = await fetch('/api/generic-filters/price-ranges', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productCodes: finalCodes,
-            priceFilters
-          })
-        });
-
-        const duration = Date.now() - startTime;
-
-        if (response.ok) {
-          const data = await response.json();
-          finalCodes = data.productCodes;
+        try {
+          const startTime = Date.now();
           
-          console.log('✅ [GenericGroupStore] API SUCCESS:', {
-            duration: `${duration}ms`,
-            before: baseCodes.size,
-            after: finalCodes.length,
-            filtered: baseCodes.size - finalCodes.length,
-            percentage: `${((finalCodes.length / baseCodes.size) * 100).toFixed(1)}%`
+          // 🔥 APPEL API AVEC DATE RANGE
+          const response = await fetch('/api/generic-filters/price-ranges', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productCodes: finalCodes,
+              priceFilters,
+              dateRange // 🔥 PASSAGE DATE RANGE
+            })
           });
-        } else {
-          console.error('❌ [GenericGroupStore] API ERROR:', {
-            status: response.status,
-            statusText: response.statusText
-          });
+
+          const duration = Date.now() - startTime;
+
+          if (response.ok) {
+            const data = await response.json();
+            finalCodes = data.productCodes;
+            
+            console.log('✅ [GenericGroupStore] API SUCCESS:', {
+              duration: `${duration}ms`,
+              before: baseCodes.size,
+              after: finalCodes.length,
+              filtered: baseCodes.size - finalCodes.length,
+              percentage: `${((finalCodes.length / baseCodes.size) * 100).toFixed(1)}%`
+            });
+          } else {
+            console.error('❌ [GenericGroupStore] API ERROR:', {
+              status: response.status,
+              statusText: response.statusText
+            });
+          }
+        } catch (error) {
+          console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
         }
-      } catch (error) {
-        console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
       }
     } else if (hasPriceFilters() && finalCodes.length === 0) {
       console.log('⚠️ [GenericGroupStore] Price filters active but no base codes to filter');
@@ -433,7 +482,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedLaboratories: [],
       productCodes: [],
       showGlobalTop: false,
-      priceFilters: defaultPriceFilters
+      priceFilters: defaultPriceFilters,
+      dateRange: null // 🔥 RESET DATE RANGE
     });
   }
 }));

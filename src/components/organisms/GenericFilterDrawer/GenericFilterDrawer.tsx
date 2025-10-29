@@ -13,6 +13,7 @@ interface GenericFilterDrawerProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onCountChange: (count: number) => void;
+  readonly dateRange: { start: string; end: string }; // 🔥 NOUVEAU
 }
 
 interface LocalPriceFilters {
@@ -34,7 +35,8 @@ interface LocalPriceFilters {
 export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
   isOpen,
   onClose,
-  onCountChange
+  onCountChange,
+  dateRange // 🔥 RECEPTION
 }) => {
   const {
     // Products
@@ -76,8 +78,17 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     removeLaboratory,
     addProducts,
     addLaboratories,
-    clearSelection: clearStoreSelection
+    clearSelection: clearStoreSelection,
+    setDateRange // 🔥 IMPORT SETTER
   } = useGenericGroupStore();
+
+  // 🔥 NOUVEAU - Sync dateRange avec store au mount
+  useEffect(() => {
+    if (isOpen && dateRange) {
+      console.log('📅 [GenericFilterDrawer] Setting date range in store:', dateRange);
+      setDateRange(dateRange);
+    }
+  }, [isOpen, dateRange, setDateRange]);
 
   // State local pour les filtres de prix (pas encore appliqués)
   const [localPriceFilters, setLocalPriceFilters] = useState<LocalPriceFilters>({
@@ -149,7 +160,8 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     console.log('📊 [GenericFilterDrawer] Changes to apply:', {
       products: productsToAdd.length,
       laboratories: laboratoriesToAdd.length,
-      priceFiltersChanged: hasPriceChanges()
+      priceFiltersChanged: hasPriceChanges(),
+      dateRange // 🔥 LOG DATE RANGE
     });
 
     // 1. Appliquer sélections produits/labos

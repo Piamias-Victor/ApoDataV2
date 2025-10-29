@@ -599,6 +599,7 @@ export const FilterBar: React.FC = () => {
             isOpen={true}
             onClose={handleDrawerClose}
             onCountChange={() => {}}
+            dateRange={analysisDateRange || { start: '', end: '' }} // 🔥 PASSAGE DATE RANGE
           />
         )}
 

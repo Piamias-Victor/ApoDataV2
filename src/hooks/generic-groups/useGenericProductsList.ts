@@ -1,6 +1,7 @@
 // src/hooks/generic-groups/useGenericProductsList.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
+import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 NOUVEAU
 
 export interface GenericProductMetrics {
   readonly laboratory_name: string;
@@ -56,10 +57,14 @@ export function useGenericProductsList(
   const [sortColumn, setSortColumn] = useState('quantity_sold');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isGlobalMode, setIsGlobalMode] = useState(false);
-  const [hasLoadedGlobal, setHasLoadedGlobal] = useState(false); // 🔥 NOUVEAU
+  const [hasLoadedGlobal, setHasLoadedGlobal] = useState(false);
+  const [priceFiltersSnapshot, setPriceFiltersSnapshot] = useState<string>(''); // 🔥 NOUVEAU
 
   // Récupération du filtre pharmacy depuis le store
   const pharmacyIds = useFiltersStore(state => state.pharmacy);
+  
+  // 🔥 NOUVEAU - Récupération des priceFilters
+  const priceFilters = useGenericGroupStore(state => state.priceFilters);
 
   const { 
     enabled, 
@@ -76,7 +81,6 @@ export function useGenericProductsList(
     customSort?: { column: string; direction: 'asc' | 'desc' },
     customSearch?: string
   ) => {
-    // 🔥 CORRECTION : Si hasLoadedGlobal est true ET productCodes vide, on reste en global
     const shouldUseGlobalMode = forceGlobal || hasLoadedGlobal || (showGlobalTop && productCodes.length === 0);
     
     if (!enabled || (!shouldUseGlobalMode && productCodes.length === 0)) {
@@ -117,7 +121,6 @@ export function useGenericProductsList(
       setTotal(result.pagination.total);
       setCurrentPage(page);
       
-      // 🔥 NOUVEAU : Mémoriser qu'on a chargé en global
       if (shouldUseGlobalMode) {
         setHasLoadedGlobal(true);
       }
@@ -129,13 +132,26 @@ export function useGenericProductsList(
     }
   }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds, hasLoadedGlobal]);
 
+  // 🔥 NOUVEAU - Surveiller les changements de priceFilters
+  useEffect(() => {
+    const newSnapshot = JSON.stringify(priceFilters);
+    if (newSnapshot !== priceFiltersSnapshot) {
+      console.log('💰 [useGenericProductsList] Price filters changed, refetching...');
+      setPriceFiltersSnapshot(newSnapshot);
+      if (enabled && autoFetch) {
+        fetchData(1);
+      }
+    }
+  }, [priceFilters, priceFiltersSnapshot, enabled, autoFetch, fetchData]);
+
+  // useEffect principal - 🔥 MODIFIÉ
   useEffect(() => {
     if (autoFetch) {
       fetchData(1);
     }
-  }, [autoFetch, productCodes, dateRange, pharmacyIds, showGlobalTop]);
+  }, [autoFetch, productCodes, dateRange.start, dateRange.end, pharmacyIds, showGlobalTop]); // 🔥 dateRange décomposé
 
-  // 🔥 NOUVEAU : Reset hasLoadedGlobal quand productCodes change (passage en mode sélection)
+  // Reset hasLoadedGlobal quand productCodes change
   useEffect(() => {
     if (productCodes.length > 0) {
       setHasLoadedGlobal(false);
@@ -172,6 +188,7 @@ export function useGenericProductsList(
     setSortDirection(direction);
     fetchData(1, false, { column, direction });
   }, [fetchData]);
+  
 
   return {
     data,
