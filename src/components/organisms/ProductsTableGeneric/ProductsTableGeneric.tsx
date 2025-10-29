@@ -1,14 +1,16 @@
 // src/components/organisms/ProductsTableGeneric/ProductsTableGeneric.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RotateCcw, Search, Database } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RotateCcw, Search, Database, Eye } from 'lucide-react';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useGenericProductsList } from '@/hooks/generic-groups/useGenericProductsList';
+import { useGenericProductDetails } from '@/hooks/generic-groups/useGenericProductDetails';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
+import { GenericProductChart } from '@/components/organisms/GenericProductChart/GenericProductChart';
 
 interface ProductsTableGenericProps {
   readonly productCodes: string[];
@@ -41,6 +43,9 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     column: 'ca_ventes',
     direction: 'desc'
   });
+  
+  // 🆕 État expansion détails
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
   const hasFilters = productCodes.length > 0;
 
@@ -67,7 +72,22 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     autoFetch: hasFilters
   });
 
+  // 🆕 Hook détails temporels
+  const {
+    getDetails,
+    fetchDetails,
+    isLoadingDetails,
+    hasDetails,
+    clearCache
+  } = useGenericProductDetails(dateRange);
+
   const { exportToCsv, isExporting } = useExportCsv();
+
+  // 🆕 Invalidation cache lors changement dateRange
+  useEffect(() => {
+    clearCache();
+    setExpandedProducts(new Set());
+  }, [dateRange, clearCache]);
 
   const handleSort = useCallback((column: SortableColumn) => {
     const newDirection = sortConfig.column === column && sortConfig.direction === 'asc' ? 'desc' : 'asc';
@@ -78,6 +98,24 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
   const handleSearchSubmit = useCallback(() => {
     search(searchInput);
   }, [searchInput, search]);
+
+  // 🆕 Toggle expansion avec fetch conditionnel
+  const toggleExpansion = useCallback(async (codeEan: string) => {
+    const isExpanded = expandedProducts.has(codeEan);
+    
+    if (!isExpanded) {
+      if (!hasDetails(codeEan)) {
+        await fetchDetails(codeEan);
+      }
+      setExpandedProducts(prev => new Set(prev).add(codeEan));
+    } else {
+      setExpandedProducts(prev => {
+        const next = new Set(prev);
+        next.delete(codeEan);
+        return next;
+      });
+    }
+  }, [expandedProducts, hasDetails, fetchDetails]);
 
   const handleExport = useCallback(() => {
     if (!products || products.length === 0) return;
@@ -143,7 +181,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     );
   }
 
-  // ✅ CORRECTION : Ajouter !isGlobalMode pour ne pas afficher ce message en mode global
   if (!hasFilters && products.length === 0 && !isLoading && !isGlobalMode) {
     return (
       <Card variant="elevated" className={`p-8 ${className}`}>
@@ -347,13 +384,17 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="margin_rate_percent" />
                   </div>
                 </th>
+                {/* 🆕 Colonne Détails */}
+                <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider w-20">
+                  Détails
+                </th>
               </tr>
             </thead>
             
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des produits...</span>
@@ -362,63 +403,122 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
                     Aucun produit trouvé
                   </td>
                 </tr>
               ) : (
                 products.map((product, index) => (
-                  <tr 
-                    key={`${product.code_ean}-${index}`}
-                    className={`transition-colors ${
-                      index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
-                    }`}
-                  >
-                    <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
-                      <div className="max-w-[120px] truncate" title={product.laboratory_name}>
-                        {product.laboratory_name}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900">
-                      <div className="max-w-[250px] truncate" title={product.product_name}>
-                        {product.product_name}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 text-[10px] text-gray-600 font-mono">
-                      {product.code_ean}
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {product.prix_brut_grossiste !== null 
-                        ? `${product.prix_brut_grossiste.toFixed(2)} €`
-                        : <span className="text-gray-400">N/A</span>
-                      }
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {product.avg_buy_price_ht.toFixed(2)} €
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getRemiseColorClass(product.remise_percent)}`}>
-                        {product.remise_percent.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatNumber(product.quantity_bought)}
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatCurrency(product.ca_achats)}
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatNumber(product.quantity_sold)}
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatCurrency(product.ca_ventes)}
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getMarginColorClass(product.margin_rate_percent)}`}>
-                        {product.margin_rate_percent.toFixed(1)}%
-                      </span>
-                    </td>
-                  </tr>
+                  <React.Fragment key={`${product.code_ean}-${index}`}>
+                    {/* 🟢 Ligne Produit */}
+                    <tr 
+                      className={`transition-colors ${
+                        index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
+                        <div className="max-w-[120px] truncate" title={product.laboratory_name}>
+                          {product.laboratory_name}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900">
+                        <div className="max-w-[250px] truncate" title={product.product_name}>
+                          {product.product_name}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-[10px] text-gray-600 font-mono">
+                        {product.code_ean}
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {product.prix_brut_grossiste !== null 
+                          ? `${product.prix_brut_grossiste.toFixed(2)} €`
+                          : <span className="text-gray-400">N/A</span>
+                        }
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {product.avg_buy_price_ht.toFixed(2)} €
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getRemiseColorClass(product.remise_percent)}`}>
+                          {product.remise_percent.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {formatNumber(product.quantity_bought)}
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {formatCurrency(product.ca_achats)}
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {formatNumber(product.quantity_sold)}
+                      </td>
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {formatCurrency(product.ca_ventes)}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-semibold rounded ${getMarginColorClass(product.margin_rate_percent)}`}>
+                          {product.margin_rate_percent.toFixed(1)}%
+                        </span>
+                      </td>
+                      {/* 🆕 Bouton Détails */}
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          onClick={() => toggleExpansion(product.code_ean)}
+                          disabled={isLoadingDetails(product.code_ean)}
+                          className={`
+                            inline-flex items-center justify-center p-1.5 rounded-md
+                            transition-colors
+                            ${expandedProducts.has(product.code_ean)
+                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-blue-600'
+                            }
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                          `}
+                          title={expandedProducts.has(product.code_ean) ? 'Masquer détails' : 'Voir détails'}
+                        >
+                          {isLoadingDetails(product.code_ean) ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+                          ) : expandedProducts.has(product.code_ean) ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* 🆕 Row Expansion - Graphique */}
+                    {expandedProducts.has(product.code_ean) && (
+                      <tr>
+                        <td colSpan={12} className="p-0 bg-gray-50">
+                          <div className="p-6 border-t border-gray-200">
+                            {isLoadingDetails(product.code_ean) ? (
+                              <div className="flex items-center justify-center py-12">
+                                <div className="flex items-center space-x-3">
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                                  <span className="text-sm text-gray-600">
+                                    Chargement des détails temporels...
+                                  </span>
+                                </div>
+                              </div>
+                            ) : hasDetails(product.code_ean) ? (
+                              <GenericProductChart
+                                details={getDetails(product.code_ean)}
+                                productName={product.product_name}
+                                laboratoryName={product.laboratory_name}
+                              />
+                            ) : (
+                              <div className="text-center py-8 text-gray-500">
+                                <p className="text-sm">
+                                  Aucune donnée temporelle disponible pour ce produit
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
