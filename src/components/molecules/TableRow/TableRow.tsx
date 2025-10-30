@@ -1,8 +1,6 @@
 // src/components/molecules/TableRow/TableRow.tsx
-'use client';
-
 import React from 'react';
-import type { ProductMetrics, ViewMode } from '@/components/organisms/ProductsTable/types';
+import type { ProductMetrics, ViewMode } from '../../organisms/ProductsTable/types';
 
 interface TableRowProps {
   readonly product: ProductMetrics;
@@ -15,124 +13,208 @@ export const TableRow: React.FC<TableRowProps> = ({
   viewMode,
   isEven
 }) => {
-  const rowClass = `${isEven ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`;
-  const cellClass = 'px-4 py-3 text-sm';
-  const numberClass = 'text-right font-medium';
-
-  // Calcul de l'évolution
-  const calculateEvolution = (): { value: number | null; display: string; colorClass: string } => {
-    if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === 0) {
-      return {
-        value: null,
-        display: 'N/A',
-        colorClass: 'text-gray-400'
-      };
-    }
-
-    const evolution = ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
-    
-    let colorClass = 'text-gray-700';
-    if (evolution > 0) {
-      colorClass = 'text-green-600 font-semibold';
-    } else if (evolution < 0) {
-      colorClass = 'text-red-600 font-semibold';
-    }
-
-    return {
-      value: evolution,
-      display: `${evolution > 0 ? '+' : ''}${evolution.toFixed(1)}%`,
-      colorClass
-    };
-  };
-
-  const evolution = calculateEvolution();
-
-  const formatNumber = (value: number, decimals: number = 0): string => {
+  const formatNumber = (value: number): string => {
     return new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(value);
   };
 
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value);
   };
 
-  if (viewMode === 'totals') {
-    return (
-      <tr className={rowClass}>
-        <td className={`${cellClass} text-gray-900 font-medium max-w-xs truncate`} title={product.product_name}>
-          {product.product_name}
-        </td>
-        <td className={`${cellClass} text-gray-600 font-mono text-xs`}>
-          {product.code_ean}
-        </td>
-        <td className={`${cellClass} text-gray-700`}>
-          {product.bcb_lab || '-'}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-gray-900`}>
-          {formatCurrency(product.ca_ttc)}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-gray-900`}>
-          {formatNumber(product.quantity_sold)}
-        </td>
-        <td className={`${cellClass} ${numberClass} ${evolution.colorClass}`}>
-          {evolution.display}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-gray-700`}>
-          {formatCurrency(product.purchase_amount)}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-gray-700`}>
-          {formatNumber(product.current_stock)}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-blue-600`}>
-          {formatCurrency(product.total_margin_ht)}
-        </td>
-        <td className={`${cellClass} ${numberClass} text-blue-600`}>
-          {formatNumber(product.margin_rate_percent, 1)}%
-        </td>
-      </tr>
-    );
-  }
+  const formatPercentage = (value: number): string => {
+    return `${value.toFixed(2)}%`;
+  };
 
-  // Mode Moyennes
+  const getMarginColorClass = (margin: number): string => {
+    if (margin >= 30) return 'text-green-700 bg-green-50';
+    if (margin >= 20) return 'text-blue-700 bg-blue-50';
+    if (margin >= 10) return 'text-yellow-700 bg-yellow-50';
+    return 'text-red-700 bg-red-50';
+  };
+
+  // Calcul des métriques dérivées pour mode "totals"
+  const avgSellPriceTtc = product.quantity_sold > 0 && product.ca_ttc > 0
+    ? product.ca_ttc / product.quantity_sold
+    : 0;
+
+  const stockDays = product.current_stock > 0 && product.quantity_sold > 0
+    ? (product.current_stock / product.quantity_sold) * 30
+    : 0;
+
+  // Calcul rotation stock pour mode "averages"
+  const stockRotationDays = product.current_stock > 0 && product.quantity_sold > 0
+    ? (product.current_stock / product.quantity_sold) * 30
+    : 0;
+
+  // Fonction de rendu de l'évolution (copiée de SalesTable)
+  const renderEvolution = () => {
+    if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === undefined) {
+      return <span className="text-xs text-gray-400">N/A</span>;
+    }
+    
+    if (product.quantity_sold_comparison === 0) {
+      return <span className="text-xs font-semibold text-blue-600">Nouveau</span>;
+    }
+    
+    const evolution = ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
+    const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
+    
+    return (
+      <span className={`text-sm font-semibold ${colorClass}`}>
+        {evolution > 0 ? '+' : ''}{evolution.toFixed(1)}%
+      </span>
+    );
+  };
+
   return (
-    <tr className={rowClass}>
-      <td className={`${cellClass} text-gray-900 font-medium max-w-xs truncate`} title={product.product_name}>
-        {product.product_name}
+    <tr className={`${isEven ? 'bg-white' : 'bg-gray-50'} hover:bg-gray-100 transition-colors`}>
+      {/* Produit */}
+      <td className="px-4 py-3">
+        <div className="text-sm font-medium text-gray-900 max-w-xs truncate" title={product.product_name}>
+          {product.product_name}
+        </div>
       </td>
-      <td className={`${cellClass} text-gray-600 font-mono text-xs`}>
-        {product.code_ean}
+
+      {/* Code EAN */}
+      <td className="px-4 py-3">
+        <div className="text-sm text-gray-600 font-mono">
+          {product.code_ean}
+        </div>
       </td>
-      <td className={`${cellClass} text-gray-700`}>
-        {product.bcb_lab || '-'}
+
+      {/* Laboratoire */}
+      <td className="px-4 py-3">
+        <div className="text-sm text-gray-700">
+          {product.bcb_lab || '-'}
+        </div>
       </td>
-      <td className={`${cellClass} ${numberClass} text-gray-900`}>
-        {formatCurrency(product.avg_sell_price_ttc)}
-      </td>
-      <td className={`${cellClass} ${numberClass} text-gray-700`}>
-        {formatCurrency(product.avg_buy_price_ht)}
-      </td>
-      <td className={`${cellClass} ${numberClass} text-gray-900`}>
-        {formatNumber(product.quantity_sold)}
-      </td>
-      <td className={`${cellClass} ${numberClass} ${evolution.colorClass}`}>
-        {evolution.display}
-      </td>
-      <td className={`${cellClass} ${numberClass} text-blue-600`}>
-        {formatCurrency(product.unit_margin_ht)}
-      </td>
-      <td className={`${cellClass} ${numberClass} text-blue-600`}>
-        {formatNumber(product.margin_rate_percent, 1)}%
-      </td>
-      <td className={`${cellClass} ${numberClass} text-gray-700`}>
-        {formatNumber(product.current_stock)}
-      </td>
+
+      {viewMode === 'totals' ? (
+        <>
+          {/* CA TTC */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm font-medium text-gray-900">
+              {formatCurrency(product.ca_ttc)}
+            </div>
+          </td>
+
+          {/* Quantité vendue */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm font-medium text-gray-900">
+              {formatNumber(product.quantity_sold)}
+            </div>
+          </td>
+
+          {/* NOUVELLE CELLULE: Évolution */}
+          <td className="px-4 py-3 text-right">
+            {renderEvolution()}
+          </td>
+
+          {/* Montant achat */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatCurrency(product.purchase_amount)}
+            </div>
+          </td>
+
+          {/* Stock actuel */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatNumber(product.current_stock)}
+            </div>
+          </td>
+
+          {/* Marge totale HT */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm font-medium text-gray-900">
+              {formatCurrency(product.total_margin_ht)}
+            </div>
+          </td>
+
+          {/* Taux de marge */}
+          <td className="px-4 py-3 text-right">
+            <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarginColorClass(product.margin_rate_percent)}`}>
+              {formatPercentage(product.margin_rate_percent)}
+            </div>
+          </td>
+
+          {/* Prix moyen vente TTC (calculé) */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-700">
+              {avgSellPriceTtc > 0 ? formatCurrency(avgSellPriceTtc) : '-'}
+            </div>
+          </td>
+
+          {/* Jours de stock (calculé) */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-700">
+              {stockDays > 0 ? stockDays.toFixed(1) : '-'}
+            </div>
+          </td>
+        </>
+      ) : (
+        <>
+          {/* Prix moyen vente TTC */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatCurrency(product.avg_sell_price_ttc)}
+            </div>
+          </td>
+
+          {/* Prix moyen achat HT */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatCurrency(product.avg_buy_price_ht)}
+            </div>
+          </td>
+
+          {/* Quantité vendue */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm font-medium text-gray-900">
+              {formatNumber(product.quantity_sold)}
+            </div>
+          </td>
+
+          {/* NOUVELLE CELLULE: Évolution */}
+          <td className="px-4 py-3 text-right">
+            {renderEvolution()}
+          </td>
+
+          {/* Marge unitaire HT */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatCurrency(product.unit_margin_ht)}
+            </div>
+          </td>
+
+          {/* Taux de marge */}
+          <td className="px-4 py-3 text-right">
+            <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMarginColorClass(product.margin_rate_percent)}`}>
+              {formatPercentage(product.margin_rate_percent)}
+            </div>
+          </td>
+
+          {/* Stock actuel */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-900">
+              {formatNumber(product.current_stock)}
+            </div>
+          </td>
+
+          {/* Rotation stock (calculé) */}
+          <td className="px-4 py-3 text-right">
+            <div className="text-sm text-gray-700">
+              {stockRotationDays > 0 ? stockRotationDays.toFixed(1) : '-'}
+            </div>
+          </td>
+        </>
+      )}
     </tr>
   );
 };
