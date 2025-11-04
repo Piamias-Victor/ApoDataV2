@@ -1,36 +1,57 @@
 // src/components/organisms/PharmaciesTable/types.ts
+
+// ========== TYPES MÉTRIQUES PHARMACIE ==========
 export interface PharmacyMetrics {
   readonly pharmacy_id: string;
   readonly pharmacy_name: string;
-  readonly ca_ttc: number;
-  readonly montant_marge: number;
+  
+  // Rangs
+  readonly rang_ventes_actuel: number;
+  readonly rang_ventes_precedent: number | null;
+  readonly gain_rang_ventes: number | null;
+  
+  // Achats
+  readonly ca_achats: number;
+  readonly ca_achats_comparison: number | null;
+  readonly evol_achats_pct: number | null;
+  readonly evol_relative_achats_pct: number | null;
+  
+  // Ventes
+  readonly ca_ventes: number;
+  readonly ca_ventes_comparison: number | null;
+  readonly evol_ventes_pct: number | null;
+  readonly evol_relative_ventes_pct: number | null;
+  
+  // Marge
   readonly pourcentage_marge: number;
-  readonly valeur_stock_ht: number;
+  
+  // Données complémentaires
   readonly quantite_vendue: number;
-  readonly montant_achat_total: number;
+  readonly valeur_stock_ht: number;
   readonly part_marche_pct: number;
-  readonly evolution_ca_pct?: number;
-  readonly evolution_relative_pct?: number; // AJOUT: calculé côté API
 }
 
+// ========== TYPES TRI ==========
 export type SortableColumn = 
   | 'pharmacy_name'
-  | 'ca_ttc'
-  | 'quantite_vendue'
-  | 'valeur_stock_ht'
-  | 'montant_marge'
-  | 'pourcentage_marge'
-  | 'part_marche_pct'
-  | 'evolution_ca_pct'
-  | 'evolution_relative_pct'; // AJOUT
+  | 'rang_ventes_actuel'
+  | 'gain_rang_ventes'
+  | 'ca_achats'
+  | 'ca_ventes'
+  | 'evol_achats_pct'
+  | 'evol_ventes_pct'
+  | 'evol_relative_achats_pct'
+  | 'evol_relative_ventes_pct'
+  | 'pourcentage_marge';
 
-export type SortDirection = 'asc' | 'desc' | null;
+export type SortDirection = 'asc' | 'desc';
 
 export interface SortConfig {
-  readonly column: SortableColumn | null;
+  readonly column: SortableColumn;
   readonly direction: SortDirection;
 }
 
+// ========== TYPES PAGINATION ==========
 export interface PaginationInfo {
   readonly totalItems: number;
   readonly totalPages: number;

@@ -177,9 +177,8 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  if (!hasProductFilter && !hasPharmacyFilter) {
-    throw new Error('Des filtres sont requis pour éviter les requêtes trop larges');
-  }
+  // ✅ RETIRÉ : Plus de validation bloquante
+  // Plus besoin de bloquer si pas de filtres - on fait la requête sur tous les produits
 
   const productFilter = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
@@ -292,7 +291,8 @@ async function fetchFromRawTables(request: KpiRequest): Promise<Omit<KpiMetricsR
     pharmacyIdsLength: pharmacyIds?.length || 0,
     paramsLength: params.length,
     hasProductFilter,
-    hasPharmacyFilter
+    hasPharmacyFilter,
+    scope: !hasProductFilter && !hasPharmacyFilter ? '⚠️ REQUÊTE GLOBALE - TOUS PRODUITS' : 'Requête filtrée'
   });
 
   try {

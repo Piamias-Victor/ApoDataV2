@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
@@ -22,12 +22,14 @@ import {
   filterPharmacies, 
   paginatePharmacies,
   formatCurrency,
-  formatNumber,
   formatPercentage,
+  formatEvolutionPercentage,
   formatEvolutionRelative,
+  formatRang,
+  formatGainRang,
   getEvolutionVariant,
   getMarginVariant,
-  getMarketShareVariant
+  getRangVariant
 } from './utils';
 
 interface PharmaciesTableAnalyticsProps {
@@ -47,7 +49,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    column: 'ca_ttc',
+    column: 'ca_ventes',
     direction: 'desc'
   });
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,7 +80,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
     const filteredPharmacies = filterPharmacies(pharmacies, searchQuery);
     const sortedPharmacies = sortPharmacies(
       filteredPharmacies, 
-      sortConfig.column || 'ca_ttc',
+      sortConfig.column || 'ca_ventes',
       sortConfig.direction
     );
     
@@ -111,18 +113,16 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
     
     return processedDataBeforePagination.map(pharmacy => ({
       'Nom Pharmacie': pharmacy.pharmacy_name || '',
-      'CA TTC (€)': Number(pharmacy.ca_ttc || 0),
-      'Quantité Vendue': Number(pharmacy.quantite_vendue || 0),
-      'Montant Achat (€)': Number(pharmacy.montant_achat_total || 0),
-      'Montant Marge (€)': Number(pharmacy.montant_marge || 0),
-      'Taux Marge (%)': Number(pharmacy.pourcentage_marge || 0).toFixed(2),
-      'Part Marché (%)': Number(pharmacy.part_marche_pct || 0).toFixed(2),
-      'Évolution CA (%)': pharmacy.evolution_ca_pct !== undefined 
-        ? Number(pharmacy.evolution_ca_pct).toFixed(2) 
-        : 'N/A',
-      'Évolution Relative (pts)': pharmacy.evolution_relative_pct !== undefined 
-        ? Number(pharmacy.evolution_relative_pct).toFixed(2) 
-        : 'N/A'
+      'Rang Ventes': pharmacy.rang_ventes_actuel !== 999999 ? pharmacy.rang_ventes_actuel : 'N/A',
+      'Rang Précédent': pharmacy.rang_ventes_precedent || 'N/A',
+      'Gain Rang': pharmacy.gain_rang_ventes !== null ? pharmacy.gain_rang_ventes : 'N/A',
+      'CA Achats (€)': Number(pharmacy.ca_achats || 0).toFixed(2),
+      'CA Ventes (€)': Number(pharmacy.ca_ventes || 0).toFixed(2),
+      'Évol Achats (%)': pharmacy.evol_achats_pct !== null ? Number(pharmacy.evol_achats_pct).toFixed(2) : 'N/A',
+      'Évol Ventes (%)': pharmacy.evol_ventes_pct !== null ? Number(pharmacy.evol_ventes_pct).toFixed(2) : 'N/A',
+      'Évol Rel. Achats (pts)': pharmacy.evol_relative_achats_pct !== null ? Number(pharmacy.evol_relative_achats_pct).toFixed(2) : 'N/A',
+      'Évol Rel. Ventes (pts)': pharmacy.evol_relative_ventes_pct !== null ? Number(pharmacy.evol_relative_ventes_pct).toFixed(2) : 'N/A',
+      'Taux Marge (%)': Number(pharmacy.pourcentage_marge || 0).toFixed(2)
     }));
   }, [processedDataBeforePagination]);
 
@@ -152,12 +152,15 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
     await onRefresh?.();
   }, [onRefresh]);
 
-  const getSortIcon = (column: SortableColumn) => {
-    if (sortConfig.column !== column) return null;
-    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  const SortIcon: React.FC<{ column: SortableColumn }> = ({ column }) => {
+    if (sortConfig.column !== column) {
+      return <ChevronUp className="w-3 h-3 text-gray-400" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ChevronUp className="w-3 h-3 text-blue-600" />
+      : <ChevronDown className="w-3 h-3 text-blue-600" />;
   };
 
-  // États d'erreur et loading
   if (error) {
     return (
       <Card variant="elevated" className={`p-6 text-center ${className}`}>
@@ -169,7 +172,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
   return (
     <div className={`space-y-4 ${className}`}>
       
-      {/* Header avec contrôles */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
@@ -207,90 +210,110 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
         />
       </div>
 
-      {/* Tableau principal */}
+      {/* Tableau */}
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleSort('pharmacy_name')}
-                    className="flex items-center space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                  >
+                <th 
+                  onClick={() => handleSort('pharmacy_name')}
+                  className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center space-x-1">
                     <span>Pharmacie</span>
-                    <span className="text-gray-400">{getSortIcon('pharmacy_name')}</span>
-                  </button>
+                    <SortIcon column="pharmacy_name" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('ca_ttc')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>CA TTC</span>
-                    <span className="text-gray-400">{getSortIcon('ca_ttc')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('rang_ventes_actuel')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>Rang</span>
+                    <SortIcon column="rang_ventes_actuel" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('quantite_vendue')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>Qté Vendue</span>
-                    <span className="text-gray-400">{getSortIcon('quantite_vendue')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('gain_rang_ventes')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>Δ Rang</span>
+                    <SortIcon column="gain_rang_ventes" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('montant_marge')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>Total Marge</span>
-                    <span className="text-gray-400">{getSortIcon('montant_marge')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('ca_achats')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>CA.A</span>
+                    <SortIcon column="ca_achats" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('pourcentage_marge')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>% Marge</span>
-                    <span className="text-gray-400">{getSortIcon('pourcentage_marge')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('ca_ventes')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>CA.V</span>
+                    <SortIcon column="ca_ventes" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('part_marche_pct')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>Part Marché</span>
-                    <span className="text-gray-400">{getSortIcon('part_marche_pct')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('evol_achats_pct')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>ΔA%</span>
+                    <SortIcon column="evol_achats_pct" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('evolution_ca_pct')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>Évolution</span>
-                    <span className="text-gray-400">{getSortIcon('evolution_ca_pct')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('evol_ventes_pct')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>ΔV%</span>
+                    <SortIcon column="evol_ventes_pct" />
+                  </div>
                 </th>
                 
-                <th className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleSort('evolution_relative_pct')}
-                    className="flex items-center justify-end space-x-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700 w-full"
-                  >
-                    <span>Évol. Relative</span>
-                    <span className="text-gray-400">{getSortIcon('evolution_relative_pct')}</span>
-                  </button>
+                <th 
+                  onClick={() => handleSort('evol_relative_achats_pct')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>ΔA.Rel</span>
+                    <SortIcon column="evol_relative_achats_pct" />
+                  </div>
+                </th>
+                
+                <th 
+                  onClick={() => handleSort('evol_relative_ventes_pct')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>ΔV.Rel</span>
+                    <SortIcon column="evol_relative_ventes_pct" />
+                  </div>
+                </th>
+                
+                <th 
+                  onClick={() => handleSort('pourcentage_marge')}
+                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <span>%M</span>
+                    <SortIcon column="pourcentage_marge" />
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -298,7 +321,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des pharmacies...</span>
@@ -307,7 +330,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                 </tr>
               ) : processedData.pharmacies.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucune pharmacie trouvée pour "${searchQuery}"`
                       : 'Aucune pharmacie disponible'
@@ -316,61 +339,98 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                 </tr>
               ) : (
                 processedData.pharmacies.map((pharmacy, index) => (
-                  <tr key={pharmacy.pharmacy_id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
+                  <tr 
+                    key={pharmacy.pharmacy_id} 
+                    className={`transition-colors ${
+                      index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
+                    }`}
+                  >
+                    <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
+                      <div className="max-w-[200px] truncate" title={pharmacy.pharmacy_name}>
                         {pharmacy.pharmacy_name}
                       </div>
                     </td>
                     
-                    <td className="px-4 py-3 text-right">
-                      <div className="text-sm font-medium text-gray-900">
-                        {formatCurrency(pharmacy.ca_ttc)}
-                      </div>
+                    <td className="px-2 py-2 text-center">
+                      <span className="text-[11px] text-gray-900 font-medium">
+                        {formatRang(pharmacy.rang_ventes_actuel)}
+                      </span>
                     </td>
                     
-                    <td className="px-4 py-3 text-right">
-                      <div className="text-sm text-gray-900">
-                        {formatNumber(pharmacy.quantite_vendue)}
-                      </div>
+                    <td className="px-2 py-2 text-center">
+                      {pharmacy.gain_rang_ventes !== null ? (
+                        <Badge variant={getRangVariant(pharmacy.gain_rang_ventes)}>
+                          <span className="text-[10px] font-semibold">
+                            {formatGainRang(pharmacy.gain_rang_ventes)}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">N/A</span>
+                      )}
                     </td>
                     
-                    <td className="px-4 py-3 text-right">
-                      <div className="text-sm font-medium text-gray-900">
-                        {formatCurrency(pharmacy.montant_marge)}
-                      </div>
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                      {formatCurrency(pharmacy.ca_achats)}
                     </td>
                     
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                      {formatCurrency(pharmacy.ca_ventes)}
+                    </td>
+                    
+                    <td className="px-2 py-2 text-center">
+                      {pharmacy.evol_achats_pct !== null ? (
+                        <Badge variant={getEvolutionVariant(pharmacy.evol_achats_pct)}>
+                          <span className="text-[10px] font-semibold">
+                            {formatEvolutionPercentage(pharmacy.evol_achats_pct)}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">N/A</span>
+                      )}
+                    </td>
+                    
+                    <td className="px-2 py-2 text-center">
+                      {pharmacy.evol_ventes_pct !== null ? (
+                        <Badge variant={getEvolutionVariant(pharmacy.evol_ventes_pct)}>
+                          <span className="text-[10px] font-semibold">
+                            {formatEvolutionPercentage(pharmacy.evol_ventes_pct)}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">N/A</span>
+                      )}
+                    </td>
+                    
+                    <td className="px-2 py-2 text-center">
+                      {pharmacy.evol_relative_achats_pct !== null ? (
+                        <Badge variant={getEvolutionVariant(pharmacy.evol_relative_achats_pct)}>
+                          <span className="text-[10px] font-semibold">
+                            {formatEvolutionRelative(pharmacy.evol_relative_achats_pct)}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">N/A</span>
+                      )}
+                    </td>
+                    
+                    <td className="px-2 py-2 text-center">
+                      {pharmacy.evol_relative_ventes_pct !== null ? (
+                        <Badge variant={getEvolutionVariant(pharmacy.evol_relative_ventes_pct)}>
+                          <span className="text-[10px] font-semibold">
+                            {formatEvolutionRelative(pharmacy.evol_relative_ventes_pct)}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-[10px]">N/A</span>
+                      )}
+                    </td>
+                    
+                    <td className="px-2 py-2 text-center">
                       <Badge variant={getMarginVariant(pharmacy.pourcentage_marge)}>
-                        {formatPercentage(pharmacy.pourcentage_marge)}
+                        <span className="text-[10px] font-semibold">
+                          {formatPercentage(pharmacy.pourcentage_marge)}
+                        </span>
                       </Badge>
-                    </td>
-                    
-                    <td className="px-4 py-3 text-right">
-                      <Badge variant={getMarketShareVariant(pharmacy.part_marche_pct)}>
-                        {formatPercentage(pharmacy.part_marche_pct)}
-                      </Badge>
-                    </td>
-                    
-                    <td className="px-4 py-3 text-right">
-                      {pharmacy.evolution_ca_pct !== undefined ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evolution_ca_pct)}>
-                          {pharmacy.evolution_ca_pct > 0 ? '+' : ''}{formatPercentage(pharmacy.evolution_ca_pct)}
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-sm">N/A</span>
-                      )}
-                    </td>
-                    
-                    <td className="px-4 py-3 text-right">
-                      {pharmacy.evolution_relative_pct !== undefined ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evolution_relative_pct)}>
-                          {formatEvolutionRelative(pharmacy.evolution_relative_pct)}
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-sm">N/A</span>
-                      )}
                     </td>
                   </tr>
                 ))
@@ -384,8 +444,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            Affichage {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
-            sur {processedData.pagination.totalItems} pharmacies
+            Page {currentPage} sur {processedData.pagination.totalPages} ({processedData.pagination.totalItems} pharmacies)
           </div>
           
           <div className="flex items-center space-x-2">
@@ -398,10 +457,6 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
             >
               Précédent
             </Button>
-            
-            <span className="text-sm text-gray-600">
-              Page {currentPage} sur {processedData.pagination.totalPages}
-            </span>
             
             <Button
               variant="secondary"

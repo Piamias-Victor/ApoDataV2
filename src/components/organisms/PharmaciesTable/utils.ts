@@ -1,81 +1,55 @@
 // src/components/organisms/PharmaciesTable/utils.ts
-import type { PharmacyMetrics, SortableColumn, SortDirection } from './types';
+import type { 
+  PharmacyMetrics, 
+  SortableColumn, 
+  SortDirection 
+} from './types';
 
-/**
- * Fonction de tri des pharmacies
- */
-// src/components/organisms/PharmaciesTable/utils.ts
-
+// ========== TRI ==========
 export function sortPharmacies(
   pharmacies: PharmacyMetrics[],
   column: SortableColumn,
-  direction: SortDirection | null
+  direction: SortDirection
 ): PharmacyMetrics[] {
-  if (!direction) return pharmacies;
+  const sorted = [...pharmacies].sort((a, b) => {
+    let aValue = a[column];
+    let bValue = b[column];
 
-  return [...pharmacies].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+    // Gestion des valeurs nulles
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
 
-    switch (column) {
-      case 'pharmacy_name':
-        aValue = a.pharmacy_name || '';
-        bValue = b.pharmacy_name || '';
-        break;
-      case 'ca_ttc':
-        aValue = Number(a.ca_ttc) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.ca_ttc) || 0;
-        break;
-      case 'quantite_vendue':
-        aValue = Number(a.quantite_vendue) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.quantite_vendue) || 0;
-        break;
-      case 'valeur_stock_ht':
-        aValue = Number(a.valeur_stock_ht) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.valeur_stock_ht) || 0;
-        break;
-      case 'montant_marge':
-        aValue = Number(a.montant_marge) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.montant_marge) || 0;
-        break;
-      case 'pourcentage_marge':
-        aValue = Number(a.pourcentage_marge) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.pourcentage_marge) || 0;
-        break;
-      case 'part_marche_pct':
-        aValue = Number(a.part_marche_pct) || 0;  // CORRECTION: Force conversion Number
-        bValue = Number(b.part_marche_pct) || 0;
-        break;
-      case 'evolution_ca_pct':
-        aValue = a.evolution_ca_pct !== undefined ? Number(a.evolution_ca_pct) : -Infinity;
-        bValue = b.evolution_ca_pct !== undefined ? Number(b.evolution_ca_pct) : -Infinity;
-        break;
-      case 'evolution_relative_pct':
-        aValue = a.evolution_relative_pct !== undefined ? Number(a.evolution_relative_pct) : -Infinity;
-        bValue = b.evolution_relative_pct !== undefined ? Number(b.evolution_relative_pct) : -Infinity;
-        break;
-      default:
-        return 0;
+    // Comparaison string (nom pharmacie)
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      // Vérifier si ce sont des nombres déguisés en string
+      const aNum = Number(aValue);
+      const bNum = Number(bValue);
+      
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        // Ce sont des nombres en string, comparer numériquement
+        return direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+      
+      // Vraies strings, comparer alphabétiquement
+      return direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
     }
 
-    // Tri string
-    if (typeof aValue === 'string') {
-      const comparison = aValue.localeCompare(bValue);
-      return direction === 'asc' ? comparison : -comparison;
-    }
-
-    // Tri numérique avec vérification
-    if (isNaN(aValue)) aValue = 0;
-    if (isNaN(bValue)) bValue = 0;
+    // Comparaison numérique
+    const numA = Number(aValue);
+    const numB = Number(bValue);
     
-    const comparison = aValue - bValue;
-    return direction === 'asc' ? comparison : -comparison;
+    if (isNaN(numA)) return 1;
+    if (isNaN(numB)) return -1;
+    
+    return direction === 'asc' ? numA - numB : numB - numA;
   });
+
+  return sorted;
 }
 
-/**
- * Fonction de filtrage des pharmacies
- */
+// ========== FILTRAGE ==========
 export function filterPharmacies(
   pharmacies: PharmacyMetrics[],
   searchQuery: string
@@ -83,110 +57,121 @@ export function filterPharmacies(
   if (!searchQuery.trim()) return pharmacies;
 
   const query = searchQuery.toLowerCase().trim();
-
   return pharmacies.filter(pharmacy => 
-    pharmacy.pharmacy_name?.toLowerCase().includes(query) ||
-    pharmacy.pharmacy_id?.toLowerCase().includes(query)
+    pharmacy.pharmacy_name.toLowerCase().includes(query)
   );
 }
 
-/**
- * Fonction de pagination des pharmacies
- */
+// ========== PAGINATION ==========
 export function paginatePharmacies(
   pharmacies: PharmacyMetrics[],
-  currentPage: number,
-  itemsPerPage: number
-) {
-  const totalPages = Math.ceil(pharmacies.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, pharmacies.length);
+  page: number,
+  pageSize: number
+): {
+  paginatedPharmacies: PharmacyMetrics[];
+  totalPages: number;
+  startIndex: number;
+  endIndex: number;
+} {
+  const totalPages = Math.ceil(pharmacies.length / pageSize);
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, pharmacies.length);
   
-  const paginatedPharmacies = pharmacies.slice(startIndex, endIndex);
-
   return {
-    paginatedPharmacies,
+    paginatedPharmacies: pharmacies.slice(startIndex, endIndex),
     totalPages,
     startIndex,
-    endIndex: endIndex - 1
+    endIndex
   };
 }
 
-/**
- * Formatage des valeurs monétaires
- */
-export function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '0 €';
-  
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value);
-}
-
-/**
- * Formatage des nombres
- */
-export function formatNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '0';
-  
-  return new Intl.NumberFormat('fr-FR').format(value);
-}
-
-/**
- * Formatage des pourcentages
- */
-export function formatPercentage(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '0%';
-  
-  // Conversion sécurisée en nombre
-  const numValue = Number(value);
-  if (isNaN(numValue)) return '0%';
-  
-  return `${numValue.toFixed(1)}%`;
-}
-
-/**
- * Formatage de l'évolution relative (avec unité pts)
- */
-export function formatEvolutionRelative(value: number | null | undefined): string {
+// ========== FORMATAGE NOMBRES ==========
+export function formatCurrency(value: number | string | null | undefined): string {
   if (value === null || value === undefined) return 'N/A';
-  
   const numValue = Number(value);
   if (isNaN(numValue)) return 'N/A';
   
+  if (numValue >= 1000000) return `${(numValue / 1000000).toFixed(1)}M €`;
+  if (numValue >= 1000) return `${(numValue / 1000).toFixed(1)}K €`;
+  return `${numValue.toFixed(0)} €`;
+}
+
+export function formatNumber(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'N/A';
+  
+  if (numValue >= 1000000) return `${(numValue / 1000000).toFixed(1)}M`;
+  if (numValue >= 1000) return `${(numValue / 1000).toFixed(1)}K`;
+  return numValue.toFixed(0);
+}
+
+export function formatPercentage(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'N/A';
+  return `${numValue.toFixed(1)}%`;
+}
+
+export function formatEvolutionPercentage(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'N/A';
+  const sign = numValue > 0 ? '+' : '';
+  return `${sign}${numValue.toFixed(1)}%`;
+}
+
+export function formatEvolutionRelative(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'N/A';
   const sign = numValue > 0 ? '+' : '';
   return `${sign}${numValue.toFixed(1)} pts`;
 }
 
-/**
- * Variant pour badges d'évolution
- */
-export function getEvolutionVariant(value: number): 'success' | 'warning' | 'danger' | 'gray' {
-  if (value > 5) return 'success';
-  if (value > 0) return 'warning';
-  if (value > -5) return 'gray';
+export function formatRang(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue) || numValue === 999999) return 'N/A';
+  return `#${numValue}`;
+}
+
+export function formatGainRang(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'N/A';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'N/A';
+  if (numValue === 0) return '=';
+  const sign = numValue > 0 ? '+' : '';
+  return `${sign}${numValue}`;
+}
+
+// ========== VARIANTES BADGES ==========
+export type BadgeVariant = 'success' | 'warning' | 'danger';
+
+export function getEvolutionVariant(value: number | string | null | undefined): BadgeVariant {
+  if (value === null || value === undefined) return 'warning';
+  const numValue = Number(value);
+  if (isNaN(numValue)) return 'warning';
+  if (numValue >= 5) return 'success';
+  if (numValue >= 0) return 'success';
+  if (numValue >= -5) return 'warning';
   return 'danger';
 }
 
-/**
- * Variant pour badges de marge
- */
-export function getMarginVariant(value: number): 'success' | 'warning' | 'danger' | 'gray' {
-  if (value >= 30) return 'success';
-  if (value >= 20) return 'warning';
-  if (value >= 10) return 'gray';
+export function getMarginVariant(margin: number | string | null | undefined): BadgeVariant {
+  if (margin === null || margin === undefined) return 'warning';
+  const numValue = Number(margin);
+  if (isNaN(numValue)) return 'warning';
+  if (numValue >= 30) return 'success';
+  if (numValue >= 20) return 'warning';
   return 'danger';
 }
 
-/**
- * Variant pour badges de part de marché
- */
-export function getMarketShareVariant(value: number): 'success' | 'warning' | 'danger' | 'gray' {
-  if (value >= 10) return 'success';
-  if (value >= 5) return 'warning';
-  if (value >= 1) return 'gray';
+export function getRangVariant(gain: number | string | null | undefined): BadgeVariant {
+  if (gain === null || gain === undefined) return 'warning';
+  const numValue = Number(gain);
+  if (isNaN(numValue)) return 'warning';
+  if (numValue > 0) return 'success';
+  if (numValue === 0) return 'warning';
   return 'danger';
 }
