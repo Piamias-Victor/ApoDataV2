@@ -3,11 +3,12 @@
 
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Info, Pill, Building2, Package } from 'lucide-react';
+import { Info, Pill, Building2, Package, Truck } from 'lucide-react';
 import { GenericGroupSelector } from '@/components/organisms/GenericGroupSelector/GenericGroupSelector';
 import { GenericKpisSection } from '@/components/organisms/GenericKpisSection/GenericKpisSection';
 import { LaboratoryMarketShareGenericSection } from '@/components/organisms/LaboratoryMarketShareGenericSection/LaboratoryMarketShareGenericSection';
 import { ProductsTableGeneric } from '@/components/organisms/ProductsTableGeneric/ProductsTableGeneric';
+import { SupplierAnalysisTable } from '@/components/organisms/SupplierAnalysisTable/SupplierAnalysisTable';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 
@@ -78,7 +79,6 @@ const SectionWithHelp: React.FC<SectionWithHelpProps> = ({
 };
 
 export default function GeneriquesPage() {
-  // Récupérer toutes les sources de sélection
   const selectedGroups = useGenericGroupStore(state => state.selectedGroups);
   const selectedProducts = useGenericGroupStore(state => state.selectedProducts);
   const selectedLaboratories = useGenericGroupStore(state => state.selectedLaboratories);
@@ -86,16 +86,11 @@ export default function GeneriquesPage() {
   const analysisDateRange = useFiltersStore(state => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore(state => state.comparisonDateRange);
 
-  // Nouvelle logique : hasSelection si AU MOINS une source est active ET qu'il y a des productCodes
   const hasSelection = productCodes.length > 0;
-  
-  // Calculer le nombre total de sources
   const totalSelectionSources = selectedGroups.length + selectedProducts.length + selectedLaboratories.length;
 
-  // Générer un texte descriptif pour la sélection
   const selectionSummary = useMemo(() => {
     const parts: string[] = [];
-    
     if (selectedGroups.length > 0) {
       parts.push(`${selectedGroups.length} groupe${selectedGroups.length > 1 ? 's' : ''}`);
     }
@@ -105,7 +100,6 @@ export default function GeneriquesPage() {
     if (selectedLaboratories.length > 0) {
       parts.push(`${selectedLaboratories.length} laboratoire${selectedLaboratories.length > 1 ? 's' : ''}`);
     }
-    
     return parts.join(' + ');
   }, [selectedGroups.length, selectedProducts.length, selectedLaboratories.length]);
 
@@ -229,32 +223,66 @@ Complétez avec le drawer des filtres pour :
         </SectionWithHelp>
       </motion.div>
 
-      
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-          >
-            <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
-              <GenericKpisSection 
-                dateRange={analysisDateRange}
-                comparisonDateRange={comparisonDateRange}
-                includeComparison={true}
-              />
-            </div>
-          </motion.div>
+      <>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <div className="bg-white/50 backdrop-blur-sm rounded-2xl">
+            <GenericKpisSection 
+              dateRange={analysisDateRange}
+              comparisonDateRange={comparisonDateRange}
+              includeComparison={true}
+            />
+          </div>
+        </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.25 }}
+        >
+          <SectionWithHelp
+            title="Analyse par Fournisseur"
+            description="Répartition des achats génériques par catégorie de fournisseur (OCP, ALLIANCE, CERP, AUTRE)"
+            tooltipContent={`Analyse des achats par fournisseur :
+
+- OCP : Commandes auprès des grossistes OCP
+- ALLIANCE : Commandes auprès des grossistes ALLIANCE
+- CERP : Commandes auprès des grossistes CERP
+- AUTRE : Autres fournisseurs
+
+Métriques affichées :
+→ Nombre de commandes par fournisseur
+→ Volume total acheté (quantités)
+→ CA total des achats (€)
+→ Nombre de produits distincts commandés
+→ Pourcentages calculés automatiquement
+
+Filtres appliqués :
+→ Uniquement produits GÉNÉRIQUE/PRINCEPS
+→ Période : ${analysisDateRange.start} → ${analysisDateRange.end}
+→ Sélection active : ${productCodes.length} produits`}
+            icon={<Truck className="w-5 h-5 text-orange-600" />}
           >
-            <SectionWithHelp
-              title={`Détail des Produits ${totalSelectionSources > 1 ? `(${selectionSummary})` : ''}`}
-              description={`${productCodes.length} produits au total dans la sélection`}
-              tooltipContent={`Tableau détaillé des produits par laboratoire :
-              
+            <SupplierAnalysisTable 
+              dateRange={analysisDateRange}
+              productCodes={productCodes}
+            />
+          </SectionWithHelp>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <SectionWithHelp
+            title={`Détail des Produits ${totalSelectionSources > 1 ? `(${selectionSummary})` : ''}`}
+            description={`${productCodes.length} produits au total dans la sélection`}
+            tooltipContent={`Tableau détaillé des produits par laboratoire :
+            
 - Laboratoire : Fabricant du produit générique
 - Prix Achat : Coût moyen d'achat HT
 - Volume/CA Achats : Quantités et montants approvisionnés
@@ -266,16 +294,15 @@ Complétez avec le drawer des filtres pour :
 - Pagination : 50 produits par page
 
 ${totalSelectionSources > 1 ? `Produits agrégés depuis ${selectionSummary}.` : 'Vue détaillée de la sélection.'}`}
-              icon={<Package className="w-5 h-5 text-indigo-600" />}
-            >
-              <ProductsTableGeneric 
-                productCodes={productCodes}
-                dateRange={analysisDateRange}
-              />
-            </SectionWithHelp>
-          </motion.div>
-        </>
-      
+            icon={<Package className="w-5 h-5 text-indigo-600" />}
+          >
+            <ProductsTableGeneric 
+              productCodes={productCodes}
+              dateRange={analysisDateRange}
+            />
+          </SectionWithHelp>
+        </motion.div>
+      </>
     </motion.div>
   );
 }
