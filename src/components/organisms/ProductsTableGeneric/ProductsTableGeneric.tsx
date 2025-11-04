@@ -11,6 +11,7 @@ import { useGenericProductDetails } from '@/hooks/generic-groups/useGenericProdu
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
 import { GenericProductChart } from '@/components/organisms/GenericProductChart/GenericProductChart';
+import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 NOUVEAU
 
 interface ProductsTableGenericProps {
   readonly productCodes: string[];
@@ -44,10 +45,20 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     direction: 'desc'
   });
   
-  // 🆕 État expansion détails
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
-  const hasFilters = productCodes.length > 0;
+  // 🔥 NOUVEAU - Vérifier les filtres actifs depuis le store
+  const hasActiveFilters = useGenericGroupStore(state => {
+    const hasSelections = state.selectedGroups.length > 0 || 
+                         state.selectedProducts.length > 0 || 
+                         state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() || 
+                      state.tvaRates.length > 0 || 
+                      state.genericStatus !== 'BOTH';
+    return hasSelections || hasFilters;
+  });
+
+  const hasFilters = productCodes.length > 0 || hasActiveFilters; // 🔥 MODIFIÉ
 
   const {
     data: products,
@@ -72,7 +83,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     autoFetch: hasFilters
   });
 
-  // 🆕 Hook détails temporels
   const {
     getDetails,
     fetchDetails,
@@ -83,7 +93,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
 
   const { exportToCsv, isExporting } = useExportCsv();
 
-  // 🆕 Invalidation cache lors changement dateRange
   useEffect(() => {
     clearCache();
     setExpandedProducts(new Set());
@@ -99,7 +108,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     search(searchInput);
   }, [searchInput, search]);
 
-  // 🆕 Toggle expansion avec fetch conditionnel
   const toggleExpansion = useCallback(async (codeEan: string) => {
     const isExpanded = expandedProducts.has(codeEan);
     
@@ -181,7 +189,8 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     );
   }
 
-  if (!hasFilters && products.length === 0 && !isLoading && !isGlobalMode) {
+  // 🔥 MODIFIÉ - Ajouter vérification hasActiveFilters
+  if (!hasFilters && products.length === 0 && !isLoading && !isGlobalMode && !hasActiveFilters) {
     return (
       <Card variant="elevated" className={`p-8 ${className}`}>
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
@@ -384,7 +393,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="margin_rate_percent" />
                   </div>
                 </th>
-                {/* 🆕 Colonne Détails */}
                 <th className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider w-20">
                   Détails
                 </th>
@@ -404,13 +412,12 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               ) : products.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
-                    Aucun produit trouvé
+                    {hasActiveFilters ? 'Aucun produit ne correspond aux filtres appliqués' : 'Aucun produit trouvé'}
                   </td>
                 </tr>
               ) : (
                 products.map((product, index) => (
                   <React.Fragment key={`${product.code_ean}-${index}`}>
-                    {/* 🟢 Ligne Produit */}
                     <tr 
                       className={`transition-colors ${
                         index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
@@ -460,7 +467,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                           {product.margin_rate_percent.toFixed(1)}%
                         </span>
                       </td>
-                      {/* 🆕 Bouton Détails */}
                       <td className="px-2 py-2 text-center">
                         <button
                           onClick={() => toggleExpansion(product.code_ean)}
@@ -487,7 +493,6 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                       </td>
                     </tr>
 
-                    {/* 🆕 Row Expansion - Graphique */}
                     {expandedProducts.has(product.code_ean) && (
                       <tr>
                         <td colSpan={12} className="p-0 bg-gray-50">

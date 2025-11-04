@@ -1,7 +1,7 @@
 // src/hooks/generic-groups/useGenericProductsList.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
-import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 NOUVEAU
+import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 AJOUTER
 
 export interface GenericProductMetrics {
   readonly laboratory_name: string;
@@ -58,13 +58,22 @@ export function useGenericProductsList(
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isGlobalMode, setIsGlobalMode] = useState(false);
   const [hasLoadedGlobal, setHasLoadedGlobal] = useState(false);
-  const [priceFiltersSnapshot, setPriceFiltersSnapshot] = useState<string>(''); // 🔥 NOUVEAU
+  const [productCodesSnapshot, setProductCodesSnapshot] = useState<string>('');
 
-  // Récupération du filtre pharmacy depuis le store
   const pharmacyIds = useFiltersStore(state => state.pharmacy);
   
-  // 🔥 NOUVEAU - Récupération des priceFilters
-  const priceFilters = useGenericGroupStore(state => state.priceFilters);
+  // 🔥 NOUVEAU - Récupérer les états de filtres du store
+  const hasActiveSelections = useGenericGroupStore(state => 
+    state.selectedGroups.length > 0 || 
+    state.selectedProducts.length > 0 || 
+    state.selectedLaboratories.length > 0
+  );
+  const hasPriceFilters = useGenericGroupStore(state => state.hasPriceFilters());
+  const hasTvaFilters = useGenericGroupStore(state => state.tvaRates.length > 0);
+  const hasGenericStatusFilter = useGenericGroupStore(state => state.genericStatus !== 'BOTH');
+  
+  // 🔥 CALCULER si des filtres sont actifs
+  const hasAnyActiveFilters = hasActiveSelections || hasPriceFilters || hasTvaFilters || hasGenericStatusFilter;
 
   const { 
     enabled, 
@@ -81,14 +90,39 @@ export function useGenericProductsList(
     customSort?: { column: string; direction: 'asc' | 'desc' },
     customSearch?: string
   ) => {
-    const shouldUseGlobalMode = forceGlobal || hasLoadedGlobal || (showGlobalTop && productCodes.length === 0);
+    // 🔥 MODIFIÉ - Ne pas passer en mode global si des filtres sont actifs
+    const shouldUseGlobalMode = forceGlobal || hasLoadedGlobal || (showGlobalTop && productCodes.length === 0 && !hasAnyActiveFilters);
     
-    if (!enabled || (!shouldUseGlobalMode && productCodes.length === 0)) {
-      setData([]);
-      setIsGlobalMode(false);
-      setHasLoadedGlobal(false);
+    // 🔥 MODIFIÉ - Si filtres actifs mais 0 résultats, afficher tableau vide au lieu de mode global
+    if (!enabled) {
       return;
     }
+    
+    if (!shouldUseGlobalMode && productCodes.length === 0) {
+      if (hasAnyActiveFilters) {
+        // Filtres actifs mais 0 résultat → afficher tableau vide
+        console.log('⚠️ [useGenericProductsList] Filters active but 0 results');
+        setData([]);
+        setTotal(0);
+        setTotalPages(0);
+        setIsGlobalMode(false);
+        setHasLoadedGlobal(false);
+        return;
+      } else {
+        // Aucun filtre → ne rien afficher (attendre action utilisateur)
+        setData([]);
+        setIsGlobalMode(false);
+        setHasLoadedGlobal(false);
+        return;
+      }
+    }
+
+    console.log('🔄 [useGenericProductsList] Fetching with productCodes:', {
+      count: productCodes.length,
+      shouldUseGlobalMode,
+      hasAnyActiveFilters,
+      sample: productCodes.slice(0, 3)
+    });
 
     setIsLoading(true);
     setError(null);
@@ -116,6 +150,13 @@ export function useGenericProductsList(
       }
 
       const result = await response.json();
+      
+      console.log('✅ [useGenericProductsList] Fetched products:', {
+        productsCount: result.products.length,
+        total: result.pagination.total,
+        page: result.pagination.currentPage
+      });
+
       setData(result.products);
       setTotalPages(result.pagination.totalPages);
       setTotal(result.pagination.total);
@@ -125,31 +166,35 @@ export function useGenericProductsList(
         setHasLoadedGlobal(true);
       }
     } catch (err) {
-      console.error('Erreur chargement produits génériques:', err);
+      console.error('❌ [useGenericProductsList] Error:', err);
       setError('Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds, hasLoadedGlobal]);
+  }, [enabled, productCodes, dateRange, pageSize, searchQuery, sortColumn, sortDirection, showGlobalTop, pharmacyIds, hasLoadedGlobal, hasAnyActiveFilters]);
 
-  // 🔥 NOUVEAU - Surveiller les changements de priceFilters
+  // Surveiller changements productCodes avec snapshot
   useEffect(() => {
-    const newSnapshot = JSON.stringify(priceFilters);
-    if (newSnapshot !== priceFiltersSnapshot) {
-      console.log('💰 [useGenericProductsList] Price filters changed, refetching...');
-      setPriceFiltersSnapshot(newSnapshot);
+    const newSnapshot = JSON.stringify(productCodes);
+    if (newSnapshot !== productCodesSnapshot) {
+      console.log('🔄 [useGenericProductsList] ProductCodes changed:', {
+        count: productCodes.length,
+        hasAnyActiveFilters
+      });
+      setProductCodesSnapshot(newSnapshot);
       if (enabled && autoFetch) {
         fetchData(1);
       }
     }
-  }, [priceFilters, priceFiltersSnapshot, enabled, autoFetch, fetchData]);
+  }, [productCodes, productCodesSnapshot, enabled, autoFetch, hasAnyActiveFilters, fetchData]);
 
-  // useEffect principal - 🔥 MODIFIÉ
+  // useEffect principal - Premier chargement uniquement
   useEffect(() => {
-    if (autoFetch) {
+    if (autoFetch && productCodesSnapshot === '') {
+      console.log('🚀 [useGenericProductsList] Initial load');
       fetchData(1);
     }
-  }, [autoFetch, productCodes, dateRange.start, dateRange.end, pharmacyIds, showGlobalTop]); // 🔥 dateRange décomposé
+  }, [autoFetch, pharmacyIds, showGlobalTop, productCodesSnapshot, fetchData]);
 
   // Reset hasLoadedGlobal quand productCodes change
   useEffect(() => {
@@ -175,21 +220,23 @@ export function useGenericProductsList(
   }, [currentPage, fetchData]);
 
   const manualFetch = useCallback(() => {
+    console.log('🔄 [useGenericProductsList] Manual fetch triggered');
     fetchData(1, true);
   }, [fetchData]);
 
   const search = useCallback((query: string) => {
+    console.log('🔍 [useGenericProductsList] Search:', query);
     setSearchQuery(query);
     fetchData(1, false, undefined, query);
   }, [fetchData]);
 
   const sort = useCallback((column: string, direction: 'asc' | 'desc') => {
+    console.log('🔄 [useGenericProductsList] Sort:', { column, direction });
     setSortColumn(column);
     setSortDirection(direction);
     fetchData(1, false, { column, direction });
   }, [fetchData]);
   
-
   return {
     data,
     isLoading,

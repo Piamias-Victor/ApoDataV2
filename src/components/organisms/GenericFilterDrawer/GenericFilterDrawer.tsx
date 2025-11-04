@@ -8,12 +8,14 @@ import { Input } from '@/components/atoms/Input/Input';
 import { useGenericFilterSearch } from '@/hooks/generic-filters/useGenericFilterSearch';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
 import { PriceRangeFilters } from '@/components/molecules/PriceRangeFilters/PriceRangeFilters';
+import { TvaRateFilter } from '@/components/atoms/TvaRateFilter/TvaRateFilter';
+import { GenericStatusFilter } from '@/components/atoms/GenericStatusFilter/GenericStatusFilter';
 
 interface GenericFilterDrawerProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onCountChange: (count: number) => void;
-  readonly dateRange: { start: string; end: string }; // 🔥 NOUVEAU
+  readonly dateRange: { start: string; end: string };
 }
 
 interface LocalPriceFilters {
@@ -22,24 +24,15 @@ interface LocalPriceFilters {
   remise: { min: string; max: string };
 }
 
-/**
- * GenericFilterDrawer Component
- * 
- * Drawer unifié pour :
- * - Recherche produits génériques/référents
- * - Recherche laboratoires
- * - Filtres de prix (fabricant, net remise, remise %)
- * 
- * Un seul bouton "Appliquer" pour tout
- */
+type GenericStatus = 'BOTH' | 'GÉNÉRIQUE' | 'RÉFÉRENT';
+
 export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
   isOpen,
   onClose,
   onCountChange,
-  dateRange // 🔥 RECEPTION
+  dateRange
 }) => {
   const {
-    // Products
     products,
     isLoadingProducts,
     errorProducts,
@@ -48,7 +41,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     selectedProducts,
     toggleProduct,
     
-    // Laboratories
     laboratories,
     isLoadingLaboratories,
     errorLaboratories,
@@ -57,19 +49,19 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     selectedLaboratories,
     toggleLaboratory,
     
-    // Global
     getSelectedProductsArray,
     getSelectedLaboratoriesArray,
     clearAllSelections
   } = useGenericFilterSearch();
 
-  // Accès au store
   const { 
     selectedGroups,
     selectedProducts: storedProducts,
     selectedLaboratories: storedLaboratories,
     productCodes,
     priceFilters,
+    tvaRates,
+    genericStatus,
     hasPriceFilters,
     setPriceFilters,
     clearPriceFilters,
@@ -79,18 +71,10 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     addProducts,
     addLaboratories,
     clearSelection: clearStoreSelection,
-    setDateRange // 🔥 IMPORT SETTER
+    setDateRange
   } = useGenericGroupStore();
 
-  // 🔥 NOUVEAU - Sync dateRange avec store au mount
-  useEffect(() => {
-    if (isOpen && dateRange) {
-      console.log('📅 [GenericFilterDrawer] Setting date range in store:', dateRange);
-      setDateRange(dateRange);
-    }
-  }, [isOpen, dateRange, setDateRange]);
-
-  // State local pour les filtres de prix (pas encore appliqués)
+  // States locaux pour les filtres (pas encore appliqués)
   const [localPriceFilters, setLocalPriceFilters] = useState<LocalPriceFilters>({
     prixFabricant: {
       min: priceFilters.prixFabricant.min?.toString() ?? '',
@@ -106,7 +90,18 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     }
   });
 
-  // Sync state local avec store (ex: quand user clique "Réinitialiser")
+  const [localTvaRates, setLocalTvaRates] = useState<number[]>(tvaRates);
+  const [localGenericStatus, setLocalGenericStatus] = useState<GenericStatus>(genericStatus);
+
+  // Sync dateRange avec store au mount
+  useEffect(() => {
+    if (isOpen && dateRange) {
+      console.log('📅 [GenericFilterDrawer] Setting date range in store:', dateRange);
+      setDateRange(dateRange);
+    }
+  }, [isOpen, dateRange, setDateRange]);
+
+  // Sync states locaux avec store
   useEffect(() => {
     setLocalPriceFilters({
       prixFabricant: {
@@ -122,11 +117,13 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
         max: priceFilters.remise.max?.toString() ?? ''
       }
     });
-  }, [priceFilters]);
+    setLocalTvaRates(tvaRates);
+    setLocalGenericStatus(genericStatus);
+  }, [priceFilters, tvaRates, genericStatus]);
 
   if (!isOpen) return null;
 
-  // Vérifier si les filtres prix locaux diffèrent du store
+  // Vérifier si les filtres locaux diffèrent du store
   const hasPriceChanges = () => {
     return (
       localPriceFilters.prixFabricant.min !== (priceFilters.prixFabricant.min?.toString() ?? '') ||
@@ -138,17 +135,29 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     );
   };
 
+  const hasTvaChanges = () => {
+    if (localTvaRates.length !== tvaRates.length) return true;
+    return !localTvaRates.every(rate => tvaRates.includes(rate));
+  };
+
+  const hasStatusChanges = () => {
+    return localGenericStatus !== genericStatus;
+  };
+
+  const hasAnyFilterChanges = () => {
+    return hasPriceChanges() || hasTvaChanges() || hasStatusChanges();
+  };
+
   const localSelectedCount = selectedProducts.size + selectedLaboratories.size;
   const storeSelectedCount = selectedGroups.length + storedProducts.length + storedLaboratories.length;
   
-  // Total changements à appliquer
-  const totalChanges = localSelectedCount + (hasPriceChanges() ? 1 : 0);
+  const totalChanges = localSelectedCount + (hasAnyFilterChanges() ? 1 : 0);
 
   React.useEffect(() => {
     onCountChange(productCodes.length);
   }, [productCodes.length, onCountChange]);
 
-  // Handler unifié : applique TOUT (produits + labos + prix)
+  // Handler unifié : applique TOUT
   const handleApplyAll = async () => {
     const productsToAdd = getSelectedProductsArray();
     const laboratoriesToAdd = getSelectedLaboratoriesArray();
@@ -161,7 +170,9 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
       products: productsToAdd.length,
       laboratories: laboratoriesToAdd.length,
       priceFiltersChanged: hasPriceChanges(),
-      dateRange // 🔥 LOG DATE RANGE
+      tvaFiltersChanged: hasTvaChanges(),
+      statusChanged: hasStatusChanges(),
+      dateRange
     });
 
     // 1. Appliquer sélections produits/labos
@@ -175,33 +186,43 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
       addLaboratories(laboratoriesToAdd);
     }
     
-    // 2. Appliquer filtres prix si modifiés (ASYNC + AWAIT)
-    if (hasPriceChanges()) {
-      console.log('💰 [GenericFilterDrawer] Price filters changed, applying...');
+    // 2. Appliquer tous les filtres si modifiés
+    if (hasAnyFilterChanges()) {
+      console.log('💰 [GenericFilterDrawer] Filters changed, applying...');
       
-      const newFilters = {
-        prixFabricant: {
-          min: localPriceFilters.prixFabricant.min === '' ? null : parseFloat(localPriceFilters.prixFabricant.min),
-          max: localPriceFilters.prixFabricant.max === '' ? null : parseFloat(localPriceFilters.prixFabricant.max)
-        },
-        prixNetRemise: {
-          min: localPriceFilters.prixNetRemise.min === '' ? null : parseFloat(localPriceFilters.prixNetRemise.min),
-          max: localPriceFilters.prixNetRemise.max === '' ? null : parseFloat(localPriceFilters.prixNetRemise.max)
-        },
-        remise: {
-          min: localPriceFilters.remise.min === '' ? null : parseFloat(localPriceFilters.remise.min),
-          max: localPriceFilters.remise.max === '' ? null : parseFloat(localPriceFilters.remise.max)
-        }
-      };
+      const { setTvaRates, setGenericStatus } = useGenericGroupStore.getState();
       
-      console.log('💰 [GenericFilterDrawer] New filters:', newFilters);
+      if (hasTvaChanges()) {
+        console.log('💰 [GenericFilterDrawer] Applying TVA filters:', localTvaRates);
+        setTvaRates(localTvaRates);
+      }
       
-      // AWAIT ICI !
-      await setPriceFilters(newFilters);
+      if (hasStatusChanges()) {
+        console.log('🏷️ [GenericFilterDrawer] Applying status filter:', localGenericStatus);
+        setGenericStatus(localGenericStatus);
+      }
       
-      console.log('✅ [GenericFilterDrawer] Price filters applied successfully');
-    } else {
-      console.log('ℹ️ [GenericFilterDrawer] No price filter changes');
+      if (hasPriceChanges()) {
+        const newFilters = {
+          prixFabricant: {
+            min: localPriceFilters.prixFabricant.min === '' ? null : parseFloat(localPriceFilters.prixFabricant.min),
+            max: localPriceFilters.prixFabricant.max === '' ? null : parseFloat(localPriceFilters.prixFabricant.max)
+          },
+          prixNetRemise: {
+            min: localPriceFilters.prixNetRemise.min === '' ? null : parseFloat(localPriceFilters.prixNetRemise.min),
+            max: localPriceFilters.prixNetRemise.max === '' ? null : parseFloat(localPriceFilters.prixNetRemise.max)
+          },
+          remise: {
+            min: localPriceFilters.remise.min === '' ? null : parseFloat(localPriceFilters.remise.min),
+            max: localPriceFilters.remise.max === '' ? null : parseFloat(localPriceFilters.remise.max)
+          }
+        };
+        
+        console.log('💰 [GenericFilterDrawer] Applying price filters:', newFilters);
+        await setPriceFilters(newFilters);
+      }
+      
+      console.log('✅ [GenericFilterDrawer] All filters applied successfully');
     }
     
     // 3. Clear les sélections locales après application
@@ -221,8 +242,9 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
 
   const handleClearPriceFilters = () => {
     clearPriceFilters();
-    // State local sera sync via useEffect
   };
+
+  const hasActiveFilters = hasPriceFilters() || tvaRates.length > 0 || genericStatus !== 'BOTH';
 
   return (
     <AnimatePresence>
@@ -274,7 +296,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </span>
               </div>
               
-              {(storeSelectedCount > 0 || hasPriceFilters()) && (
+              {(storeSelectedCount > 0 || hasActiveFilters) && (
                 <button
                   onClick={handleClearAll}
                   className="flex items-center space-x-1 text-xs text-red-600 hover:text-red-700 font-medium"
@@ -290,13 +312,40 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           <div className="h-[calc(100%-140px)] overflow-y-auto px-6 py-4">
             <div className="space-y-6">
               
-              {/* SÉLECTIONS ACTIVES DANS LE STORE */}
-              {(selectedGroups.length > 0 || storedProducts.length > 0 || storedLaboratories.length > 0) && (
+              {/* SÉLECTIONS ACTIVES */}
+              {(selectedGroups.length > 0 || storedProducts.length > 0 || storedLaboratories.length > 0 || hasActiveFilters) && (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Layers className="w-4 h-4 text-blue-600" />
                     <h3 className="text-sm font-semibold text-gray-900">Sélections actives</h3>
                   </div>
+
+                  {/* FILTRES ACTIFS */}
+                  {hasActiveFilters && (
+                    <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                      <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider">
+                        ⚡ Filtres appliqués
+                      </p>
+                      
+                      {tvaRates.length > 0 && (
+                        <div className="text-xs text-gray-700">
+                          <span className="font-medium">TVA :</span> {tvaRates.sort((a, b) => a - b).join('%, ')}%
+                        </div>
+                      )}
+                      
+                      {genericStatus !== 'BOTH' && (
+                        <div className="text-xs text-gray-700">
+                          <span className="font-medium">Type :</span> {genericStatus}
+                        </div>
+                      )}
+                      
+                      {hasPriceFilters() && (
+                        <div className="text-xs text-gray-700">
+                          <span className="font-medium">Prix :</span> Filtres de prix actifs
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Groupes génériques */}
                   {selectedGroups.length > 0 && (
@@ -382,7 +431,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                               {lab.laboratory_name}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {lab.product_codes.length} produits ({lab.generic_count} génériques, {lab.referent_count} référents)
+                              {lab.product_codes.length} produits
                             </p>
                           </div>
                           <button
@@ -398,8 +447,8 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </div>
               )}
 
-              {/* RECHERCHE PRODUITS */}
-              <div className="space-y-3">
+              {/* 1. RECHERCHE PRODUITS */}
+              <div className="space-y-3 pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
                   <Package className="w-4 h-4 text-pink-600" />
                   <h3 className="text-sm font-semibold text-gray-900">Rechercher un produit</h3>
@@ -415,7 +464,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   />
                 </div>
 
-                {/* Résultats produits */}
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {isLoadingProducts && (
                     <div className="flex items-center justify-center py-8">
@@ -461,8 +509,8 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </div>
               </div>
 
-              {/* RECHERCHE LABORATOIRES */}
-              <div className="space-y-3">
+              {/* 2. RECHERCHE LABORATOIRES */}
+              <div className="space-y-3 pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
                   <TestTube className="w-4 h-4 text-purple-600" />
                   <h3 className="text-sm font-semibold text-gray-900">Rechercher un laboratoire</h3>
@@ -478,7 +526,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   />
                 </div>
 
-                {/* Résultats laboratoires */}
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {isLoadingLaboratories && (
                     <div className="flex items-center justify-center py-8">
@@ -515,13 +562,29 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </div>
               </div>
 
-              {/* FILTRES DE PRIX - EN BAS */}
+              {/* 3. FILTRE GÉNÉRIQUE/RÉFÉRENT */}
+              <div className="pt-4 border-t border-gray-200">
+                <GenericStatusFilter
+                  value={localGenericStatus}
+                  onChange={setLocalGenericStatus}
+                />
+              </div>
+
+              {/* 4. FILTRE TVA */}
+              <div className="pt-4 border-t border-gray-200">
+                <TvaRateFilter
+                  selectedRates={localTvaRates}
+                  onChange={setLocalTvaRates}
+                />
+              </div>
+
+              {/* 5. FILTRES DE PRIX */}
               <div className="pt-4 border-t border-gray-200">
                 <PriceRangeFilters
                   localFilters={localPriceFilters}
                   onFiltersChange={setLocalPriceFilters}
                   onClear={handleClearPriceFilters}
-                  hasActiveFilters={hasPriceFilters()}
+                  hasActiveFilters={hasActiveFilters}
                 />
               </div>
             </div>
@@ -538,7 +601,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
-              Appliquer {totalChanges > 0 && `(${totalChanges === 1 && !hasPriceChanges() ? `${totalChanges} nouveau` : totalChanges > 1 && !hasPriceChanges() ? `${totalChanges} nouveaux` : hasPriceChanges() && localSelectedCount === 0 ? 'filtres prix' : 'tout'})`}
+              Appliquer {totalChanges > 0 && `(${totalChanges === 1 && !hasAnyFilterChanges() ? `${totalChanges} nouveau` : totalChanges > 1 && !hasAnyFilterChanges() ? `${totalChanges} nouveaux` : hasAnyFilterChanges() && localSelectedCount === 0 ? 'filtres' : 'tout'})`}
             </button>
           </div>
         </motion.div>

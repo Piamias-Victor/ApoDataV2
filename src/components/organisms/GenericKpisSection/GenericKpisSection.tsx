@@ -53,6 +53,17 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
   const selectedLaboratories = useGenericGroupStore((state) => state.selectedLaboratories);
   const productCodes = useGenericGroupStore((state) => state.productCodes);
   
+  // 🔥 NOUVEAU - Vérifier filtres actifs
+  const hasActiveFilters = useGenericGroupStore(state => {
+    const hasSelections = state.selectedGroups.length > 0 || 
+                         state.selectedProducts.length > 0 || 
+                         state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() || 
+                      state.tvaRates.length > 0 || 
+                      state.genericStatus !== 'BOTH';
+    return hasSelections || hasFilters;
+  });
+  
   const { 
     data, 
     isLoading, 
@@ -85,7 +96,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
 
   // Textes dynamiques selon le mode
   const headerText = useMemo(() => {
-    if (isGlobalMode) {
+    if (isGlobalMode && !hasActiveFilters) {
       return 'KPI Globaux - Génériques & Référents';
     }
     if (selectedGroups.length === 1) {
@@ -101,12 +112,18 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       return `KPI - ${parts.join(' + ')}`;
     }
     return 'KPI Génériques';
-  }, [isGlobalMode, selectedGroups, selectedProducts, selectedLaboratories]);
+  }, [isGlobalMode, hasActiveFilters, selectedGroups, selectedProducts, selectedLaboratories]);
 
   const subtitleText = useMemo(() => {
-    if (isGlobalMode) {
+    if (isGlobalMode && !hasActiveFilters) {
       return 'Tous les produits génériques et référents';
     }
+    
+    // 🔥 NOUVEAU - Si filtres actifs mais 0 produit
+    if (hasActiveFilters && productCodes.length === 0) {
+      return 'Aucun produit ne correspond aux filtres appliqués';
+    }
+    
     if (selectedGroups.length === 1) {
       const group = selectedGroups[0];
       return `${group?.referent_name || 'Référent inconnu'} • ${productCodes.length} produit${productCodes.length > 1 ? 's' : ''}`;
@@ -118,7 +135,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       return `${productCodes.length} produit${productCodes.length > 1 ? 's' : ''} sélectionné${productCodes.length > 1 ? 's' : ''}`;
     }
     return 'Indicateurs de performance';
-  }, [isGlobalMode, selectedGroups, selectedProducts, selectedLaboratories, productCodes.length]);
+  }, [isGlobalMode, hasActiveFilters, selectedGroups, selectedProducts, selectedLaboratories, productCodes.length]);
 
   const prepareKpiDataForExport = useCallback(() => {
     if (!data) return [];
@@ -135,7 +152,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
       formatDateRange(comparisonDateRange.start || '', comparisonDateRange.end || '') : '';
     
     // Mode global
-    if (isGlobalMode) {
+    if (isGlobalMode && !hasActiveFilters) {
       exportData.push({
         'Indicateur': 'Mode',
         'Valeur': 'Global - Génériques & Référents',
@@ -330,7 +347,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     });
 
     return exportData;
-  }, [data, dateRange, comparisonDateRange, includeComparison, isGlobalMode, selectedGroups]);
+  }, [data, dateRange, comparisonDateRange, includeComparison, isGlobalMode, hasActiveFilters, selectedGroups]);
 
   const handleExport = useCallback(() => {
     const exportData = prepareKpiDataForExport();
@@ -341,12 +358,12 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
     }
 
     const filename = CsvExporter.generateFilename(
-      isGlobalMode ? 'apodata_kpi_generiques_global' : 'apodata_kpi_generiques'
+      isGlobalMode && !hasActiveFilters ? 'apodata_kpi_generiques_global' : 'apodata_kpi_generiques'
     );
     const headers = Object.keys(exportData[0] || {});
 
     exportToCsv({ filename, headers, data: exportData });
-  }, [exportToCsv, prepareKpiDataForExport, isGlobalMode]);
+  }, [exportToCsv, prepareKpiDataForExport, isGlobalMode, hasActiveFilters]);
 
   const handleRefresh = useCallback(() => {
     console.log('🔄 Refreshing KPI data');
@@ -397,7 +414,7 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-xl font-semibold text-gray-900">{headerText}</h2>
-              {isGlobalMode && (
+              {isGlobalMode && !hasActiveFilters && ( // 🔥 MODIFIÉ - Ajout !hasActiveFilters
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   <Globe className="w-3 h-3 mr-1" />
                   Global
@@ -547,11 +564,14 @@ export const GenericKpisSection: React.FC<GenericKpisSectionProps> = ({
             </div>
             
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Aucune donnée disponible
+              {hasActiveFilters ? 'Aucun produit ne correspond aux filtres' : 'Aucune donnée disponible'}
             </h3>
             
             <p className="text-gray-500 mb-4 max-w-md">
-              Aucune activité détectée pour la sélection sur la période.
+              {hasActiveFilters 
+                ? 'Les filtres appliqués ne retournent aucun produit. Essayez de modifier vos critères.'
+                : 'Aucune activité détectée pour la sélection sur la période.'
+              }
             </p>
             
             <Button

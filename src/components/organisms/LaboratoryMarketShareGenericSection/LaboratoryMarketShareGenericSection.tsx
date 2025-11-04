@@ -4,6 +4,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Database } from 'lucide-react';
 import { useLaboratoryMarketShare } from '@/hooks/generic-groups/useLaboratoryMarketShare';
+import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 AJOUT
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { GenericLaboratoryTableHeader } from '@/components/molecules/LaboratoryTable/GenericLaboratoryTableHeader';
 import { GenericLaboratoryTableRow } from '@/components/molecules/LaboratoryTable/GenericLaboratoryTableRow';
@@ -33,7 +34,18 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     direction: null
   });
 
-  const hasFilters = productCodes.length > 0;
+  // 🔥 NOUVEAU - Vérifier filtres actifs depuis le store
+  const hasActiveFilters = useGenericGroupStore(state => {
+    const hasSelections = state.selectedGroups.length > 0 || 
+                         state.selectedProducts.length > 0 || 
+                         state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() || 
+                      state.tvaRates.length > 0 || 
+                      state.genericStatus !== 'BOTH';
+    return hasSelections || hasFilters;
+  });
+
+  const hasFilters = productCodes.length > 0 || hasActiveFilters; // 🔥 MODIFIÉ
 
   const {
     data,
@@ -139,7 +151,8 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     );
   }
 
-  if (!hasFilters && data.length === 0 && !isLoading) {
+  // 🔥 MODIFIÉ - Ajouter vérification hasActiveFilters
+  if (!hasFilters && data.length === 0 && !isLoading && !hasActiveFilters) {
     return (
       <Card variant="elevated" className="p-8">
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
@@ -227,7 +240,9 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
                   <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
                     {searchQuery 
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
-                      : 'Aucune donnée disponible'
+                      : hasActiveFilters 
+                        ? 'Aucun laboratoire ne correspond aux filtres appliqués'
+                        : 'Aucune donnée disponible'
                     }
                   </td>
                 </tr>

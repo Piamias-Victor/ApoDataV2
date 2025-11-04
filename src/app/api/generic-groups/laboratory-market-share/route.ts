@@ -24,6 +24,7 @@ interface LaboratoryMarketShareResult {
 interface RequestBody {
   readonly dateRange: { start: string; end: string };
   readonly productCodes?: string[];
+  readonly pharmacyIds?: string[]; // 🔥 AJOUT
   readonly page?: number;
   readonly pageSize?: number;
 }
@@ -36,17 +37,39 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RequestBody = await request.json();
-    const { dateRange, productCodes = [], page = 1, pageSize = 10 } = body;
+    const { dateRange, productCodes = [], pharmacyIds = [], page = 1, pageSize = 10 } = body; // 🔥 AJOUT pharmacyIds
     
     const isAdmin = session.user.role === 'admin';
     const offset = (page - 1) * pageSize;
     const isGlobalMode = productCodes.length === 0;
     
+    // 🔥 NOUVEAU - Gestion pharmacy filter
+    const effectivePharmacyIds = isAdmin 
+      ? pharmacyIds 
+      : (session.user.pharmacyId ? [session.user.pharmacyId] : []);
+
+    const hasPharmacyFilter = effectivePharmacyIds.length > 0;
+
+    console.log('🔍 [laboratory-market-share API] Request:', {
+      dateRange,
+      productCodesCount: productCodes.length,
+      pharmacyIds: effectivePharmacyIds,
+      hasPharmacyFilter,
+      isGlobalMode,
+      isAdmin
+    });
+    
     let query: string;
     let params: any[];
 
+    // 🔥 Construction filtre pharmacy SQL
+    const pharmacyFilter = hasPharmacyFilter 
+      ? `AND ip.pharmacy_id = ANY($3::uuid[])`
+      : '';
+
     if (isAdmin) {
       if (isGlobalMode) {
+        // MODE GLOBAL ADMIN
         query = `
           WITH generic_products AS (
             SELECT DISTINCT dgp.code_13_ref
@@ -78,6 +101,7 @@ export async function POST(request: NextRequest) {
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
+              ${pharmacyFilter}
             GROUP BY dgp.bcb_lab
           ),
           lab_ventes AS (
@@ -105,6 +129,7 @@ export async function POST(request: NextRequest) {
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
               AND ip.code_13_ref_id IN (SELECT code_13_ref FROM generic_products)
+              ${pharmacyFilter}
             GROUP BY dgp.bcb_lab
           ),
           group_totals AS (
@@ -159,10 +184,15 @@ export async function POST(request: NextRequest) {
           CROSS JOIN group_totals gt
           CROSS JOIN total_count tc
           ORDER BY lm.ca_selection DESC
-          LIMIT $3 OFFSET $4
+          LIMIT $${hasPharmacyFilter ? '4' : '3'} OFFSET $${hasPharmacyFilter ? '5' : '4'}
         `;
-        params = [dateRange.start, dateRange.end, pageSize, offset];
+        
+        params = [dateRange.start, dateRange.end];
+        if (hasPharmacyFilter) params.push(effectivePharmacyIds);
+        params.push(pageSize, offset);
+
       } else {
+        // MODE SÉLECTION ADMIN
         query = `
           WITH lab_achats AS (
             SELECT 
@@ -187,7 +217,8 @@ export async function POST(request: NextRequest) {
               AND po.qte_r > 0
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-              AND ip.code_13_ref_id = ANY($3::text[])
+              ${pharmacyFilter}
+              AND ip.code_13_ref_id = ANY($${hasPharmacyFilter ? '4' : '3'}::text[])
             GROUP BY dgp.bcb_lab
           ),
           lab_ventes AS (
@@ -214,7 +245,8 @@ export async function POST(request: NextRequest) {
               AND COALESCE(dgp.tva_percentage, dgp.bcb_tva_rate, 0) > 0
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-              AND ip.code_13_ref_id = ANY($3::text[])
+              ${pharmacyFilter}
+              AND ip.code_13_ref_id = ANY($${hasPharmacyFilter ? '4' : '3'}::text[])
             GROUP BY dgp.bcb_lab
           ),
           group_totals AS (
@@ -269,16 +301,21 @@ export async function POST(request: NextRequest) {
           CROSS JOIN group_totals gt
           CROSS JOIN total_count tc
           ORDER BY lm.ca_selection DESC
-          LIMIT $4 OFFSET $5
+          LIMIT $${hasPharmacyFilter ? '5' : '4'} OFFSET $${hasPharmacyFilter ? '6' : '5'}
         `;
-        params = [dateRange.start, dateRange.end, productCodes, pageSize, offset];
+        
+        params = [dateRange.start, dateRange.end];
+        if (hasPharmacyFilter) params.push(effectivePharmacyIds);
+        params.push(productCodes, pageSize, offset);
       }
     } else {
+      // MODE NON-ADMIN
       if (!session.user.pharmacyId) {
         return NextResponse.json({ error: 'No pharmacy assigned' }, { status: 400 });
       }
 
       if (isGlobalMode) {
+        // MODE GLOBAL NON-ADMIN
         query = `
           WITH generic_products AS (
             SELECT DISTINCT ip.code_13_ref_id
@@ -399,6 +436,7 @@ export async function POST(request: NextRequest) {
         `;
         params = [dateRange.start, dateRange.end, session.user.pharmacyId, pageSize, offset];
       } else {
+        // MODE SÉLECTION NON-ADMIN
         query = `
           WITH lab_achats AS (
             SELECT 
@@ -513,6 +551,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log('🔍 [laboratory-market-share API] Query params:', params);
+
     const result = await db.query<LaboratoryMarketShareResult>(query, params);
     
     const totalFromFirstRow = result[0]?.total || 0;
@@ -529,6 +569,12 @@ export async function POST(request: NextRequest) {
       is_referent: row.is_referent
     }));
 
+    console.log('✅ [laboratory-market-share API] Response:', {
+      laboratoriesCount: laboratories.length,
+      total: totalFromFirstRow,
+      firstLab: laboratories[0]?.laboratory_name
+    });
+
     return NextResponse.json({
       laboratories,
       pagination: {
@@ -540,7 +586,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Laboratory market share error:', error);
+    console.error('❌ [laboratory-market-share API] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

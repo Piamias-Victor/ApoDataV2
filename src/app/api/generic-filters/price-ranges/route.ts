@@ -18,9 +18,13 @@ interface PriceFilters {
   readonly remise: PriceRange;
 }
 
+type GenericStatus = 'BOTH' | 'GÉNÉRIQUE' | 'RÉFÉRENT';
+
 interface RequestBody {
   readonly productCodes: string[] | null;
   readonly priceFilters: PriceFilters;
+  readonly tvaRates: number[];
+  readonly genericStatus: GenericStatus;
   readonly dateRange: { start: string; end: string };
 }
 
@@ -37,12 +41,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body: RequestBody = await request.json();
-    const { productCodes, priceFilters, dateRange } = body;
+    const { productCodes, priceFilters, tvaRates, genericStatus, dateRange } = body;
 
     console.log('📊 [price-ranges API] Request params:', {
       productCodes: productCodes ? `${productCodes.length} codes` : 'ALL (global mode)',
       dateRange,
       priceFilters,
+      tvaRates,
+      genericStatus,
       user: session.user.email,
       role: session.user.role
     });
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const isAdmin = session.user.role === 'admin';
     const pharmacyId = session.user.pharmacyId;
 
-    // Construction des filtres SQL
+    // Construction des filtres SQL pour prix
     const priceFilterConditions: string[] = [];
     
     if (priceFilters.prixFabricant.min !== null) {
@@ -82,7 +88,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? `AND ${priceFilterConditions.join(' AND ')}`
       : '';
 
-    console.log('🔍 [price-ranges API] Price filters SQL:', priceFilterSQL || 'NONE');
+    // 🔥 MODIFIÉ - Filtre TVA appliqué EN DEHORS de la CTE
+    const tvaFilterSQL = tvaRates && tvaRates.length > 0
+      ? `AND tva_percentage = ANY(ARRAY[${tvaRates.join(', ')}])`
+      : '';
+
+    // Filtre statut générique
+    let genericStatusSQL = '';
+    if (genericStatus === 'GÉNÉRIQUE') {
+      genericStatusSQL = "AND dgp.bcb_generic_status = 'GÉNÉRIQUE'";
+    } else if (genericStatus === 'RÉFÉRENT') {
+      genericStatusSQL = "AND dgp.bcb_generic_status = 'RÉFÉRENT'";
+    } else {
+      genericStatusSQL = "AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')";
+    }
+
+    console.log('🔍 [price-ranges API] Filters SQL:', {
+      price: priceFilterSQL || 'NONE',
+      tva: tvaFilterSQL || 'NONE',
+      status: genericStatusSQL
+    });
 
     let query: string;
     let params: any[];
@@ -97,6 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           WITH product_purchases AS (
             SELECT 
               dgp.code_13_ref,
+              dgp.tva_percentage,
               pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
               CASE 
@@ -123,16 +149,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND o.delivery_date <= $2::date
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
-              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
+              ${genericStatusSQL}
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_group IS NOT NULL
-            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            GROUP BY dgp.code_13_ref, dgp.tva_percentage, pbcb.prix_achat_ht_fabricant
             HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
           )
           SELECT code_13_ref
           FROM product_purchases
           WHERE 1=1
             ${priceFilterSQL}
+            ${tvaFilterSQL}
         `;
 
         params = [dateRange.start, dateRange.end];
@@ -145,6 +172,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           WITH product_purchases AS (
             SELECT 
               dgp.code_13_ref,
+              dgp.tva_percentage,
               pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
               CASE 
@@ -172,13 +200,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND ip.code_13_ref_id = ANY($3::text[])
-            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+              ${genericStatusSQL}
+            GROUP BY dgp.code_13_ref, dgp.tva_percentage, pbcb.prix_achat_ht_fabricant
             HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
           )
           SELECT code_13_ref
           FROM product_purchases
           WHERE 1=1
             ${priceFilterSQL}
+            ${tvaFilterSQL}
         `;
 
         params = [dateRange.start, dateRange.end, productCodes];
@@ -199,6 +229,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           WITH product_purchases AS (
             SELECT 
               dgp.code_13_ref,
+              dgp.tva_percentage,
               pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
               CASE 
@@ -226,16 +257,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND o.delivery_date IS NOT NULL
               AND po.qte_r > 0
               AND ip.pharmacy_id = $3::uuid
-              AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
+              ${genericStatusSQL}
               AND dgp.bcb_lab IS NOT NULL
               AND dgp.bcb_generic_group IS NOT NULL
-            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+            GROUP BY dgp.code_13_ref, dgp.tva_percentage, pbcb.prix_achat_ht_fabricant
             HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
           )
           SELECT code_13_ref
           FROM product_purchases
           WHERE 1=1
             ${priceFilterSQL}
+            ${tvaFilterSQL}
         `;
 
         params = [dateRange.start, dateRange.end, pharmacyId];
@@ -248,6 +280,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           WITH product_purchases AS (
             SELECT 
               dgp.code_13_ref,
+              dgp.tva_percentage,
               pbcb.prix_achat_ht_fabricant as prix_brut_grossiste,
               AVG(COALESCE(closest_snap.weighted_average_price, 0)) as avg_buy_price_ht,
               CASE 
@@ -276,13 +309,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               AND po.qte_r > 0
               AND ip.pharmacy_id = $3::uuid
               AND ip.code_13_ref_id = ANY($4::text[])
-            GROUP BY dgp.code_13_ref, pbcb.prix_achat_ht_fabricant
+              ${genericStatusSQL}
+            GROUP BY dgp.code_13_ref, dgp.tva_percentage, pbcb.prix_achat_ht_fabricant
             HAVING AVG(COALESCE(closest_snap.weighted_average_price, 0)) > 0
           )
           SELECT code_13_ref
           FROM product_purchases
           WHERE 1=1
             ${priceFilterSQL}
+            ${tvaFilterSQL}
         `;
 
         params = [dateRange.start, dateRange.end, pharmacyId, productCodes];
@@ -300,7 +335,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log('✅ [price-ranges API] Query success:', {
       duration: `${duration}ms`,
       codesFound: filteredCodes.length,
-      inputCodes: productCodes ? productCodes.length : 'ALL'
+      inputCodes: productCodes ? productCodes.length : 'ALL',
+      filters: {
+        price: priceFilterConditions.length > 0,
+        tva: tvaRates && tvaRates.length > 0,
+        status: genericStatus !== 'BOTH'
+      }
     });
     console.log('🚀 [price-ranges API] ========================================');
     console.log('');

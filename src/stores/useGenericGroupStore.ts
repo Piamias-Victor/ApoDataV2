@@ -14,6 +14,8 @@ interface PriceFilters {
   remise: PriceRange;
 }
 
+type GenericStatus = 'BOTH' | 'GÉNÉRIQUE' | 'RÉFÉRENT';
+
 interface GenericGroupState {
   // Sources de sélection
   selectedGroups: GenericGroup[];
@@ -26,6 +28,16 @@ interface GenericGroupState {
   clearPriceFilters: () => void;
   hasPriceFilters: () => boolean;
   
+  // 🔥 NOUVEAU - Filtres TVA
+  tvaRates: number[];
+  setTvaRates: (rates: number[]) => void;
+  hasTvaFilters: () => boolean;
+  
+  // 🔥 NOUVEAU - Filtre statut générique
+  genericStatus: GenericStatus;
+  setGenericStatus: (status: GenericStatus) => void;
+  hasGenericStatusFilter: () => boolean;
+  
   // Résultat calculé
   productCodes: string[];
   
@@ -33,7 +45,7 @@ interface GenericGroupState {
   showGlobalTop: boolean;
   setShowGlobalTop: (show: boolean) => void;
   
-  // 🔥 NOUVEAU - Date range
+  // Date range
   dateRange: { start: string; end: string } | null;
   setDateRange: (range: { start: string; end: string }) => void;
   
@@ -76,7 +88,9 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   productCodes: [],
   showGlobalTop: false,
   priceFilters: defaultPriceFilters,
-  dateRange: null, // 🔥 NOUVEAU
+  dateRange: null,
+  tvaRates: [], // 🔥 NOUVEAU
+  genericStatus: 'BOTH', // 🔥 NOUVEAU - Défaut "les deux"
 
   // ===== MODE GLOBAL =====
   setShowGlobalTop: (show) => {
@@ -84,17 +98,38 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     set({ showGlobalTop: show });
   },
 
-  // 🔥 NOUVEAU - DATE RANGE =====
+  // ===== DATE RANGE =====
   setDateRange: (range) => {
     console.log('📅 [GenericGroupStore] Setting date range:', range);
     set({ dateRange: range });
   },
 
+  // ===== FILTRES TVA 🔥 =====
+  setTvaRates: (rates) => {
+    console.log('💰 [GenericGroupStore] Setting TVA rates:', rates);
+    set({ tvaRates: rates });
+    get().recalculateProductCodes();
+  },
+
+  hasTvaFilters: () => {
+    return get().tvaRates.length > 0;
+  },
+
+  // ===== FILTRE STATUT GÉNÉRIQUE 🔥 =====
+  setGenericStatus: (status) => {
+    console.log('🏷️ [GenericGroupStore] Setting generic status:', status);
+    set({ genericStatus: status });
+    get().recalculateProductCodes();
+  },
+
+  hasGenericStatusFilter: () => {
+    return get().genericStatus !== 'BOTH';
+  },
+
   // ===== FILTRES DE PRIX =====
   setPriceFilters: async (filters) => {
-    const { priceFilters, dateRange } = get(); // 🔥 AJOUT dateRange
+    const { priceFilters, dateRange } = get();
     
-    // 🔥 VALIDATION DATE RANGE
     if (!dateRange) {
       console.error('❌ [GenericGroupStore] Cannot apply price filters without date range');
       return;
@@ -104,7 +139,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     
     console.log('💰 [GenericGroupStore] Setting price filters:', {
       filters: newPriceFilters,
-      dateRange // 🔥 LOG DATE RANGE
+      dateRange
     });
     
     set({ priceFilters: newPriceFilters });
@@ -115,8 +150,12 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   },
 
   clearPriceFilters: () => {
-    console.log('🗑️ [GenericGroupStore] Clearing price filters');
-    set({ priceFilters: defaultPriceFilters });
+    console.log('🗑️ [GenericGroupStore] Clearing ALL filters (price + TVA + status)');
+    set({ 
+      priceFilters: defaultPriceFilters,
+      tvaRates: [], // 🔥 RESET TVA
+      genericStatus: 'BOTH' // 🔥 RESET STATUS
+    });
     get().recalculateProductCodes();
   },
 
@@ -142,53 +181,61 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedLaboratories, 
       priceFilters, 
       hasPriceFilters,
-      dateRange // 🔥 EXTRACTION DATE RANGE
+      tvaRates, // 🔥 NOUVEAU
+      genericStatus, // 🔥 NOUVEAU
+      dateRange
     } = get();
     
     const hasSelections = selectedGroups.length > 0 || selectedProducts.length > 0 || selectedLaboratories.length > 0;
-    
+    const hasAnyFilters = hasPriceFilters() || tvaRates.length > 0 || genericStatus !== 'BOTH'; // 🔥 MODIFIÉ
+  
     console.log('📊 [GenericGroupStore] Current state:', {
       hasSelections,
+      hasAnyFilters, // 🔥 MODIFIÉ
       hasPriceFilters: hasPriceFilters(),
+      hasTvaFilters: tvaRates.length > 0, // 🔥 NOUVEAU
+      hasGenericStatusFilter: genericStatus !== 'BOTH', // 🔥 NOUVEAU
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
-      dateRange // 🔥 LOG DATE RANGE
+      tvaRates, // 🔥 NOUVEAU
+      genericStatus, // 🔥 NOUVEAU
+      dateRange
     });
     
-    // Cas 1 : Aucune sélection ET aucun filtre prix → vide
-    if (!hasSelections && !hasPriceFilters()) {
-      console.log('ℹ️ [GenericGroupStore] No selections and no price filters → empty');
+    // Cas 1 : Aucune sélection ET aucun filtre → vide
+    if (!hasSelections && !hasAnyFilters) {
+      console.log('ℹ️ [GenericGroupStore] No selections and no filters → empty');
       set({ productCodes: [] });
       console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
       return;
     }
     
-    // Cas 2 : Filtres prix SEULS (sans sélections) → rechercher TOUS les génériques/référents
-    if (!hasSelections && hasPriceFilters()) {
-      console.log('💰 [GenericGroupStore] PRICE FILTERS ONLY MODE');
+    // Cas 2 : Filtres SEULS (sans sélections) → rechercher TOUS les génériques/référents
+    if (!hasSelections && hasAnyFilters) {
+      console.log('💰 [GenericGroupStore] FILTERS ONLY MODE');
       
-      // 🔥 VALIDATION DATE RANGE
       if (!dateRange) {
-        console.error('❌ [GenericGroupStore] Date range required for price filters');
+        console.error('❌ [GenericGroupStore] Date range required for filters');
         set({ productCodes: [] });
         console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
         return;
       }
       
-      console.log('💰 [GenericGroupStore] Fetching ALL generic/referent products from DB...');
+      console.log('💰 [GenericGroupStore] Fetching ALL products from DB with filters...');
       
       try {
         const startTime = Date.now();
         
-        // 🔥 APPEL API AVEC DATE RANGE
         const response = await fetch('/api/generic-filters/price-ranges', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             productCodes: null,
             priceFilters,
-            dateRange // 🔥 PASSAGE DATE RANGE
+            tvaRates, // 🔥 NOUVEAU
+            genericStatus, // 🔥 NOUVEAU
+            dateRange
           })
         });
 
@@ -198,13 +245,10 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           const data = await response.json();
           const filteredCodes = data.productCodes;
           
-          console.log('✅ [GenericGroupStore] PRICE FILTERS ONLY SUCCESS:', {
-  duration: `${duration}ms`,
-  totalFound: filteredCodes.length
-});
-
-// 🔥 AJOUTER CE LOG
-console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slice(0, 5));
+          console.log('✅ [GenericGroupStore] FILTERS ONLY SUCCESS:', {
+            duration: `${duration}ms`,
+            totalFound: filteredCodes.length
+          });
           
           set({ productCodes: filteredCodes });
           console.log('✅ [GenericGroupStore] === END RECALCULATE ===');
@@ -226,10 +270,9 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
       }
     }
     
-    // Cas 3 : Sélections avec ou sans filtres prix
+    // Cas 3 : Sélections avec ou sans filtres
     console.log('📦 [GenericGroupStore] Collecting base codes from selections...');
     
-    // Étape 1 : Collecter tous les codes de base
     const baseCodes = new Set<string>();
     
     selectedGroups.forEach(group => {
@@ -248,27 +291,25 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
 
     let finalCodes = Array.from(baseCodes);
 
-    // Étape 2 : Appliquer les filtres de prix si présents (intersection)
-    if (hasPriceFilters() && finalCodes.length > 0) {
-      // 🔥 VALIDATION DATE RANGE
+    // Étape 2 : Appliquer les filtres si présents (intersection)
+    if (hasAnyFilters && finalCodes.length > 0) {
       if (!dateRange) {
-        console.error('❌ [GenericGroupStore] Date range required for price filters');
+        console.error('❌ [GenericGroupStore] Date range required for filters');
       } else {
-        console.log('💰 [GenericGroupStore] Price filters detected, filtering base codes via API...');
-        console.log('💰 [GenericGroupStore] Filters:', priceFilters);
-        console.log('💰 [GenericGroupStore] Codes to filter:', finalCodes.length);
+        console.log('💰 [GenericGroupStore] Filters detected, filtering base codes via API...');
         
         try {
           const startTime = Date.now();
           
-          // 🔥 APPEL API AVEC DATE RANGE
           const response = await fetch('/api/generic-filters/price-ranges', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               productCodes: finalCodes,
               priceFilters,
-              dateRange // 🔥 PASSAGE DATE RANGE
+              tvaRates, // 🔥 NOUVEAU
+              genericStatus, // 🔥 NOUVEAU
+              dateRange
             })
           });
 
@@ -295,10 +336,6 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
           console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
         }
       }
-    } else if (hasPriceFilters() && finalCodes.length === 0) {
-      console.log('⚠️ [GenericGroupStore] Price filters active but no base codes to filter');
-    } else {
-      console.log('ℹ️ [GenericGroupStore] No price filters, using base codes as-is');
     }
     
     console.log('🔄 [GenericGroupStore] Final result:', {
@@ -306,7 +343,7 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
       totalCodes: finalCodes.length,
-      priceFiltersActive: hasPriceFilters()
+      filtersActive: hasAnyFilters
     });
     
     set({ productCodes: finalCodes });
@@ -416,7 +453,7 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
     const newLaboratories = selectedLaboratories.filter(l => l.laboratory_name !== labName);
 
     console.log('➖ [GenericGroupStore] Removed laboratory:', {
-      labName,
+      name: labName,
       remainingLaboratories: newLaboratories.length
     });
 
@@ -428,23 +465,22 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
     return get().selectedLaboratories.some(l => l.laboratory_name === labName);
   },
 
-  // ===== BULK OPERATIONS (depuis drawer) =====
+  // ===== GESTION BULK =====
   addProducts: (products) => {
     const { selectedProducts } = get();
     const existingCodes = new Set(selectedProducts.map(p => p.code_13_ref));
-    
     const newProducts = products.filter(p => !existingCodes.has(p.code_13_ref));
-    
+
     if (newProducts.length === 0) {
-      console.log('⚠️ [GenericGroupStore] All products already selected');
+      console.log('ℹ️ [GenericGroupStore] No new products to add');
       return;
     }
 
     const updatedProducts = [...selectedProducts, ...newProducts];
 
-    console.log('➕ [GenericGroupStore] Added products (bulk):', {
-      newCount: newProducts.length,
-      totalProducts: updatedProducts.length
+    console.log('➕ [GenericGroupStore] Bulk add products:', {
+      added: newProducts.length,
+      total: updatedProducts.length
     });
 
     set({ selectedProducts: updatedProducts });
@@ -454,19 +490,18 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
   addLaboratories: (laboratories) => {
     const { selectedLaboratories } = get();
     const existingNames = new Set(selectedLaboratories.map(l => l.laboratory_name));
-    
     const newLaboratories = laboratories.filter(l => !existingNames.has(l.laboratory_name));
-    
+
     if (newLaboratories.length === 0) {
-      console.log('⚠️ [GenericGroupStore] All laboratories already selected');
+      console.log('ℹ️ [GenericGroupStore] No new laboratories to add');
       return;
     }
 
     const updatedLaboratories = [...selectedLaboratories, ...newLaboratories];
 
-    console.log('➕ [GenericGroupStore] Added laboratories (bulk):', {
-      newCount: newLaboratories.length,
-      totalLaboratories: updatedLaboratories.length
+    console.log('➕ [GenericGroupStore] Bulk add laboratories:', {
+      added: newLaboratories.length,
+      total: updatedLaboratories.length
     });
 
     set({ selectedLaboratories: updatedLaboratories });
@@ -475,15 +510,15 @@ console.log('📦 [GenericGroupStore] Setting productCodes:', filteredCodes.slic
 
   // ===== CLEAR =====
   clearSelection: () => {
-    console.log('🗑️ [GenericGroupStore] Clearing all selections');
-    set({ 
+    console.log('🗑️ [GenericGroupStore] Clearing all selections and filters');
+    set({
       selectedGroups: [],
       selectedProducts: [],
       selectedLaboratories: [],
       productCodes: [],
-      showGlobalTop: false,
       priceFilters: defaultPriceFilters,
-      dateRange: null // 🔥 RESET DATE RANGE
+      tvaRates: [], // 🔥 RESET TVA
+      genericStatus: 'BOTH' // 🔥 RESET STATUS
     });
   }
 }));

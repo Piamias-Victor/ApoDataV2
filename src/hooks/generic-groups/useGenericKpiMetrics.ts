@@ -39,13 +39,14 @@ interface UseGenericKpiMetricsReturn extends BaseHookReturn<KpiMetricsResponse> 
 }
 
 /**
- * Hook useGenericKpiMetrics - VERSION AVEC FILTRE PHARMACIE
+ * Hook useGenericKpiMetrics - VERSION AVEC FILTRE PHARMACIE ET DETECTION FILTRES ACTIFS
  * 
  * Pattern standardisé :
  * - Récupération automatique du filtre pharmacie depuis useFiltersStore
+ * - Détection des filtres actifs (TVA, prix, statut générique)
  * - Transmission via filters.pharmacyIds si pharmacyFilter présent
- * - Mode global : /api/kpis/generic-global (tous génériques + référents)
- * - Mode sélection : /api/kpis (produits sélectionnés uniquement)
+ * - Mode global : /api/kpis/generic-global (tous génériques + référents) SEULEMENT si aucun filtre actif
+ * - Si productCodes=[] ET filtres actifs : Pas d'appel API (affichage message "aucun résultat")
  */
 export function useGenericKpiMetrics(
   options: UseGenericKpiMetricsOptions
@@ -56,11 +57,27 @@ export function useGenericKpiMetrics(
   // Récupération du filtre pharmacie depuis le store (pattern standard)
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
   
-  // Mode global si aucun code de produit sélectionné
-  const isGlobalMode = productCodes.length === 0;
+  // 🔥 Vérifier si des filtres sont actifs
+  const hasActiveFilters = useGenericGroupStore((state) => {
+    const hasSelections = state.selectedGroups.length > 0 || 
+                         state.selectedProducts.length > 0 || 
+                         state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() || 
+                      state.tvaRates.length > 0 || 
+                      state.genericStatus !== 'BOTH';
+    return hasSelections || hasFilters;
+  });
+  
+  // 🔥 Mode global SI aucun code ET aucun filtre actif
+  const isGlobalMode = productCodes.length === 0 && !hasActiveFilters;
+  
+  // 🔥 NOUVEAU - Ne pas appeler l'API si productCodes=[] avec filtres actifs
+  const shouldFetch = !(productCodes.length === 0 && hasActiveFilters);
   
   console.log('🎯 [useGenericKpiMetrics] Configuration:', {
     isGlobalMode,
+    hasActiveFilters,
+    shouldFetch,
     groupsCount: selectedGroups.length,
     groupNames: selectedGroups.map(g => g.generic_group),
     productCodesCount: productCodes.length,
@@ -69,7 +86,7 @@ export function useGenericKpiMetrics(
     productCodes: productCodes.slice(0, 5)
   });
 
-  // Utiliser l'API globale si pas de codes, sinon l'API classique
+  // Utiliser l'API globale si pas de codes ET pas de filtres, sinon l'API classique
   const apiEndpoint = isGlobalMode ? '/api/kpis/generic-global' : '/api/kpis';
   
   // Construction des filtres selon le mode
@@ -79,7 +96,7 @@ export function useGenericKpiMetrics(
         ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
       }
     : {
-        // Mode sélection : productCodes + pharmacyIds si présent
+        // Mode sélection/filtré : productCodes + pharmacyIds si présent
         productCodes: productCodes,
         ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
       };
@@ -91,7 +108,7 @@ export function useGenericKpiMetrics(
   });
   
   const fetchResult = useStandardFetch<KpiMetricsResponse>(apiEndpoint, {
-    enabled: options.enabled,
+    enabled: options.enabled && shouldFetch, // 🔥 MODIFIÉ - Ajout shouldFetch
     dateRange: options.dateRange,
     comparisonDateRange: options.comparisonDateRange,
     includeComparison: options.includeComparison,
