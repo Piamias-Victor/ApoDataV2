@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Activity,
   AlertCircle,
-  Percent
+  Percent,
+  Clock,
+  XCircle
 } from 'lucide-react';
 import { useOrderReceptionMetrics } from '@/hooks/ruptures/useOrderReceptionMetrics';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
@@ -162,6 +164,68 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
             calculateEvolution(data.taux_references_rupture, data.comparison.taux_references_rupture) : 
             undefined
         }
+      },
+      rupturesTotales: {
+        main: {
+          title: 'Ruptures Totales Longues',
+          value: data.nb_ruptures_totales_longues,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.nb_ruptures_totales_longues, data.comparison.nb_ruptures_totales_longues) : 
+            undefined
+        },
+        secondary: {
+          title: 'Ruptures Totales Courtes',
+          value: data.nb_ruptures_totales_courtes,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.nb_ruptures_totales_courtes, data.comparison.nb_ruptures_totales_courtes) : 
+            undefined
+        }
+      },
+      rupturesPartielles: {
+        main: {
+          title: 'Ruptures Partielles Longues',
+          value: data.nb_ruptures_partielles_longues,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.nb_ruptures_partielles_longues, data.comparison.nb_ruptures_partielles_longues) : 
+            undefined
+        },
+        secondary: {
+          title: 'Ruptures Partielles Courtes',
+          value: data.nb_ruptures_partielles_courtes,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.nb_ruptures_partielles_courtes, data.comparison.nb_ruptures_partielles_courtes) : 
+            undefined
+        }
+      },
+      quantitesRupture: {
+        main: {
+          title: 'Quantité Rupture Totale',
+          value: data.qte_rupture_totale,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.qte_rupture_totale, data.comparison.qte_rupture_totale) : 
+            undefined
+        },
+        secondary: {
+          title: 'Quantité Rupture Partielle',
+          value: data.qte_rupture_partielle,
+          unit: 'number' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.qte_rupture_partielle, data.comparison.qte_rupture_partielle) : 
+            undefined
+        },
+        tertiary: {
+          title: 'Taux Rupture Totale',
+          value: data.taux_rupture_totale_pct,
+          unit: 'percentage' as const,
+          comparison: data.comparison ? 
+            calculateEvolution(data.taux_rupture_totale_pct, data.comparison.taux_rupture_totale_pct) : 
+            undefined
+        }
       }
     };
   }, [data]);
@@ -179,64 +243,125 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
       : 0;
     
     return [
+      // Métriques existantes
       {
+        'Catégorie': 'Commandes',
         'Indicateur': 'Quantité Commandée',
         'Valeur': data.quantite_commandee,
         'Unité': 'unités',
         'Période': currentPeriod
       },
       {
+        'Catégorie': 'Commandes',
         'Indicateur': 'Quantité Réceptionnée',
         'Valeur': data.quantite_receptionnee,
         'Unité': 'unités',
         'Période': currentPeriod
       },
       {
-        'Indicateur': 'Montant Commandé HT',
-        'Valeur': data.montant_commande_ht,
-        'Unité': '€',
-        'Période': currentPeriod
-      },
-      {
-        'Indicateur': 'Montant Réceptionné HT',
-        'Valeur': data.montant_receptionne_ht,
-        'Unité': '€',
-        'Période': currentPeriod
-      },
-      {
-        'Indicateur': 'Delta Quantité',
-        'Valeur': data.delta_quantite,
-        'Unité': 'unités',
-        'Période': currentPeriod
-      },
-      {
-        'Indicateur': 'Delta Montant',
-        'Valeur': data.delta_montant,
-        'Unité': '€',
-        'Période': currentPeriod
-      },
-      {
+        'Catégorie': 'Commandes',
         'Indicateur': 'Taux Réception Quantité',
         'Valeur': tauxReceptionQuantite.toFixed(2),
         'Unité': '%',
         'Période': currentPeriod
       },
       {
+        'Catégorie': 'Montants',
+        'Indicateur': 'Montant Commandé HT',
+        'Valeur': data.montant_commande_ht,
+        'Unité': '€',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Montants',
+        'Indicateur': 'Montant Réceptionné HT',
+        'Valeur': data.montant_receptionne_ht,
+        'Unité': '€',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Écarts',
+        'Indicateur': 'Delta Quantité',
+        'Valeur': data.delta_quantite,
+        'Unité': 'unités',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Écarts',
+        'Indicateur': 'Delta Montant',
+        'Valeur': data.delta_montant,
+        'Unité': '€',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Références',
         'Indicateur': 'Références Total',
         'Valeur': data.nb_references_total,
         'Unité': 'références',
         'Période': currentPeriod
       },
       {
+        'Catégorie': 'Références',
         'Indicateur': 'Références en Rupture',
         'Valeur': data.nb_references_rupture,
         'Unité': 'références',
         'Période': currentPeriod
       },
       {
+        'Catégorie': 'Références',
         'Indicateur': 'Taux Références en Rupture',
         'Valeur': data.taux_references_rupture.toFixed(2),
         'Unité': '%',
+        'Période': currentPeriod
+      },
+      // Nouvelles métriques ruptures
+      {
+        'Catégorie': 'Ruptures Totales',
+        'Indicateur': 'Ruptures Totales Longues (>60j)',
+        'Valeur': data.nb_ruptures_totales_longues,
+        'Unité': 'commandes',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Totales',
+        'Indicateur': 'Ruptures Totales Courtes (30-60j)',
+        'Valeur': data.nb_ruptures_totales_courtes,
+        'Unité': 'commandes',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Totales',
+        'Indicateur': 'Quantité en Rupture Totale',
+        'Valeur': data.qte_rupture_totale,
+        'Unité': 'unités',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Totales',
+        'Indicateur': 'Taux Rupture Totale',
+        'Valeur': data.taux_rupture_totale_pct.toFixed(2),
+        'Unité': '%',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Partielles',
+        'Indicateur': 'Ruptures Partielles Longues (>60j)',
+        'Valeur': data.nb_ruptures_partielles_longues,
+        'Unité': 'commandes',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Partielles',
+        'Indicateur': 'Ruptures Partielles Courtes (30-60j)',
+        'Valeur': data.nb_ruptures_partielles_courtes,
+        'Unité': 'commandes',
+        'Période': currentPeriod
+      },
+      {
+        'Catégorie': 'Ruptures Partielles',
+        'Indicateur': 'Quantité en Rupture Partielle',
+        'Valeur': data.qte_rupture_partielle,
+        'Unité': 'unités',
         'Période': currentPeriod
       }
     ];
@@ -249,7 +374,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
       return;
     }
     
-    const filename = CsvExporter.generateFilename('commandes_receptions');
+    const filename = CsvExporter.generateFilename('commandes_receptions_ruptures');
     
     const firstItem = exportData[0];
     if (!firstItem) {
@@ -297,10 +422,10 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            Commandes & Réceptions
+            Commandes, Réceptions & Ruptures
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            Suivi des écarts entre commandes et réceptions
+            Suivi détaillé des écarts et analyse des ruptures (courtes 30-60j, longues &gt;60j)
           </p>
         </div>
         
@@ -334,11 +459,15 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
             <KpiCardSkeleton />
             <KpiCardSkeleton />
             <KpiCardSkeleton />
+            <KpiCardSkeleton />
+            <KpiCardSkeleton />
+            <KpiCardSkeleton />
           </>
         )}
         
         {!isLoading && groupedKpis && (
           <>
+            {/* Quantités */}
             <TripleKpiCard
               mainKpi={{
                 ...groupedKpis.quantities.main,
@@ -354,6 +483,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
+            {/* Montants */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.amounts.main,
@@ -365,6 +495,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
+            {/* Deltas */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.deltas.main,
@@ -376,6 +507,7 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               }}
             />
             
+            {/* Références */}
             <DualKpiCard
               mainKpi={{
                 ...groupedKpis.references.main,
@@ -384,6 +516,46 @@ export const OrderReceptionSection: React.FC<OrderReceptionSectionProps> = ({
               secondaryKpi={{
                 ...groupedKpis.references.secondary,
                 icon: <AlertCircle className="w-4 h-4 text-red-500" />
+              }}
+            />
+            
+            {/* Ruptures Totales */}
+            <DualKpiCard
+              mainKpi={{
+                ...groupedKpis.rupturesTotales.main,
+                icon: <XCircle className="w-4 h-4 text-red-700" />
+              }}
+              secondaryKpi={{
+                ...groupedKpis.rupturesTotales.secondary,
+                icon: <Clock className="w-4 h-4 text-orange-600" />
+              }}
+            />
+            
+            {/* Ruptures Partielles */}
+            <DualKpiCard
+              mainKpi={{
+                ...groupedKpis.rupturesPartielles.main,
+                icon: <AlertTriangle className="w-4 h-4 text-orange-700" />
+              }}
+              secondaryKpi={{
+                ...groupedKpis.rupturesPartielles.secondary,
+                icon: <Clock className="w-4 h-4 text-yellow-600" />
+              }}
+            />
+            
+            {/* Quantités Rupture */}
+            <TripleKpiCard
+              mainKpi={{
+                ...groupedKpis.quantitesRupture.main,
+                icon: <XCircle className="w-4 h-4 text-red-600" />
+              }}
+              secondaryKpi={{
+                ...groupedKpis.quantitesRupture.secondary,
+                icon: <AlertTriangle className="w-4 h-4 text-orange-600" />
+              }}
+              tertiaryKpi={{
+                ...groupedKpis.quantitesRupture.tertiary,
+                icon: <Percent className="w-4 h-4 text-red-500" />
               }}
             />
           </>

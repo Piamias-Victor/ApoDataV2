@@ -19,6 +19,14 @@ interface OrderReceptionMetricsResponse {
   readonly nb_references_rupture: number;
   readonly taux_references_rupture: number;
   readonly delai_moyen_reception_jours: number | null;
+  // Nouvelles métriques
+  readonly nb_ruptures_totales_courtes: number;
+  readonly nb_ruptures_totales_longues: number;
+  readonly nb_ruptures_partielles_courtes: number;
+  readonly nb_ruptures_partielles_longues: number;
+  readonly qte_rupture_totale: number;
+  readonly qte_rupture_partielle: number;
+  readonly taux_rupture_totale_pct: number;
   readonly comparison?: {
     readonly quantite_commandee: number;
     readonly quantite_receptionnee: number;
@@ -29,6 +37,13 @@ interface OrderReceptionMetricsResponse {
     readonly nb_references_total: number;
     readonly nb_references_rupture: number;
     readonly taux_references_rupture: number;
+    readonly nb_ruptures_totales_courtes: number;
+    readonly nb_ruptures_totales_longues: number;
+    readonly nb_ruptures_partielles_courtes: number;
+    readonly nb_ruptures_partielles_longues: number;
+    readonly qte_rupture_totale: number;
+    readonly qte_rupture_partielle: number;
+    readonly taux_rupture_totale_pct: number;
   };
   readonly queryTime: number;
   readonly cached: boolean;
