@@ -5,13 +5,15 @@ import React, { useMemo } from 'react';
 import { redirect } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import { Info, TrendingUp, Building2, Map } from 'lucide-react';
+import { Info, TrendingUp, Building2, Map, Package } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 import { PharmaciesKpisSection } from '@/components/organisms/PharmaciesKpisSection/PharmaciesKpisSection';
 import { PharmaciesTableAnalytics } from '@/components/organisms/PharmaciesTable/PharmaciesTableAnalytics';
 import { PharmaciesGeographicSection } from '@/components/organisms/PharmaciesGeographicSection/PharmaciesGeographicSection';
+import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 import { usePharmaciesAnalytics } from '@/hooks/pharmacies/usePharmaciesAnalytics';
+import { useProductsList } from '@/hooks/products/useProductsList';
 
 /**
  * Composant Tooltip réutilisable
@@ -122,6 +124,13 @@ export default function PharmaciesPage() {
     error: analyticsError, 
     refetch: refetchAnalytics,
   } = usePharmaciesAnalytics();
+
+  const { 
+    products, 
+    isLoading: isLoadingProducts, 
+    error: productsError,
+    refetch: refetchProducts
+  } = useProductsList();
   
   const filters = useMemo(() => ({
     products: productsFilter,
@@ -183,7 +192,16 @@ Triez et filtrez pour identifier opportunités d'amélioration et bonnes pratiqu
 - Hover interactif : Détails instantanés au survol des régions
 - Classement régional : Top 10 des régions les plus performantes
 
-Identifiez rapidement les zones géographiques prioritaires pour vos actions commerciales.`
+Identifiez rapidement les zones géographiques prioritaires pour vos actions commerciales.`,
+
+    products: `Tableau détaillé de tous vos produits :
+
+- Performance individuelle par produit
+- Données complètes : ventes, achats, stock, marge
+- Tri par colonne et recherche instantanée
+- Export Excel pour analyses externes
+
+Cliquez sur les en-têtes pour trier les données.`
   };
 
   return (
@@ -212,7 +230,7 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         </div>
       </div>
 
-      {/* NOUVEAU: Section KPI Globaux (Dashboard style) */}
+      {/* Section KPI Globaux */}
       <SectionWithHelp
         title="Indicateurs Clés de Performance"
         description="Analysez vos KPI sell-out (ventes), sell-in (achats), marges et stock en temps réel avec comparaisons période précédente"
@@ -228,6 +246,7 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         />
       </SectionWithHelp>
 
+      {/* Section KPI Réseau */}
       <SectionWithHelp
         title="Indicateurs de Performance Réseau"
         description="Analysez les KPI globaux du réseau pharmaceutique : CA total, marges moyennes et évolutions comparatives"
@@ -241,6 +260,7 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         />
       </SectionWithHelp>
 
+      {/* Section Géographique */}
       <SectionWithHelp
         title="Répartition Géographique"
         description="Visualisez la performance de vos produits par région française avec cartographie interactive et métriques détaillées"
@@ -254,6 +274,7 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
         />
       </SectionWithHelp>
 
+      {/* Section Tableau Pharmacies */}
       <SectionWithHelp
         title="Tableau Détaillé des Performances"
         description="Analyse comparative complète par pharmacie avec métriques de performance, évolutions temporelles et positionnement relatif"
@@ -265,6 +286,22 @@ Identifiez rapidement les zones géographiques prioritaires pour vos actions com
           isLoading={isLoadingAnalytics}
           error={analyticsError}
           onRefresh={refetchAnalytics}
+        />
+      </SectionWithHelp>
+
+      {/* NOUVELLE SECTION: Tableau Produits */}
+      <SectionWithHelp
+        title="Analyse Détaillée des Produits"
+        description="Vue complète produit par produit avec tri, recherche et export pour analyses approfondies et prise de décisions"
+        tooltipContent={tooltips.products}
+        icon={<Package className="w-5 h-5 text-purple-600" />}
+      >
+        <ProductsTable 
+          products={products}
+          isLoading={isLoadingProducts}
+          error={productsError}
+          onRefresh={refetchProducts}
+          className="w-full"
         />
       </SectionWithHelp>
     </motion.div>

@@ -233,15 +233,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   }
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center space-x-3">
           <ViewToggle
             currentView={viewMode}
             onViewChange={handleViewChange}
           />
-          <div className="text-sm text-gray-500">
+          <div className="text-xs text-gray-500">
             {processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''}
           </div>
           
@@ -249,7 +249,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             onClick={handleExport}
             isExporting={isExporting}
             disabled={!products || products.length === 0}
-            label={`Export CSV (${processedDataBeforePagination.length} lignes)`}
+            label={`CSV (${processedDataBeforePagination.length})`}
           />
           
           {onRefresh && (
@@ -260,7 +260,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               disabled={isLoading}
               iconLeft={
                 <RotateCcw 
-                  className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+                  className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} 
                 />
               }
               className="text-gray-600 hover:text-gray-900"
@@ -289,16 +289,16 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      <span>Chargement des produits...</span>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      <span className="text-xs">Chargement...</span>
                     </div>
                   </td>
                 </tr>
               ) : processedData.products.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-500 text-xs">
                     {searchQuery 
                       ? `Aucun produit trouvé pour "${searchQuery}"`
                       : 'Aucun produit disponible'
@@ -323,9 +323,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Affichage {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
-            {' '}sur {processedData.pagination.totalItems} produits
+          <div className="text-xs text-gray-600">
+            {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
+            {' '}sur {processedData.pagination.totalItems}
           </div>
           
           <div className="flex items-center space-x-2">
@@ -334,13 +334,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               size="sm"
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              iconLeft={<ChevronLeft className="w-4 h-4" />}
+              iconLeft={<ChevronLeft className="w-3 h-3" />}
             >
-              Précédent
+              Préc.
             </Button>
             
-            <span className="text-sm text-gray-600">
-              Page {currentPage} sur {processedData.pagination.totalPages}
+            <span className="text-xs text-gray-600">
+              {currentPage}/{processedData.pagination.totalPages}
             </span>
             
             <Button
@@ -348,9 +348,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               size="sm"
               onClick={handleNextPage}
               disabled={currentPage === processedData.pagination.totalPages}
-              iconRight={<ChevronRight className="w-4 h-4" />}
+              iconRight={<ChevronRight className="w-3 h-3" />}
             >
-              Suivant
+              Suiv.
             </Button>
           </div>
         </div>
