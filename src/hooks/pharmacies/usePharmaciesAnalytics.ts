@@ -2,21 +2,10 @@
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/common/types';
+import { PharmacyMetrics } from '@/components/organisms/PharmaciesTable/types';
 
 // Types spécifiques pharmacies analytics
-interface PharmacyMetrics {
-  readonly pharmacy_id: string;
-  readonly pharmacy_name: string;
-  readonly ca_ttc: number;
-  readonly montant_marge: number;
-  readonly pourcentage_marge: number;
-  readonly valeur_stock_ht: number;
-  readonly quantite_vendue: number;
-  readonly montant_achat_total: number;
-  readonly part_marche_pct: number;
-  readonly evolution_ca_pct?: number;
-  readonly evolution_relative_pct?: number; // NOUVEAU: calculé côté API
-}
+
 
 interface PharmaciesAnalyticsResponse {
   readonly pharmacies: PharmacyMetrics[];
