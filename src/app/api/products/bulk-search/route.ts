@@ -42,12 +42,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (codes.length > 1000) {
-      return NextResponse.json(
-        { error: 'Maximum 1000 codes par requête' },
-        { status: 400 }
-      );
-    }
+    // if (codes.length > 1000) {
+    //   return NextResponse.json(
+    //     { error: 'Maximum 1000 codes par requête' },
+    //     { status: 400 }
+    //   );
+    // }
 
     const cleanCodes = codes
       .map(code => code.trim())
