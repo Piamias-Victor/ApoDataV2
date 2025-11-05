@@ -122,9 +122,17 @@ export function sortProducts(
     
     // Conversion forcée en nombre pour les colonnes numériques
     const numericColumns: (keyof ProductMetrics)[] = [
-      'current_stock', 'quantity_sold', 'ca_ttc', 'purchase_amount',
-      'total_margin_ht', 'margin_rate_percent', 'avg_sell_price_ttc',
-      'avg_buy_price_ht', 'unit_margin_ht', 'quantity_sold_comparison'
+      'current_stock', 
+      'quantity_sold', 
+      'ca_ttc', 
+      'quantity_bought', // ✅ AJOUT
+      'purchase_amount',
+      'total_margin_ht', 
+      'margin_rate_percent', 
+      'avg_sell_price_ttc',
+      'avg_buy_price_ht', 
+      'unit_margin_ht', 
+      'quantity_sold_comparison'
     ];
     
     if (numericColumns.includes(column as keyof ProductMetrics)) {

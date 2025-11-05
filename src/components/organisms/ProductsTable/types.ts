@@ -3,10 +3,11 @@
 export interface ProductMetrics {
   readonly product_name: string;
   readonly code_ean: string;
-  readonly bcb_lab: string | null; // AJOUT laboratoire
+  readonly bcb_lab: string | null;
   readonly current_stock: number;
   readonly quantity_sold: number;
   readonly ca_ttc: number;
+  readonly quantity_bought: number; // ✅ AJOUT
   readonly purchase_amount: number;
   readonly total_margin_ht: number;
   readonly margin_rate_percent: number;
@@ -22,11 +23,12 @@ export type SortDirection = 'asc' | 'desc' | null;
 
 export type SortableColumn = 
   | 'product_name'
-  | 'bcb_lab' // AJOUT tri laboratoire
+  | 'bcb_lab'
   | 'code_ean' 
   | 'current_stock'
   | 'quantity_sold'
   | 'quantity_sold_evolution'
+  | 'quantity_bought' // ✅ AJOUT
   | 'ca_ttc'
   | 'purchase_amount'
   | 'total_margin_ht'

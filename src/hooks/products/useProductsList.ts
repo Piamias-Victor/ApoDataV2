@@ -16,6 +16,7 @@ export interface ProductMetrics {
   readonly current_stock: number;
   readonly quantity_sold: number;
   readonly ca_ttc: number;
+  readonly quantity_bought: number; // ✅ AJOUT
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
 }
@@ -33,6 +34,7 @@ interface ProductMetricsRaw {
   readonly current_stock: string | number;
   readonly quantity_sold: string | number;
   readonly ca_ttc: string | number;
+  readonly quantity_bought: string | number; // ✅ AJOUT
   readonly purchase_amount: string | number;
   readonly quantity_sold_comparison: string | number | null;
 }
@@ -77,6 +79,7 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
     current_stock: Number(raw.current_stock) || 0,
     quantity_sold: Number(raw.quantity_sold) || 0,
     ca_ttc: Number(raw.ca_ttc) || 0,
+    quantity_bought: Number(raw.quantity_bought) || 0, // ✅ AJOUT
     purchase_amount: Number(raw.purchase_amount) || 0,
     quantity_sold_comparison: raw.quantity_sold_comparison !== null 
       ? Number(raw.quantity_sold_comparison) || 0 

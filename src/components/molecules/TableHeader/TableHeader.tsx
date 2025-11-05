@@ -1,7 +1,9 @@
 // src/components/molecules/TableHeader/TableHeader.tsx
+'use client';
+
 import React from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import type { ViewMode, SortConfig, SortableColumn } from '../../organisms/ProductsTable/types';
+import type { ViewMode, SortConfig, SortableColumn } from '@/components/organisms/ProductsTable/types';
 
 interface TableHeaderProps {
   readonly viewMode: ViewMode;
@@ -16,9 +18,12 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
 }) => {
   const getSortIcon = (column: SortableColumn) => {
     if (sortConfig.column !== column) return null;
-    return sortConfig.direction === 'asc' 
-      ? <ChevronUp className="w-3 h-3" />
-      : <ChevronDown className="w-3 h-3" />;
+    
+    return sortConfig.direction === 'asc' ? (
+      <ChevronUp className="w-2.5 h-2.5" />
+    ) : (
+      <ChevronDown className="w-2.5 h-2.5" />
+    );
   };
 
   const handleSort = (column: SortableColumn) => {
@@ -28,7 +33,18 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
   return (
     <thead className="bg-gray-50">
       <tr>
-        {/* Produit */}
+        {/* Code EAN */}
+        <th 
+          className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+          onClick={() => handleSort('code_ean')}
+        >
+          <div className="flex items-center space-x-0.5">
+            <span>Code EAN</span>
+            {getSortIcon('code_ean')}
+          </div>
+        </th>
+
+        {/* Nom produit */}
         <th 
           className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={() => handleSort('product_name')}
@@ -39,24 +55,13 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
           </div>
         </th>
 
-        {/* Code EAN */}
-        <th 
-          className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors w-24"
-          onClick={() => handleSort('code_ean')}
-        >
-          <div className="flex items-center space-x-0.5">
-            <span>EAN</span>
-            {getSortIcon('code_ean')}
-          </div>
-        </th>
-
         {/* Laboratoire */}
         <th 
           className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={() => handleSort('bcb_lab')}
         >
           <div className="flex items-center space-x-0.5">
-            <span>Labo</span>
+            <span>Lab</span>
             {getSortIcon('bcb_lab')}
           </div>
         </th>
@@ -80,7 +85,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               onClick={() => handleSort('quantity_sold')}
             >
               <div className="flex items-center justify-end space-x-0.5">
-                <span>Qté</span>
+                <span>Qté V.</span>
                 {getSortIcon('quantity_sold')}
               </div>
             </th>
@@ -90,13 +95,24 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               <span>Evol</span>
             </th>
 
+            {/* ✅ AJOUT - Quantité achetée */}
+            <th 
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => handleSort('quantity_bought')}
+            >
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Qté A.</span>
+                {getSortIcon('quantity_bought')}
+              </div>
+            </th>
+
             {/* Montant achat */}
             <th 
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('purchase_amount')}
             >
               <div className="flex items-center justify-end space-x-0.5">
-                <span>Achat</span>
+                <span>Mt.Ach</span>
                 {getSortIcon('purchase_amount')}
               </div>
             </th>
@@ -118,28 +134,23 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               onClick={() => handleSort('total_margin_ht')}
             >
               <div className="flex items-center justify-end space-x-0.5">
-                <span>Marge</span>
+                <span>Mg.Tot</span>
                 {getSortIcon('total_margin_ht')}
               </div>
             </th>
 
-            {/* Taux de marge */}
+            {/* Taux marge */}
             <th 
-              className="px-1.5 py-1.5 text-center text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors w-12"
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('margin_rate_percent')}
             >
-              <div className="flex items-center justify-center space-x-0.5">
-                <span>%M</span>
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Tx.Mg</span>
                 {getSortIcon('margin_rate_percent')}
               </div>
             </th>
 
-            {/* Prix moyen vente TTC */}
-            <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-              <span>P.Moy</span>
-            </th>
-
-            {/* Jours de stock */}
+            {/* Jours stock */}
             <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
               <span>J.Stk</span>
             </th>
@@ -190,18 +201,18 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               onClick={() => handleSort('unit_margin_ht')}
             >
               <div className="flex items-center justify-end space-x-0.5">
-                <span>M.Unit</span>
+                <span>Mg.Unit</span>
                 {getSortIcon('unit_margin_ht')}
               </div>
             </th>
 
-            {/* Taux de marge */}
+            {/* Taux marge */}
             <th 
-              className="px-1.5 py-1.5 text-center text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors w-12"
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('margin_rate_percent')}
             >
-              <div className="flex items-center justify-center space-x-0.5">
-                <span>%M</span>
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Tx.Mg</span>
                 {getSortIcon('margin_rate_percent')}
               </div>
             </th>
@@ -217,9 +228,9 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               </div>
             </th>
 
-            {/* Rotation stock */}
+            {/* Rotation */}
             <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-              <span>Rot</span>
+              <span>Rot.J</span>
             </th>
           </>
         )}

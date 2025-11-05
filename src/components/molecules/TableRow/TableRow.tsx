@@ -110,6 +110,13 @@ export const TableRow: React.FC<TableRowProps> = ({
             {renderEvolution()}
           </td>
 
+          {/* ✅ AJOUT - Quantité achetée */}
+          <td className="px-1.5 py-1.5 text-right">
+            <div className="text-[10px] text-gray-900">
+              {formatNumber(product.quantity_bought)}
+            </div>
+          </td>
+
           {/* Montant achat */}
           <td className="px-1.5 py-1.5 text-right">
             <div className="text-[10px] text-gray-900">

@@ -364,7 +364,6 @@ async function executeAdminQuery(
       AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       ${hasProductFilter ? 'AND gp.code_13_ref = ANY($3::text[])' : ''}
     ORDER BY ps.total_quantity_sold DESC NULLS LAST
-    LIMIT 1000;
   `;
 
   return await db.query(query, params);
@@ -496,7 +495,6 @@ async function executeUserQuery(
       AND COALESCE(gp.tva_percentage, gp.bcb_tva_rate, 0) > 0
       ${hasProductFilter ? 'AND gp.code_13_ref = ANY($3::text[])' : ''}
     ORDER BY ps.total_quantity_sold DESC NULLS LAST
-    LIMIT 1000;
   `;
 
   return await db.query(query, params);

@@ -146,6 +146,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
         exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
+        exportRow['Quantité achetée'] = Number(product.quantity_bought || 0); // ✅ AJOUT
         exportRow['Montant achat (€)'] = Number(product.purchase_amount || 0);
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
         exportRow['Marge totale HT (€)'] = Number(product.total_margin_ht || 0);
@@ -289,7 +290,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-gray-500">
+                  <td colSpan={12} className="px-3 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
                       <span className="text-xs">Chargement...</span>
@@ -298,7 +299,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 </tr>
               ) : processedData.products.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-gray-500 text-xs">
+                  <td colSpan={12} className="px-3 py-8 text-center text-gray-500 text-xs">
                     {searchQuery 
                       ? `Aucun produit trouvé pour "${searchQuery}"`
                       : 'Aucun produit disponible'
