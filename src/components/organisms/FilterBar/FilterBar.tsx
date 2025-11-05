@@ -155,8 +155,9 @@ export const FilterBar: React.FC = () => {
   const totalFiltersCount = useMemo(() => {
     return (selectedProducts?.length || 0) + 
            (selectedLaboratories?.length || 0) + 
-           (selectedCategories?.length || 0);
-  }, [selectedProducts, selectedLaboratories, selectedCategories]);
+           (selectedCategories?.length || 0) + 
+           (selectedPharmacies?.length || 0);
+  }, [selectedProducts, selectedLaboratories, selectedCategories, selectedPharmacies]);
 
   // Formater les dates
   const formatDateRange = useMemo(() => {
@@ -613,7 +614,9 @@ export const FilterBar: React.FC = () => {
             productsCount={selectedProducts?.length || 0}
             laboratoriesCount={selectedLaboratories?.length || 0}
             categoriesCount={selectedCategories?.length || 0}
+            pharmaciesCount={selectedPharmacies?.length || 0}
           />
+
         )}
 
         {/* Drawer Charger */}

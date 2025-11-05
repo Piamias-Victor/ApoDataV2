@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, TestTube, Tag } from 'lucide-react';
+import { X, Save, Package, TestTube, Tag, Building } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 import { Input } from '@/components/atoms/Input/Input';
 import { Card } from '@/components/atoms/Card/Card';
@@ -16,6 +16,7 @@ interface SaveFilterModalProps {
   readonly productsCount: number;
   readonly laboratoriesCount: number;
   readonly categoriesCount: number;
+  readonly pharmaciesCount: number;
 }
 
 /**
@@ -23,7 +24,7 @@ interface SaveFilterModalProps {
  * 
  * Features :
  * - Input nom du filtre
- * - Preview des sélections (produits, labos, catégories)
+ * - Preview des sélections (produits, labos, catégories, pharmacies)
  * - Validation : nom obligatoire + au moins une sélection
  * - Design Apple/Stripe : modal centré avec overlay
  */
@@ -35,11 +36,12 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({
   productsCount,
   laboratoriesCount,
   categoriesCount,
+  pharmaciesCount,
 }) => {
   const [filterName, setFilterName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  const totalSelections = productsCount + laboratoriesCount + categoriesCount;
+  const totalSelections = productsCount + laboratoriesCount + categoriesCount + pharmaciesCount;
 
   const handleSave = async () => {
     // Validation
@@ -124,7 +126,7 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({
                     Vous allez sauvegarder :
                   </p>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     {/* Produits */}
                     <div className="flex flex-col items-center p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <Package className="w-5 h-5 text-purple-600 mb-2" />
@@ -157,12 +159,23 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({
                         Catégorie{categoriesCount > 1 ? 's' : ''}
                       </span>
                     </div>
+
+                    {/* Pharmacies */}
+                    <div className="flex flex-col items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <Building className="w-5 h-5 text-blue-600 mb-2" />
+                      <span className="text-2xl font-bold text-blue-900">
+                        {pharmaciesCount}
+                      </span>
+                      <span className="text-xs text-blue-700 mt-1">
+                        Pharmacie{pharmaciesCount > 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
 
                   {totalSelections === 0 && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-sm text-red-700">
-                        Aucune sélection active. Veuillez d'abord sélectionner des produits, laboratoires ou catégories.
+                        Aucune sélection active. Veuillez d'abord sélectionner des produits, laboratoires, catégories ou pharmacies.
                       </p>
                     </div>
                   )}

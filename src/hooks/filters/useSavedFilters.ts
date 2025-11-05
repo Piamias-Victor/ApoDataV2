@@ -9,13 +9,14 @@ import type {
   LoadFilterResult,
   UseSavedFiltersReturn,
 } from '@/types/savedFilters';
+import type { SelectedPharmacy } from '@/stores/useFiltersStore';
 
 /**
  * Hook pour gérer les filtres sauvegardés
  * 
  * Features :
  * - Liste des filtres sauvegardés
- * - Sauvegarde de la sélection actuelle
+ * - Sauvegarde de la sélection actuelle (produits, labos, catégories, pharmacies, dates)
  * - Chargement d'un filtre (applique au store)
  * - Renommage d'un filtre
  * - Suppression d'un filtre
@@ -35,9 +36,16 @@ export function useSavedFilters(): UseSavedFiltersReturn {
     selectedProducts,
     selectedLaboratories,
     selectedCategories,
+    pharmacy,
+    selectedPharmacies,
+    analysisDateRange,
+    comparisonDateRange,
     setProductFiltersWithNames,
     setLaboratoryFiltersWithNames,
     setCategoryFiltersWithNames,
+    setPharmacyFiltersWithNames,
+    setAnalysisDateRange,
+    setComparisonDateRange,
     clearAllFilters,
   } = useFiltersStore();
 
@@ -90,6 +98,11 @@ export function useSavedFilters(): UseSavedFiltersReturn {
         setIsSaving(true);
         setError(null);
 
+        // Validation dates
+        if (!analysisDateRange.start || !analysisDateRange.end) {
+          throw new Error('Les dates d\'analyse sont obligatoires');
+        }
+
         // Construire le payload depuis le store
         const payload: SaveFilterPayload = {
           name: name.trim(),
@@ -97,6 +110,11 @@ export function useSavedFilters(): UseSavedFiltersReturn {
           laboratory_names: selectedLaboratories.map(lab => lab.name),
           category_names: selectedCategories.map(cat => cat.name),
           category_types: selectedCategories.map(cat => cat.type),
+          pharmacy_ids: pharmacy,
+          analysis_date_start: analysisDateRange.start,
+          analysis_date_end: analysisDateRange.end,
+          comparison_date_start: comparisonDateRange.start || null,
+          comparison_date_end: comparisonDateRange.end || null,
         };
 
         console.log('💾 [useSavedFilters] Saving filter:', {
@@ -104,6 +122,9 @@ export function useSavedFilters(): UseSavedFiltersReturn {
           products: payload.product_codes.length,
           laboratories: payload.laboratory_names.length,
           categories: payload.category_names.length,
+          pharmacies: payload.pharmacy_ids.length,
+          dates: `${payload.analysis_date_start} → ${payload.analysis_date_end}`,
+          hasComparison: !!(payload.comparison_date_start && payload.comparison_date_end),
         });
 
         const response = await fetch('/api/saved-filters', {
@@ -134,12 +155,19 @@ export function useSavedFilters(): UseSavedFiltersReturn {
         setIsSaving(false);
       }
     },
-    [products, selectedLaboratories, selectedCategories]
+    [
+      products,
+      selectedLaboratories,
+      selectedCategories,
+      pharmacy,
+      analysisDateRange,
+      comparisonDateRange,
+    ]
   );
 
   /**
    * Charge un filtre sauvegardé et l'applique au store
-   * Remplace complètement les filtres actuels
+   * Remplace complètement les filtres actuels (écrasement)
    */
   const loadFilter = useCallback(
     async (id: string) => {
@@ -168,9 +196,11 @@ export function useSavedFilters(): UseSavedFiltersReturn {
           totalProducts: data.resolvedProductCodes.length,
           laboratories: data.resolvedLaboratories.length,
           categories: data.resolvedCategories.length,
+          pharmacies: data.resolvedPharmacies.length,
+          dates: `${data.filter.analysis_date_start} → ${data.filter.analysis_date_end}`,
         });
 
-        // Effacer tous les filtres actuels
+        // ✅ Effacer TOUS les filtres actuels (écrasement complet)
         clearAllFilters();
 
         // Appliquer les produits directs
@@ -199,7 +229,39 @@ export function useSavedFilters(): UseSavedFiltersReturn {
           setCategoryFiltersWithNames(allCatCodes, data.resolvedCategories);
         }
 
-        console.log('✅ [useSavedFilters] Filter applied to store');
+        // ✅ Appliquer les pharmacies avec données complètes de la DB
+        if (data.resolvedPharmacies.length > 0) {
+          const pharmaciesWithNames: SelectedPharmacy[] = data.resolvedPharmacies.map(pharmacy => ({
+            id: pharmacy.id,
+            name: pharmacy.name,
+            address: pharmacy.address || 'Adresse non disponible',
+            ca: pharmacy.ca || 0,
+            area: pharmacy.area || 'Zone non définie',
+            employees_count: pharmacy.employees_count || 0,
+            id_nat: pharmacy.id_nat || '',
+          }));
+          
+          const pharmacyIds = data.resolvedPharmacies.map(p => p.id);
+          setPharmacyFiltersWithNames(pharmacyIds, pharmaciesWithNames);
+        }
+
+        // ✅ Appliquer les dates d'analyse (obligatoires)
+        setAnalysisDateRange(
+          data.filter.analysis_date_start,
+          data.filter.analysis_date_end
+        );
+
+        // ✅ Appliquer les dates de comparaison (optionnelles)
+        if (data.filter.comparison_date_start && data.filter.comparison_date_end) {
+          setComparisonDateRange(
+            data.filter.comparison_date_start,
+            data.filter.comparison_date_end
+          );
+        } else {
+          setComparisonDateRange(null, null);
+        }
+
+        console.log('✅ [useSavedFilters] Filter applied to store (complete override)');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erreur inconnue';
         setError(message);
@@ -214,7 +276,11 @@ export function useSavedFilters(): UseSavedFiltersReturn {
       setProductFiltersWithNames,
       setLaboratoryFiltersWithNames,
       setCategoryFiltersWithNames,
+      setPharmacyFiltersWithNames,
+      setAnalysisDateRange,
+      setComparisonDateRange,
       selectedProducts,
+      selectedPharmacies,
     ]
   );
 

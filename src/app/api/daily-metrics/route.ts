@@ -317,7 +317,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let body: DailyMetricsRequest;
     try {
       body = await request.json();
-      console.log('📝 [API] Request body received:', JSON.stringify(body, null, 2));
+      console.log('📝 [API] Request body received efvol:', JSON.stringify(body, null, 2));
     } catch (jsonError) {
       console.log('💥 [API] JSON parsing error:', jsonError);
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });

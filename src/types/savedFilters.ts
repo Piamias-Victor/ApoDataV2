@@ -6,12 +6,16 @@
 export interface SavedFilter {
   readonly id: string;
   readonly user_id: string;
-  readonly pharmacy_id: string;
+  readonly pharmacy_ids: string[];
   readonly name: string;
   readonly product_codes: string[];
   readonly laboratory_names: string[];
   readonly category_names: string[];
   readonly category_types: ('universe' | 'category')[];
+  readonly analysis_date_start: string;
+  readonly analysis_date_end: string;
+  readonly comparison_date_start: string | null;
+  readonly comparison_date_end: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -25,6 +29,11 @@ export interface SaveFilterPayload {
   readonly laboratory_names: string[];
   readonly category_names: string[];
   readonly category_types: ('universe' | 'category')[];
+  readonly pharmacy_ids: string[];
+  readonly analysis_date_start: string;
+  readonly analysis_date_end: string;
+  readonly comparison_date_start: string | null;
+  readonly comparison_date_end: string | null;
 }
 
 /**
@@ -45,6 +54,15 @@ export interface LoadFilterResult {
     readonly productCodes: string[];
     readonly productCount: number;
   }>;
+  readonly resolvedPharmacies: Array<{
+    readonly id: string;
+    readonly name: string;
+    readonly address: string | null;
+    readonly ca: number | null;
+    readonly area: string | null;
+    readonly employees_count: number | null;
+    readonly id_nat: string | null;
+  }>;
 }
 
 /**
@@ -63,6 +81,9 @@ export interface SavedFilterPreview {
   readonly productsCount: number;
   readonly laboratoriesCount: number;
   readonly categoriesCount: number;
+  readonly pharmaciesCount: number;
+  readonly analysisDateRange: string;
+  readonly hasComparison: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

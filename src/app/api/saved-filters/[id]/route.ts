@@ -24,53 +24,30 @@ export async function GET(
     }
 
     const userId = session.user.id;
-    const pharmacyId = session.user.pharmacyId || null;
-    const isAdmin = session.user.role === 'admin';
     const filterId = params.id;
 
-    // User (non-admin) doit avoir une pharmacyId
-    if (!isAdmin && !pharmacyId) {
-      return NextResponse.json(
-        { error: 'Pharmacie non définie' },
-        { status: 400 }
-      );
-    }
-
     // 1. Récupérer le filtre
-    const filterQuery = isAdmin
-      ? `
-        SELECT 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-        FROM public.data_savedfilter
-        WHERE id = $1 AND user_id = $2
-      `
-      : `
-        SELECT 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-        FROM public.data_savedfilter
-        WHERE id = $1 AND user_id = $2 AND pharmacy_id = $3
-      `;
+    const filterQuery = `
+      SELECT 
+        id,
+        user_id,
+        pharmacy_ids,
+        name,
+        product_codes,
+        laboratory_names,
+        category_names,
+        category_types,
+        analysis_date_start,
+        analysis_date_end,
+        comparison_date_start,
+        comparison_date_end,
+        created_at,
+        updated_at
+      FROM public.data_savedfilter
+      WHERE id = $1 AND user_id = $2
+    `;
 
-    const params_filter = isAdmin ? [filterId, userId] : [filterId, userId, pharmacyId];
-    const filterRows = await db.query(filterQuery, params_filter);
+    const filterRows = await db.query(filterQuery, [filterId, userId]);
 
     if (filterRows.length === 0) {
       return NextResponse.json(
@@ -82,18 +59,21 @@ export async function GET(
     const filter: SavedFilter = {
       id: filterRows[0].id,
       user_id: filterRows[0].user_id,
-      pharmacy_id: filterRows[0].pharmacy_id,
+      pharmacy_ids: filterRows[0].pharmacy_ids || [],
       name: filterRows[0].name,
       product_codes: filterRows[0].product_codes || [],
       laboratory_names: filterRows[0].laboratory_names || [],
       category_names: filterRows[0].category_names || [],
       category_types: filterRows[0].category_types || [],
+      analysis_date_start: filterRows[0].analysis_date_start,
+      analysis_date_end: filterRows[0].analysis_date_end,
+      comparison_date_start: filterRows[0].comparison_date_start,
+      comparison_date_end: filterRows[0].comparison_date_end,
       created_at: filterRows[0].created_at,
       updated_at: filterRows[0].updated_at,
     };
 
     // 2. Résoudre les codes produits pour chaque laboratoire
-    // FIX: Utiliser bcb_lab (pas brand_lab) + normalisation espaces
     const resolvedLaboratories: LoadFilterResult['resolvedLaboratories'] = [];
     
     if (filter.laboratory_names.length > 0) {
@@ -121,7 +101,6 @@ export async function GET(
     }
 
     // 3. Résoudre les codes produits pour chaque catégorie
-    // FIX: Normalisation espaces pour matching robuste
     const resolvedCategories: LoadFilterResult['resolvedCategories'] = [];
     
     if (filter.category_names.length > 0) {
@@ -129,7 +108,6 @@ export async function GET(
         const categoryName = filter.category_names[i];
         const categoryType = filter.category_types[i];
 
-        // Skip si données manquantes
         if (!categoryName || !categoryType) continue;
 
         const column = categoryType === 'universe' ? 'universe' : 'category';
@@ -155,7 +133,47 @@ export async function GET(
       }
     }
 
-    // 4. Agréger tous les codes produits
+    // 4. Résoudre les infos complètes des pharmacies
+    const resolvedPharmacies: Array<{
+      readonly id: string;
+      readonly name: string;
+      readonly address: string | null;
+      readonly ca: number | null;
+      readonly area: string | null;
+      readonly employees_count: number | null;
+      readonly id_nat: string | null;
+    }> = [];
+
+    if (filter.pharmacy_ids.length > 0) {
+      const pharmacyQuery = `
+        SELECT 
+          id,
+          name,
+          address,
+          ca,
+          area,
+          employees_count,
+          id_nat
+        FROM public.data_pharmacy
+        WHERE id = ANY($1::uuid[])
+      `;
+
+      const pharmacyRows = await db.query(pharmacyQuery, [filter.pharmacy_ids]);
+
+      for (const row of pharmacyRows) {
+        resolvedPharmacies.push({
+          id: row.id,
+          name: row.name || 'Pharmacie inconnue',
+          address: row.address,
+          ca: row.ca ? parseFloat(row.ca.toString()) : null,
+          area: row.area,
+          employees_count: row.employees_count ? parseInt(row.employees_count.toString()) : null,
+          id_nat: row.id_nat,
+        });
+      }
+    }
+
+    // 5. Agréger tous les codes produits
     const allProductCodes = new Set<string>(filter.product_codes);
 
     resolvedLaboratories.forEach(lab => {
@@ -171,6 +189,7 @@ export async function GET(
       resolvedProductCodes: Array.from(allProductCodes),
       resolvedLaboratories,
       resolvedCategories,
+      resolvedPharmacies,
     };
 
     console.log('✅ [GET /api/saved-filters/[id]] Filter loaded:', {
@@ -179,6 +198,8 @@ export async function GET(
       totalProducts: result.resolvedProductCodes.length,
       laboratories: resolvedLaboratories.length,
       categories: resolvedCategories.length,
+      pharmacies: resolvedPharmacies.length,
+      dates: `${filter.analysis_date_start} → ${filter.analysis_date_end}`,
     });
 
     return NextResponse.json(result, { status: 200 });
@@ -211,17 +232,7 @@ export async function PATCH(
     }
 
     const userId = session.user.id;
-    const pharmacyId = session.user.pharmacyId || null;
-    const isAdmin = session.user.role === 'admin';
     const filterId = params.id;
-
-    // User (non-admin) doit avoir une pharmacyId
-    if (!isAdmin && !pharmacyId) {
-      return NextResponse.json(
-        { error: 'Pharmacie non définie' },
-        { status: 400 }
-      );
-    }
 
     const body: RenameFilterPayload = await request.json();
 
@@ -240,53 +251,36 @@ export async function PATCH(
     }
 
     // Récupérer le nom actuel avant update
-    const getCurrentNameQuery = isAdmin
-      ? `SELECT name FROM public.data_savedfilter WHERE id = $1 AND user_id = $2`
-      : `SELECT name FROM public.data_savedfilter WHERE id = $1 AND user_id = $2 AND pharmacy_id = $3`;
-
-    const params_name = isAdmin ? [filterId, userId] : [filterId, userId, pharmacyId];
-    const currentNameRows = await db.query(getCurrentNameQuery, params_name);
+    const getCurrentNameQuery = `
+      SELECT name 
+      FROM public.data_savedfilter 
+      WHERE id = $1 AND user_id = $2
+    `;
+    const currentNameRows = await db.query(getCurrentNameQuery, [filterId, userId]);
     const oldName = currentNameRows[0]?.name || 'Unknown';
 
-    const query = isAdmin
-      ? `
-        UPDATE public.data_savedfilter
-        SET name = $1, updated_at = NOW()
-        WHERE id = $2 AND user_id = $3
-        RETURNING 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-      `
-      : `
-        UPDATE public.data_savedfilter
-        SET name = $1, updated_at = NOW()
-        WHERE id = $2 AND user_id = $3 AND pharmacy_id = $4
-        RETURNING 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-      `;
+    const query = `
+      UPDATE public.data_savedfilter
+      SET name = $1, updated_at = NOW()
+      WHERE id = $2 AND user_id = $3
+      RETURNING 
+        id,
+        user_id,
+        pharmacy_ids,
+        name,
+        product_codes,
+        laboratory_names,
+        category_names,
+        category_types,
+        analysis_date_start,
+        analysis_date_end,
+        comparison_date_start,
+        comparison_date_end,
+        created_at,
+        updated_at
+    `;
 
-    const params_update = isAdmin 
-      ? [body.name.trim(), filterId, userId]
-      : [body.name.trim(), filterId, userId, pharmacyId];
-
-    const rows = await db.query(query, params_update);
+    const rows = await db.query(query, [body.name.trim(), filterId, userId]);
 
     if (rows.length === 0) {
       return NextResponse.json(
@@ -298,12 +292,16 @@ export async function PATCH(
     const updatedFilter: SavedFilter = {
       id: rows[0].id,
       user_id: rows[0].user_id,
-      pharmacy_id: rows[0].pharmacy_id,
+      pharmacy_ids: rows[0].pharmacy_ids || [],
       name: rows[0].name,
       product_codes: rows[0].product_codes || [],
       laboratory_names: rows[0].laboratory_names || [],
       category_names: rows[0].category_names || [],
       category_types: rows[0].category_types || [],
+      analysis_date_start: rows[0].analysis_date_start,
+      analysis_date_end: rows[0].analysis_date_end,
+      comparison_date_start: rows[0].comparison_date_start,
+      comparison_date_end: rows[0].comparison_date_end,
       created_at: rows[0].created_at,
       updated_at: rows[0].updated_at,
     };
@@ -344,32 +342,15 @@ export async function DELETE(
     }
 
     const userId = session.user.id;
-    const pharmacyId = session.user.pharmacyId || null;
-    const isAdmin = session.user.role === 'admin';
     const filterId = params.id;
 
-    // User (non-admin) doit avoir une pharmacyId
-    if (!isAdmin && !pharmacyId) {
-      return NextResponse.json(
-        { error: 'Pharmacie non définie' },
-        { status: 400 }
-      );
-    }
+    const query = `
+      DELETE FROM public.data_savedfilter
+      WHERE id = $1 AND user_id = $2
+      RETURNING id, name
+    `;
 
-    const query = isAdmin
-      ? `
-        DELETE FROM public.data_savedfilter
-        WHERE id = $1 AND user_id = $2
-        RETURNING id, name
-      `
-      : `
-        DELETE FROM public.data_savedfilter
-        WHERE id = $1 AND user_id = $2 AND pharmacy_id = $3
-        RETURNING id, name
-      `;
-
-    const params_delete = isAdmin ? [filterId, userId] : [filterId, userId, pharmacyId];
-    const rows = await db.query(query, params_delete);
+    const rows = await db.query(query, [filterId, userId]);
 
     if (rows.length === 0) {
       return NextResponse.json(

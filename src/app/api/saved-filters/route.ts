@@ -21,68 +21,51 @@ export async function GET(_request: NextRequest) {
     }
 
     const userId = session.user.id;
-    const pharmacyId = session.user.pharmacyId;
-    const isAdmin = session.user.role === 'admin';
 
-    // Admin : récupère tous ses filtres sans restriction pharmacy
-    // User : doit avoir une pharmacyId
-    if (!isAdmin && !pharmacyId) {
-      return NextResponse.json(
-        { error: 'Pharmacie non définie' },
-        { status: 400 }
-      );
-    }
+    const query = `
+      SELECT 
+        id,
+        user_id,
+        pharmacy_ids,
+        name,
+        product_codes,
+        laboratory_names,
+        category_names,
+        category_types,
+        analysis_date_start,
+        analysis_date_end,
+        comparison_date_start,
+        comparison_date_end,
+        created_at,
+        updated_at
+      FROM public.data_savedfilter
+      WHERE user_id = $1
+      ORDER BY updated_at DESC
+    `;
 
-    // Query avec ou sans filtre pharmacy selon le rôle
-    const query = isAdmin
-      ? `
-        SELECT 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-        FROM public.data_savedfilter
-        WHERE user_id = $1
-        ORDER BY updated_at DESC
-      `
-      : `
-        SELECT 
-          id,
-          user_id,
-          pharmacy_id,
-          name,
-          product_codes,
-          laboratory_names,
-          category_names,
-          category_types,
-          created_at,
-          updated_at
-        FROM public.data_savedfilter
-        WHERE user_id = $1 AND pharmacy_id = $2
-        ORDER BY updated_at DESC
-      `;
-
-    const params = isAdmin ? [userId] : [userId, pharmacyId];
-    const rows = await db.query(query, params);
+    const rows = await db.query(query, [userId]);
 
     const filters: SavedFilter[] = rows.map(row => ({
       id: row.id,
       user_id: row.user_id,
-      pharmacy_id: row.pharmacy_id,
+      pharmacy_ids: row.pharmacy_ids || [],
       name: row.name,
       product_codes: row.product_codes || [],
       laboratory_names: row.laboratory_names || [],
       category_names: row.category_names || [],
       category_types: row.category_types || [],
+      analysis_date_start: row.analysis_date_start,
+      analysis_date_end: row.analysis_date_end,
+      comparison_date_start: row.comparison_date_start,
+      comparison_date_end: row.comparison_date_end,
       created_at: row.created_at,
       updated_at: row.updated_at,
     }));
+
+    console.log('✅ [GET /api/saved-filters] Loaded:', {
+      userId,
+      count: filters.length,
+    });
 
     return NextResponse.json({ filters }, { status: 200 });
 
@@ -111,20 +94,9 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id;
-    const pharmacyId = session.user.pharmacyId || null; // NULL si pas de pharmacy
-    const isAdmin = session.user.role === 'admin';
-
-    // User (non-admin) doit avoir une pharmacyId
-    if (!isAdmin && !pharmacyId) {
-      return NextResponse.json(
-        { error: 'Pharmacie non définie' },
-        { status: 400 }
-      );
-    }
-
     const body: SaveFilterPayload = await request.json();
 
-    // Validation
+    // Validation nom
     if (!body.name || body.name.trim().length === 0) {
       return NextResponse.json(
         { error: 'Le nom du filtre est obligatoire' },
@@ -139,11 +111,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validation dates obligatoires
+    if (!body.analysis_date_start || !body.analysis_date_end) {
+      return NextResponse.json(
+        { error: 'Les dates d\'analyse sont obligatoires' },
+        { status: 400 }
+      );
+    }
+
+    // Validation cohérence dates
+    if (new Date(body.analysis_date_start) > new Date(body.analysis_date_end)) {
+      return NextResponse.json(
+        { error: 'La date de début doit être antérieure à la date de fin' },
+        { status: 400 }
+      );
+    }
+
+    // Validation dates comparaison (si présentes)
+    if (body.comparison_date_start && body.comparison_date_end) {
+      if (new Date(body.comparison_date_start) > new Date(body.comparison_date_end)) {
+        return NextResponse.json(
+          { error: 'Les dates de comparaison sont invalides' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Vérifier qu'il y a au moins une sélection
     const hasSelection = 
       (body.product_codes?.length > 0) ||
       (body.laboratory_names?.length > 0) ||
-      (body.category_names?.length > 0);
+      (body.category_names?.length > 0) ||
+      (body.pharmacy_ids?.length > 0);
 
     if (!hasSelection) {
       return NextResponse.json(
@@ -163,24 +162,32 @@ export async function POST(request: NextRequest) {
     const query = `
       INSERT INTO public.data_savedfilter (
         user_id,
-        pharmacy_id,
+        pharmacy_ids,
         name,
         product_codes,
         laboratory_names,
         category_names,
         category_types,
+        analysis_date_start,
+        analysis_date_end,
+        comparison_date_start,
+        comparison_date_end,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
       RETURNING 
         id,
         user_id,
-        pharmacy_id,
+        pharmacy_ids,
         name,
         product_codes,
         laboratory_names,
         category_names,
         category_types,
+        analysis_date_start,
+        analysis_date_end,
+        comparison_date_start,
+        comparison_date_end,
         created_at,
         updated_at
     `;
@@ -191,23 +198,31 @@ export async function POST(request: NextRequest) {
 
     const rows = await db.query(query, [
       userId,
-      pharmacyId,
+      body.pharmacy_ids || [],
       body.name.trim(),
       body.product_codes || [],
       trimmedLabNames,
       trimmedCatNames,
       body.category_types || [],
+      body.analysis_date_start,
+      body.analysis_date_end,
+      body.comparison_date_start || null,
+      body.comparison_date_end || null,
     ]);
 
     const savedFilter: SavedFilter = {
       id: rows[0].id,
       user_id: rows[0].user_id,
-      pharmacy_id: rows[0].pharmacy_id,
+      pharmacy_ids: rows[0].pharmacy_ids || [],
       name: rows[0].name,
       product_codes: rows[0].product_codes || [],
       laboratory_names: rows[0].laboratory_names || [],
       category_names: rows[0].category_names || [],
       category_types: rows[0].category_types || [],
+      analysis_date_start: rows[0].analysis_date_start,
+      analysis_date_end: rows[0].analysis_date_end,
+      comparison_date_start: rows[0].comparison_date_start,
+      comparison_date_end: rows[0].comparison_date_end,
       created_at: rows[0].created_at,
       updated_at: rows[0].updated_at,
     };
@@ -218,6 +233,9 @@ export async function POST(request: NextRequest) {
       products: savedFilter.product_codes.length,
       laboratories: savedFilter.laboratory_names.length,
       categories: savedFilter.category_names.length,
+      pharmacies: savedFilter.pharmacy_ids.length,
+      dates: `${savedFilter.analysis_date_start} → ${savedFilter.analysis_date_end}`,
+      hasComparison: !!(savedFilter.comparison_date_start && savedFilter.comparison_date_end),
     });
 
     return NextResponse.json({ filter: savedFilter }, { status: 201 });
