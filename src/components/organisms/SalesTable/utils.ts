@@ -10,7 +10,6 @@ import type {
  * Utilitaires formatting identiques à ProductsMonthlyTable
  */
 export const formatLargeNumber = (value: number | undefined | null): string => {
-  // Guard clauses pour valeurs invalides
   if (value === null || value === undefined || typeof value !== 'number' || isNaN(value)) {
     return '0';
   }
@@ -71,7 +70,7 @@ export const filterProductSummaries = <T extends ProductSalesSummary>(
   products: T[],
   searchQuery: string
 ): T[] => {
-      if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
+  if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
     return products;
   }
   
@@ -97,20 +96,16 @@ export const sortProductSummaries = <T extends ProductSalesSummary>(
   return [...products].sort((a, b) => {
     const { column, direction } = sortConfig;
     
-    // Guard clauses pour éviter null comme index
     if (!column) return 0;
     
     let aValue: string | number = a[column as keyof T] as string | number;
     let bValue: string | number = b[column as keyof T] as string | number;
 
-    // Gestion spécifique selon le type de colonne
     if (typeof aValue === 'string' && typeof bValue === 'string') {
-      // Tri alphabétique
       const comparison = aValue.localeCompare(bValue, 'fr-FR');
       return direction === 'asc' ? comparison : -comparison;
     }
 
-    // Tri numérique
     aValue = typeof aValue === 'number' ? aValue : 0;
     bValue = typeof bValue === 'number' ? bValue : 0;
     
@@ -159,12 +154,7 @@ export const processProductSummaries = <T extends ProductSalesSummary>(
   currentPage: number,
   itemsPerPage: number
 ): ProcessedSalesData => {
-  // 1. Filtrage
   const filteredProducts = filterProductSummaries(products, searchQuery);
-  
-  // 2. Tri
   const sortedProducts = sortProductSummaries(filteredProducts, sortConfig);
-  
-  // 3. Pagination
   return paginateProductSummaries(sortedProducts, currentPage, itemsPerPage);
 };

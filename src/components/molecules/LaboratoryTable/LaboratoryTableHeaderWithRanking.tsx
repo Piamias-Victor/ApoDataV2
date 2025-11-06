@@ -57,12 +57,24 @@ export const LaboratoryTableHeaderWithRanking: React.FC<LaboratoryTableHeaderWit
           </th>
         )}
         
-        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
-          <SortButton column="ca_achats" align="right">Montant achat</SortButton>
+        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
+          <SortButton column="product_count" align="right">Nb Produits</SortButton>
+        </th>
+        
+        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
+          <SortButton column="quantity_bought" align="right">Vol. Achats</SortButton>
         </th>
         
         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
-          <SortButton column="ca_selection" align="right">Montant ventes</SortButton>
+          <SortButton column="ca_achats" align="right">Mt. Achats</SortButton>
+        </th>
+        
+        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
+          <SortButton column="quantity_sold" align="right">Vol. Ventes</SortButton>
+        </th>
+        
+        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-32">
+          <SortButton column="ca_selection" align="right">Mt. Ventes</SortButton>
         </th>
         
         {hasComparison && (
@@ -76,6 +88,10 @@ export const LaboratoryTableHeaderWithRanking: React.FC<LaboratoryTableHeaderWit
             </th>
           </>
         )}
+        
+        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
+          <SortButton column="margin_rate_percent" align="right">Taux Marge</SortButton>
+        </th>
         
         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
           <SortButton column="part_marche_ca_pct" align="right">PDM</SortButton>

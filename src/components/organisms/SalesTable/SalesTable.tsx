@@ -77,6 +77,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       'Page Actuelle': currentPage.toString(),
       'Total Produits': productSummaries.length.toString(),
       'Temps de Requête (ms)': queryTime.toString(),
+      'Quantité Achetée': '',
       'Quantité Vendue': '',
       'Prix Achat Moyen (€)': '',
       'Prix Vente Moyen (€)': '',
@@ -96,6 +97,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
       'Page Actuelle': '',
       'Total Produits': '',
       'Temps de Requête (ms)': '',
+      'Quantité Achetée': '',
       'Quantité Vendue': '',
       'Prix Achat Moyen (€)': '',
       'Prix Vente Moyen (€)': '',
@@ -116,6 +118,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
         'Page Actuelle': currentPage.toString(),
         'Total Produits': productSummaries.length.toString(),
         'Temps de Requête (ms)': queryTime.toString(),
+        'Quantité Achetée': product.quantity_bought.toString(),
         'Quantité Vendue': product.quantite_vendue.toString(),
         'Prix Achat Moyen (€)': product.prix_achat_moyen.toFixed(2),
         'Prix Vente Moyen (€)': product.prix_vente_moyen.toFixed(2),
@@ -349,6 +352,16 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                 
                 <th 
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('quantity_bought')}
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Qté achetée</span>
+                    <span className="text-gray-400">{getSortIndicator('quantity_bought')}</span>
+                  </div>
+                </th>
+                
+                <th 
+                  className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('quantite_vendue')}
                 >
                   <div className="flex items-center justify-end space-x-1">
@@ -457,6 +470,12 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                       </td>
                       
                       <td className="px-4 py-3 text-right">
+                        <div className="text-sm font-medium text-blue-600">
+                          {formatLargeNumber(product.quantity_bought)}
+                        </div>
+                      </td>
+                      
+                      <td className="px-4 py-3 text-right">
                         <div className="text-sm font-medium text-gray-900">
                           {formatLargeNumber(product.quantite_vendue)}
                         </div>
@@ -542,7 +561,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                     
                     {isExpanded && hasDetailData && (
                       <tr>
-                        <td colSpan={12} className="p-0 relative">
+                        <td colSpan={13} className="p-0 relative">
                           <div className="absolute left-0 right-0 bg-gray-50 border-t border-gray-200 z-10">
                             <div className="p-6">
                               <SalesProductChart

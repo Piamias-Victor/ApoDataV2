@@ -12,6 +12,7 @@ export interface SalesProductRow {
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
+  readonly quantity_bought: number;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -27,6 +28,7 @@ export interface ProductSalesSummary {
   readonly nom: string;
   readonly code_ean: string;
   readonly bcb_lab: string | null;
+  readonly quantity_bought: number;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -42,6 +44,7 @@ export type SalesSortableColumn =
   | 'nom' 
   | 'code_ean'
   | 'bcb_lab'
+  | 'quantity_bought'
   | 'quantite_vendue'
   | 'prix_achat_moyen'
   | 'prix_vente_moyen'

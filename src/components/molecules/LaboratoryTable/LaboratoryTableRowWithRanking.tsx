@@ -2,7 +2,6 @@
 import { formatBigNumber, formatEvolutionPercentage, formatPDM, formatRankGain, getEvolutionColorClass, getRankGainColorClass } from '@/hooks/utils/formatters/ranking';
 import { LaboratoryMarketShare } from '@/types/laboratory';
 
-
 interface LaboratoryTableRowWithRankingProps {
   readonly laboratory: LaboratoryMarketShare;
   readonly isEven: boolean;
@@ -30,8 +29,20 @@ export const LaboratoryTableRowWithRanking: React.FC<LaboratoryTableRowWithRanki
         </td>
       )}
       
+      <td className="px-4 py-3 text-sm text-right text-gray-600">
+        {formatBigNumber(laboratory.product_count)}
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-right text-gray-700">
+        {formatBigNumber(laboratory.quantity_bought)}
+      </td>
+      
       <td className="px-4 py-3 text-sm text-right text-gray-700">
         {formatBigNumber(laboratory.ca_achats)}€
+      </td>
+      
+      <td className="px-4 py-3 text-sm text-right text-gray-700">
+        {formatBigNumber(laboratory.quantity_sold)}
       </td>
       
       <td className="px-4 py-3 text-sm text-right text-gray-900 font-semibold">
@@ -49,6 +60,10 @@ export const LaboratoryTableRowWithRanking: React.FC<LaboratoryTableRowWithRanki
           </td>
         </>
       )}
+      
+      <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">
+        {formatPDM(laboratory.margin_rate_percent)}
+      </td>
       
       <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">
         {formatPDM(laboratory.part_marche_ca_pct)}

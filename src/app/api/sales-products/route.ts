@@ -30,10 +30,11 @@ interface SalesProductsRequest {
 interface SalesProductRow {
   readonly nom: string;
   readonly code_ean: string;
-  readonly bcb_lab: string | null; // AJOUT
+  readonly bcb_lab: string | null;
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
+  readonly quantity_bought: number;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -256,12 +257,12 @@ async function executeAdminQuery(
     : "s.date";
   
   const periodFormat = useMonthlyGrouping 
-    ? "TO_CHAR(periode, 'YYYY-MM')"
-    : "TO_CHAR(periode, 'YYYY-MM-DD')";
+    ? "TO_CHAR(ps.periode, 'YYYY-MM')"
+    : "TO_CHAR(ps.periode, 'YYYY-MM-DD')";
 
   const periodLabel = useMonthlyGrouping
-    ? "TO_CHAR(periode, 'Month YYYY')"
-    : "TO_CHAR(periode, 'DD/MM/YYYY')";
+    ? "TO_CHAR(ps.periode, 'Month YYYY')"
+    : "TO_CHAR(ps.periode, 'DD/MM/YYYY')";
 
   const query = `
     WITH period_sales AS (
@@ -294,6 +295,22 @@ async function executeAdminQuery(
       GROUP BY ip.code_13_ref_id, ${periodGrouping}
       HAVING SUM(s.quantity) > 0
     ),
+    period_purchases AS (
+      SELECT 
+        ip.code_13_ref_id,
+        ${periodGrouping.replace('s.date', 'o.delivery_date')} as periode_achat,
+        SUM(po.qte_r) as quantite_achetee_periode
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      WHERE o.delivery_date >= $1::date
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
+        ${productFilter}
+        ${finalPharmacyFilter}
+      GROUP BY ip.code_13_ref_id, ${periodGrouping.replace('s.date', 'o.delivery_date')}
+    ),
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
@@ -321,6 +338,7 @@ async function executeAdminQuery(
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
         
+        COALESCE(pp.quantite_achetee_periode, 0) as quantity_bought,
         ps.quantite_vendue_periode as quantite_vendue,
         ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
         ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
@@ -350,6 +368,8 @@ async function executeAdminQuery(
         
       FROM period_sales ps
       CROSS JOIN selection_totals st
+      LEFT JOIN period_purchases pp ON ps.code_13_ref_id = pp.code_13_ref_id 
+        AND ps.periode = pp.periode_achat
       
       UNION ALL
       
@@ -361,6 +381,7 @@ async function executeAdminQuery(
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
         
+        COALESCE(SUM(pp.quantite_achetee_periode), 0) as quantity_bought,
         SUM(ps.quantite_vendue_periode) as quantite_vendue,
         ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
         ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
@@ -391,6 +412,7 @@ async function executeAdminQuery(
       FROM product_info pi
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
+      LEFT JOIN period_purchases pp ON pi.code_13_ref_id = pp.code_13_ref_id
       GROUP BY pi.product_name, pi.code_13_ref_id, pi.bcb_lab, st.total_quantite_selection, st.total_marge_selection
       HAVING SUM(ps.quantite_vendue_periode) > 0
     )
@@ -401,6 +423,7 @@ async function executeAdminQuery(
       periode,
       periode_libelle,
       type_ligne,
+      quantity_bought,
       quantite_vendue,
       prix_achat_moyen,
       prix_vente_moyen,
@@ -443,12 +466,12 @@ async function executeUserQuery(
     : "s.date";
   
   const periodFormat = useMonthlyGrouping 
-    ? "TO_CHAR(periode, 'YYYY-MM')"
-    : "TO_CHAR(periode, 'YYYY-MM-DD')";
+    ? "TO_CHAR(ps.periode, 'YYYY-MM')"
+    : "TO_CHAR(ps.periode, 'YYYY-MM-DD')";
 
   const periodLabel = useMonthlyGrouping
-    ? "TO_CHAR(periode, 'Month YYYY')"
-    : "TO_CHAR(periode, 'DD/MM/YYYY')";
+    ? "TO_CHAR(ps.periode, 'Month YYYY')"
+    : "TO_CHAR(ps.periode, 'DD/MM/YYYY')";
 
   const query = `
     WITH period_sales AS (
@@ -481,6 +504,22 @@ async function executeUserQuery(
       GROUP BY ip.code_13_ref_id, ${periodGrouping}
       HAVING SUM(s.quantity) > 0
     ),
+    period_purchases AS (
+      SELECT 
+        ip.code_13_ref_id,
+        ${periodGrouping.replace('s.date', 'o.delivery_date')} as periode_achat,
+        SUM(po.qte_r) as quantite_achetee_periode
+      FROM data_productorder po
+      INNER JOIN data_order o ON po.order_id = o.id
+      INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+      WHERE o.delivery_date >= $1::date
+        AND o.delivery_date <= $2::date
+        AND o.delivery_date IS NOT NULL
+        AND po.qte_r > 0
+        AND ip.pharmacy_id = ${pharmacyParam}
+        ${productFilter}
+      GROUP BY ip.code_13_ref_id, ${periodGrouping.replace('s.date', 'o.delivery_date')}
+    ),
     product_info AS (
       SELECT 
         ip.code_13_ref_id,
@@ -507,6 +546,7 @@ async function executeUserQuery(
         ${periodLabel} as periode_libelle,
         'DETAIL' as type_ligne,
         
+        COALESCE(pp.quantite_achetee_periode, 0) as quantity_bought,
         ps.quantite_vendue_periode as quantite_vendue,
         ROUND(ps.prix_achat_moyen_periode, 2) as prix_achat_moyen,
         ROUND(ps.prix_vente_moyen_periode, 2) as prix_vente_moyen,
@@ -536,6 +576,8 @@ async function executeUserQuery(
         
       FROM period_sales ps
       CROSS JOIN selection_totals st
+      LEFT JOIN period_purchases pp ON ps.code_13_ref_id = pp.code_13_ref_id 
+        AND ps.periode = pp.periode_achat
       
       UNION ALL
       
@@ -547,6 +589,7 @@ async function executeUserQuery(
         'SYNTHÈSE PÉRIODE' as periode_libelle,
         'SYNTHESE' as type_ligne,
         
+        COALESCE(SUM(pp.quantite_achetee_periode), 0) as quantity_bought,
         SUM(ps.quantite_vendue_periode) as quantite_vendue,
         ROUND(AVG(ps.prix_achat_moyen_periode), 2) as prix_achat_moyen,
         ROUND(AVG(ps.prix_vente_moyen_periode), 2) as prix_vente_moyen,
@@ -577,6 +620,7 @@ async function executeUserQuery(
       FROM product_info pi
       CROSS JOIN selection_totals st
       LEFT JOIN period_sales ps ON pi.code_13_ref_id = ps.code_13_ref_id
+      LEFT JOIN period_purchases pp ON pi.code_13_ref_id = pp.code_13_ref_id
       GROUP BY pi.product_name, pi.code_13_ref_id, pi.bcb_lab, st.total_quantite_selection, st.total_marge_selection
       HAVING SUM(ps.quantite_vendue_periode) > 0
     )
@@ -587,6 +631,7 @@ async function executeUserQuery(
       periode,
       periode_libelle,
       type_ligne,
+      quantity_bought,
       quantite_vendue,
       prix_achat_moyen,
       prix_vente_moyen,

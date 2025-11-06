@@ -7,10 +7,11 @@ import type { StandardFilters } from '@/hooks/common/types';
 interface SalesProductRow {
   readonly nom: string;
   readonly code_ean: string;
-  readonly bcb_lab: string | null; // AJOUT
+  readonly bcb_lab: string | null;
   readonly periode: string;
   readonly periode_libelle: string;
   readonly type_ligne: 'DETAIL' | 'SYNTHESE';
+  readonly quantity_bought: number;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -33,7 +34,8 @@ interface SalesProductsResponse {
 export interface ProductSalesSummary {
   readonly nom: string;
   readonly code_ean: string;
-  readonly bcb_lab: string | null; // AJOUT
+  readonly bcb_lab: string | null;
+  readonly quantity_bought: number;
   readonly quantite_vendue: number;
   readonly prix_achat_moyen: number;
   readonly prix_vente_moyen: number;
@@ -123,7 +125,8 @@ export function useSalesProducts(
     return syntheses.map(row => ({
       nom: row.nom,
       code_ean: row.code_ean,
-      bcb_lab: row.bcb_lab, // AJOUT
+      bcb_lab: row.bcb_lab,
+      quantity_bought: parseNumericValue(row.quantity_bought),
       quantite_vendue: parseNumericValue(row.quantite_vendue),
       prix_achat_moyen: parseNumericValue(row.prix_achat_moyen),
       prix_vente_moyen: parseNumericValue(row.prix_vente_moyen),
