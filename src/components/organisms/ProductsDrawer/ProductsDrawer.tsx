@@ -140,6 +140,7 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
     }
   }, [bulkInput, parseCodes, bulkSearchProducts, bulkSelectProducts]);
 
+
   const handleProductToggle = (code: string) => {
     toggleProduct(code);
   };
@@ -183,6 +184,25 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   const showEmptyMessage = searchQuery.length >= 3 && !isLoading && !hasResults && !error;
   const isSearching = searchQuery.length >= 3;
   const showSelectedSection = !isSearching && selectedProductsInfo.length > 0;
+
+  // Ajouter après la ligne 118 (après les autres états)
+const [selectAllInProgress, setSelectAllInProgress] = useState(false);
+
+// Ajouter après handleBulkImport
+const handleSelectAll = useCallback(() => {
+  setSelectAllInProgress(true);
+  
+  // Sélectionner tous les produits affichés dans les résultats
+  products.forEach(product => {
+    if (!isProductSelected(product.code_13_ref)) {
+      toggleProduct(product.code_13_ref);
+    }
+  });
+  
+  setSelectAllInProgress(false);
+}, [products, isProductSelected, toggleProduct]);
+
+// Dans le JSX, remplacer la section "Search Input" (ligne 160-226) par :
 
   return (
     <>
@@ -231,21 +251,36 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
 
         {/* Search Input */}
         <div className="p-4 border-b border-gray-100">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Rechercher un produit (3+ caractères)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-gray-50 border-gray-200 focus:border-blue-300 focus:ring-blue-200"
-            />
-          </div>
-          {searchQuery.length > 0 && searchQuery.length < 3 && (
-            <p className="text-xs text-amber-600 mt-2">
-              Tapez au moins 3 caractères pour rechercher
-            </p>
-          )}
+  <div className="relative">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <Input
+      type="text"
+      placeholder="Rechercher un produit (3+ caractères)..."
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      className="pl-10 bg-gray-50 border-gray-200 focus:border-blue-300 focus:ring-blue-200"
+    />
+  </div>
+  
+  {/* Ligne avec message + bouton tout sélectionner */}
+  <div className="flex items-center justify-between mt-2">
+    {searchQuery.length > 0 && searchQuery.length < 3 && (
+      <p className="text-xs text-amber-600">
+        Tapez au moins 3 caractères pour rechercher
+      </p>
+    )}
+    
+    {hasResults && !isLoading && (
+      <button
+        onClick={handleSelectAll}
+        disabled={selectAllInProgress || products.every(p => isProductSelected(p.code_13_ref))}
+        className="ml-auto px-3 py-1.5 text-xs font-medium bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+      >
+        <Check className="w-3.5 h-3.5" />
+        Tout sélectionner ({products.length})
+      </button>
+    )}
+  </div>
           
           {/* Bouton Import Bulk */}
           <button
