@@ -3,11 +3,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import type { SavedFilter, LoadFilterResult, RenameFilterPayload } from '@/types/savedFilters';
+import type { 
+  SavedFilter,
+  ClassicSavedFilter,
+  GenericSavedFilter,
+  LoadClassicFilterResult,
+  LoadGenericFilterResult,
+  RenameFilterPayload
+} from '@/types/savedFilters';
 
 /**
  * GET /api/saved-filters/[id]
- * Récupère un filtre + résout les codes produits pour labos et catégories - AVEC EXCLUSIONS
+ * Récupère un filtre + résout les données selon le type
  */
 export async function GET(
   _request: NextRequest,
@@ -26,24 +33,14 @@ export async function GET(
     const userId = session.user.id;
     const filterId = params.id;
 
-    // 1. Récupérer le filtre
     const filterQuery = `
       SELECT 
-        id,
-        user_id,
-        pharmacy_ids,
-        name,
-        product_codes,
-        laboratory_names,
-        category_names,
-        category_types,
-        excluded_product_codes,
-        analysis_date_start,
-        analysis_date_end,
-        comparison_date_start,
-        comparison_date_end,
-        created_at,
-        updated_at
+        id, user_id, filter_type, name, pharmacy_ids, excluded_product_codes,
+        analysis_date_start, analysis_date_end, comparison_date_start, comparison_date_end,
+        product_codes, laboratory_names, category_names, category_types,
+        generic_groups, generic_products, generic_laboratories, price_filters,
+        tva_rates, generic_status, show_global_top,
+        created_at, updated_at
       FROM public.data_savedfilter
       WHERE id = $1 AND user_id = $2
     `;
@@ -57,155 +54,186 @@ export async function GET(
       );
     }
 
-    const filter: SavedFilter = {
-      id: filterRows[0].id,
-      user_id: filterRows[0].user_id,
-      pharmacy_ids: filterRows[0].pharmacy_ids || [],
-      name: filterRows[0].name,
-      product_codes: filterRows[0].product_codes || [],
-      laboratory_names: filterRows[0].laboratory_names || [],
-      category_names: filterRows[0].category_names || [],
-      category_types: filterRows[0].category_types || [],
-      excluded_product_codes: filterRows[0].excluded_product_codes || [], // 🔥 NOUVEAU
-      analysis_date_start: filterRows[0].analysis_date_start,
-      analysis_date_end: filterRows[0].analysis_date_end,
-      comparison_date_start: filterRows[0].comparison_date_start,
-      comparison_date_end: filterRows[0].comparison_date_end,
-      created_at: filterRows[0].created_at,
-      updated_at: filterRows[0].updated_at,
-    };
+    const row = filterRows[0];
 
-    // 2. Résoudre les codes produits pour chaque laboratoire
-    const resolvedLaboratories: LoadFilterResult['resolvedLaboratories'] = [];
-    
-    if (filter.laboratory_names.length > 0) {
-      const labQuery = `
-        SELECT 
-          bcb_lab as laboratory_name,
-          ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
-          COUNT(DISTINCT code_13_ref) as product_count
-        FROM public.data_globalproduct
-        WHERE REGEXP_REPLACE(TRIM(bcb_lab), '\\s+', ' ', 'g') = ANY(
-          SELECT REGEXP_REPLACE(TRIM(unnest($1::text[])), '\\s+', ' ', 'g')
-        )
-        GROUP BY bcb_lab
-      `;
+    // Résoudre les pharmacies (commun aux deux types)
+    const resolvedPharmacies: LoadClassicFilterResult['resolvedPharmacies'] = [];
 
-      const labRows = await db.query(labQuery, [filter.laboratory_names]);
-
-      for (const row of labRows) {
-        resolvedLaboratories.push({
-          name: row.laboratory_name,
-          productCodes: row.product_codes || [],
-          productCount: parseInt(row.product_count) || 0,
-        });
-      }
-    }
-
-    // 3. Résoudre les codes produits pour chaque catégorie
-    const resolvedCategories: LoadFilterResult['resolvedCategories'] = [];
-    
-    if (filter.category_names.length > 0) {
-      for (let i = 0; i < filter.category_names.length; i++) {
-        const categoryName = filter.category_names[i];
-        const categoryType = filter.category_types[i];
-
-        if (!categoryName || !categoryType) continue;
-
-        const column = categoryType === 'universe' ? 'universe' : 'category';
-
-        const catQuery = `
-          SELECT 
-            ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
-            COUNT(DISTINCT code_13_ref) as product_count
-          FROM public.data_globalproduct
-          WHERE REGEXP_REPLACE(TRIM(${column}), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM($1), '\\s+', ' ', 'g')
-        `;
-
-        const catRows = await db.query(catQuery, [categoryName]);
-
-        if (catRows.length > 0) {
-          resolvedCategories.push({
-            name: categoryName,
-            type: categoryType,
-            productCodes: catRows[0].product_codes || [],
-            productCount: parseInt(catRows[0].product_count) || 0,
-          });
-        }
-      }
-    }
-
-    // 4. Résoudre les infos complètes des pharmacies
-    const resolvedPharmacies: Array<{
-      readonly id: string;
-      readonly name: string;
-      readonly address: string | null;
-      readonly ca: number | null;
-      readonly area: string | null;
-      readonly employees_count: number | null;
-      readonly id_nat: string | null;
-    }> = [];
-
-    if (filter.pharmacy_ids.length > 0) {
+    if (row.pharmacy_ids && row.pharmacy_ids.length > 0) {
       const pharmacyQuery = `
-        SELECT 
-          id,
-          name,
-          address,
-          ca,
-          area,
-          employees_count,
-          id_nat
+        SELECT id, name, address, ca, area, employees_count, id_nat
         FROM public.data_pharmacy
         WHERE id = ANY($1::uuid[])
       `;
 
-      const pharmacyRows = await db.query(pharmacyQuery, [filter.pharmacy_ids]);
+      const pharmacyRows = await db.query(pharmacyQuery, [row.pharmacy_ids]);
 
-      for (const row of pharmacyRows) {
+      for (const pRow of pharmacyRows) {
         resolvedPharmacies.push({
-          id: row.id,
-          name: row.name || 'Pharmacie inconnue',
-          address: row.address,
-          ca: row.ca ? parseFloat(row.ca.toString()) : null,
-          area: row.area,
-          employees_count: row.employees_count ? parseInt(row.employees_count.toString()) : null,
-          id_nat: row.id_nat,
+          id: pRow.id,
+          name: pRow.name || 'Pharmacie inconnue',
+          address: pRow.address || 'Adresse non disponible',
+          ca: pRow.ca ? parseFloat(pRow.ca.toString()) : 0,
+          area: pRow.area || 'Zone non définie',
+          employees_count: pRow.employees_count ? parseInt(pRow.employees_count.toString()) : 0,
+          id_nat: pRow.id_nat || '',
         });
       }
     }
 
-    // 5. Agréger tous les codes produits
-    const allProductCodes = new Set<string>(filter.product_codes);
+    if (row.filter_type === 'classic') {
+      // === FILTRE CLASSIQUE ===
+      
+      const filter: ClassicSavedFilter = {
+        id: row.id,
+        user_id: row.user_id,
+        filter_type: 'classic',
+        name: row.name,
+        pharmacy_ids: row.pharmacy_ids || [],
+        excluded_product_codes: row.excluded_product_codes || [],
+        analysis_date_start: row.analysis_date_start,
+        analysis_date_end: row.analysis_date_end,
+        comparison_date_start: row.comparison_date_start,
+        comparison_date_end: row.comparison_date_end,
+        product_codes: row.product_codes || [],
+        laboratory_names: row.laboratory_names || [],
+        category_names: row.category_names || [],
+        category_types: row.category_types || [],
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
 
-    resolvedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => allProductCodes.add(code));
-    });
+      // Résoudre laboratoires
+      const resolvedLaboratories: LoadClassicFilterResult['resolvedLaboratories'] = [];
+      
+      if (filter.laboratory_names.length > 0) {
+        const labQuery = `
+          SELECT 
+            bcb_lab as laboratory_name,
+            ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
+            COUNT(DISTINCT code_13_ref) as product_count
+          FROM public.data_globalproduct
+          WHERE REGEXP_REPLACE(TRIM(bcb_lab), '\\s+', ' ', 'g') = ANY(
+            SELECT REGEXP_REPLACE(TRIM(unnest($1::text[])), '\\s+', ' ', 'g')
+          )
+          GROUP BY bcb_lab
+        `;
 
-    resolvedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => allProductCodes.add(code));
-    });
+        const labRows = await db.query(labQuery, [filter.laboratory_names]);
 
-    const result: LoadFilterResult = {
-      filter,
-      resolvedProductCodes: Array.from(allProductCodes),
-      resolvedLaboratories,
-      resolvedCategories,
-      resolvedPharmacies,
-    };
+        for (const lRow of labRows) {
+          resolvedLaboratories.push({
+            name: lRow.laboratory_name,
+            productCodes: lRow.product_codes || [],
+            productCount: parseInt(lRow.product_count) || 0,
+          });
+        }
+      }
 
-    console.log('✅ [GET /api/saved-filters/[id]] Filter loaded with exclusions:', {
-      id: filter.id,
-      name: filter.name,
-      totalProducts: result.resolvedProductCodes.length,
-      laboratories: resolvedLaboratories.length,
-      categories: resolvedCategories.length,
-      pharmacies: resolvedPharmacies.length,
-      exclusions: filter.excluded_product_codes?.length || 0, // 🔥 NOUVEAU
-      dates: `${filter.analysis_date_start} → ${filter.analysis_date_end}`,
-    });
+      // Résoudre catégories
+      const resolvedCategories: LoadClassicFilterResult['resolvedCategories'] = [];
+      
+      if (filter.category_names.length > 0) {
+        for (let i = 0; i < filter.category_names.length; i++) {
+          const categoryName = filter.category_names[i];
+          const categoryType = filter.category_types[i];
 
-    return NextResponse.json(result, { status: 200 });
+          if (!categoryName || !categoryType) continue;
+
+          const column = categoryType === 'universe' ? 'universe' : 'category';
+
+          const catQuery = `
+            SELECT 
+              ARRAY_AGG(DISTINCT code_13_ref) as product_codes,
+              COUNT(DISTINCT code_13_ref) as product_count
+            FROM public.data_globalproduct
+            WHERE REGEXP_REPLACE(TRIM(${column}), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM($1), '\\s+', ' ', 'g')
+          `;
+
+          const catRows = await db.query(catQuery, [categoryName]);
+
+          if (catRows.length > 0) {
+            resolvedCategories.push({
+              name: categoryName,
+              type: categoryType,
+              productCodes: catRows[0].product_codes || [],
+              productCount: parseInt(catRows[0].product_count) || 0,
+            });
+          }
+        }
+      }
+
+      // Agréger tous les codes produits
+      const allProductCodes = new Set<string>(filter.product_codes);
+
+      resolvedLaboratories.forEach(lab => {
+        lab.productCodes.forEach(code => allProductCodes.add(code));
+      });
+
+      resolvedCategories.forEach(cat => {
+        cat.productCodes.forEach(code => allProductCodes.add(code));
+      });
+
+      const result: LoadClassicFilterResult = {
+        filter,
+        resolvedProductCodes: Array.from(allProductCodes),
+        resolvedLaboratories,
+        resolvedCategories,
+        resolvedPharmacies,
+      };
+
+      console.log('✅ [GET /api/saved-filters/[id]] Classic filter loaded:', {
+        id: filter.id,
+        name: filter.name,
+        totalProducts: result.resolvedProductCodes.length,
+      });
+
+      return NextResponse.json(result, { status: 200 });
+
+    } else {
+      // === FILTRE GÉNÉRIQUE ===
+      
+      const filter: GenericSavedFilter = {
+        id: row.id,
+        user_id: row.user_id,
+        filter_type: 'generic',
+        name: row.name,
+        pharmacy_ids: row.pharmacy_ids || [],
+        excluded_product_codes: row.excluded_product_codes || [],
+        analysis_date_start: row.analysis_date_start,
+        analysis_date_end: row.analysis_date_end,
+        comparison_date_start: row.comparison_date_start,
+        comparison_date_end: row.comparison_date_end,
+        generic_groups: row.generic_groups || [],
+        generic_products: row.generic_products || [],
+        generic_laboratories: row.generic_laboratories || [],
+        price_filters: row.price_filters || {
+          prixFabricant: { min: null, max: null },
+          prixNetRemise: { min: null, max: null },
+          remise: { min: null, max: null }
+        },
+        tva_rates: row.tva_rates || [],
+        generic_status: row.generic_status || 'BOTH',
+        show_global_top: row.show_global_top || false,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      };
+
+      const result: LoadGenericFilterResult = {
+        filter,
+        resolvedPharmacies,
+      };
+
+      console.log('✅ [GET /api/saved-filters/[id]] Generic filter loaded:', {
+        id: filter.id,
+        name: filter.name,
+        groups: filter.generic_groups.length,
+        products: filter.generic_products.length,
+        laboratories: filter.generic_laboratories.length,
+      });
+
+      return NextResponse.json(result, { status: 200 });
+    }
 
   } catch (error) {
     console.error('❌ [GET /api/saved-filters/[id]] Error:', error);
@@ -218,7 +246,7 @@ export async function GET(
 
 /**
  * PATCH /api/saved-filters/[id]
- * Renomme un filtre sauvegardé
+ * Renomme un filtre
  */
 export async function PATCH(
   request: NextRequest,
@@ -236,7 +264,6 @@ export async function PATCH(
 
     const userId = session.user.id;
     const filterId = params.id;
-
     const body: RenameFilterPayload = await request.json();
 
     if (!body.name || body.name.trim().length === 0) {
@@ -253,35 +280,17 @@ export async function PATCH(
       );
     }
 
-    // Récupérer le nom actuel avant update
-    const getCurrentNameQuery = `
-      SELECT name 
-      FROM public.data_savedfilter 
-      WHERE id = $1 AND user_id = $2
-    `;
-    const currentNameRows = await db.query(getCurrentNameQuery, [filterId, userId]);
-    const oldName = currentNameRows[0]?.name || 'Unknown';
-
     const query = `
       UPDATE public.data_savedfilter
       SET name = $1, updated_at = NOW()
       WHERE id = $2 AND user_id = $3
       RETURNING 
-        id,
-        user_id,
-        pharmacy_ids,
-        name,
-        product_codes,
-        laboratory_names,
-        category_names,
-        category_types,
-        excluded_product_codes,
-        analysis_date_start,
-        analysis_date_end,
-        comparison_date_start,
-        comparison_date_end,
-        created_at,
-        updated_at
+        id, user_id, filter_type, name, pharmacy_ids, excluded_product_codes,
+        analysis_date_start, analysis_date_end, comparison_date_start, comparison_date_end,
+        product_codes, laboratory_names, category_names, category_types,
+        generic_groups, generic_products, generic_laboratories, price_filters,
+        tva_rates, generic_status, show_global_top,
+        created_at, updated_at
     `;
 
     const rows = await db.query(query, [body.name.trim(), filterId, userId]);
@@ -293,28 +302,57 @@ export async function PATCH(
       );
     }
 
-    const updatedFilter: SavedFilter = {
-      id: rows[0].id,
-      user_id: rows[0].user_id,
-      pharmacy_ids: rows[0].pharmacy_ids || [],
-      name: rows[0].name,
-      product_codes: rows[0].product_codes || [],
-      laboratory_names: rows[0].laboratory_names || [],
-      category_names: rows[0].category_names || [],
-      category_types: rows[0].category_types || [],
-      excluded_product_codes: rows[0].excluded_product_codes || [], // 🔥 NOUVEAU
-      analysis_date_start: rows[0].analysis_date_start,
-      analysis_date_end: rows[0].analysis_date_end,
-      comparison_date_start: rows[0].comparison_date_start,
-      comparison_date_end: rows[0].comparison_date_end,
-      created_at: rows[0].created_at,
-      updated_at: rows[0].updated_at,
-    };
+    const row = rows[0];
+
+    let updatedFilter: SavedFilter;
+
+    if (row.filter_type === 'classic') {
+      updatedFilter = {
+        id: row.id,
+        user_id: row.user_id,
+        filter_type: 'classic',
+        name: row.name,
+        pharmacy_ids: row.pharmacy_ids || [],
+        excluded_product_codes: row.excluded_product_codes || [],
+        analysis_date_start: row.analysis_date_start,
+        analysis_date_end: row.analysis_date_end,
+        comparison_date_start: row.comparison_date_start,
+        comparison_date_end: row.comparison_date_end,
+        product_codes: row.product_codes || [],
+        laboratory_names: row.laboratory_names || [],
+        category_names: row.category_names || [],
+        category_types: row.category_types || [],
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      } as ClassicSavedFilter;
+    } else {
+      updatedFilter = {
+        id: row.id,
+        user_id: row.user_id,
+        filter_type: 'generic',
+        name: row.name,
+        pharmacy_ids: row.pharmacy_ids || [],
+        excluded_product_codes: row.excluded_product_codes || [],
+        analysis_date_start: row.analysis_date_start,
+        analysis_date_end: row.analysis_date_end,
+        comparison_date_start: row.comparison_date_start,
+        comparison_date_end: row.comparison_date_end,
+        generic_groups: row.generic_groups || [],
+        generic_products: row.generic_products || [],
+        generic_laboratories: row.generic_laboratories || [],
+        price_filters: row.price_filters,
+        tva_rates: row.tva_rates || [],
+        generic_status: row.generic_status,
+        show_global_top: row.show_global_top,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      } as GenericSavedFilter;
+    }
 
     console.log('✅ [PATCH /api/saved-filters/[id]] Filter renamed:', {
       id: updatedFilter.id,
-      oldName,
-      newName: updatedFilter.name,
+      name: updatedFilter.name,
+      type: updatedFilter.filter_type,
     });
 
     return NextResponse.json({ filter: updatedFilter }, { status: 200 });
@@ -330,7 +368,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/saved-filters/[id]
- * Supprime un filtre sauvegardé
+ * Supprime un filtre
  */
 export async function DELETE(
   _request: NextRequest,
@@ -352,7 +390,7 @@ export async function DELETE(
     const query = `
       DELETE FROM public.data_savedfilter
       WHERE id = $1 AND user_id = $2
-      RETURNING id, name
+      RETURNING id, name, filter_type
     `;
 
     const rows = await db.query(query, [filterId, userId]);
@@ -367,6 +405,7 @@ export async function DELETE(
     console.log('✅ [DELETE /api/saved-filters/[id]] Filter deleted:', {
       id: rows[0].id,
       name: rows[0].name,
+      type: rows[0].filter_type,
     });
 
     return NextResponse.json(

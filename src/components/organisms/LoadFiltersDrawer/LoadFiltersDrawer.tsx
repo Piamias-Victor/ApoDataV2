@@ -12,12 +12,15 @@ import {
   Trash2, 
   Edit3,
   Check,
-  AlertCircle
+  AlertCircle,
+  Layers, // 🔥 Pour groupes génériques
+  Zap, // 🔥 Pour filtres prix/TVA
 } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 import { Input } from '@/components/atoms/Input/Input';
 import { Card } from '@/components/atoms/Card/Card';
-import type { SavedFilter } from '@/types/savedFilters';
+import type { SavedFilter, ClassicSavedFilter, GenericSavedFilter } from '@/types/savedFilters';
+import { FilterTypeBadge } from '@/components/atoms/FilterTypeBadge/FilterTypeBadge';
 
 interface LoadFiltersDrawerProps {
   readonly isOpen: boolean;
@@ -36,8 +39,9 @@ interface LoadFiltersDrawerProps {
  * LoadFiltersDrawer - Drawer pour charger/gérer les filtres sauvegardés
  * 
  * Features :
- * - Liste des filtres sauvegardés (cards)
- * - Preview : nombre produits/labos/catégories
+ * - Liste des filtres sauvegardés (classiques + génériques)
+ * - Badge de type (Classique / Générique)
+ * - Preview adaptée selon le type
  * - Actions : Charger / Renommer / Supprimer
  * - Renommage inline
  * - Empty state si aucun filtre
@@ -100,6 +104,123 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
+  };
+
+  // 🔥 Helper pour rendre le preview selon le type
+  const renderFilterPreview = (filter: SavedFilter) => {
+    if (filter.filter_type === 'classic') {
+      const classicFilter = filter as ClassicSavedFilter;
+      const productsCount = classicFilter.product_codes.length;
+      const laboratoriesCount = classicFilter.laboratory_names.length;
+      const categoriesCount = classicFilter.category_names.length;
+
+      return (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="flex items-center space-x-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
+            <Package className="w-4 h-4 text-purple-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-bold text-purple-900">
+                {productsCount}
+              </p>
+              <p className="text-xs text-purple-700 truncate">
+                Produit{productsCount > 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-200">
+            <TestTube className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-bold text-green-900">
+                {laboratoriesCount}
+              </p>
+              <p className="text-xs text-green-700 truncate">
+                Labo{laboratoriesCount > 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 p-2 bg-orange-50 rounded-lg border border-orange-200">
+            <Tag className="w-4 h-4 text-orange-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-bold text-orange-900">
+                {categoriesCount}
+              </p>
+              <p className="text-xs text-orange-700 truncate">
+                Catégorie{categoriesCount > 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      const genericFilter = filter as GenericSavedFilter;
+      const groupsCount = genericFilter.generic_groups.length;
+      const productsCount = genericFilter.generic_products.length;
+      const laboratoriesCount = genericFilter.generic_laboratories.length;
+      
+      const hasPriceFilters = Object.values(genericFilter.price_filters).some(
+        range => range.min !== null || range.max !== null
+      );
+      const hasTvaFilters = genericFilter.tva_rates.length > 0;
+      const hasStatusFilter = genericFilter.generic_status !== 'BOTH';
+
+      return (
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200">
+              <Layers className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-bold text-indigo-900">
+                  {groupsCount}
+                </p>
+                <p className="text-xs text-indigo-700 truncate">
+                  Groupe{groupsCount > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
+              <Package className="w-4 h-4 text-purple-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-bold text-purple-900">
+                  {productsCount}
+                </p>
+                <p className="text-xs text-purple-700 truncate">
+                  Produit{productsCount > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-200">
+              <TestTube className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-bold text-green-900">
+                  {laboratoriesCount}
+                </p>
+                <p className="text-xs text-green-700 truncate">
+                  Labo{laboratoriesCount > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Indicateur filtres additionnels */}
+          {(hasPriceFilters || hasTvaFilters || hasStatusFilter) && (
+            <div className="flex items-center space-x-2 p-2 bg-amber-50 rounded-lg border border-amber-200 mb-3">
+              <Zap className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <p className="text-xs text-amber-800">
+                {hasPriceFilters && 'Filtres prix'}
+                {hasPriceFilters && (hasTvaFilters || hasStatusFilter) && ' • '}
+                {hasTvaFilters && `TVA (${genericFilter.tva_rates.length})`}
+                {hasTvaFilters && hasStatusFilter && ' • '}
+                {hasStatusFilter && genericFilter.generic_status}
+              </p>
+            </div>
+          )}
+        </>
+      );
+    }
   };
 
   return (
@@ -177,9 +298,6 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                   {savedFilters.map((filter) => {
                     const isEditing = editingId === filter.id;
                     const isDeleting = deletingId === filter.id;
-                    const productsCount = filter.product_codes.length;
-                    const laboratoriesCount = filter.laboratory_names.length;
-                    const categoriesCount = filter.category_names.length;
 
                     return (
                       <Card
@@ -188,7 +306,7 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                         padding="lg"
                         className="hover:shadow-lg transition-shadow"
                       >
-                        {/* Nom du filtre */}
+                        {/* Nom du filtre + Badge */}
                         {isEditing ? (
                           <div className="flex items-center space-x-2 mb-4">
                             <Input
@@ -218,9 +336,12 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                         ) : (
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex-1">
-                              <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                                {filter.name}
-                              </h3>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {filter.name}
+                                </h3>
+                                <FilterTypeBadge type={filter.filter_type} />
+                              </div>
                               <p className="text-xs text-gray-500">
                                 Modifié le {formatDate(filter.updated_at)}
                               </p>
@@ -255,43 +376,7 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                         )}
 
                         {/* Preview sélections */}
-                        <div className="grid grid-cols-3 gap-3 mb-4">
-                          <div className="flex items-center space-x-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
-                            <Package className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-lg font-bold text-purple-900">
-                                {productsCount}
-                              </p>
-                              <p className="text-xs text-purple-700 truncate">
-                                Produit{productsCount > 1 ? 's' : ''}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                            <TestTube className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-lg font-bold text-green-900">
-                                {laboratoriesCount}
-                              </p>
-                              <p className="text-xs text-green-700 truncate">
-                                Labo{laboratoriesCount > 1 ? 's' : ''}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2 p-2 bg-orange-50 rounded-lg border border-orange-200">
-                            <Tag className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-lg font-bold text-orange-900">
-                                {categoriesCount}
-                              </p>
-                              <p className="text-xs text-orange-700 truncate">
-                                Catégorie{categoriesCount > 1 ? 's' : ''}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                        {renderFilterPreview(filter)}
 
                         {/* Avertissement remplacement */}
                         <div className="flex items-start space-x-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
