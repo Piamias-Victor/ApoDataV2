@@ -1,3 +1,4 @@
+// src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -13,6 +14,7 @@ import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDr
 import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
 import { SaveFilterModal } from '@/components/organisms/SaveFilterModal/SaveFilterModal';
 import { LoadFiltersDrawer } from '@/components/organisms/LoadFiltersDrawer/LoadFiltersDrawer';
+import { ExclusionDrawer } from '@/components/organisms/ExclusionDrawer/ExclusionDrawer';
 import { 
   Package, 
   TestTube, 
@@ -23,18 +25,19 @@ import {
   Filter,
   Save,
   FolderOpen,
+  Ban, // 🔥 NOUVEAU - Icône exclusion
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
 
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | null;
+type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | null; // 🔥 AJOUT 'exclusion'
 
 interface FilterChipProps {
   readonly icon: React.ReactNode;
   readonly label: string;
   readonly value: string;
   readonly onRemove?: (() => void) | undefined;
-  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange';
+  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'red'; // 🔥 AJOUT 'red'
   readonly tooltip?: string;
 }
 
@@ -51,7 +54,8 @@ const FilterChip: React.FC<FilterChipProps> = ({
     green: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
     purple: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
     pink: 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100',
-    orange: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
+    orange: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
+    red: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' // 🔥 NOUVEAU
   };
 
   return (
@@ -142,22 +146,29 @@ export const FilterBar: React.FC = () => {
     selectedLaboratories,
     selectedCategories,
     selectedPharmacies,
+    selectedExcludedProducts, // 🔥 NOUVEAU
     analysisDateRange,
     clearProductFilters,
     clearLaboratoryFilters,
     clearCategoryFilters,
     clearPharmacyFilters,
+    clearExcludedProducts, // 🔥 NOUVEAU
     clearAllFilters,
     isPharmacyLocked
   } = useFiltersStore();
 
-  // Compteur total de filtres sauvegardables (produits + labos + catégories)
+  // Compteur total de filtres sauvegardables (produits + labos + catégories + pharmacies)
   const totalFiltersCount = useMemo(() => {
     return (selectedProducts?.length || 0) + 
            (selectedLaboratories?.length || 0) + 
            (selectedCategories?.length || 0) + 
            (selectedPharmacies?.length || 0);
   }, [selectedProducts, selectedLaboratories, selectedCategories, selectedPharmacies]);
+
+  // 🔥 NOUVEAU - Count exclusions
+  const exclusionsCount = useMemo(() => {
+    return selectedExcludedProducts?.length || 0;
+  }, [selectedExcludedProducts]);
 
   // Formater les dates
   const formatDateRange = useMemo(() => {
@@ -258,11 +269,37 @@ export const FilterBar: React.FC = () => {
     };
   }, [selectedPharmacies]);
 
+  // 🔥 NOUVEAU - Formater les exclusions
+  const exclusionInfo = useMemo(() => {
+    if (!selectedExcludedProducts || selectedExcludedProducts.length === 0) return null;
+    
+    if (selectedExcludedProducts.length === 1) {
+      const product = selectedExcludedProducts[0];
+      return {
+        value: product?.name || 'Produit exclu',
+        tooltip: `Code: ${product?.code || ''}`
+      };
+    }
+    
+    const displayCount = 3;
+    const displayed = selectedExcludedProducts.slice(0, displayCount);
+    const remaining = selectedExcludedProducts.length - displayCount;
+    
+    return {
+      value: `${selectedExcludedProducts.length} exclusions`,
+      tooltip: [
+        ...displayed.map(p => `• ${p?.name || 'Produit'}`),
+        remaining > 0 ? `... et ${remaining} autres` : ''
+      ].filter(Boolean).join('\n')
+    };
+  }, [selectedExcludedProducts]);
+
   const hasActiveFilters = !!(
     (selectedProducts && selectedProducts.length > 0) ||
     (selectedLaboratories && selectedLaboratories.length > 0) ||
     (selectedCategories && selectedCategories.length > 0) ||
-    (selectedPharmacies && selectedPharmacies.length > 0)
+    (selectedPharmacies && selectedPharmacies.length > 0) ||
+    (selectedExcludedProducts && selectedExcludedProducts.length > 0) // 🔥 NOUVEAU
   );
 
   const filterButtons: FilterButton[] = [
@@ -346,10 +383,9 @@ export const FilterBar: React.FC = () => {
     categories: selectedCategories?.length || 0,
     pharmacy: selectedPharmacies?.length || 0,
     date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
-    filter: 0
+    filter: 0,
+    exclusion: exclusionsCount // 🔥 NOUVEAU
   };
-
-  const isGeneriquePage = pathname === '/generique';
 
   return (
     <>
@@ -402,9 +438,9 @@ export const FilterBar: React.FC = () => {
               ))}
             </div>
 
-            {/* Boutons Sauvegarder / Charger - AJOUT ICI */}
-            {!isGeneriquePage && (
+            
               <div className="flex items-center space-x-2">
+                {/* Bouton Sauvegarder */}
                 <motion.button
                   onClick={() => handleFilterClick('save')}
                   disabled={totalFiltersCount === 0}
@@ -425,6 +461,7 @@ export const FilterBar: React.FC = () => {
                   <span className="font-medium text-sm">Sauvegarder</span>
                 </motion.button>
 
+                {/* Bouton Charger */}
                 <motion.button
                   onClick={() => handleFilterClick('load')}
                   className={`
@@ -455,8 +492,40 @@ export const FilterBar: React.FC = () => {
                     )}
                   </AnimatePresence>
                 </motion.button>
+
+                {/* 🔥 NOUVEAU - Bouton Exclusion (ROUGE) */}
+                <motion.button
+                  onClick={() => handleFilterClick('exclusion')}
+                  className={`
+                    relative flex items-center space-x-2 px-3 py-2 
+                    rounded-xl border transition-all duration-300
+                    ${activeDrawer === 'exclusion'
+                      ? 'bg-red-100 border-red-300 text-red-700 shadow-sm'
+                      : 'bg-white/70 border-red-200/70 text-red-600 hover:bg-red-50 hover:border-red-300'
+                    }
+                  `}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Ban className="w-4 h-4" />
+                  <span className="font-medium text-sm">Exclusions</span>
+                  
+                  <AnimatePresence>
+                    {exclusionsCount > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                      >
+                        <Badge variant="danger" size="sm">
+                          {exclusionsCount}
+                        </Badge>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               </div>
-            )}
+            
           </div>
 
           {/* Ligne des filtres actifs */}
@@ -527,6 +596,19 @@ export const FilterBar: React.FC = () => {
                         tooltip={categoryInfo.tooltip}
                         onRemove={clearCategoryFilters}
                         color="orange"
+                      />
+                    )}
+
+                    {/* 🔥 NOUVEAU - Chip exclusions (ROUGE) */}
+                    {exclusionInfo && (
+                      <FilterChip
+                        key="exclusion"
+                        icon={<Ban className="w-3.5 h-3.5" />}
+                        label="Exclusions"
+                        value={exclusionInfo.value}
+                        tooltip={exclusionInfo.tooltip}
+                        onRemove={clearExcludedProducts}
+                        color="red"
                       />
                     )}
                   </div>
@@ -600,7 +682,16 @@ export const FilterBar: React.FC = () => {
             isOpen={true}
             onClose={handleDrawerClose}
             onCountChange={() => {}}
-            dateRange={analysisDateRange || { start: '', end: '' }} // 🔥 PASSAGE DATE RANGE
+            dateRange={analysisDateRange || { start: '', end: '' }}
+          />
+        )}
+
+        {/* 🔥 NOUVEAU - Drawer Exclusion */}
+        {activeDrawer === 'exclusion' && (
+          <ExclusionDrawer
+            isOpen={true}
+            onClose={handleDrawerClose}
+            onCountChange={() => {}}
           />
         )}
 
@@ -615,8 +706,8 @@ export const FilterBar: React.FC = () => {
             laboratoriesCount={selectedLaboratories?.length || 0}
             categoriesCount={selectedCategories?.length || 0}
             pharmaciesCount={selectedPharmacies?.length || 0}
+            exclusionsCount={exclusionsCount} // 🔥 NOUVEAU
           />
-
         )}
 
         {/* Drawer Charger */}

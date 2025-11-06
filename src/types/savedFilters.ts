@@ -1,7 +1,7 @@
 // src/types/savedFilters.ts
 
 /**
- * Structure d'un filtre sauvegardé en base de données
+ * Structure d'un filtre sauvegardé en base de données - AVEC EXCLUSIONS 🔥
  */
 export interface SavedFilter {
   readonly id: string;
@@ -12,6 +12,7 @@ export interface SavedFilter {
   readonly laboratory_names: string[];
   readonly category_names: string[];
   readonly category_types: ('universe' | 'category')[];
+  readonly excluded_product_codes?: string[]; // 🔥 NOUVEAU - Optionnel pour rétrocompatibilité
   readonly analysis_date_start: string;
   readonly analysis_date_end: string;
   readonly comparison_date_start: string | null;
@@ -21,7 +22,7 @@ export interface SavedFilter {
 }
 
 /**
- * Payload pour créer un nouveau filtre sauvegardé
+ * Payload pour créer un nouveau filtre sauvegardé - AVEC EXCLUSIONS 🔥
  */
 export interface SaveFilterPayload {
   readonly name: string;
@@ -30,6 +31,7 @@ export interface SaveFilterPayload {
   readonly category_names: string[];
   readonly category_types: ('universe' | 'category')[];
   readonly pharmacy_ids: string[];
+  readonly excluded_product_codes?: string[]; // 🔥 NOUVEAU
   readonly analysis_date_start: string;
   readonly analysis_date_end: string;
   readonly comparison_date_start: string | null;
@@ -82,6 +84,7 @@ export interface SavedFilterPreview {
   readonly laboratoriesCount: number;
   readonly categoriesCount: number;
   readonly pharmaciesCount: number;
+  readonly exclusionsCount?: number; // 🔥 NOUVEAU
   readonly analysisDateRange: string;
   readonly hasComparison: boolean;
   readonly createdAt: string;

@@ -16,11 +16,23 @@ interface PriceFilters {
 
 type GenericStatus = 'BOTH' | 'GÉNÉRIQUE' | 'RÉFÉRENT';
 
+// 🔥 NOUVEAU - Interface produit exclu
+interface SelectedProduct {
+  readonly name: string;
+  readonly code: string;
+  readonly brandLab?: string | undefined;
+  readonly universe?: string | undefined;
+}
+
 interface GenericGroupState {
   // Sources de sélection
   selectedGroups: GenericGroup[];
   selectedProducts: GenericProduct[];
   selectedLaboratories: GenericLaboratory[];
+  
+  // 🔥 NOUVEAU - Exclusions
+  excludedProducts: string[];
+  selectedExcludedProducts: SelectedProduct[];
   
   // Filtres de prix
   priceFilters: PriceFilters;
@@ -28,12 +40,12 @@ interface GenericGroupState {
   clearPriceFilters: () => void;
   hasPriceFilters: () => boolean;
   
-  // 🔥 NOUVEAU - Filtres TVA
+  // Filtres TVA
   tvaRates: number[];
   setTvaRates: (rates: number[]) => void;
   hasTvaFilters: () => boolean;
   
-  // 🔥 NOUVEAU - Filtre statut générique
+  // Filtre statut générique
   genericStatus: GenericStatus;
   setGenericStatus: (status: GenericStatus) => void;
   hasGenericStatusFilter: () => boolean;
@@ -64,6 +76,11 @@ interface GenericGroupState {
   removeLaboratory: (labName: string) => void;
   isLaboratorySelected: (labName: string) => boolean;
   
+  // 🔥 NOUVEAU - Gestion exclusions
+  setExcludedProducts: (codes: string[]) => void;
+  setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => void;
+  clearExcludedProducts: () => void;
+  
   // Gestion bulk (depuis drawer)
   addProducts: (products: GenericProduct[]) => void;
   addLaboratories: (laboratories: GenericLaboratory[]) => void;
@@ -85,12 +102,14 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   selectedGroups: [],
   selectedProducts: [],
   selectedLaboratories: [],
+  excludedProducts: [], // 🔥 NOUVEAU
+  selectedExcludedProducts: [], // 🔥 NOUVEAU
   productCodes: [],
   showGlobalTop: false,
   priceFilters: defaultPriceFilters,
   dateRange: null,
-  tvaRates: [], // 🔥 NOUVEAU
-  genericStatus: 'BOTH', // 🔥 NOUVEAU - Défaut "les deux"
+  tvaRates: [],
+  genericStatus: 'BOTH',
 
   // ===== MODE GLOBAL =====
   setShowGlobalTop: (show) => {
@@ -104,7 +123,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     set({ dateRange: range });
   },
 
-  // ===== FILTRES TVA 🔥 =====
+  // ===== FILTRES TVA =====
   setTvaRates: (rates) => {
     console.log('💰 [GenericGroupStore] Setting TVA rates:', rates);
     set({ tvaRates: rates });
@@ -115,7 +134,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     return get().tvaRates.length > 0;
   },
 
-  // ===== FILTRE STATUT GÉNÉRIQUE 🔥 =====
+  // ===== FILTRE STATUT GÉNÉRIQUE =====
   setGenericStatus: (status) => {
     console.log('🏷️ [GenericGroupStore] Setting generic status:', status);
     set({ genericStatus: status });
@@ -124,6 +143,34 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
 
   hasGenericStatusFilter: () => {
     return get().genericStatus !== 'BOTH';
+  },
+
+  // 🔥 NOUVEAU - GESTION EXCLUSIONS
+  setExcludedProducts: (codes) => {
+    console.log('🚫 [GenericGroupStore] Setting excluded products:', codes.length);
+    set({ excludedProducts: codes });
+    get().recalculateProductCodes();
+  },
+
+  setExcludedProductsWithNames: (codes, products) => {
+    console.log('🚫 [GenericGroupStore] Setting excluded products with names:', {
+      codes: codes.length,
+      products: products.length
+    });
+    set({ 
+      excludedProducts: codes,
+      selectedExcludedProducts: products
+    });
+    get().recalculateProductCodes();
+  },
+
+  clearExcludedProducts: () => {
+    console.log('🗑️ [GenericGroupStore] Clearing excluded products');
+    set({ 
+      excludedProducts: [],
+      selectedExcludedProducts: []
+    });
+    get().recalculateProductCodes();
   },
 
   // ===== FILTRES DE PRIX =====
@@ -153,8 +200,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     console.log('🗑️ [GenericGroupStore] Clearing ALL filters (price + TVA + status)');
     set({ 
       priceFilters: defaultPriceFilters,
-      tvaRates: [], // 🔥 RESET TVA
-      genericStatus: 'BOTH' // 🔥 RESET STATUS
+      tvaRates: [],
+      genericStatus: 'BOTH'
     });
     get().recalculateProductCodes();
   },
@@ -171,7 +218,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     );
   },
 
-  // Recalculer tous les product codes
+  // Recalculer tous les product codes AVEC EXCLUSIONS
   recalculateProductCodes: async () => {
     console.log('🔄 [GenericGroupStore] === START RECALCULATE ===');
     
@@ -181,25 +228,28 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedLaboratories, 
       priceFilters, 
       hasPriceFilters,
-      tvaRates, // 🔥 NOUVEAU
-      genericStatus, // 🔥 NOUVEAU
-      dateRange
+      tvaRates,
+      genericStatus,
+      dateRange,
+      excludedProducts // 🔥 NOUVEAU
     } = get();
     
     const hasSelections = selectedGroups.length > 0 || selectedProducts.length > 0 || selectedLaboratories.length > 0;
-    const hasAnyFilters = hasPriceFilters() || tvaRates.length > 0 || genericStatus !== 'BOTH'; // 🔥 MODIFIÉ
+    const hasAnyFilters = hasPriceFilters() || tvaRates.length > 0 || genericStatus !== 'BOTH';
   
     console.log('📊 [GenericGroupStore] Current state:', {
       hasSelections,
-      hasAnyFilters, // 🔥 MODIFIÉ
+      hasAnyFilters,
       hasPriceFilters: hasPriceFilters(),
-      hasTvaFilters: tvaRates.length > 0, // 🔥 NOUVEAU
-      hasGenericStatusFilter: genericStatus !== 'BOTH', // 🔥 NOUVEAU
+      hasTvaFilters: tvaRates.length > 0,
+      hasGenericStatusFilter: genericStatus !== 'BOTH',
+      hasExclusions: excludedProducts.length > 0, // 🔥 NOUVEAU
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
-      tvaRates, // 🔥 NOUVEAU
-      genericStatus, // 🔥 NOUVEAU
+      exclusions: excludedProducts.length, // 🔥 NOUVEAU
+      tvaRates,
+      genericStatus,
       dateRange
     });
     
@@ -233,8 +283,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           body: JSON.stringify({
             productCodes: null,
             priceFilters,
-            tvaRates, // 🔥 NOUVEAU
-            genericStatus, // 🔥 NOUVEAU
+            tvaRates,
+            genericStatus,
             dateRange
           })
         });
@@ -243,7 +293,20 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
 
         if (response.ok) {
           const data = await response.json();
-          const filteredCodes = data.productCodes;
+          let filteredCodes = data.productCodes;
+          
+          // 🔥 Appliquer exclusions
+          if (excludedProducts.length > 0) {
+            const excludedSet = new Set(excludedProducts);
+            const beforeExclusion = filteredCodes.length;
+            filteredCodes = filteredCodes.filter((code: string) => !excludedSet.has(code));
+            
+            console.log('🚫 [GenericGroupStore] Exclusions applied (filters only):', {
+              before: beforeExclusion,
+              excluded: excludedProducts.length,
+              after: filteredCodes.length
+            });
+          }
           
           console.log('✅ [GenericGroupStore] FILTERS ONLY SUCCESS:', {
             duration: `${duration}ms`,
@@ -307,8 +370,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
             body: JSON.stringify({
               productCodes: finalCodes,
               priceFilters,
-              tvaRates, // 🔥 NOUVEAU
-              genericStatus, // 🔥 NOUVEAU
+              tvaRates,
+              genericStatus,
               dateRange
             })
           });
@@ -318,6 +381,20 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           if (response.ok) {
             const data = await response.json();
             finalCodes = data.productCodes;
+            
+            // 🔥 Appliquer exclusions après API
+            if (excludedProducts.length > 0) {
+              const excludedSet = new Set(excludedProducts);
+              const beforeExclusion = finalCodes.length;
+              finalCodes = finalCodes.filter(code => !excludedSet.has(code));
+              
+              console.log('🚫 [GenericGroupStore] Exclusions applied after API:', {
+                before: beforeExclusion,
+                excluded: excludedProducts.length,
+                after: finalCodes.length,
+                removed: beforeExclusion - finalCodes.length
+              });
+            }
             
             console.log('✅ [GenericGroupStore] API SUCCESS:', {
               duration: `${duration}ms`,
@@ -336,12 +413,27 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           console.error('❌ [GenericGroupStore] API FETCH ERROR:', error);
         }
       }
+    } else {
+      // 🔥 Pas de filtres API : appliquer exclusions directement
+      if (excludedProducts.length > 0) {
+        const excludedSet = new Set(excludedProducts);
+        const beforeExclusion = finalCodes.length;
+        finalCodes = finalCodes.filter(code => !excludedSet.has(code));
+        
+        console.log('🚫 [GenericGroupStore] Exclusions applied (no API):', {
+          before: beforeExclusion,
+          excluded: excludedProducts.length,
+          after: finalCodes.length,
+          removed: beforeExclusion - finalCodes.length
+        });
+      }
     }
     
     console.log('🔄 [GenericGroupStore] Final result:', {
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
+      exclusions: excludedProducts.length, // 🔥 NOUVEAU
       totalCodes: finalCodes.length,
       filtersActive: hasAnyFilters
     });
@@ -517,8 +609,13 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       selectedLaboratories: [],
       productCodes: [],
       priceFilters: defaultPriceFilters,
-      tvaRates: [], // 🔥 RESET TVA
-      genericStatus: 'BOTH' // 🔥 RESET STATUS
+      tvaRates: [],
+      genericStatus: 'BOTH',
+      excludedProducts: [], // 🔥 NOUVEAU
+      selectedExcludedProducts: [] // 🔥 NOUVEAU
     });
   }
 }));
+
+// 🔥 NOUVEAU - Export type
+export type { SelectedProduct };

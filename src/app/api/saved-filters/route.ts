@@ -7,7 +7,7 @@ import type { SavedFilter, SaveFilterPayload } from '@/types/savedFilters';
 
 /**
  * GET /api/saved-filters
- * Récupère tous les filtres sauvegardés de l'utilisateur connecté
+ * Récupère tous les filtres sauvegardés de l'utilisateur connecté - AVEC EXCLUSIONS
  */
 export async function GET(_request: NextRequest) {
   try {
@@ -32,6 +32,7 @@ export async function GET(_request: NextRequest) {
         laboratory_names,
         category_names,
         category_types,
+        excluded_product_codes,
         analysis_date_start,
         analysis_date_end,
         comparison_date_start,
@@ -54,6 +55,7 @@ export async function GET(_request: NextRequest) {
       laboratory_names: row.laboratory_names || [],
       category_names: row.category_names || [],
       category_types: row.category_types || [],
+      excluded_product_codes: row.excluded_product_codes || [], // 🔥 NOUVEAU
       analysis_date_start: row.analysis_date_start,
       analysis_date_end: row.analysis_date_end,
       comparison_date_start: row.comparison_date_start,
@@ -80,7 +82,7 @@ export async function GET(_request: NextRequest) {
 
 /**
  * POST /api/saved-filters
- * Crée un nouveau filtre sauvegardé
+ * Crée un nouveau filtre sauvegardé - AVEC EXCLUSIONS
  */
 export async function POST(request: NextRequest) {
   try {
@@ -168,13 +170,14 @@ export async function POST(request: NextRequest) {
         laboratory_names,
         category_names,
         category_types,
+        excluded_product_codes,
         analysis_date_start,
         analysis_date_end,
         comparison_date_start,
         comparison_date_end,
         created_at,
         updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
       RETURNING 
         id,
         user_id,
@@ -184,6 +187,7 @@ export async function POST(request: NextRequest) {
         laboratory_names,
         category_names,
         category_types,
+        excluded_product_codes,
         analysis_date_start,
         analysis_date_end,
         comparison_date_start,
@@ -204,6 +208,7 @@ export async function POST(request: NextRequest) {
       trimmedLabNames,
       trimmedCatNames,
       body.category_types || [],
+      body.excluded_product_codes || [], // 🔥 NOUVEAU
       body.analysis_date_start,
       body.analysis_date_end,
       body.comparison_date_start || null,
@@ -219,6 +224,7 @@ export async function POST(request: NextRequest) {
       laboratory_names: rows[0].laboratory_names || [],
       category_names: rows[0].category_names || [],
       category_types: rows[0].category_types || [],
+      excluded_product_codes: rows[0].excluded_product_codes || [], // 🔥 NOUVEAU
       analysis_date_start: rows[0].analysis_date_start,
       analysis_date_end: rows[0].analysis_date_end,
       comparison_date_start: rows[0].comparison_date_start,
@@ -227,13 +233,14 @@ export async function POST(request: NextRequest) {
       updated_at: rows[0].updated_at,
     };
 
-    console.log('✅ [POST /api/saved-filters] Filter created:', {
+    console.log('✅ [POST /api/saved-filters] Filter created with exclusions:', {
       id: savedFilter.id,
       name: savedFilter.name,
       products: savedFilter.product_codes.length,
       laboratories: savedFilter.laboratory_names.length,
       categories: savedFilter.category_names.length,
       pharmacies: savedFilter.pharmacy_ids.length,
+      exclusions: savedFilter.excluded_product_codes?.length || 0, // 🔥 NOUVEAU
       dates: `${savedFilter.analysis_date_start} → ${savedFilter.analysis_date_end}`,
       hasComparison: !!(savedFilter.comparison_date_start && savedFilter.comparison_date_end),
     });
@@ -247,4 +254,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

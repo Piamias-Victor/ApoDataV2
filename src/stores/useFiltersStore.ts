@@ -25,7 +25,7 @@ interface SelectedProduct {
   readonly universe?: string | undefined;
 }
 
-// NOUVEAU : Interface pour stocker les infos pharmacies
+// Interface pour stocker les infos pharmacies
 interface SelectedPharmacy {
   readonly id: string;
   readonly name: string;
@@ -44,7 +44,11 @@ interface FilterState {
   readonly categories: string[];
   readonly selectedCategories: SelectedCategory[];
   readonly pharmacy: string[];
-  readonly selectedPharmacies: SelectedPharmacy[]; // NOUVEAU : noms des pharmacies
+  readonly selectedPharmacies: SelectedPharmacy[];
+  
+  readonly excludedProducts: string[];
+  readonly selectedExcludedProducts: SelectedProduct[];
+  
   readonly dateRange: {
     readonly start: string | null;
     readonly end: string | null;
@@ -68,7 +72,12 @@ interface FilterActions {
   readonly setCategoryFilters: (codes: string[]) => void;
   readonly setCategoryFiltersWithNames: (codes: string[], categories: SelectedCategory[]) => void;
   readonly setPharmacyFilters: (codes: string[]) => void;
-  readonly setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => void; // NOUVEAU
+  readonly setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => void;
+  
+  readonly setExcludedProducts: (codes: string[]) => void;
+  readonly setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => void;
+  readonly clearExcludedProducts: () => void;
+  
   readonly setDateRange: (start: string | null, end: string | null) => void;
   readonly setAnalysisDateRange: (start: string, end: string) => void;
   readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
@@ -83,11 +92,11 @@ interface FilterActions {
   readonly lockPharmacyFilter: (pharmacyId: string) => void;
   readonly unlockPharmacyFilter: () => void;
   readonly resetToDefaultDates: () => void;
+  
+  readonly recalculateProductCodes: () => void;
+  readonly getFinalProductCodes: () => string[];
 }
 
-/**
- * Calcule les dates par défaut : 1er du mois en cours → aujourd'hui
- */
 const getDefaultAnalysisDates = (): { start: string; end: string } => {
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -117,7 +126,9 @@ const initialState: FilterState = {
   categories: [],
   selectedCategories: [],
   pharmacy: [],
-  selectedPharmacies: [], // NOUVEAU : initialisé vide
+  selectedPharmacies: [],
+  excludedProducts: [],
+  selectedExcludedProducts: [],
   dateRange: {
     start: null,
     end: null,
@@ -138,8 +149,44 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     (set, get) => ({
       ...initialState,
 
+      // 🔥 HELPER INTERNE - Appliquer les exclusions aux product codes
+      recalculateProductCodes: () => {
+        const state = get();
+        const excludedSet = new Set(state.excludedProducts);
+        
+        // 1️⃣ Filtrer products
+        const filteredProducts = state.products.filter(code => !excludedSet.has(code));
+        
+        // 2️⃣ Filtrer selectedLaboratories
+        const filteredLabs = state.selectedLaboratories.map(lab => ({
+          ...lab,
+          productCodes: lab.productCodes.filter(code => !excludedSet.has(code)),
+          productCount: lab.productCodes.filter(code => !excludedSet.has(code)).length,
+        }));
+        
+        // 3️⃣ Filtrer selectedCategories
+        const filteredCats = state.selectedCategories.map(cat => ({
+          ...cat,
+          productCodes: cat.productCodes.filter(code => !excludedSet.has(code)),
+          productCount: cat.productCodes.filter(code => !excludedSet.has(code)).length,
+        }));
+        
+        console.log('🎯 [FiltersStore] Product codes recalculated:', {
+          products: { before: state.products.length, after: filteredProducts.length },
+          excluded: excludedSet.size,
+        });
+        
+        // 4️⃣ Mettre à jour le store avec les codes filtrés
+        set({
+          products: filteredProducts,
+          selectedLaboratories: filteredLabs,
+          selectedCategories: filteredCats,
+        });
+      },
+
       setProductFilters: (codes: string[]) => {
         set({ products: codes });
+        get().recalculateProductCodes();
       },
 
       setProductFiltersWithNames: (codes: string[], products: SelectedProduct[]) => {
@@ -152,10 +199,13 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           products: codes,
           selectedProducts: products
         });
+        
+        get().recalculateProductCodes();
       },
 
       setLaboratoryFilters: (codes: string[]) => {
         set({ laboratories: codes });
+        get().recalculateProductCodes();
       },
 
       setLaboratoryFiltersWithNames: (codes: string[], laboratories: SelectedLaboratory[]) => {
@@ -168,10 +218,13 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           laboratories: codes,
           selectedLaboratories: laboratories
         });
+        
+        get().recalculateProductCodes();
       },
 
       setCategoryFilters: (codes: string[]) => {
         set({ categories: codes });
+        get().recalculateProductCodes();
       },
 
       setCategoryFiltersWithNames: (codes: string[], categories: SelectedCategory[]) => {
@@ -184,6 +237,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           categories: codes,
           selectedCategories: categories
         });
+        
+        get().recalculateProductCodes();
       },
 
       setPharmacyFilters: (codes: string[]) => {
@@ -195,7 +250,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ pharmacy: codes });
       },
 
-      // NOUVELLE FONCTION : Mettre à jour IDs ET noms des pharmacies
       setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => {
         const state = get();
         if (state.isPharmacyLocked) {
@@ -212,6 +266,35 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           pharmacy: ids,
           selectedPharmacies: pharmacies
         });
+      },
+
+      setExcludedProducts: (codes: string[]) => {
+        console.log('🚫 [Store] Setting excluded products:', codes.length);
+        set({ excludedProducts: codes });
+        get().recalculateProductCodes();
+      },
+
+      setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => {
+        console.log('🚫 [Store] Setting excluded products with names:', {
+          codes: codes.length,
+          products: products.length
+        });
+        
+        set({ 
+          excludedProducts: codes,
+          selectedExcludedProducts: products
+        });
+        
+        get().recalculateProductCodes();
+      },
+
+      clearExcludedProducts: () => {
+        console.log('🗑️ [Store] Clearing excluded products');
+        set({ 
+          excludedProducts: [],
+          selectedExcludedProducts: []
+        });
+        get().recalculateProductCodes();
       },
 
       setDateRange: (start: string | null, end: string | null) => {
@@ -248,6 +331,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             selectedLaboratories: [],
             categories: [],
             selectedCategories: [],
+            excludedProducts: [],
+            selectedExcludedProducts: [],
             dateRange: { start: null, end: null },
             analysisDateRange: { start: freshDates.start, end: freshDates.end },
             comparisonDateRange: { start: null, end: null },
@@ -293,7 +378,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         console.log('🗑️ [Store] Clearing pharmacy filters and names');
         set({ 
           pharmacy: [],
-          selectedPharmacies: [] // NOUVEAU : clear aussi les noms
+          selectedPharmacies: []
         });
       },
 
@@ -335,10 +420,37 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       unlockPharmacyFilter: () => {
         set({ isPharmacyLocked: false });
       },
+
+      getFinalProductCodes: () => {
+        const state = get();
+        
+        const allCodes = new Set<string>();
+        
+        state.products.forEach(code => allCodes.add(code));
+        
+        state.selectedLaboratories.forEach(lab => {
+          lab.productCodes.forEach(code => allCodes.add(code));
+        });
+        
+        state.selectedCategories.forEach(cat => {
+          cat.productCodes.forEach(code => allCodes.add(code));
+        });
+        
+        const finalCodes = Array.from(allCodes);
+        
+        console.log('🎯 [Store] Final product codes calculated:', {
+          total: finalCodes.length,
+          products: state.products.length,
+          labs: state.selectedLaboratories.length,
+          cats: state.selectedCategories.length,
+        });
+        
+        return finalCodes;
+      },
     }),
     {
       name: 'apodata-filters',
-      version: 8, // INCRÉMENTÉ pour la migration
+      version: 9,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -382,10 +494,16 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           };
         }
         if (version < 8) {
-          // Migration v7 → v8 : ajouter selectedPharmacies
           return {
             ...persistedState,
-            selectedPharmacies: [], // NOUVEAU champ
+            selectedPharmacies: [],
+          };
+        }
+        if (version < 9) {
+          return {
+            ...persistedState,
+            excludedProducts: [],
+            selectedExcludedProducts: [],
           };
         }
         return persistedState;
@@ -394,5 +512,4 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
   )
 );
 
-// Export des types pour usage externe
 export type { SelectedLaboratory, SelectedCategory, SelectedProduct, SelectedPharmacy };

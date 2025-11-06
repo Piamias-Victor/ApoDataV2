@@ -7,7 +7,7 @@ import type { SavedFilter, LoadFilterResult, RenameFilterPayload } from '@/types
 
 /**
  * GET /api/saved-filters/[id]
- * Récupère un filtre + résout les codes produits pour labos et catégories
+ * Récupère un filtre + résout les codes produits pour labos et catégories - AVEC EXCLUSIONS
  */
 export async function GET(
   _request: NextRequest,
@@ -37,6 +37,7 @@ export async function GET(
         laboratory_names,
         category_names,
         category_types,
+        excluded_product_codes,
         analysis_date_start,
         analysis_date_end,
         comparison_date_start,
@@ -65,6 +66,7 @@ export async function GET(
       laboratory_names: filterRows[0].laboratory_names || [],
       category_names: filterRows[0].category_names || [],
       category_types: filterRows[0].category_types || [],
+      excluded_product_codes: filterRows[0].excluded_product_codes || [], // 🔥 NOUVEAU
       analysis_date_start: filterRows[0].analysis_date_start,
       analysis_date_end: filterRows[0].analysis_date_end,
       comparison_date_start: filterRows[0].comparison_date_start,
@@ -192,13 +194,14 @@ export async function GET(
       resolvedPharmacies,
     };
 
-    console.log('✅ [GET /api/saved-filters/[id]] Filter loaded:', {
+    console.log('✅ [GET /api/saved-filters/[id]] Filter loaded with exclusions:', {
       id: filter.id,
       name: filter.name,
       totalProducts: result.resolvedProductCodes.length,
       laboratories: resolvedLaboratories.length,
       categories: resolvedCategories.length,
       pharmacies: resolvedPharmacies.length,
+      exclusions: filter.excluded_product_codes?.length || 0, // 🔥 NOUVEAU
       dates: `${filter.analysis_date_start} → ${filter.analysis_date_end}`,
     });
 
@@ -272,6 +275,7 @@ export async function PATCH(
         laboratory_names,
         category_names,
         category_types,
+        excluded_product_codes,
         analysis_date_start,
         analysis_date_end,
         comparison_date_start,
@@ -298,6 +302,7 @@ export async function PATCH(
       laboratory_names: rows[0].laboratory_names || [],
       category_names: rows[0].category_names || [],
       category_types: rows[0].category_types || [],
+      excluded_product_codes: rows[0].excluded_product_codes || [], // 🔥 NOUVEAU
       analysis_date_start: rows[0].analysis_date_start,
       analysis_date_end: rows[0].analysis_date_end,
       comparison_date_start: rows[0].comparison_date_start,

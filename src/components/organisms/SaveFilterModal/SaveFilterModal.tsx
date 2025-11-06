@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Package, TestTube, Tag, Building } from 'lucide-react';
+import { X, Save, Package, TestTube, Tag, Building, Ban } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 import { Input } from '@/components/atoms/Input/Input';
 import { Card } from '@/components/atoms/Card/Card';
@@ -17,14 +17,15 @@ interface SaveFilterModalProps {
   readonly laboratoriesCount: number;
   readonly categoriesCount: number;
   readonly pharmaciesCount: number;
+  readonly exclusionsCount?: number; // 🔥 NOUVEAU
 }
 
 /**
- * SaveFilterModal - Modal pour sauvegarder la sélection actuelle
+ * SaveFilterModal - Modal pour sauvegarder la sélection actuelle - AVEC EXCLUSIONS
  * 
  * Features :
  * - Input nom du filtre
- * - Preview des sélections (produits, labos, catégories, pharmacies)
+ * - Preview des sélections (produits, labos, catégories, pharmacies, exclusions)
  * - Validation : nom obligatoire + au moins une sélection
  * - Design Apple/Stripe : modal centré avec overlay
  */
@@ -37,6 +38,7 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({
   laboratoriesCount,
   categoriesCount,
   pharmaciesCount,
+  exclusionsCount = 0, // 🔥 NOUVEAU
 }) => {
   const [filterName, setFilterName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +173,18 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* 🔥 NOUVEAU - Exclusions (si présentes) */}
+                  {exclusionsCount > 0 && (
+                    <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div className="flex items-center justify-center space-x-2">
+                        <Ban className="w-5 h-5 text-red-600" />
+                        <span className="text-sm font-medium text-red-900">
+                          {exclusionsCount} produit{exclusionsCount > 1 ? 's' : ''} exclu{exclusionsCount > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {totalSelections === 0 && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
