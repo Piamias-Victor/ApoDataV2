@@ -302,6 +302,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       },
 
       setAnalysisDateRange: (start: string, end: string) => {
+        if (!start || !end) {
+          console.warn('❌ Analysis dates cannot be empty');
+          return;
+        }
+
         if (!start.trim() || !end.trim()) {
           console.warn('❌ Analysis dates cannot be empty');
           return;
