@@ -366,10 +366,14 @@ export const FilterBar: React.FC = () => {
     setActiveDrawer(null);
   };
 
-  const handleSaveFilter = async (name: string) => {
-    await saveCurrentFilters(name);
-    setActiveDrawer(null);
-  };
+const filterType: 'classic' | 'generic' = pathname.includes('/generiques') 
+  ? 'generic' 
+  : 'classic';
+
+const handleSaveFilter = async (name: string) => {
+  await saveCurrentFilters(name, filterType); // 🔥 Ajouter filterType
+  setActiveDrawer(null);
+};
 
   const handleLoadFilter = async (id: string) => {
     await loadFilter(id);
