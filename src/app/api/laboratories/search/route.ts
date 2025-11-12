@@ -15,25 +15,15 @@ interface LaboratoryResult {
     readonly name: string;
     readonly code_13_ref: string;
   }>;
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 interface SearchParams {
   readonly query: string;
   readonly mode: 'laboratory' | 'product';
+  readonly labOrBrandMode: 'laboratory' | 'brand'; // NOUVEAU
 }
 
-/**
- * API Route - Recherche laboratoires avec mode dual
- * 
- * POST /api/laboratories/search
- * Body: { query: string, mode: 'laboratory' | 'product' }
- * 
- * Mode 'laboratory': recherche directe par nom laboratoire
- * Mode 'product': recherche produit → trouve labos avec produits matchants
- * 
- * Admin: data_globalproduct | User: data_internalproduct + jointure
- * MISE À JOUR: Utilise bcb_lab (données BCB) au lieu de brand_lab
- */
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { query, mode }: SearchParams = await request.json();
+    const { query, mode, labOrBrandMode }: SearchParams = await request.json();
     
     if (!query || query.trim().length < 2) {
       return NextResponse.json({ laboratories: [] });
@@ -51,25 +41,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
     }
 
+    if (!labOrBrandMode || !['laboratory', 'brand'].includes(labOrBrandMode)) {
+      return NextResponse.json({ error: 'Invalid labOrBrandMode' }, { status: 400 });
+    }
+
     const trimmedQuery = query.trim();
     const isAdmin = session.user.role === 'admin';
+    
+    // NOUVEAU - Choisir la colonne selon le mode
+    const columnName = labOrBrandMode === 'laboratory' ? 'bcb_lab' : 'bcb_brand';
     
     let sqlQuery: string;
     let params: any[];
 
     if (mode === 'laboratory') {
-      // Mode laboratoire : recherche directe par nom laboratoire BCB
+      // Mode laboratoire/marque : recherche directe
       if (isAdmin) {
         sqlQuery = `
           SELECT 
-            bcb_lab as laboratory_name,
+            ${columnName} as laboratory_name,
             COUNT(*) as product_count,
-            ARRAY_AGG(code_13_ref) as product_codes
+            ARRAY_AGG(code_13_ref) as product_codes,
+            '${labOrBrandMode}'::text as source_type
           FROM data_globalproduct
-          WHERE bcb_lab IS NOT NULL
-            AND LOWER(bcb_lab) LIKE LOWER($1)
-          GROUP BY bcb_lab
-          ORDER BY bcb_lab
+          WHERE ${columnName} IS NOT NULL
+            AND LOWER(${columnName}) LIKE LOWER($1)
+          GROUP BY ${columnName}
+          ORDER BY ${columnName}
           LIMIT 50
         `;
         params = [`%${trimmedQuery}%`];
@@ -80,23 +78,23 @@ export async function POST(request: NextRequest) {
 
         sqlQuery = `
           SELECT 
-            dgp.bcb_lab as laboratory_name,
+            dgp.${columnName} as laboratory_name,
             COUNT(*) as product_count,
-            ARRAY_AGG(dip.code_13_ref_id) as product_codes
+            ARRAY_AGG(dip.code_13_ref_id) as product_codes,
+            '${labOrBrandMode}'::text as source_type
           FROM data_internalproduct dip
           INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
           WHERE dip.pharmacy_id = $1
-            AND dgp.bcb_lab IS NOT NULL
-            AND LOWER(dgp.bcb_lab) LIKE LOWER($2)
-          GROUP BY dgp.bcb_lab
-          ORDER BY dgp.bcb_lab
+            AND dgp.${columnName} IS NOT NULL
+            AND LOWER(dgp.${columnName}) LIKE LOWER($2)
+          GROUP BY dgp.${columnName}
+          ORDER BY dgp.${columnName}
           LIMIT 50
         `;
         params = [session.user.pharmacyId, `%${trimmedQuery}%`];
       }
     } else {
-      // Mode produit : recherche produit → trouve laboratoires BCB
-      // Déterminer le type de recherche produit
+      // Mode produit : recherche produit → trouve laboratoires/marques
       const isEndCodeSearch = trimmedQuery.startsWith('*') && /^\*\d+$/.test(trimmedQuery);
       const isStartCodeSearch = /^\d+$/.test(trimmedQuery);
       const isNameSearch = !isEndCodeSearch && !isStartCodeSearch;
@@ -106,34 +104,35 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                bcb_lab,
+                ${columnName},
                 name,
                 code_13_ref
               FROM data_globalproduct
-              WHERE bcb_lab IS NOT NULL
+              WHERE ${columnName} IS NOT NULL
                 AND LOWER(name) LIKE LOWER($1)
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 ARRAY_AGG(code_13_ref) as product_codes
               FROM data_globalproduct
-              WHERE bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY bcb_lab
+              WHERE ${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY ${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -144,34 +143,35 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                bcb_lab,
+                ${columnName},
                 name,
                 code_13_ref
               FROM data_globalproduct
-              WHERE bcb_lab IS NOT NULL
+              WHERE ${columnName} IS NOT NULL
                 AND code_13_ref LIKE $1
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 ARRAY_AGG(code_13_ref) as product_codes
               FROM data_globalproduct
-              WHERE bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY bcb_lab
+              WHERE ${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY ${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -183,34 +183,35 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                bcb_lab,
+                ${columnName},
                 name,
                 code_13_ref
               FROM data_globalproduct
-              WHERE bcb_lab IS NOT NULL
+              WHERE ${columnName} IS NOT NULL
                 AND code_13_ref LIKE $1
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 ARRAY_AGG(code_13_ref) as product_codes
               FROM data_globalproduct
-              WHERE bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY bcb_lab
+              WHERE ${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY ${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -230,38 +231,39 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                dgp.bcb_lab,
+                dgp.${columnName},
                 dip.name,
                 dip.code_13_ref_id as code_13_ref
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IS NOT NULL
+                AND dgp.${columnName} IS NOT NULL
                 AND LOWER(dip.name) LIKE LOWER($2)
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                dgp.bcb_lab as laboratory_name,
+                dgp.${columnName} as laboratory_name,
                 ARRAY_AGG(dip.code_13_ref_id) as product_codes
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY dgp.bcb_lab
+                AND dgp.${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY dgp.${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -272,38 +274,39 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                dgp.bcb_lab,
+                dgp.${columnName},
                 dip.name,
                 dip.code_13_ref_id as code_13_ref
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IS NOT NULL
+                AND dgp.${columnName} IS NOT NULL
                 AND dip.code_13_ref_id LIKE $2
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                dgp.bcb_lab as laboratory_name,
+                dgp.${columnName} as laboratory_name,
                 ARRAY_AGG(dip.code_13_ref_id) as product_codes
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY dgp.bcb_lab
+                AND dgp.${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY dgp.${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -315,38 +318,39 @@ export async function POST(request: NextRequest) {
           sqlQuery = `
             WITH matching_products AS (
               SELECT 
-                dgp.bcb_lab,
+                dgp.${columnName},
                 dip.name,
                 dip.code_13_ref_id as code_13_ref
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IS NOT NULL
+                AND dgp.${columnName} IS NOT NULL
                 AND dip.code_13_ref_id LIKE $2
             ),
             lab_summary AS (
               SELECT 
-                bcb_lab as laboratory_name,
+                ${columnName} as laboratory_name,
                 COUNT(*) as matching_count,
                 JSON_AGG(JSON_BUILD_OBJECT('name', name, 'code_13_ref', code_13_ref)) as matching_products
               FROM matching_products
-              GROUP BY bcb_lab
+              GROUP BY ${columnName}
             ),
             all_lab_products AS (
               SELECT 
-                dgp.bcb_lab as laboratory_name,
+                dgp.${columnName} as laboratory_name,
                 ARRAY_AGG(dip.code_13_ref_id) as product_codes
               FROM data_internalproduct dip
               INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
               WHERE dip.pharmacy_id = $1
-                AND dgp.bcb_lab IN (SELECT bcb_lab FROM matching_products)
-              GROUP BY dgp.bcb_lab
+                AND dgp.${columnName} IN (SELECT ${columnName} FROM matching_products)
+              GROUP BY dgp.${columnName}
             )
             SELECT 
               ls.laboratory_name,
               ls.matching_count as product_count,
               alp.product_codes,
-              ls.matching_products
+              ls.matching_products,
+              '${labOrBrandMode}'::text as source_type
             FROM lab_summary ls
             JOIN all_lab_products alp ON ls.laboratory_name = alp.laboratory_name
             ORDER BY ls.laboratory_name
@@ -363,16 +367,16 @@ export async function POST(request: NextRequest) {
     const laboratories = await db.query<LaboratoryResult>(sqlQuery, params);
     const queryTime = Date.now() - startTime;
 
-    // Log performance pour requêtes lentes
     if (queryTime > 500) {
-      console.warn(`Requête laboratoires lente (${queryTime}ms):`, trimmedQuery, mode);
+      console.warn(`Requête laboratoires lente (${queryTime}ms):`, trimmedQuery, mode, labOrBrandMode);
     }
 
     return NextResponse.json({
       laboratories,
       count: laboratories.length,
       queryTime,
-      mode
+      mode,
+      labOrBrandMode
     });
 
   } catch (error) {

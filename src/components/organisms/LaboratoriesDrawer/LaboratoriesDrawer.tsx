@@ -3,7 +3,7 @@
 
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, Loader2, TestTube, Package, Check } from 'lucide-react';
+import { X, Search, Loader2, TestTube, Package, Check, Tag } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useLaboratorySearch } from '@/hooks/laboratories/useLaboratorySearch';
 import { useFiltersStore } from '@/stores/useFiltersStore';
@@ -14,15 +14,6 @@ interface LaboratoriesDrawerProps {
   readonly onCountChange: (count: number) => void;
 }
 
-/**
- * LaboratoriesDrawer Component - VERSION SIMPLIFIÉE AVEC STORE
- * 
- * NOUVELLES FONCTIONNALITÉS :
- * - Section "Laboratoires sélectionnés" avec noms depuis le store
- * - Désélection rapide individuelle
- * - Pas d'API supplémentaire nécessaire
- * - Indicateurs visuels conservés (violet/vert)
- */
 export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
   isOpen,
   onClose,
@@ -36,6 +27,8 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
     setSearchQuery,
     searchMode,
     setSearchMode,
+    labOrBrandMode,
+    setLabOrBrandMode,
     selectedLaboratories,
     toggleLaboratory,
     applyFilters,
@@ -44,33 +37,27 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
     getSelectedLaboratoriesFromStore
   } = useLaboratorySearch();
 
-  // Accès au store - SIMPLIFIÉ
   const storedLaboratoryCodes = useFiltersStore(state => state.laboratories);
-  const selectedLaboratoriesInfo = getSelectedLaboratoriesFromStore(); // Direct depuis le store
+  const selectedLaboratoriesInfo = getSelectedLaboratoriesFromStore();
 
-  // Update count when selection changes
   useEffect(() => {
     onCountChange(pendingProductCodes.size);
   }, [pendingProductCodes.size, onCountChange]);
 
-  const handleLaboratoryToggle = (labName: string, productCodes: string[]) => {
-    toggleLaboratory(labName, productCodes);
+  const handleLaboratoryToggle = (labName: string, productCodes: string[], sourceType: 'laboratory' | 'brand') => {
+    toggleLaboratory(labName, productCodes, sourceType);
   };
 
-  // Fonction pour désélectionner un laboratoire du store
   const handleDeselectStoredLaboratory = (labName: string) => {
     console.log('🗑️ [LaboratoriesDrawer] Deselecting stored laboratory:', labName);
     
-    // Filtrer ce laboratoire des sélections du store
     const remainingLabs = selectedLaboratoriesInfo.filter(lab => lab.name !== labName);
     const remainingCodes = remainingLabs.flatMap(lab => lab.productCodes);
     
-    // Mettre à jour le store
     const setLaboratoryFiltersWithNames = useFiltersStore.getState().setLaboratoryFiltersWithNames;
     setLaboratoryFiltersWithNames(remainingCodes, remainingLabs);
   };
 
-  // Vérifier si un laboratoire est sélectionné
   const isLaboratorySelected = (labName: string, productCodes: string[]): boolean => {
     if (selectedLaboratories.has(labName)) {
       return true;
@@ -81,7 +68,6 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
     return false;
   };
 
-  // Déterminer le type de sélection pour l'affichage visuel
   const getSelectionType = (labName: string, productCodes: string[]): 'new' | 'stored' | 'none' => {
     if (selectedLaboratories.has(labName)) {
       return 'new';
@@ -98,10 +84,19 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
   const showSelectedSection = !isSearching && selectedLaboratoriesInfo.length > 0;
 
   const getPlaceholderText = () => {
-    return searchMode === 'laboratory' 
-      ? 'Rechercher un laboratoire...'
-      : 'Rechercher un produit (3+ caractères)...';
+    if (searchMode === 'laboratory') {
+      return labOrBrandMode === 'laboratory' 
+        ? 'Rechercher un laboratoire...'
+        : 'Rechercher une marque...';
+    }
+    return 'Rechercher un produit (3+ caractères)...';
   };
+
+  const getModeIcon = () => {
+    return labOrBrandMode === 'laboratory' ? TestTube : Tag;
+  };
+
+  const ModeIcon = getModeIcon();
 
   return (
     <>
@@ -129,11 +124,11 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-100 rounded-lg">
-              <TestTube className="w-5 h-5 text-purple-600" />
+              <ModeIcon className="w-5 h-5 text-purple-600" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                Laboratoires
+                {labOrBrandMode === 'laboratory' ? 'Laboratoires' : 'Marques'}
               </h2>
               <p className="text-sm text-gray-500">
                 {pendingProductCodes.size} codes produits sélectionnés
@@ -148,8 +143,43 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
           </button>
         </div>
 
-        {/* Search Mode Toggle */}
+        {/* Lab/Brand Toggle - MARQUE EN PREMIER */}
         <div className="p-4 border-b border-gray-100">
+          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setLabOrBrandMode('brand')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200
+                ${labOrBrandMode === 'brand'
+                  ? 'bg-white text-purple-600 shadow-sm border border-purple-200'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <Tag className="w-4 h-4 inline mr-2" />
+              Marque
+            </button>
+            <button
+              onClick={() => setLabOrBrandMode('laboratory')}
+              className={`
+                flex-1 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200
+                ${labOrBrandMode === 'laboratory'
+                  ? 'bg-white text-purple-600 shadow-sm border border-purple-200'
+                  : 'text-gray-600 hover:text-gray-900'
+                }
+              `}
+            >
+              <TestTube className="w-4 h-4 inline mr-2" />
+              Laboratoire
+            </button>
+          </div>
+        </div>
+
+        {/* Search Mode Toggle - AVEC LABEL */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="text-xs font-medium text-gray-500 mb-2">
+            Recherche par :
+          </div>
           <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setSearchMode('laboratory')}
@@ -161,8 +191,8 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 }
               `}
             >
-              <TestTube className="w-4 h-4 inline mr-2" />
-              Laboratoire
+              <ModeIcon className="w-4 h-4 inline mr-2" />
+              Nom
             </button>
             <button
               onClick={() => setSearchMode('product')}
@@ -197,14 +227,14 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
           
-          {/* SECTION LABORATOIRES SÉLECTIONNÉS - SIMPLIFIÉE */}
+          {/* Section sélectionnés - AVEC INDICATEURS TYPE */}
           {showSelectedSection && (
             <div className="border-b border-gray-200 bg-gray-50">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-gray-700 flex items-center">
                     <Check className="w-4 h-4 mr-2 text-green-600" />
-                    Laboratoires sélectionnés ({selectedLaboratoriesInfo.length})
+                    Sélectionnés ({selectedLaboratoriesInfo.length})
                   </h3>
                   <button
                     onClick={clearLaboratoryFilters}
@@ -215,41 +245,60 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 </div>
                 
                 <div className="space-y-2">
-                  {selectedLaboratoriesInfo.map((labInfo, index) => (
-                    <motion.div
-                      key={`selected-${labInfo.name}-${index}`}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-center justify-between p-3 bg-white border border-purple-200 rounded-lg"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full mr-2" />
-                          <span className="text-sm font-medium text-gray-900 truncate">
-                            {labInfo.name}
-                          </span>
-                        </div>
-                        <p className="text-xs text-purple-600 mt-1">
-                          {labInfo.productCount} produits • Déjà appliqué
-                        </p>
-                      </div>
-                      
-                      <button
-                        onClick={() => handleDeselectStoredLaboratory(labInfo.name)}
-                        className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Désélectionner ce laboratoire"
+                  {selectedLaboratoriesInfo.map((labInfo, index) => {
+                    const isLab = labInfo.sourceType === 'laboratory';
+                    const Icon = isLab ? TestTube : Tag;
+                    const typeLabel = isLab ? 'Labo' : 'Marque';
+                    
+                    return (
+                      <motion.div
+                        key={`selected-${labInfo.name}-${index}`}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`flex items-center justify-between p-3 bg-white border rounded-lg ${
+                          isLab ? 'border-purple-200' : 'border-blue-200'
+                        }`}
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </motion.div>
-                  ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center">
+                            <Icon className={`w-3 h-3 mr-2 ${
+                              isLab ? 'text-purple-500' : 'text-blue-500'
+                            }`} />
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {labInfo.name}
+                            </span>
+                            <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                              isLab 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {typeLabel}
+                            </span>
+                          </div>
+                          <p className={`text-xs mt-1 ${
+                            isLab ? 'text-purple-600' : 'text-blue-600'
+                          }`}>
+                            {labInfo.productCount} produits • Appliqué
+                          </p>
+                        </div>
+                        
+                        <button
+                          onClick={() => handleDeselectStoredLaboratory(labInfo.name)}
+                          className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Désélectionner"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
 
-          {/* RÉSULTATS DE RECHERCHE */}
+          {/* Résultats de recherche */}
           <AnimatePresence mode="wait">
             {isLoading && (
               <motion.div
@@ -286,8 +335,10 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 exit={{ opacity: 0 }}
                 className="p-8 text-center"
               >
-                <TestTube className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">Aucun laboratoire trouvé</p>
+                <ModeIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">
+                  Aucun {labOrBrandMode === 'laboratory' ? 'laboratoire' : 'marque'} trouvé
+                </p>
                 <p className="text-xs text-gray-400">
                   Essayez avec d'autres mots-clés
                 </p>
@@ -305,6 +356,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 {laboratories.map((laboratory, index) => {
                   const isSelected = isLaboratorySelected(laboratory.laboratory_name, laboratory.product_codes);
                   const selectionType = getSelectionType(laboratory.laboratory_name, laboratory.product_codes);
+                  const sourceType = laboratory.source_type || labOrBrandMode;
 
                   return (
                     <motion.div
@@ -323,7 +375,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                           : 'border-gray-200 hover:border-gray-300'
                         }
                       `}
-                      onClick={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes)}
+                      onClick={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes, sourceType)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -338,7 +390,6 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                             <span>{laboratory.product_count} produits</span>
                           </div>
 
-                          {/* Indicateurs visuels */}
                           {selectionType === 'stored' && (
                             <div className="flex items-center mb-2">
                               <div className="w-2 h-2 bg-purple-500 rounded-full mr-2" />
@@ -357,7 +408,6 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                             </div>
                           )}
                           
-                          {/* Produits correspondants en mode produit */}
                           {searchMode === 'product' && laboratory.matching_products && laboratory.matching_products.length > 0 && (
                             <div className="mt-2 space-y-1">
                               {laboratory.matching_products.slice(0, 3).map((product, productIndex) => (
@@ -380,11 +430,10 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                           )}
                         </div>
 
-                        {/* Checkbox */}
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes)}
+                          onChange={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes, sourceType)}
                           className="mt-2 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                         />
                       </div>
@@ -394,7 +443,6 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
               </motion.div>
             )}
 
-            {/* Message quand aucune recherche et aucun laboratoire sélectionné */}
             {!isSearching && !isLoading && selectedLaboratoriesInfo.length === 0 && (
               <motion.div
                 key="no-selection"
@@ -403,10 +451,10 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 exit={{ opacity: 0 }}
                 className="p-8 text-center"
               >
-                <TestTube className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">Aucun laboratoire sélectionné</p>
+                <ModeIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-2">Aucune sélection</p>
                 <p className="text-xs text-gray-400">
-                  Utilisez la recherche pour trouver des laboratoires
+                  Utilisez la recherche pour trouver des {labOrBrandMode === 'laboratory' ? 'laboratoires' : 'marques'}
                 </p>
               </motion.div>
             )}
@@ -444,7 +492,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 transition-all duration-200
               "
             >
-              Effacer labos
+              Effacer tout
             </button>
           </div>
         </div>
@@ -453,7 +501,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
         <div className="border-t border-gray-100 p-4 bg-gray-50">
           {searchMode === 'laboratory' ? (
             <p className="text-xs text-gray-600">
-              <strong>Mode Laboratoire :</strong> Recherche directe par nom de laboratoire
+              <strong>Mode {labOrBrandMode === 'laboratory' ? 'Laboratoire' : 'Marque'} :</strong> Recherche directe par nom
             </p>
           ) : (
             <>
@@ -461,7 +509,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                 <strong>Mode Produit :</strong> Lettres: nom produit • Chiffres: début EAN • *1234: fin EAN
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Trouvez un produit pour sélectionner tout son laboratoire
+                Trouve {labOrBrandMode === 'laboratory' ? 'laboratoires' : 'marques'} via produits matchants
               </p>
             </>
           )}

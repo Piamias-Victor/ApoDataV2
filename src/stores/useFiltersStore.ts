@@ -2,11 +2,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Interface pour stocker les infos laboratoires
+// Interface pour stocker les infos laboratoires - MODIFIÉE
 interface SelectedLaboratory {
   readonly name: string;
   readonly productCodes: string[];
   readonly productCount: number;
+  readonly sourceType?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 // Interface pour stocker les infos catégories
@@ -149,22 +150,18 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     (set, get) => ({
       ...initialState,
 
-      // 🔥 HELPER INTERNE - Appliquer les exclusions aux product codes
       recalculateProductCodes: () => {
         const state = get();
         const excludedSet = new Set(state.excludedProducts);
         
-        // 1️⃣ Filtrer products
         const filteredProducts = state.products.filter(code => !excludedSet.has(code));
         
-        // 2️⃣ Filtrer selectedLaboratories
         const filteredLabs = state.selectedLaboratories.map(lab => ({
           ...lab,
           productCodes: lab.productCodes.filter(code => !excludedSet.has(code)),
           productCount: lab.productCodes.filter(code => !excludedSet.has(code)).length,
         }));
         
-        // 3️⃣ Filtrer selectedCategories
         const filteredCats = state.selectedCategories.map(cat => ({
           ...cat,
           productCodes: cat.productCodes.filter(code => !excludedSet.has(code)),
@@ -176,7 +173,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           excluded: excludedSet.size,
         });
         
-        // 4️⃣ Mettre à jour le store avec les codes filtrés
         set({
           products: filteredProducts,
           selectedLaboratories: filteredLabs,
@@ -455,7 +451,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 9,
+      version: 10, // INCRÉMENTÉ pour la migration
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -509,6 +505,16 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             ...persistedState,
             excludedProducts: [],
             selectedExcludedProducts: [],
+          };
+        }
+        // NOUVEAU - Migration v10 pour ajouter sourceType
+        if (version < 10) {
+          return {
+            ...persistedState,
+            selectedLaboratories: (persistedState.selectedLaboratories || []).map((lab: any) => ({
+              ...lab,
+              sourceType: undefined, // Pas de sourceType pour les anciens labos
+            })),
           };
         }
         return persistedState;

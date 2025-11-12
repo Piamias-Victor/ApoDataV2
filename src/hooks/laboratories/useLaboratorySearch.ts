@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFiltersStore, type SelectedLaboratory } from '@/stores/useFiltersStore';
 
 export type SearchMode = 'laboratory' | 'product';
+export type LabOrBrandMode = 'laboratory' | 'brand'; // NOUVEAU
 
 export interface MatchingProduct {
   readonly name: string;
@@ -14,6 +15,7 @@ export interface Laboratory {
   readonly product_count: number;
   readonly product_codes: string[];
   readonly matching_products?: MatchingProduct[];
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 interface SearchResponse {
@@ -21,6 +23,7 @@ interface SearchResponse {
   readonly count: number;
   readonly queryTime: number;
   readonly mode: SearchMode;
+  readonly labOrBrandMode: LabOrBrandMode; // NOUVEAU
 }
 
 interface UseLaboratorySearchReturn {
@@ -31,23 +34,25 @@ interface UseLaboratorySearchReturn {
   readonly setSearchQuery: (query: string) => void;
   readonly searchMode: SearchMode;
   readonly setSearchMode: (mode: SearchMode) => void;
+  readonly labOrBrandMode: LabOrBrandMode; // NOUVEAU
+  readonly setLabOrBrandMode: (mode: LabOrBrandMode) => void; // NOUVEAU
   readonly selectedLaboratories: Set<string>;
-  readonly toggleLaboratory: (labName: string, productCodes: string[]) => void;
+  readonly toggleLaboratory: (labName: string, productCodes: string[], sourceType: 'laboratory' | 'brand') => void; // MODIFIÉ
   readonly clearSelection: () => void;
   readonly applyFilters: () => void;
   readonly clearLaboratoryFilters: () => void;
   readonly pendingProductCodes: Set<string>;
-  readonly getSelectedLaboratoriesFromStore: () => SelectedLaboratory[]; // SIMPLIFIÉ
+  readonly getSelectedLaboratoriesFromStore: () => SelectedLaboratory[];
 }
 
 /**
- * Hook useLaboratorySearch - VERSION SIMPLIFIÉE AVEC STORE
+ * Hook useLaboratorySearch - VERSION AVEC LAB/BRAND
  * 
- * SIMPLIFICATIONS :
- * - Utilise directement selectedLaboratories du store
- * - Plus besoin d'API supplémentaire ou de cache
- * - getSelectedLaboratoriesFromStore() lit juste le store
- * - applyFilters utilise setLaboratoryFiltersWithNames
+ * FONCTIONNALITÉS :
+ * - Toggle Laboratoire (bcb_lab) / Marque (bcb_brand)
+ * - Recherche sur le champ approprié selon mode
+ * - Stockage du sourceType pour distinction visuelle
+ * - Clear automatique de la recherche au switch Lab/Brand
  */
 export function useLaboratorySearch(): UseLaboratorySearchReturn {
   const [laboratories, setLaboratories] = useState<Laboratory[]>([]);
@@ -55,14 +60,15 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('laboratory');
+  const [labOrBrandMode, setLabOrBrandMode] = useState<LabOrBrandMode>('laboratory'); // NOUVEAU
   
   // États locaux pour les sélections en attente
   const [selectedLaboratories, setSelectedLaboratories] = useState<Set<string>>(new Set());
-  const [laboratoryProductMap, setLaboratoryProductMap] = useState<Map<string, string[]>>(new Map());
+  const [laboratoryProductMap, setLaboratoryProductMap] = useState<Map<string, { codes: string[], type: 'laboratory' | 'brand' }>>(new Map()); // MODIFIÉ
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
   const [previousStoreCodes, setPreviousStoreCodes] = useState<Set<string>>(new Set());
 
-  // Récupération depuis le store - SIMPLIFIÉ
+  // Récupération depuis le store
   const storedLaboratoryCodes = useFiltersStore(state => state.laboratories);
   const storedSelectedLaboratories = useFiltersStore(state => state.selectedLaboratories);
 
@@ -73,15 +79,17 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     const storedCodesSet = new Set(storedLaboratoryCodes);
     setPendingProductCodes(storedCodesSet);
     setPreviousStoreCodes(storedCodesSet);
-  }, []); // Initialisation unique
+  }, []);
 
   // Calculer pendingProductCodes = store + nouveaux sélectionnés
   useEffect(() => {
     const allPendingCodes = new Set(previousStoreCodes);
     
     selectedLaboratories.forEach(labName => {
-      const productCodes = laboratoryProductMap.get(labName) || [];
-      productCodes.forEach(code => allPendingCodes.add(code));
+      const productInfo = laboratoryProductMap.get(labName);
+      if (productInfo) {
+        productInfo.codes.forEach(code => allPendingCodes.add(code));
+      }
     });
     
     setPendingProductCodes(allPendingCodes);
@@ -92,14 +100,14 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     });
   }, [selectedLaboratories, laboratoryProductMap, previousStoreCodes]);
 
-  // FONCTION SIMPLIFIÉE : Lire directement le store
+  // Lire directement le store
   const getSelectedLaboratoriesFromStore = useCallback((): SelectedLaboratory[] => {
     console.log('📖 [useLaboratorySearch] Reading selected laboratories from store:', storedSelectedLaboratories.length);
     return storedSelectedLaboratories;
   }, [storedSelectedLaboratories]);
 
-  // Fonction de recherche avec debounce
-  const performSearch = useCallback(async (query: string, mode: SearchMode) => {
+  // Fonction de recherche avec debounce - MODIFIÉE
+  const performSearch = useCallback(async (query: string, mode: SearchMode, labOrBrand: LabOrBrandMode) => {
     if (!query || query.trim().length < 3) {
       setLaboratories([]);
       setLaboratoryProductMap(new Map());
@@ -118,7 +126,8 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
         },
         body: JSON.stringify({ 
           query: query.trim(),
-          mode 
+          mode,
+          labOrBrandMode: labOrBrand // NOUVEAU
         }),
       });
 
@@ -129,10 +138,13 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
       const data: SearchResponse = await response.json();
       setLaboratories(data.laboratories);
 
-      // Mettre à jour le mapping laboratory -> product codes
-      const newMap = new Map<string, string[]>();
+      // Mettre à jour le mapping laboratory -> product codes avec type - MODIFIÉ
+      const newMap = new Map<string, { codes: string[], type: 'laboratory' | 'brand' }>();
       data.laboratories.forEach(laboratory => {
-        newMap.set(laboratory.laboratory_name, laboratory.product_codes);
+        newMap.set(laboratory.laboratory_name, {
+          codes: laboratory.product_codes,
+          type: laboratory.source_type || labOrBrand
+        });
       });
       setLaboratoryProductMap(newMap);
 
@@ -146,14 +158,14 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     }
   }, []);
 
-  // Effet de debounce pour la recherche
+  // Effet de debounce pour la recherche - MODIFIÉ
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      performSearch(searchQuery, searchMode);
+      performSearch(searchQuery, searchMode, labOrBrandMode);
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchMode, performSearch]);
+  }, [searchQuery, searchMode, labOrBrandMode, performSearch]);
 
   // Reset des résultats quand la requête est trop courte
   useEffect(() => {
@@ -165,6 +177,15 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     }
   }, [searchQuery]);
 
+  // NOUVEAU - Handler pour le switch Lab/Brand avec clear de recherche
+  const handleSetLabOrBrandMode = useCallback((mode: LabOrBrandMode) => {
+    console.log('🔄 [useLaboratorySearch] Switching lab/brand mode to:', mode);
+    setLabOrBrandMode(mode);
+    setSearchQuery(''); // Vider la recherche
+    setLaboratories([]); // Clear résultats
+    setLaboratoryProductMap(new Map());
+  }, []);
+
   // Clear des résultats quand le mode change
   useEffect(() => {
     if (searchQuery.trim().length >= 3) {
@@ -174,9 +195,9 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     }
   }, [searchMode]);
 
-  // Toggle laboratory pour nouvelles sélections
-  const toggleLaboratory = useCallback((labName: string, productCodes: string[]) => {
-    console.log('🔄 [useLaboratorySearch] Toggle laboratory:', labName);
+  // Toggle laboratory pour nouvelles sélections - MODIFIÉ
+  const toggleLaboratory = useCallback((labName: string, productCodes: string[], sourceType: 'laboratory' | 'brand') => {
+    console.log('🔄 [useLaboratorySearch] Toggle laboratory:', labName, 'type:', sourceType);
     
     setSelectedLaboratories(prev => {
       const newSet = new Set(prev);
@@ -192,7 +213,7 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
 
     setLaboratoryProductMap(prev => {
       const newMap = new Map(prev);
-      newMap.set(labName, productCodes);
+      newMap.set(labName, { codes: productCodes, type: sourceType });
       return newMap;
     });
   }, []);
@@ -203,11 +224,10 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     setPendingProductCodes(previousStoreCodes);
   }, [previousStoreCodes]);
 
-  // FONCTION MODIFIÉE : Utilise setLaboratoryFiltersWithNames
+  // Appliquer les filtres avec sourceType - MODIFIÉ
   const applyFilters = useCallback(() => {
     console.log('✅ [useLaboratorySearch] Applying filters to store with names');
     
-    // Construire la liste des laboratoires avec leurs infos
     const newLaboratoriesInfo: SelectedLaboratory[] = [];
     const allProductCodes: string[] = [];
 
@@ -219,16 +239,17 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
 
     // Ajouter les nouveaux laboratoires sélectionnés
     selectedLaboratories.forEach(labName => {
-      const productCodes = laboratoryProductMap.get(labName) || [];
+      const productInfo = laboratoryProductMap.get(labName);
       const labInfo = laboratories.find(lab => lab.laboratory_name === labName);
       
-      if (labInfo && !newLaboratoriesInfo.some(existing => existing.name === labName)) {
+      if (labInfo && productInfo && !newLaboratoriesInfo.some(existing => existing.name === labName)) {
         newLaboratoriesInfo.push({
           name: labName,
-          productCodes: productCodes,
-          productCount: labInfo.product_count
+          productCodes: productInfo.codes,
+          productCount: labInfo.product_count,
+          sourceType: productInfo.type // NOUVEAU - stocker le type
         });
-        allProductCodes.push(...productCodes);
+        allProductCodes.push(...productInfo.codes);
       }
     });
 
@@ -239,7 +260,7 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     console.log('📊 Applied laboratories to store:', {
       totalLabs: newLaboratoriesInfo.length,
       totalCodes: allProductCodes.length,
-      names: newLaboratoriesInfo.map(lab => lab.name)
+      names: newLaboratoriesInfo.map(lab => `${lab.name} (${lab.sourceType || 'unknown'})`)
     });
 
     // Reset des nouvelles sélections
@@ -250,7 +271,7 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
   const clearLaboratoryFilters = useCallback(() => {
     console.log('🗑️ [useLaboratorySearch] Clear ALL laboratory filters');
     const clearLaboratoryFilters = useFiltersStore.getState().clearLaboratoryFilters;
-    clearLaboratoryFilters(); // Clear à la fois codes ET noms dans le store
+    clearLaboratoryFilters();
     
     setSelectedLaboratories(new Set());
     setPendingProductCodes(new Set());
@@ -265,12 +286,14 @@ export function useLaboratorySearch(): UseLaboratorySearchReturn {
     setSearchQuery,
     searchMode,
     setSearchMode,
+    labOrBrandMode, // NOUVEAU
+    setLabOrBrandMode: handleSetLabOrBrandMode, // NOUVEAU avec handler
     selectedLaboratories,
     toggleLaboratory,
     clearSelection,
     applyFilters,
     clearLaboratoryFilters,
     pendingProductCodes,
-    getSelectedLaboratoriesFromStore, // Version simplifiée
+    getSelectedLaboratoriesFromStore,
   };
 }
