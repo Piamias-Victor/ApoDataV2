@@ -1,12 +1,15 @@
 // src/hooks/generic-filters/useGenericFilterSearch.ts
 import { useState, useEffect, useCallback } from 'react';
 
+export type LabOrBrandMode = 'laboratory' | 'brand'; // NOUVEAU
+
 export interface GenericProduct {
   readonly code_13_ref: string;
   readonly name: string;
   readonly bcb_lab: string;
   readonly bcb_generic_status: 'GÉNÉRIQUE' | 'RÉFÉRENT';
   readonly bcb_generic_group: string;
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 export interface GenericLaboratory {
@@ -15,21 +18,28 @@ export interface GenericLaboratory {
   readonly generic_count: number;
   readonly referent_count: number;
   readonly product_codes: string[];
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 interface ProductSearchResponse {
   readonly products: GenericProduct[];
   readonly count: number;
   readonly queryTime: number;
+  readonly labOrBrandMode: LabOrBrandMode; // NOUVEAU
 }
 
 interface LaboratorySearchResponse {
   readonly laboratories: GenericLaboratory[];
   readonly count: number;
   readonly queryTime: number;
+  readonly labOrBrandMode: LabOrBrandMode; // NOUVEAU
 }
 
 interface UseGenericFilterSearchReturn {
+  // Lab/Brand mode - NOUVEAU
+  readonly labOrBrandMode: LabOrBrandMode;
+  readonly setLabOrBrandMode: (mode: LabOrBrandMode) => void;
+  
   // Products
   readonly products: GenericProduct[];
   readonly isLoadingProducts: boolean;
@@ -57,6 +67,9 @@ interface UseGenericFilterSearchReturn {
 }
 
 export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
+  // Lab/Brand mode - NOUVEAU
+  const [labOrBrandMode, setLabOrBrandModeState] = useState<LabOrBrandMode>('brand');
+
   // Products state
   const [products, setProducts] = useState<GenericProduct[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -71,8 +84,18 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
   const [laboratoryQuery, setLaboratoryQuery] = useState('');
   const [selectedLaboratories, setSelectedLaboratories] = useState<Map<string, GenericLaboratory>>(new Map());
 
-  // Recherche produits avec debounce
-  const performProductSearch = useCallback(async (query: string) => {
+  // NOUVEAU - Handler pour switch Lab/Brand avec clear
+  const setLabOrBrandMode = useCallback((mode: LabOrBrandMode) => {
+    console.log('🔄 [useGenericFilterSearch] Switching lab/brand mode to:', mode);
+    setLabOrBrandModeState(mode);
+    setProductQuery(''); // Clear recherche produit
+    setLaboratoryQuery(''); // Clear recherche labo
+    setProducts([]);
+    setLaboratories([]);
+  }, []);
+
+  // Recherche produits avec debounce - MODIFIÉ
+  const performProductSearch = useCallback(async (query: string, labOrBrand: LabOrBrandMode) => {
     if (!query || query.trim().length < 2) {
       setProducts([]);
       setIsLoadingProducts(false);
@@ -83,14 +106,17 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
     setErrorProducts(null);
 
     try {
-      console.log('🔍 [useGenericFilterSearch] Searching products:', query.trim());
+      console.log('🔍 [useGenericFilterSearch] Searching products:', query.trim(), 'mode:', labOrBrand);
 
       const response = await fetch('/api/generic-filters/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: query.trim() }),
+        body: JSON.stringify({ 
+          query: query.trim(),
+          labOrBrandMode: labOrBrand // NOUVEAU
+        }),
       });
 
       if (!response.ok) {
@@ -116,8 +142,8 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
     }
   }, []);
 
-  // Recherche laboratoires avec debounce
-  const performLaboratorySearch = useCallback(async (query: string) => {
+  // Recherche laboratoires avec debounce - MODIFIÉ
+  const performLaboratorySearch = useCallback(async (query: string, labOrBrand: LabOrBrandMode) => {
     if (!query || query.trim().length < 2) {
       setLaboratories([]);
       setIsLoadingLaboratories(false);
@@ -128,14 +154,17 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
     setErrorLaboratories(null);
 
     try {
-      console.log('🔍 [useGenericFilterSearch] Searching laboratories:', query.trim());
+      console.log('🔍 [useGenericFilterSearch] Searching laboratories:', query.trim(), 'mode:', labOrBrand);
 
       const response = await fetch('/api/generic-filters/laboratories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: query.trim() }),
+        body: JSON.stringify({ 
+          query: query.trim(),
+          labOrBrandMode: labOrBrand // NOUVEAU
+        }),
       });
 
       if (!response.ok) {
@@ -161,22 +190,22 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
     }
   }, []);
 
-  // Debounce effects
+  // Debounce effects - MODIFIÉS
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      performProductSearch(productQuery);
+      performProductSearch(productQuery, labOrBrandMode);
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [productQuery, performProductSearch]);
+  }, [productQuery, labOrBrandMode, performProductSearch]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      performLaboratorySearch(laboratoryQuery);
+      performLaboratorySearch(laboratoryQuery, labOrBrandMode);
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [laboratoryQuery, performLaboratorySearch]);
+  }, [laboratoryQuery, labOrBrandMode, performLaboratorySearch]);
 
   // Reset quand requête trop courte
   useEffect(() => {
@@ -255,6 +284,10 @@ export function useGenericFilterSearch(): UseGenericFilterSearchReturn {
   }, [selectedLaboratories]);
 
   return {
+    // Lab/Brand mode - NOUVEAU
+    labOrBrandMode,
+    setLabOrBrandMode,
+    
     // Products
     products,
     isLoadingProducts,

@@ -13,17 +13,14 @@ interface GenericLaboratoryResult {
   readonly generic_count: number;
   readonly referent_count: number;
   readonly product_codes: string[];
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
-/**
- * API Route - Recherche laboratoires avec produits génériques/référents
- * 
- * POST /api/generic-filters/laboratories
- * Body: { query: string }
- * 
- * Filtre: laboratoires ayant au moins un produit générique ou référent
- * Recherche: nom laboratoire (bcb_lab)
- */
+interface RequestBody {
+  readonly query: string;
+  readonly labOrBrandMode?: 'laboratory' | 'brand'; // NOUVEAU
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,7 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { query } = await request.json();
+    const { query, labOrBrandMode = 'brand' }: RequestBody = await request.json(); // NOUVEAU
     
     if (!query || query.trim().length < 2) {
       return NextResponse.json({ laboratories: [] });
@@ -40,25 +37,28 @@ export async function POST(request: NextRequest) {
     const trimmedQuery = query.trim();
     const isAdmin = session.user.role === 'admin';
     
+    // NOUVEAU - Choisir la colonne selon le mode
+    const columnName = labOrBrandMode === 'laboratory' ? 'bcb_lab' : 'bcb_brand';
+
     let sqlQuery: string;
     let params: any[];
 
     if (isAdmin) {
       sqlQuery = `
         SELECT 
-          bcb_lab as laboratory_name,
+          ${columnName} as laboratory_name,
           COUNT(*) as product_count,
-          COUNT(CASE WHEN bcb_generic_status = 'GÉNÉRIQUE' THEN 1 END) as generic_count,
-          COUNT(CASE WHEN bcb_generic_status = 'RÉFÉRENT' THEN 1 END) as referent_count,
-          ARRAY_AGG(code_13_ref) as product_codes
+          COUNT(*) FILTER (WHERE bcb_generic_status = 'GÉNÉRIQUE') as generic_count,
+          COUNT(*) FILTER (WHERE bcb_generic_status = 'RÉFÉRENT') as referent_count,
+          ARRAY_AGG(code_13_ref) as product_codes,
+          '${labOrBrandMode}'::text as source_type
         FROM data_globalproduct
         WHERE bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-          AND bcb_lab IS NOT NULL
+          AND ${columnName} IS NOT NULL
           AND bcb_generic_group IS NOT NULL
-          AND LOWER(bcb_lab) LIKE LOWER($1)
-        GROUP BY bcb_lab
-        HAVING COUNT(*) > 0
-        ORDER BY bcb_lab
+          AND LOWER(${columnName}) LIKE LOWER($1)
+        GROUP BY ${columnName}
+        ORDER BY ${columnName}
         LIMIT 50
       `;
       params = [`%${trimmedQuery}%`];
@@ -69,21 +69,21 @@ export async function POST(request: NextRequest) {
 
       sqlQuery = `
         SELECT 
-          dgp.bcb_lab as laboratory_name,
+          dgp.${columnName} as laboratory_name,
           COUNT(*) as product_count,
-          COUNT(CASE WHEN dgp.bcb_generic_status = 'GÉNÉRIQUE' THEN 1 END) as generic_count,
-          COUNT(CASE WHEN dgp.bcb_generic_status = 'RÉFÉRENT' THEN 1 END) as referent_count,
-          ARRAY_AGG(dip.code_13_ref_id) as product_codes
+          COUNT(*) FILTER (WHERE dgp.bcb_generic_status = 'GÉNÉRIQUE') as generic_count,
+          COUNT(*) FILTER (WHERE dgp.bcb_generic_status = 'RÉFÉRENT') as referent_count,
+          ARRAY_AGG(dip.code_13_ref_id) as product_codes,
+          '${labOrBrandMode}'::text as source_type
         FROM data_internalproduct dip
         INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
         WHERE dip.pharmacy_id = $1
           AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-          AND dgp.bcb_lab IS NOT NULL
+          AND dgp.${columnName} IS NOT NULL
           AND dgp.bcb_generic_group IS NOT NULL
-          AND LOWER(dgp.bcb_lab) LIKE LOWER($2)
-        GROUP BY dgp.bcb_lab
-        HAVING COUNT(*) > 0
-        ORDER BY dgp.bcb_lab
+          AND LOWER(dgp.${columnName}) LIKE LOWER($2)
+        GROUP BY dgp.${columnName}
+        ORDER BY dgp.${columnName}
         LIMIT 50
       `;
       params = [session.user.pharmacyId, `%${trimmedQuery}%`];
@@ -94,13 +94,14 @@ export async function POST(request: NextRequest) {
     const queryTime = Date.now() - startTime;
 
     if (queryTime > 500) {
-      console.warn(`Requête laboratoires génériques lente (${queryTime}ms):`, trimmedQuery);
+      console.warn(`Requête laboratoires génériques lente (${queryTime}ms):`, trimmedQuery, labOrBrandMode);
     }
 
     return NextResponse.json({
       laboratories,
       count: laboratories.length,
-      queryTime
+      queryTime,
+      labOrBrandMode // NOUVEAU
     });
 
   } catch (error) {

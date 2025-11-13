@@ -13,17 +13,14 @@ interface GenericProductResult {
   readonly bcb_lab: string;
   readonly bcb_generic_status: 'GÉNÉRIQUE' | 'RÉFÉRENT';
   readonly bcb_generic_group: string;
+  readonly source_type?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
-/**
- * API Route - Recherche produits génériques/référents uniquement
- * 
- * POST /api/generic-filters/products
- * Body: { query: string }
- * 
- * Filtre: bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
- * Recherche: nom produit, début EAN, fin EAN (avec *)
- */
+interface RequestBody {
+  readonly query: string;
+  readonly labOrBrandMode?: 'laboratory' | 'brand'; // NOUVEAU
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -31,7 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { query } = await request.json();
+    const { query, labOrBrandMode = 'brand' }: RequestBody = await request.json(); // NOUVEAU
     
     if (!query || query.trim().length < 2) {
       return NextResponse.json({ products: [] });
@@ -39,6 +36,9 @@ export async function POST(request: NextRequest) {
 
     const trimmedQuery = query.trim();
     const isAdmin = session.user.role === 'admin';
+    
+    // NOUVEAU - Choisir la colonne selon le mode
+    const columnName = labOrBrandMode === 'laboratory' ? 'bcb_lab' : 'bcb_brand';
     
     // Déterminer le type de recherche
     const isEndCodeSearch = trimmedQuery.startsWith('*') && /^\*\d+$/.test(trimmedQuery);
@@ -54,12 +54,13 @@ export async function POST(request: NextRequest) {
           SELECT 
             code_13_ref,
             name,
-            bcb_lab,
+            ${columnName} as bcb_lab,
             bcb_generic_status,
-            bcb_generic_group
+            bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_globalproduct
           WHERE bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND bcb_lab IS NOT NULL
+            AND ${columnName} IS NOT NULL
             AND bcb_generic_group IS NOT NULL
             AND LOWER(name) LIKE LOWER($1)
           ORDER BY name
@@ -71,12 +72,13 @@ export async function POST(request: NextRequest) {
           SELECT 
             code_13_ref,
             name,
-            bcb_lab,
+            ${columnName} as bcb_lab,
             bcb_generic_status,
-            bcb_generic_group
+            bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_globalproduct
           WHERE bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND bcb_lab IS NOT NULL
+            AND ${columnName} IS NOT NULL
             AND bcb_generic_group IS NOT NULL
             AND code_13_ref LIKE $1
           ORDER BY code_13_ref
@@ -89,12 +91,13 @@ export async function POST(request: NextRequest) {
           SELECT 
             code_13_ref,
             name,
-            bcb_lab,
+            ${columnName} as bcb_lab,
             bcb_generic_status,
-            bcb_generic_group
+            bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_globalproduct
           WHERE bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND bcb_lab IS NOT NULL
+            AND ${columnName} IS NOT NULL
             AND bcb_generic_group IS NOT NULL
             AND code_13_ref LIKE $1
           ORDER BY code_13_ref
@@ -114,14 +117,15 @@ export async function POST(request: NextRequest) {
           SELECT 
             dip.code_13_ref_id as code_13_ref,
             dip.name,
-            dgp.bcb_lab,
+            dgp.${columnName} as bcb_lab,
             dgp.bcb_generic_status,
-            dgp.bcb_generic_group
+            dgp.bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_internalproduct dip
           INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
           WHERE dip.pharmacy_id = $1
             AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND dgp.bcb_lab IS NOT NULL
+            AND dgp.${columnName} IS NOT NULL
             AND dgp.bcb_generic_group IS NOT NULL
             AND LOWER(dip.name) LIKE LOWER($2)
           ORDER BY dip.name
@@ -133,14 +137,15 @@ export async function POST(request: NextRequest) {
           SELECT 
             dip.code_13_ref_id as code_13_ref,
             dip.name,
-            dgp.bcb_lab,
+            dgp.${columnName} as bcb_lab,
             dgp.bcb_generic_status,
-            dgp.bcb_generic_group
+            dgp.bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_internalproduct dip
           INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
           WHERE dip.pharmacy_id = $1
             AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND dgp.bcb_lab IS NOT NULL
+            AND dgp.${columnName} IS NOT NULL
             AND dgp.bcb_generic_group IS NOT NULL
             AND dip.code_13_ref_id LIKE $2
           ORDER BY dip.code_13_ref_id
@@ -153,14 +158,15 @@ export async function POST(request: NextRequest) {
           SELECT 
             dip.code_13_ref_id as code_13_ref,
             dip.name,
-            dgp.bcb_lab,
+            dgp.${columnName} as bcb_lab,
             dgp.bcb_generic_status,
-            dgp.bcb_generic_group
+            dgp.bcb_generic_group,
+            '${labOrBrandMode}'::text as source_type
           FROM data_internalproduct dip
           INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
           WHERE dip.pharmacy_id = $1
             AND dgp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')
-            AND dgp.bcb_lab IS NOT NULL
+            AND dgp.${columnName} IS NOT NULL
             AND dgp.bcb_generic_group IS NOT NULL
             AND dip.code_13_ref_id LIKE $2
           ORDER BY dip.code_13_ref_id
@@ -177,13 +183,14 @@ export async function POST(request: NextRequest) {
     const queryTime = Date.now() - startTime;
 
     if (queryTime > 500) {
-      console.warn(`Requête produits génériques lente (${queryTime}ms):`, trimmedQuery);
+      console.warn(`Requête produits génériques lente (${queryTime}ms):`, trimmedQuery, labOrBrandMode);
     }
 
     return NextResponse.json({
       products,
       count: products.length,
-      queryTime
+      queryTime,
+      labOrBrandMode // NOUVEAU
     });
 
   } catch (error) {

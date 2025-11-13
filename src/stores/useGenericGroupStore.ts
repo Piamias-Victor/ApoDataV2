@@ -16,12 +16,13 @@ interface PriceFilters {
 
 type GenericStatus = 'BOTH' | 'GÉNÉRIQUE' | 'RÉFÉRENT';
 
-// 🔥 NOUVEAU - Interface produit exclu
+// Interface produit exclu - AVEC sourceType
 interface SelectedProduct {
   readonly name: string;
   readonly code: string;
   readonly brandLab?: string | undefined;
   readonly universe?: string | undefined;
+  readonly sourceType?: 'laboratory' | 'brand'; // NOUVEAU
 }
 
 interface GenericGroupState {
@@ -30,7 +31,7 @@ interface GenericGroupState {
   selectedProducts: GenericProduct[];
   selectedLaboratories: GenericLaboratory[];
   
-  // 🔥 NOUVEAU - Exclusions
+  // Exclusions
   excludedProducts: string[];
   selectedExcludedProducts: SelectedProduct[];
   
@@ -76,7 +77,7 @@ interface GenericGroupState {
   removeLaboratory: (labName: string) => void;
   isLaboratorySelected: (labName: string) => boolean;
   
-  // 🔥 NOUVEAU - Gestion exclusions
+  // Gestion exclusions
   setExcludedProducts: (codes: string[]) => void;
   setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => void;
   clearExcludedProducts: () => void;
@@ -102,8 +103,8 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
   selectedGroups: [],
   selectedProducts: [],
   selectedLaboratories: [],
-  excludedProducts: [], // 🔥 NOUVEAU
-  selectedExcludedProducts: [], // 🔥 NOUVEAU
+  excludedProducts: [],
+  selectedExcludedProducts: [],
   productCodes: [],
   showGlobalTop: false,
   priceFilters: defaultPriceFilters,
@@ -145,7 +146,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
     return get().genericStatus !== 'BOTH';
   },
 
-  // 🔥 NOUVEAU - GESTION EXCLUSIONS
+  // ===== GESTION EXCLUSIONS =====
   setExcludedProducts: (codes) => {
     console.log('🚫 [GenericGroupStore] Setting excluded products:', codes.length);
     set({ excludedProducts: codes });
@@ -231,7 +232,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       tvaRates,
       genericStatus,
       dateRange,
-      excludedProducts // 🔥 NOUVEAU
+      excludedProducts
     } = get();
     
     const hasSelections = selectedGroups.length > 0 || selectedProducts.length > 0 || selectedLaboratories.length > 0;
@@ -243,11 +244,11 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       hasPriceFilters: hasPriceFilters(),
       hasTvaFilters: tvaRates.length > 0,
       hasGenericStatusFilter: genericStatus !== 'BOTH',
-      hasExclusions: excludedProducts.length > 0, // 🔥 NOUVEAU
+      hasExclusions: excludedProducts.length > 0,
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
-      exclusions: excludedProducts.length, // 🔥 NOUVEAU
+      exclusions: excludedProducts.length,
       tvaRates,
       genericStatus,
       dateRange
@@ -295,7 +296,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
           const data = await response.json();
           let filteredCodes = data.productCodes;
           
-          // 🔥 Appliquer exclusions
+          // Appliquer exclusions
           if (excludedProducts.length > 0) {
             const excludedSet = new Set(excludedProducts);
             const beforeExclusion = filteredCodes.length;
@@ -382,7 +383,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
             const data = await response.json();
             finalCodes = data.productCodes;
             
-            // 🔥 Appliquer exclusions après API
+            // Appliquer exclusions après API
             if (excludedProducts.length > 0) {
               const excludedSet = new Set(excludedProducts);
               const beforeExclusion = finalCodes.length;
@@ -414,7 +415,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
         }
       }
     } else {
-      // 🔥 Pas de filtres API : appliquer exclusions directement
+      // Pas de filtres API : appliquer exclusions directement
       if (excludedProducts.length > 0) {
         const excludedSet = new Set(excludedProducts);
         const beforeExclusion = finalCodes.length;
@@ -433,7 +434,7 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       groups: selectedGroups.length,
       products: selectedProducts.length,
       laboratories: selectedLaboratories.length,
-      exclusions: excludedProducts.length, // 🔥 NOUVEAU
+      exclusions: excludedProducts.length,
       totalCodes: finalCodes.length,
       filtersActive: hasAnyFilters
     });
@@ -611,11 +612,10 @@ export const useGenericGroupStore = create<GenericGroupState>((set, get) => ({
       priceFilters: defaultPriceFilters,
       tvaRates: [],
       genericStatus: 'BOTH',
-      excludedProducts: [], // 🔥 NOUVEAU
-      selectedExcludedProducts: [] // 🔥 NOUVEAU
+      excludedProducts: [],
+      selectedExcludedProducts: []
     });
   }
 }));
 
-// 🔥 NOUVEAU - Export type
 export type { SelectedProduct };

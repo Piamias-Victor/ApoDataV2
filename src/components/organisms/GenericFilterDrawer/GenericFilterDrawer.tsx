@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Filter, Package, TestTube, Search, Loader2, Trash2, Layers } from 'lucide-react';
+import { X, Filter, Package, TestTube, Search, Loader2, Trash2, Layers, Tag } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { useGenericFilterSearch } from '@/hooks/generic-filters/useGenericFilterSearch';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore';
@@ -33,6 +33,9 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
   dateRange
 }) => {
   const {
+    labOrBrandMode, // NOUVEAU
+    setLabOrBrandMode, // NOUVEAU
+    
     products,
     isLoadingProducts,
     errorProducts,
@@ -74,7 +77,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     setDateRange
   } = useGenericGroupStore();
 
-  // States locaux pour les filtres (pas encore appliqués)
+  // States locaux pour les filtres
   const [localPriceFilters, setLocalPriceFilters] = useState<LocalPriceFilters>({
     prixFabricant: {
       min: priceFilters.prixFabricant.min?.toString() ?? '',
@@ -123,7 +126,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  // Vérifier si les filtres locaux diffèrent du store
   const hasPriceChanges = () => {
     return (
       localPriceFilters.prixFabricant.min !== (priceFilters.prixFabricant.min?.toString() ?? '') ||
@@ -157,48 +159,28 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     onCountChange(productCodes.length);
   }, [productCodes.length, onCountChange]);
 
-  // Handler unifié : applique TOUT
   const handleApplyAll = async () => {
     const productsToAdd = getSelectedProductsArray();
     const laboratoriesToAdd = getSelectedLaboratoriesArray();
     
-    console.log('');
-    console.log('🚀 [GenericFilterDrawer] ========================================');
     console.log('🚀 [GenericFilterDrawer] APPLYING ALL FILTERS');
-    console.log('🚀 [GenericFilterDrawer] ========================================');
-    console.log('📊 [GenericFilterDrawer] Changes to apply:', {
-      products: productsToAdd.length,
-      laboratories: laboratoriesToAdd.length,
-      priceFiltersChanged: hasPriceChanges(),
-      tvaFiltersChanged: hasTvaChanges(),
-      statusChanged: hasStatusChanges(),
-      dateRange
-    });
 
-    // 1. Appliquer sélections produits/labos
     if (productsToAdd.length > 0) {
-      console.log('📦 [GenericFilterDrawer] Adding products:', productsToAdd.length);
       addProducts(productsToAdd);
     }
     
     if (laboratoriesToAdd.length > 0) {
-      console.log('🧪 [GenericFilterDrawer] Adding laboratories:', laboratoriesToAdd.length);
       addLaboratories(laboratoriesToAdd);
     }
     
-    // 2. Appliquer tous les filtres si modifiés
     if (hasAnyFilterChanges()) {
-      console.log('💰 [GenericFilterDrawer] Filters changed, applying...');
-      
       const { setTvaRates, setGenericStatus } = useGenericGroupStore.getState();
       
       if (hasTvaChanges()) {
-        console.log('💰 [GenericFilterDrawer] Applying TVA filters:', localTvaRates);
         setTvaRates(localTvaRates);
       }
       
       if (hasStatusChanges()) {
-        console.log('🏷️ [GenericFilterDrawer] Applying status filter:', localGenericStatus);
         setGenericStatus(localGenericStatus);
       }
       
@@ -218,24 +200,14 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           }
         };
         
-        console.log('💰 [GenericFilterDrawer] Applying price filters:', newFilters);
         await setPriceFilters(newFilters);
       }
-      
-      console.log('✅ [GenericFilterDrawer] All filters applied successfully');
     }
     
-    // 3. Clear les sélections locales après application
-    console.log('🧹 [GenericFilterDrawer] Clearing local selections');
     clearAllSelections();
-    
-    console.log('✅ [GenericFilterDrawer] ALL FILTERS APPLIED SUCCESSFULLY');
-    console.log('🚀 [GenericFilterDrawer] ========================================');
-    console.log('');
   };
 
   const handleClearAll = () => {
-    console.log('🗑️ [GenericFilterDrawer] Clear ALL selections and filters');
     clearStoreSelection();
     clearAllSelections();
   };
@@ -312,7 +284,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           <div className="h-[calc(100%-140px)] overflow-y-auto px-6 py-4">
             <div className="space-y-6">
               
-              {/* SÉLECTIONS ACTIVES */}
+              {/* SÉLECTIONS ACTIVES - identique */}
               {(selectedGroups.length > 0 || storedProducts.length > 0 || storedLaboratories.length > 0 || hasActiveFilters) && (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
@@ -347,7 +319,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                     </div>
                   )}
 
-                  {/* Groupes génériques */}
+                  {/* Groupes/Produits/Labos - identique */}
                   {selectedGroups.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -377,7 +349,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                     </div>
                   )}
 
-                  {/* Produits individuels */}
                   {storedProducts.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -415,7 +386,6 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                     </div>
                   )}
 
-                  {/* Laboratoires */}
                   {storedLaboratories.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -447,7 +417,137 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </div>
               )}
 
-              {/* 1. RECHERCHE PRODUITS */}
+              {/* 🔥 NOUVEAU - DEUX INPUTS SÉPARÉS AU LIEU DU TOGGLE */}
+              
+              {/* 1. RECHERCHE PAR MARQUE (bcb_lab = exploitant) */}
+              <div className="space-y-3 pt-4 border-t border-gray-200">
+                <div className="flex items-center space-x-2">
+                  <Tag className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-sm font-semibold text-gray-900">Recherche par Marque</h3>
+                  <span className="text-xs text-gray-500">(Exploitant)</span>
+                </div>
+                
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    value={labOrBrandMode === 'laboratory' ? laboratoryQuery : ''}
+                    onChange={(e) => {
+                      setLabOrBrandMode('laboratory');
+                      setLaboratoryQuery(e.target.value);
+                    }}
+                    placeholder="Rechercher une marque..."
+                    className="pl-10"
+                  />
+                </div>
+
+                {labOrBrandMode === 'laboratory' && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {isLoadingLaboratories && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                      </div>
+                    )}
+
+                    {errorLaboratories && (
+                      <p className="text-sm text-red-600 py-2">{errorLaboratories}</p>
+                    )}
+
+                    {!isLoadingLaboratories && !errorLaboratories && laboratories.length === 0 && laboratoryQuery.length >= 2 && (
+                      <p className="text-sm text-gray-500 py-2">Aucune marque trouvée</p>
+                    )}
+
+                    {!isLoadingLaboratories && laboratories.map((lab) => (
+                      <button
+                        key={lab.laboratory_name}
+                        onClick={() => toggleLaboratory(lab)}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                          selectedLaboratories.has(lab.laboratory_name)
+                            ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
+                            : 'bg-white border-gray-200 hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">
+                              {lab.laboratory_name}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {lab.product_count} produits ({lab.generic_count} génériques, {lab.referent_count} référents)
+                            </p>
+                          </div>
+                          <Tag className="w-4 h-4 text-blue-500 ml-2" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. RECHERCHE PAR LABORATOIRE (bcb_brand = titulaire) */}
+              <div className="space-y-3 pt-4 border-t border-gray-200">
+                <div className="flex items-center space-x-2">
+                  <TestTube className="w-4 h-4 text-purple-600" />
+                  <h3 className="text-sm font-semibold text-gray-900">Recherche par Laboratoire</h3>
+                  <span className="text-xs text-gray-500">(Titulaire AMM)</span>
+                </div>
+                
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    value={labOrBrandMode === 'brand' ? laboratoryQuery : ''}
+                    onChange={(e) => {
+                      setLabOrBrandMode('brand');
+                      setLaboratoryQuery(e.target.value);
+                    }}
+                    placeholder="Rechercher un laboratoire..."
+                    className="pl-10"
+                  />
+                </div>
+
+                {labOrBrandMode === 'brand' && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {isLoadingLaboratories && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                      </div>
+                    )}
+
+                    {errorLaboratories && (
+                      <p className="text-sm text-red-600 py-2">{errorLaboratories}</p>
+                    )}
+
+                    {!isLoadingLaboratories && !errorLaboratories && laboratories.length === 0 && laboratoryQuery.length >= 2 && (
+                      <p className="text-sm text-gray-500 py-2">Aucun laboratoire trouvé</p>
+                    )}
+
+                    {!isLoadingLaboratories && laboratories.map((lab) => (
+                      <button
+                        key={lab.laboratory_name}
+                        onClick={() => toggleLaboratory(lab)}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                          selectedLaboratories.has(lab.laboratory_name)
+                            ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-200'
+                            : 'bg-white border-gray-200 hover:border-purple-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">
+                              {lab.laboratory_name}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {lab.product_count} produits ({lab.generic_count} génériques, {lab.referent_count} référents)
+                            </p>
+                          </div>
+                          <TestTube className="w-4 h-4 text-purple-500 ml-2" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. RECHERCHE PRODUITS */}
               <div className="space-y-3 pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
                   <Package className="w-4 h-4 text-pink-600" />
@@ -509,60 +609,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 </div>
               </div>
 
-              {/* 2. RECHERCHE LABORATOIRES */}
-              <div className="space-y-3 pt-4 border-t border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <TestTube className="w-4 h-4 text-purple-600" />
-                  <h3 className="text-sm font-semibold text-gray-900">Rechercher un laboratoire</h3>
-                </div>
-                
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    value={laboratoryQuery}
-                    onChange={(e) => setLaboratoryQuery(e.target.value)}
-                    placeholder="Nom du laboratoire..."
-                    className="pl-10"
-                  />
-                </div>
-
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {isLoadingLaboratories && (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                    </div>
-                  )}
-
-                  {errorLaboratories && (
-                    <p className="text-sm text-red-600 py-2">{errorLaboratories}</p>
-                  )}
-
-                  {!isLoadingLaboratories && !errorLaboratories && laboratories.length === 0 && laboratoryQuery.length >= 2 && (
-                    <p className="text-sm text-gray-500 py-2">Aucun laboratoire trouvé</p>
-                  )}
-
-                  {!isLoadingLaboratories && laboratories.map((lab) => (
-                    <button
-                      key={lab.laboratory_name}
-                      onClick={() => toggleLaboratory(lab)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${
-                        selectedLaboratories.has(lab.laboratory_name)
-                          ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-200'
-                          : 'bg-white border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <p className="text-sm font-medium text-gray-900">
-                        {lab.laboratory_name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {lab.product_count} produits ({lab.generic_count} génériques, {lab.referent_count} référents)
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3. FILTRE GÉNÉRIQUE/RÉFÉRENT */}
+              {/* 4. FILTRE GÉNÉRIQUE/RÉFÉRENT */}
               <div className="pt-4 border-t border-gray-200">
                 <GenericStatusFilter
                   value={localGenericStatus}
@@ -570,7 +617,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 />
               </div>
 
-              {/* 4. FILTRE TVA */}
+              {/* 5. FILTRE TVA */}
               <div className="pt-4 border-t border-gray-200">
                 <TvaRateFilter
                   selectedRates={localTvaRates}
@@ -578,7 +625,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                 />
               </div>
 
-              {/* 5. FILTRES DE PRIX */}
+              {/* 6. FILTRES DE PRIX */}
               <div className="pt-4 border-t border-gray-200">
                 <PriceRangeFilters
                   localFilters={localPriceFilters}
@@ -590,7 +637,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
             </div>
           </div>
 
-          {/* Footer - BOUTON APPLIQUER UNIFIÉ */}
+          {/* Footer */}
           <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
             <button
               onClick={handleApplyAll}
