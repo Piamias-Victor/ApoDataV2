@@ -2,12 +2,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Interface pour stocker les infos laboratoires - MODIFIÉE
+// Interface pour stocker les infos laboratoires
 interface SelectedLaboratory {
   readonly name: string;
   readonly productCodes: string[];
   readonly productCount: number;
-  readonly sourceType?: 'laboratory' | 'brand'; // NOUVEAU
+  readonly sourceType?: 'laboratory' | 'brand';
 }
 
 // Interface pour stocker les infos catégories
@@ -94,7 +94,6 @@ interface FilterActions {
   readonly unlockPharmacyFilter: () => void;
   readonly resetToDefaultDates: () => void;
   
-  readonly recalculateProductCodes: () => void;
   readonly getFinalProductCodes: () => string[];
 }
 
@@ -150,39 +149,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     (set, get) => ({
       ...initialState,
 
-      recalculateProductCodes: () => {
-        const state = get();
-        const excludedSet = new Set(state.excludedProducts);
-        
-        const filteredProducts = state.products.filter(code => !excludedSet.has(code));
-        
-        const filteredLabs = state.selectedLaboratories.map(lab => ({
-          ...lab,
-          productCodes: lab.productCodes.filter(code => !excludedSet.has(code)),
-          productCount: lab.productCodes.filter(code => !excludedSet.has(code)).length,
-        }));
-        
-        const filteredCats = state.selectedCategories.map(cat => ({
-          ...cat,
-          productCodes: cat.productCodes.filter(code => !excludedSet.has(code)),
-          productCount: cat.productCodes.filter(code => !excludedSet.has(code)).length,
-        }));
-        
-        console.log('🎯 [FiltersStore] Product codes recalculated:', {
-          products: { before: state.products.length, after: filteredProducts.length },
-          excluded: excludedSet.size,
-        });
-        
-        set({
-          products: filteredProducts,
-          selectedLaboratories: filteredLabs,
-          selectedCategories: filteredCats,
-        });
-      },
+      // 🔥 SUPPRIMÉ : recalculateProductCodes()
+      // Le filtrage des exclusions se fait dans getFinalProductCodes() et dans les hooks
 
       setProductFilters: (codes: string[]) => {
         set({ products: codes });
-        get().recalculateProductCodes();
       },
 
       setProductFiltersWithNames: (codes: string[], products: SelectedProduct[]) => {
@@ -195,13 +166,10 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           products: codes,
           selectedProducts: products
         });
-        
-        get().recalculateProductCodes();
       },
 
       setLaboratoryFilters: (codes: string[]) => {
         set({ laboratories: codes });
-        get().recalculateProductCodes();
       },
 
       setLaboratoryFiltersWithNames: (codes: string[], laboratories: SelectedLaboratory[]) => {
@@ -214,13 +182,10 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           laboratories: codes,
           selectedLaboratories: laboratories
         });
-        
-        get().recalculateProductCodes();
       },
 
       setCategoryFilters: (codes: string[]) => {
         set({ categories: codes });
-        get().recalculateProductCodes();
       },
 
       setCategoryFiltersWithNames: (codes: string[], categories: SelectedCategory[]) => {
@@ -233,8 +198,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           categories: codes,
           selectedCategories: categories
         });
-        
-        get().recalculateProductCodes();
       },
 
       setPharmacyFilters: (codes: string[]) => {
@@ -267,7 +230,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       setExcludedProducts: (codes: string[]) => {
         console.log('🚫 [Store] Setting excluded products:', codes.length);
         set({ excludedProducts: codes });
-        get().recalculateProductCodes();
       },
 
       setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => {
@@ -280,8 +242,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           excludedProducts: codes,
           selectedExcludedProducts: products
         });
-        
-        get().recalculateProductCodes();
       },
 
       clearExcludedProducts: () => {
@@ -290,7 +250,6 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           excludedProducts: [],
           selectedExcludedProducts: []
         });
-        get().recalculateProductCodes();
       },
 
       setDateRange: (start: string | null, end: string | null) => {
@@ -422,19 +381,36 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ isPharmacyLocked: false });
       },
 
+      // ✅ CONSERVÉ : getFinalProductCodes() applique les exclusions
       getFinalProductCodes: () => {
         const state = get();
+        const excludedSet = new Set(state.excludedProducts);
         
         const allCodes = new Set<string>();
         
-        state.products.forEach(code => allCodes.add(code));
-        
-        state.selectedLaboratories.forEach(lab => {
-          lab.productCodes.forEach(code => allCodes.add(code));
+        // Ajouter produits manuels (après exclusion)
+        state.products.forEach(code => {
+          if (!excludedSet.has(code)) {
+            allCodes.add(code);
+          }
         });
         
+        // Ajouter codes des labos (après exclusion)
+        state.selectedLaboratories.forEach(lab => {
+          lab.productCodes.forEach(code => {
+            if (!excludedSet.has(code)) {
+              allCodes.add(code);
+            }
+          });
+        });
+        
+        // Ajouter codes des catégories (après exclusion)
         state.selectedCategories.forEach(cat => {
-          cat.productCodes.forEach(code => allCodes.add(code));
+          cat.productCodes.forEach(code => {
+            if (!excludedSet.has(code)) {
+              allCodes.add(code);
+            }
+          });
         });
         
         const finalCodes = Array.from(allCodes);
@@ -444,6 +420,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           products: state.products.length,
           labs: state.selectedLaboratories.length,
           cats: state.selectedCategories.length,
+          excluded: state.excludedProducts.length
         });
         
         return finalCodes;
@@ -451,7 +428,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 10, // INCRÉMENTÉ pour la migration
+      version: 10,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -507,13 +484,12 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             selectedExcludedProducts: [],
           };
         }
-        // NOUVEAU - Migration v10 pour ajouter sourceType
         if (version < 10) {
           return {
             ...persistedState,
             selectedLaboratories: (persistedState.selectedLaboratories || []).map((lab: any) => ({
               ...lab,
-              sourceType: undefined, // Pas de sourceType pour les anciens labos
+              sourceType: undefined,
             })),
           };
         }

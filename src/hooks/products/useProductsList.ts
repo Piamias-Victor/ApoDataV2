@@ -1,6 +1,7 @@
 // src/hooks/products/useProductsList.ts
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
+import { useMemo, useEffect } from 'react';
 import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/common/types';
 
 // Types spécifiques produits
@@ -16,7 +17,7 @@ export interface ProductMetrics {
   readonly current_stock: number;
   readonly quantity_sold: number;
   readonly ca_ttc: number;
-  readonly quantity_bought: number; // ✅ AJOUT
+  readonly quantity_bought: number;
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
 }
@@ -34,7 +35,7 @@ interface ProductMetricsRaw {
   readonly current_stock: string | number;
   readonly quantity_sold: string | number;
   readonly ca_ttc: string | number;
-  readonly quantity_bought: string | number; // ✅ AJOUT
+  readonly quantity_bought: string | number;
   readonly purchase_amount: string | number;
   readonly quantity_sold_comparison: string | number | null;
 }
@@ -79,7 +80,7 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
     current_stock: Number(raw.current_stock) || 0,
     quantity_sold: Number(raw.quantity_sold) || 0,
     ca_ttc: Number(raw.ca_ttc) || 0,
-    quantity_bought: Number(raw.quantity_bought) || 0, // ✅ AJOUT
+    quantity_bought: Number(raw.quantity_bought) || 0,
     purchase_amount: Number(raw.purchase_amount) || 0,
     quantity_sold_comparison: raw.quantity_sold_comparison !== null 
       ? Number(raw.quantity_sold_comparison) || 0 
@@ -88,9 +89,10 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
 }
 
 /**
- * Hook useProductsList - VERSION STANDARDISÉE avec conversion types
+ * Hook useProductsList - VERSION FIXÉE avec auto-refetch sur exclusions
  * 
- * Convertit automatiquement les strings de l'API en numbers
+ * ✅ Calcule les codes finaux côté hook avec useMemo
+ * ✅ Force refetch quand exclusions changent
  */
 export function useProductsList(
   options: UseProductsListOptions = {}
@@ -98,16 +100,60 @@ export function useProductsList(
   // Récupération filtres depuis le store
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
-  const productsFilter = useFiltersStore((state) => state.products);
-  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
-  const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+  
+  // 🔥 Récupérer les données brutes du store
+  const products = useFiltersStore((state) => state.products);
+  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
+  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
+  const excludedProducts = useFiltersStore((state) => state.excludedProducts);
+
+  // 🔥 Calcul des codes finaux avec useMemo (stable)
+  const finalProductCodes = useMemo(() => {
+    const allCodes = new Set<string>();
+    const excludedSet = new Set(excludedProducts);
+    
+    // Ajouter produits manuels (après exclusion)
+    products.forEach(code => {
+      if (!excludedSet.has(code)) {
+        allCodes.add(code);
+      }
+    });
+    
+    // Ajouter codes des labos (après exclusion)
+    selectedLaboratories.forEach(lab => {
+      lab.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    // Ajouter codes des catégories (après exclusion)
+    selectedCategories.forEach(cat => {
+      cat.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    const finalCodes = Array.from(allCodes);
+    
+    console.log('🎯 [useProductsList] Final product codes calculated:', {
+      total: finalCodes.length,
+      products: products.length,
+      labs: selectedLaboratories.length,
+      cats: selectedCategories.length,
+      excluded: excludedProducts.length
+    });
+    
+    return finalCodes;
+  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
 
   // Construction filtres standardisés
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: productsFilter,
-    laboratoryCodes: laboratoriesFilter,
-    categoryCodes: categoriesFilter,
+    productCodes: finalProductCodes,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
   };
 
@@ -126,8 +172,15 @@ export function useProductsList(
     dateRange: options.dateRange || analysisDateRange,
     comparisonDateRange: options.comparisonDateRange || comparisonDateRange,
     includeComparison: true,
-    filters: standardFilters
+    filters: standardFilters,
+    forceRefresh: false // Par défaut
   });
+
+  // 🔥 NOUVEAU : Force refetch quand les exclusions changent
+  useEffect(() => {
+    console.log('🔄 [useProductsList] Exclusions changed, triggering refetch');
+    refetch();
+  }, [excludedProducts.length, refetch]);
 
   // Conversion des données (strings → numbers)
   const convertedData: ProductsListResponse | null = rawData ? {

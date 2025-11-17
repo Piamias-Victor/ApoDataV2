@@ -1,11 +1,9 @@
 // src/hooks/pharmacies/usePharmaciesAnalytics.ts
+import { useMemo, useEffect } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/common/types';
 import { PharmacyMetrics } from '@/components/organisms/PharmaciesTable/types';
-
-// Types spécifiques pharmacies analytics
-
 
 interface PharmaciesAnalyticsResponse {
   readonly pharmacies: PharmacyMetrics[];
@@ -25,15 +23,9 @@ interface UsePharmaciesAnalyticsReturn extends BaseHookReturn<PharmaciesAnalytic
 }
 
 /**
- * Hook usePharmaciesAnalytics - VERSION STANDARDISÉE
+ * Hook usePharmaciesAnalytics - VERSION AVEC EXCLUSIONS
  * 
- * Utilise le pattern useStandardFetch avec :
- * - Filtres depuis le store Zustand
- * - Pattern uniforme pour tous les hooks
- * - Gestion d'erreur standardisée
- * - Cache strategy cohérente
- * - Admin uniquement (sécurité API côté serveur)
- * - Évolution relative calculée côté API (performance optimisée)
+ * ✅ Calcule les codes finaux avec exclusions via useMemo
  */
 export function usePharmaciesAnalytics(
   options: UsePharmaciesAnalyticsOptions = {}
@@ -41,16 +33,60 @@ export function usePharmaciesAnalytics(
   // Récupération filtres depuis le store (pattern standardisé)
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
-  const productsFilter = useFiltersStore((state) => state.products);
-  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
-  const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+
+  // 🔥 Récupération des données brutes du store
+  const products = useFiltersStore((state) => state.products);
+  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
+  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
+  const excludedProducts = useFiltersStore((state) => state.excludedProducts);
+
+  // 🔥 Calcul des codes finaux avec useMemo (stable)
+  const finalProductCodes = useMemo(() => {
+    const allCodes = new Set<string>();
+    const excludedSet = new Set(excludedProducts);
+    
+    // Ajouter produits manuels (après exclusion)
+    products.forEach(code => {
+      if (!excludedSet.has(code)) {
+        allCodes.add(code);
+      }
+    });
+    
+    // Ajouter codes des labos (après exclusion)
+    selectedLaboratories.forEach(lab => {
+      lab.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    // Ajouter codes des catégories (après exclusion)
+    selectedCategories.forEach(cat => {
+      cat.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    const finalCodes = Array.from(allCodes);
+    
+    console.log('🎯 [usePharmaciesAnalytics] Final product codes calculated:', {
+      total: finalCodes.length,
+      products: products.length,
+      labs: selectedLaboratories.length,
+      cats: selectedCategories.length,
+      excluded: excludedProducts.length
+    });
+    
+    return finalCodes;
+  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
 
   // Construction filtres standardisés
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: productsFilter,
-    laboratoryCodes: laboratoriesFilter,
-    categoryCodes: categoriesFilter,
+    productCodes: finalProductCodes,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
   };
 
@@ -83,9 +119,15 @@ export function usePharmaciesAnalytics(
     enabled: options.enabled,
     dateRange: options.dateRange || analysisDateRange,
     comparisonDateRange: options.comparisonDateRange || comparisonDateRange,
-    includeComparison: hasValidComparison, // Maintenant c'est un boolean
+    includeComparison: hasValidComparison,
     filters: standardFilters
   });
+
+  // 🔥 Force refetch quand les exclusions changent
+  useEffect(() => {
+    console.log('🔄 [usePharmaciesAnalytics] Exclusions changed, triggering refetch');
+    refetch();
+  }, [excludedProducts.length, refetch]);
 
   return {
     // Retour standardisé

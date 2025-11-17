@@ -1,5 +1,5 @@
 // src/hooks/dashboard/useRupturesProducts.ts
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { StandardFilters } from '@/hooks/common/types';
@@ -65,17 +65,66 @@ const parseNumericValue = (value: any): number => {
   return 0;
 };
 
+/**
+ * Hook useRupturesProducts - VERSION AVEC EXCLUSIONS
+ * 
+ * ✅ Calcule les codes finaux avec exclusions via useMemo
+ */
 export function useRupturesProducts(): UseRupturesProductsReturn {
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
-  const productsFilter = useFiltersStore((state) => state.products);
-  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
-  const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
+  
+  // 🔥 Récupération des données brutes du store
+  const products = useFiltersStore((state) => state.products);
+  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
+  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
+  const excludedProducts = useFiltersStore((state) => state.excludedProducts);
+
+  // 🔥 Calcul des codes finaux avec useMemo (stable)
+  const finalProductCodes = useMemo(() => {
+    const allCodes = new Set<string>();
+    const excludedSet = new Set(excludedProducts);
+    
+    // Ajouter produits manuels (après exclusion)
+    products.forEach(code => {
+      if (!excludedSet.has(code)) {
+        allCodes.add(code);
+      }
+    });
+    
+    // Ajouter codes des labos (après exclusion)
+    selectedLaboratories.forEach(lab => {
+      lab.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    // Ajouter codes des catégories (après exclusion)
+    selectedCategories.forEach(cat => {
+      cat.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    const finalCodes = Array.from(allCodes);
+    
+    console.log('🎯 [useRupturesProducts] Final product codes calculated:', {
+      total: finalCodes.length,
+      products: products.length,
+      labs: selectedLaboratories.length,
+      cats: selectedCategories.length,
+      excluded: excludedProducts.length
+    });
+    
+    return finalCodes;
+  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
 
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: productsFilter,
-    laboratoryCodes: laboratoriesFilter,
-    categoryCodes: categoriesFilter,
+    productCodes: finalProductCodes,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
   };
 
@@ -93,6 +142,12 @@ export function useRupturesProducts(): UseRupturesProductsReturn {
     dateRange: analysisDateRange,
     filters: standardFilters
   });
+
+  // 🔥 Force refetch quand les exclusions changent
+  useEffect(() => {
+    console.log('🔄 [useRupturesProducts] Exclusions changed, triggering refetch');
+    refetch();
+  }, [excludedProducts.length, refetch]);
 
   const productSummaries = useMemo((): RuptureProductSummary[] => {
     if (!data?.rupturesData) return [];

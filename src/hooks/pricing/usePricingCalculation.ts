@@ -1,7 +1,7 @@
 // src/hooks/pricing/usePricingCalculation.ts
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/common/types';
@@ -20,7 +20,7 @@ interface ProductConditions {
   readonly current_coefficient: number;
   readonly total_ca_ttc: number;
   readonly total_ca_ht: number;
-    readonly total_purchase_amount: number; // AJOUT
+  readonly total_purchase_amount: number;
 }
 
 export interface ProductPricingData {
@@ -67,20 +67,75 @@ export interface SimulationResult {
   readonly projected_total_margin: number;
 }
 
+/**
+ * Hook usePricingCalculation - VERSION AVEC EXCLUSIONS
+ * 
+ * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Support des productCodes en options pour override
+ */
 export function usePricingCalculation(
   options: UsePricingCalculationOptions = {}
 ): UsePricingCalculationReturn {
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
-  const productsFilter = useFiltersStore((state) => state.products);
-  const laboratoriesFilter = useFiltersStore((state) => state.laboratories);
-  const categoriesFilter = useFiltersStore((state) => state.categories);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // CORRECTION: Inclure laboratoires et catégories comme dans useProductsList
+  // 🔥 Récupération des données brutes du store
+  const products = useFiltersStore((state) => state.products);
+  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
+  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
+  const excludedProducts = useFiltersStore((state) => state.excludedProducts);
+
+  // 🔥 Calcul des codes finaux avec useMemo (stable)
+  const finalProductCodes = useMemo(() => {
+    // Si productCodes fournis en options, les utiliser directement
+    if (options.productCodes && options.productCodes.length > 0) {
+      return options.productCodes;
+    }
+
+    const allCodes = new Set<string>();
+    const excludedSet = new Set(excludedProducts);
+    
+    // Ajouter produits manuels (après exclusion)
+    products.forEach(code => {
+      if (!excludedSet.has(code)) {
+        allCodes.add(code);
+      }
+    });
+    
+    // Ajouter codes des labos (après exclusion)
+    selectedLaboratories.forEach(lab => {
+      lab.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    // Ajouter codes des catégories (après exclusion)
+    selectedCategories.forEach(cat => {
+      cat.productCodes.forEach(code => {
+        if (!excludedSet.has(code)) {
+          allCodes.add(code);
+        }
+      });
+    });
+    
+    const finalCodes = Array.from(allCodes);
+    
+    console.log('🎯 [usePricingCalculation] Final product codes calculated:', {
+      total: finalCodes.length,
+      products: products.length,
+      labs: selectedLaboratories.length,
+      cats: selectedCategories.length,
+      excluded: excludedProducts.length,
+      overridden: !!(options.productCodes)
+    });
+    
+    return finalCodes;
+  }, [products, selectedLaboratories, selectedCategories, excludedProducts, options.productCodes]);
+
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: options.productCodes || productsFilter,
-    laboratoryCodes: laboratoriesFilter,
-    categoryCodes: categoriesFilter,
+    productCodes: finalProductCodes,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
   };
 
@@ -94,11 +149,18 @@ export function usePricingCalculation(
     refetch,
     hasData
   } = useStandardFetch<PricingCalculationResponse>('/api/pricing/calculate', {
-    enabled: options.enabled !== false && 
-             (productsFilter.length > 0 || laboratoriesFilter.length > 0 || categoriesFilter.length > 0),
+    enabled: options.enabled !== false && finalProductCodes.length > 0,
     dateRange: options.dateRange || analysisDateRange,
     filters: standardFilters
   });
+
+  // 🔥 Force refetch quand les exclusions changent (sauf si override)
+  useEffect(() => {
+    if (!options.productCodes) {
+      console.log('🔄 [usePricingCalculation] Exclusions changed, triggering refetch');
+      refetch();
+    }
+  }, [excludedProducts.length, refetch, options.productCodes]);
 
   const calculateSimulation = (params: SimulationParams): SimulationResult => {
     const { product, newBuyPrice, newDiscount, newSellPrice } = params;
