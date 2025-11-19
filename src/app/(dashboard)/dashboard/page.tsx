@@ -2,12 +2,12 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Info, TrendingUp, BarChart3, Package } from 'lucide-react';
+import { Info, TrendingUp, Package } from 'lucide-react';
 import { useProductsList } from '@/hooks/products/useProductsList';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { Card } from '@/components/atoms/Card/Card';
 import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
-import { MemoizedMetricsEvolutionChart as MetricsEvolutionChart } from '@/components/organisms/MetricsEvolutionChart/MetricsEvolutionChart';
+// import { MemoizedMetricsEvolutionChart as MetricsEvolutionChart } from '@/components/organisms/MetricsEvolutionChart/MetricsEvolutionChart';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 
 /**
