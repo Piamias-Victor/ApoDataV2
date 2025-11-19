@@ -244,21 +244,6 @@ Cliquez sur les en-têtes pour trier les données.`
       </SectionWithHelp>
 
       {/* Graphique évolution avec description + tooltip */}
-      <SectionWithHelp
-        title="Évolution Temporelle des Métriques"
-        description="Visualisez les tendances de vos ventes dans le temps pour identifier saisonnalités, pics et optimiser vos stratégies"
-        tooltipContent={tooltips.evolution}
-        icon={<BarChart3 className="w-5 h-5 text-green-600" />}
-      >
-        <MetricsEvolutionChart
-          dateRange={analysisDateRange}
-          filters={{
-            productCodes: allProductCodes,
-            pharmacyId: pharmacyFilter.length > 0 ? pharmacyFilter[0] : undefined
-          }}
-          onRefresh={refetch}
-        />
-      </SectionWithHelp>
       
       {/* Tableau produits avec description + tooltip */}
       <SectionWithHelp
