@@ -347,9 +347,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? body.productCodes 
       : null;
     
+    // PROTECTION: Si productCodes est vide/null, bloquer la requête
+    if (!productCodes) {
+      console.log('🚫 [API] Blocked - productCodes is empty');
+      return NextResponse.json({ 
+        error: 'Product codes are required for this endpoint',
+        data: [],
+        queryTime: 0,
+        cached: false
+      }, { status: 400 });
+    }
+    
     console.log('🔍 [API] Filters applied:', {
       dateRange: body.dateRange,
-      productCodes: productCodes ? `${productCodes.length} codes` : 'ALL_PRODUCTS',
+      productCodes: `${productCodes.length} codes`,
       pharmacyId: targetPharmacyId || 'ALL_PHARMACIES'
     });
 
