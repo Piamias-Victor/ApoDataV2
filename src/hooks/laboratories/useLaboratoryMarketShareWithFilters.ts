@@ -1,5 +1,5 @@
 // src/hooks/laboratories/useLaboratoryMarketShareWithFilters.ts
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import type { LaboratoryMarketShare } from '@/types/laboratory';
 
@@ -24,9 +24,9 @@ interface UseLaboratoryMarketShareReturn {
 }
 
 /**
- * Hook useLaboratoryMarketShareWithFilters - VERSION AVEC EXCLUSIONS
+ * Hook useLaboratoryMarketShareWithFilters - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  * ✅ Custom fetch avec pagination
  */
 export function useLaboratoryMarketShareWithFilters(
@@ -42,61 +42,21 @@ export function useLaboratoryMarketShareWithFilters(
 
   const { enabled = true, pageSize = 10 } = options;
 
-  // ✅ Récupérer les propriétés individuellement
+  // ✅ Récupérer les propriétés du store
   const pharmacy = useFiltersStore((state) => state.pharmacy);
   const analysisDateRangeStart = useFiltersStore((state) => state.analysisDateRange.start);
   const analysisDateRangeEnd = useFiltersStore((state) => state.analysisDateRange.end);
   const comparisonDateRangeStart = useFiltersStore((state) => state.comparisonDateRange.start);
   const comparisonDateRangeEnd = useFiltersStore((state) => state.comparisonDateRange.end);
 
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useLaboratoryMarketShare] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
+  console.log('🎯 [useLaboratoryMarketShare] Using products from store:', {
+    total: products.length,
+    excluded: excludedProducts.length
+  });
 
   // ✅ Ref pour abort controller
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -116,7 +76,7 @@ export function useLaboratoryMarketShareWithFilters(
     setError(null);
 
     console.log('🔍 [fetchData] Calling API with filters:', {
-      products: finalProductCodes.length,
+      products: products.length,
       pharmacy: pharmacy.length,
       dateRange: `${analysisDateRangeStart} → ${analysisDateRangeEnd}`,
       page
@@ -129,7 +89,7 @@ export function useLaboratoryMarketShareWithFilters(
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           filters: {
-            productCodes: finalProductCodes,
+            productCodes: products, // 🔥 Directement products du store
             pharmacyIds: pharmacy,
             dateRange: {
               start: analysisDateRangeStart,
@@ -177,7 +137,7 @@ export function useLaboratoryMarketShareWithFilters(
     }
   }, [
     enabled,
-    finalProductCodes,
+    products, // 🔥 Dépendance directe de products
     pharmacy,
     analysisDateRangeStart,
     analysisDateRangeEnd,
@@ -186,19 +146,12 @@ export function useLaboratoryMarketShareWithFilters(
     pageSize
   ]);
 
-  // ✅ useEffect déclenché UNIQUEMENT par les deps primitives
+  // ✅ useEffect déclenché quand products change
   useEffect(() => {
-    console.log('🎯 [useEffect] Filters changed, fetching page 1');
+    console.log('🎯 [useEffect] Products changed, fetching page 1');
     setCurrentPage(1);
     fetchData(1);
   }, [fetchData]);
-
-  // 🔥 Force refetch quand les exclusions changent
-  useEffect(() => {
-    console.log('🔄 [useLaboratoryMarketShare] Exclusions changed, refetching');
-    setCurrentPage(1);
-    fetchData(1);
-  }, [excludedProducts.length]);
 
   // ✅ Cleanup
   useEffect(() => {

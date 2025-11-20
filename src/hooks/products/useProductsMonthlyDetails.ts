@@ -1,5 +1,5 @@
 // src/hooks/products/useProductsMonthlyDetails.ts
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { StandardFilters } from '@/hooks/common/types';
@@ -101,9 +101,9 @@ const getLast12MonthsDateRange = (): { start: string; end: string } => {
 };
 
 /**
- * Hook useProductsMonthlyDetails - VERSION AVEC EXCLUSIONS
+ * Hook useProductsMonthlyDetails - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  */
 export function useProductsMonthlyDetails(
   options: UseProductsMonthlyDetailsOptions = {}
@@ -111,60 +111,20 @@ export function useProductsMonthlyDetails(
   
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useProductsMonthlyDetails] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
+  console.log('🎯 [useProductsMonthlyDetails] Using products from store:', {
+    total: products.length,
+    excluded: excludedProducts.length
+  });
 
   // Calcul des 12 derniers mois
   const last12MonthsDateRange = useMemo(() => getLast12MonthsDateRange(), []);
 
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: finalProductCodes,
+    productCodes: products,
   };
 
   // Ajout conditionnel des pharmacyIds
@@ -178,12 +138,6 @@ export function useProductsMonthlyDetails(
     dateRange: last12MonthsDateRange,
     filters: standardFilters
   });
-
-  // 🔥 Force refetch quand les exclusions changent
-  useEffect(() => {
-    console.log('🔄 [useProductsMonthlyDetails] Exclusions changed, triggering refetch');
-    result.refetch();
-  }, [excludedProducts.length, result.refetch]);
 
   // Nettoyage des données avec conversion string->number
   const cleanedMonthlyData = useMemo(() => {

@@ -1,7 +1,6 @@
 // src/hooks/dashboard/useKpiMetrics.ts
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
-import { useMemo, useEffect } from 'react';
 import type { BaseHookReturn, StandardFilters } from '@/hooks/common/types';
 
 interface KpiMetricsResponse {
@@ -43,9 +42,9 @@ interface UseKpiMetricsOptions {
 interface UseKpiMetricsReturn extends BaseHookReturn<KpiMetricsResponse> {}
 
 /**
- * Hook useKpiMetrics - VERSION AVEC EXCLUSIONS
+ * Hook useKpiMetrics - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  * ✅ Support des filtres en options pour override
  */
 export function useKpiMetrics(
@@ -54,60 +53,18 @@ export function useKpiMetrics(
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
   
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    // Si filtres fournis en options, les utiliser directement
-    if (options.filters?.products && options.filters.products.length > 0) {
-      return options.filters.products;
-    }
+  // Si filtres fournis en options, les utiliser directement
+  const finalProductCodes = options.filters?.products || products;
 
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useKpiMetrics] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length,
-      overridden: !!(options.filters?.products)
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts, options.filters?.products]);
+  console.log('🎯 [useKpiMetrics] Using products from store:', {
+    total: finalProductCodes.length,
+    excluded: excludedProducts.length,
+    overridden: !!(options.filters?.products)
+  });
 
   const standardFilters: StandardFilters & Record<string, any> = {
     productCodes: finalProductCodes,
@@ -121,14 +78,6 @@ export function useKpiMetrics(
     includeComparison: options.includeComparison,
     filters: standardFilters
   });
-
-  // 🔥 Force refetch quand les exclusions changent (sauf si override)
-  useEffect(() => {
-    if (!options.filters?.products) {
-      console.log('🔄 [useKpiMetrics] Exclusions changed, triggering refetch');
-      result.refetch();
-    }
-  }, [excludedProducts.length, result.refetch, options.filters?.products]);
 
   return result;
 }

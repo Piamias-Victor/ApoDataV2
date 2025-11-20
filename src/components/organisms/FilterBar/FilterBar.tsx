@@ -25,19 +25,20 @@ import {
   Filter,
   Save,
   FolderOpen,
-  Ban, // 🔥 NOUVEAU - Icône exclusion
+  Ban,
+  GitMerge,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
 
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | null; // 🔥 AJOUT 'exclusion'
+type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | null;
 
 interface FilterChipProps {
   readonly icon: React.ReactNode;
   readonly label: string;
   readonly value: string;
   readonly onRemove?: (() => void) | undefined;
-  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'red'; // 🔥 AJOUT 'red'
+  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'red';
   readonly tooltip?: string;
 }
 
@@ -55,7 +56,7 @@ const FilterChip: React.FC<FilterChipProps> = ({
     purple: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
     pink: 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100',
     orange: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
-    red: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' // 🔥 NOUVEAU
+    red: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
   };
 
   return (
@@ -67,11 +68,11 @@ const FilterChip: React.FC<FilterChipProps> = ({
       className="relative group"
     >
       <div className={`
-        inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+        inline-flex items-center gap-1.5 px-2 py-1 rounded-lg
         border transition-all duration-200
         ${colorClasses[color]}
       `}>
-        <span className="w-4 h-4 flex-shrink-0">
+        <span className="w-3 h-3 flex-shrink-0">
           {icon}
         </span>
         <span className="text-xs font-medium">{label}</span>
@@ -81,11 +82,11 @@ const FilterChip: React.FC<FilterChipProps> = ({
           <button
             onClick={onRemove}
             className="
-              ml-1 -mr-1 p-0.5 rounded-full
+              ml-0.5 -mr-0.5 p-0.5 rounded-full
               hover:bg-white/50 transition-colors
             "
           >
-            <X className="w-3 h-3" />
+            <X className="w-2.5 h-2.5" />
           </button>
         )}
       </div>
@@ -98,7 +99,7 @@ const FilterChip: React.FC<FilterChipProps> = ({
         ">
           <div className="
             bg-gray-900 text-white text-xs rounded-lg
-            px-3 py-2 max-w-xs whitespace-pre-wrap
+            px-2 py-1.5 max-w-xs whitespace-pre-wrap
           ">
             {tooltip}
             <div className="
@@ -127,7 +128,6 @@ export const FilterBar: React.FC = () => {
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showActiveFilters] = useState(true);
   
-  // Hook filtres sauvegardés
   const {
     savedFilters,
     isLoading: isLoadingSavedFilters,
@@ -146,18 +146,19 @@ export const FilterBar: React.FC = () => {
     selectedLaboratories,
     selectedCategories,
     selectedPharmacies,
-    selectedExcludedProducts, // 🔥 NOUVEAU
+    selectedExcludedProducts,
     analysisDateRange,
+    filterLogic,
+    setFilterLogic,
     clearProductFilters,
     clearLaboratoryFilters,
     clearCategoryFilters,
     clearPharmacyFilters,
-    clearExcludedProducts, // 🔥 NOUVEAU
+    clearExcludedProducts,
     clearAllFilters,
     isPharmacyLocked
   } = useFiltersStore();
 
-  // Compteur total de filtres sauvegardables (produits + labos + catégories + pharmacies)
   const totalFiltersCount = useMemo(() => {
     return (selectedProducts?.length || 0) + 
            (selectedLaboratories?.length || 0) + 
@@ -165,12 +166,18 @@ export const FilterBar: React.FC = () => {
            (selectedPharmacies?.length || 0);
   }, [selectedProducts, selectedLaboratories, selectedCategories, selectedPharmacies]);
 
-  // 🔥 NOUVEAU - Count exclusions
   const exclusionsCount = useMemo(() => {
     return selectedExcludedProducts?.length || 0;
   }, [selectedExcludedProducts]);
 
-  // Formater les dates
+  const showLogicToggle = useMemo(() => {
+    const hasCategories = (selectedCategories?.length || 0) > 0;
+    const hasLaboratories = (selectedLaboratories?.length || 0) > 0;
+    const hasMultipleCategories = (selectedCategories?.length || 0) > 1;
+    
+    return hasMultipleCategories || (hasCategories && hasLaboratories);
+  }, [selectedCategories, selectedLaboratories]);
+
   const formatDateRange = useMemo(() => {
     if (!analysisDateRange?.start || !analysisDateRange?.end) return null;
     
@@ -184,7 +191,6 @@ export const FilterBar: React.FC = () => {
     return `${formatDate(analysisDateRange.start)} - ${formatDate(analysisDateRange.end)}`;
   }, [analysisDateRange]);
 
-  // Formater les laboratoires
   const labInfo = useMemo(() => {
     if (!selectedLaboratories || selectedLaboratories.length === 0) return null;
     
@@ -197,14 +203,13 @@ export const FilterBar: React.FC = () => {
     }
     
     return {
-      value: `${selectedLaboratories.length} sélectionnés`,
+      value: `${selectedLaboratories.length}`,
       tooltip: selectedLaboratories
         .map(lab => `• ${lab?.name || 'Inconnu'} (${lab?.productCount || 0} produits)`)
         .join('\n')
     };
   }, [selectedLaboratories]);
 
-  // Formater les produits
   const productInfo = useMemo(() => {
     if (!selectedProducts || selectedProducts.length === 0) return null;
     
@@ -221,7 +226,7 @@ export const FilterBar: React.FC = () => {
     const remaining = selectedProducts.length - displayCount;
     
     return {
-      value: `${selectedProducts.length} produits`,
+      value: `${selectedProducts.length}`,
       tooltip: [
         ...displayed.map(p => `• ${p?.name || 'Produit'}`),
         remaining > 0 ? `... et ${remaining} autres` : ''
@@ -229,7 +234,6 @@ export const FilterBar: React.FC = () => {
     };
   }, [selectedProducts]);
 
-  // Formater les catégories
   const categoryInfo = useMemo(() => {
     if (!selectedCategories || selectedCategories.length === 0) return null;
     
@@ -242,14 +246,13 @@ export const FilterBar: React.FC = () => {
     }
     
     return {
-      value: `${selectedCategories.length} catégories`,
+      value: `${selectedCategories.length}`,
       tooltip: selectedCategories
         .map(cat => `• ${cat?.name || 'Catégorie'} (${cat?.productCount || 0} produits)`)
         .join('\n')
     };
   }, [selectedCategories]);
 
-  // Formater les pharmacies
   const pharmacyInfo = useMemo(() => {
     if (!selectedPharmacies || selectedPharmacies.length === 0) return null;
     
@@ -262,21 +265,20 @@ export const FilterBar: React.FC = () => {
     }
     
     return {
-      value: `${selectedPharmacies.length} pharmacies`,
+      value: `${selectedPharmacies.length}`,
       tooltip: selectedPharmacies
         .map(p => `• ${p?.name || 'Pharmacie'}`)
         .join('\n')
     };
   }, [selectedPharmacies]);
 
-  // 🔥 NOUVEAU - Formater les exclusions
   const exclusionInfo = useMemo(() => {
     if (!selectedExcludedProducts || selectedExcludedProducts.length === 0) return null;
     
     if (selectedExcludedProducts.length === 1) {
       const product = selectedExcludedProducts[0];
       return {
-        value: product?.name || 'Produit exclu',
+        value: product?.name || 'Exclu',
         tooltip: `Code: ${product?.code || ''}`
       };
     }
@@ -286,7 +288,7 @@ export const FilterBar: React.FC = () => {
     const remaining = selectedExcludedProducts.length - displayCount;
     
     return {
-      value: `${selectedExcludedProducts.length} exclusions`,
+      value: `${selectedExcludedProducts.length}`,
       tooltip: [
         ...displayed.map(p => `• ${p?.name || 'Produit'}`),
         remaining > 0 ? `... et ${remaining} autres` : ''
@@ -299,7 +301,7 @@ export const FilterBar: React.FC = () => {
     (selectedLaboratories && selectedLaboratories.length > 0) ||
     (selectedCategories && selectedCategories.length > 0) ||
     (selectedPharmacies && selectedPharmacies.length > 0) ||
-    (selectedExcludedProducts && selectedExcludedProducts.length > 0) // 🔥 NOUVEAU
+    (selectedExcludedProducts && selectedExcludedProducts.length > 0)
   );
 
   const filterButtons: FilterButton[] = [
@@ -312,7 +314,7 @@ export const FilterBar: React.FC = () => {
     },
     { 
       id: 'laboratories', 
-      label: 'Laboratoires', 
+      label: 'Labos', 
       icon: <TestTube className="w-full h-full" />, 
       adminOnly: false,
       hiddenRoutes: ['/generique']
@@ -366,21 +368,25 @@ export const FilterBar: React.FC = () => {
     setActiveDrawer(null);
   };
 
-const filterType: 'classic' | 'generic' = pathname.includes('/generiques') 
-  ? 'generic' 
-  : 'classic';
+  const filterType: 'classic' | 'generic' = pathname.includes('/generiques') 
+    ? 'generic' 
+    : 'classic';
 
-const handleSaveFilter = async (name: string) => {
-  await saveCurrentFilters(name, filterType); // 🔥 Ajouter filterType
-  setActiveDrawer(null);
-};
+  const handleSaveFilter = async (name: string) => {
+    await saveCurrentFilters(name, filterType);
+    setActiveDrawer(null);
+  };
 
   const handleLoadFilter = async (id: string) => {
     await loadFilter(id);
     setActiveDrawer(null);
   };
 
-  // Calculer les counts pour les badges
+  const handleLogicToggle = () => {
+    const newLogic = filterLogic === 'OR' ? 'AND' : 'OR';
+    setFilterLogic(newLogic);
+  };
+
   const filterCounts = {
     products: selectedProducts?.length || 0,
     laboratories: selectedLaboratories?.length || 0,
@@ -388,12 +394,11 @@ const handleSaveFilter = async (name: string) => {
     pharmacy: selectedPharmacies?.length || 0,
     date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
     filter: 0,
-    exclusion: exclusionsCount // 🔥 NOUVEAU
+    exclusion: exclusionsCount
   };
 
   return (
     <>
-      {/* Barre principale avec boutons */}
       <motion.div
         className="
           fixed top-16 left-0 right-0 z-40
@@ -405,15 +410,16 @@ const handleSaveFilter = async (name: string) => {
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
         <div className="container-apodata">
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-between py-2">
+            {/* 🔥 Boutons filtres - COMPACTS */}
+            <div className="flex items-center gap-1.5">
               {visibleButtons.map(button => (
                 <motion.button
                   key={button.id}
                   onClick={() => handleFilterClick(button.id)}
                   className={`
-                    relative flex items-center space-x-2 px-4 py-2.5 
-                    rounded-xl border transition-all duration-300
+                    relative flex items-center gap-1.5 px-2.5 py-1.5 
+                    rounded-lg border transition-all duration-300
                     ${activeDrawer === button.id
                       ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
                       : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
@@ -422,8 +428,8 @@ const handleSaveFilter = async (name: string) => {
                   whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <div className="w-4 h-4">{button.icon}</div>
-                  <span className="font-medium text-sm">{button.label}</span>
+                  <div className="w-3.5 h-3.5">{button.icon}</div>
+                  <span className="font-medium text-xs">{button.label}</span>
                   
                   <AnimatePresence>
                     {filterCounts[button.id as keyof typeof filterCounts] > 0 && (
@@ -440,99 +446,122 @@ const handleSaveFilter = async (name: string) => {
                   </AnimatePresence>
                 </motion.button>
               ))}
+
+              {/* 🔥 Toggle ET/OU - COMPACT */}
+              <AnimatePresence>
+                {showLogicToggle && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                    onClick={handleLogicToggle}
+                    className={`
+                      flex items-center gap-1.5 px-2.5 py-1.5 
+                      rounded-lg border transition-all duration-300
+                      ${filterLogic === 'AND'
+                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700 shadow-sm'
+                        : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
+                      }
+                    `}
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <GitMerge className="w-3.5 h-3.5" />
+                    <span className="font-medium text-xs">
+                      {filterLogic === 'OR' ? 'OU' : 'ET'}
+                    </span>
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
 
-            
-              <div className="flex items-center space-x-2">
-                {/* Bouton Sauvegarder */}
-                <motion.button
-                  onClick={() => handleFilterClick('save')}
-                  disabled={totalFiltersCount === 0}
-                  className={`
-                    flex items-center space-x-2 px-3 py-2 
-                    rounded-xl border transition-all duration-300
-                    ${activeDrawer === 'save'
-                      ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
-                      : totalFiltersCount === 0
-                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                    }
-                  `}
-                  whileHover={totalFiltersCount > 0 ? { scale: 1.02, y: -1 } : {}}
-                  whileTap={totalFiltersCount > 0 ? { scale: 0.98 } : {}}
-                >
-                  <Save className="w-4 h-4" />
-                  <span className="font-medium text-sm">Sauvegarder</span>
-                </motion.button>
-
-                {/* Bouton Charger */}
-                <motion.button
-                  onClick={() => handleFilterClick('load')}
-                  className={`
-                    relative flex items-center space-x-2 px-3 py-2 
-                    rounded-xl border transition-all duration-300
-                    ${activeDrawer === 'load'
-                      ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+            {/* 🔥 Actions - COMPACTS */}
+            <div className="flex items-center gap-1.5">
+              <motion.button
+                onClick={() => handleFilterClick('save')}
+                disabled={totalFiltersCount === 0}
+                className={`
+                  flex items-center gap-1.5 px-2.5 py-1.5 
+                  rounded-lg border transition-all duration-300
+                  ${activeDrawer === 'save'
+                    ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+                    : totalFiltersCount === 0
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                       : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                    }
-                  `}
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  <span className="font-medium text-sm">Charger</span>
-                  
-                  <AnimatePresence>
-                    {savedFilters.length > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                      >
-                        <Badge variant="primary" size="sm">
-                          {savedFilters.length}
-                        </Badge>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
+                  }
+                `}
+                whileHover={totalFiltersCount > 0 ? { scale: 1.02, y: -1 } : {}}
+                whileTap={totalFiltersCount > 0 ? { scale: 0.98 } : {}}
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span className="font-medium text-xs">Sauver</span>
+              </motion.button>
 
-                {/* 🔥 NOUVEAU - Bouton Exclusion (ROUGE) */}
-                <motion.button
-                  onClick={() => handleFilterClick('exclusion')}
-                  className={`
-                    relative flex items-center space-x-2 px-3 py-2 
-                    rounded-xl border transition-all duration-300
-                    ${activeDrawer === 'exclusion'
-                      ? 'bg-red-100 border-red-300 text-red-700 shadow-sm'
-                      : 'bg-white/70 border-red-200/70 text-red-600 hover:bg-red-50 hover:border-red-300'
-                    }
-                  `}
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Ban className="w-4 h-4" />
-                  <span className="font-medium text-sm">Exclusions</span>
-                  
-                  <AnimatePresence>
-                    {exclusionsCount > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                      >
-                        <Badge variant="danger" size="sm">
-                          {exclusionsCount}
-                        </Badge>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              </div>
-            
+              <motion.button
+                onClick={() => handleFilterClick('load')}
+                className={`
+                  relative flex items-center gap-1.5 px-2.5 py-1.5 
+                  rounded-lg border transition-all duration-300
+                  ${activeDrawer === 'load'
+                    ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+                    : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
+                  }
+                `}
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span className="font-medium text-xs">Charger</span>
+                
+                <AnimatePresence>
+                  {savedFilters.length > 0 && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                    >
+                      <Badge variant="primary" size="sm">
+                        {savedFilters.length}
+                      </Badge>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+
+              <motion.button
+                onClick={() => handleFilterClick('exclusion')}
+                className={`
+                  relative flex items-center gap-1.5 px-2.5 py-1.5 
+                  rounded-lg border transition-all duration-300
+                  ${activeDrawer === 'exclusion'
+                    ? 'bg-red-100 border-red-300 text-red-700 shadow-sm'
+                    : 'bg-white/70 border-red-200/70 text-red-600 hover:bg-red-50 hover:border-red-300'
+                  }
+                `}
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span className="font-medium text-xs">Exclusions</span>
+                
+                <AnimatePresence>
+                  {exclusionsCount > 0 && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                    >
+                      <Badge variant="danger" size="sm">
+                        {exclusionsCount}
+                      </Badge>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+            </div>
           </div>
 
-          {/* Ligne des filtres actifs */}
+          {/* 🔥 Chips actifs - COMPACTS */}
           <AnimatePresence>
             {showActiveFilters && (hasActiveFilters || formatDateRange) && (
               <motion.div
@@ -542,13 +571,13 @@ const handleSaveFilter = async (name: string) => {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="flex items-center gap-2 pb-3 px-1">
-                  <span className="text-xs font-medium text-gray-500 mr-2">Actifs:</span>
+                <div className="flex items-center gap-1.5 pb-2 px-0.5">
+                  <span className="text-[10px] font-medium text-gray-500 mr-1">Actifs:</span>
                   
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {formatDateRange && (
                       <FilterChip
-                        icon={<Calendar className="w-3.5 h-3.5" />}
+                        icon={<Calendar className="w-3 h-3" />}
                         label="Période"
                         value={formatDateRange}
                         color="blue"
@@ -558,7 +587,7 @@ const handleSaveFilter = async (name: string) => {
                     {pharmacyInfo && (
                       <FilterChip
                         key="pharmacy"
-                        icon={<Building className="w-3.5 h-3.5" />}
+                        icon={<Building className="w-3 h-3" />}
                         label="Pharmacie"
                         value={pharmacyInfo.value}
                         tooltip={pharmacyInfo.tooltip}
@@ -570,7 +599,7 @@ const handleSaveFilter = async (name: string) => {
                     {labInfo && (
                       <FilterChip
                         key="lab"
-                        icon={<TestTube className="w-3.5 h-3.5" />}
+                        icon={<TestTube className="w-3 h-3" />}
                         label="Labo"
                         value={labInfo.value}
                         tooltip={labInfo.tooltip}
@@ -582,7 +611,7 @@ const handleSaveFilter = async (name: string) => {
                     {productInfo && (
                       <FilterChip
                         key="product"
-                        icon={<Package className="w-3.5 h-3.5" />}
+                        icon={<Package className="w-3 h-3" />}
                         label="Produit"
                         value={productInfo.value}
                         tooltip={productInfo.tooltip}
@@ -594,7 +623,7 @@ const handleSaveFilter = async (name: string) => {
                     {categoryInfo && (
                       <FilterChip
                         key="category"
-                        icon={<Tag className="w-3.5 h-3.5" />}
+                        icon={<Tag className="w-3 h-3" />}
                         label="Catégorie"
                         value={categoryInfo.value}
                         tooltip={categoryInfo.tooltip}
@@ -603,11 +632,10 @@ const handleSaveFilter = async (name: string) => {
                       />
                     )}
 
-                    {/* 🔥 NOUVEAU - Chip exclusions (ROUGE) */}
                     {exclusionInfo && (
                       <FilterChip
                         key="exclusion"
-                        icon={<Ban className="w-3.5 h-3.5" />}
+                        icon={<Ban className="w-3 h-3" />}
                         label="Exclusions"
                         value={exclusionInfo.value}
                         tooltip={exclusionInfo.tooltip}
@@ -615,17 +643,31 @@ const handleSaveFilter = async (name: string) => {
                         color="red"
                       />
                     )}
+
+                    {showLogicToggle && (
+                      <FilterChip
+                        key="logic"
+                        icon={<GitMerge className="w-3 h-3" />}
+                        label="Logique"
+                        value={filterLogic === 'OR' ? 'OU' : 'ET'}
+                        color="blue"
+                        tooltip={filterLogic === 'OR' 
+                          ? 'Union : tous les produits des sélections'
+                          : 'Intersection : seulement les produits communs'
+                        }
+                      />
+                    )}
                   </div>
 
-                  <div className="ml-auto flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-500">
                       {Object.values(filterCounts).reduce((a, b) => a + b, 0)} filtres
                     </span>
                     <button
                       onClick={clearAllFilters}
                       className="
-                        text-xs text-red-600 hover:text-red-700
-                        px-2 py-1 rounded hover:bg-red-50
+                        text-[10px] text-red-600 hover:text-red-700
+                        px-1.5 py-0.5 rounded hover:bg-red-50
                         transition-colors
                       "
                     >
@@ -639,7 +681,6 @@ const handleSaveFilter = async (name: string) => {
         </div>
       </motion.div>
 
-      {/* Drawers */}
       <AnimatePresence mode="wait">
         {activeDrawer === 'products' && (
           <ProductsDrawer
@@ -690,7 +731,6 @@ const handleSaveFilter = async (name: string) => {
           />
         )}
 
-        {/* 🔥 NOUVEAU - Drawer Exclusion */}
         {activeDrawer === 'exclusion' && (
           <ExclusionDrawer
             isOpen={true}
@@ -699,7 +739,6 @@ const handleSaveFilter = async (name: string) => {
           />
         )}
 
-        {/* Modal Sauvegarder */}
         {activeDrawer === 'save' && (
           <SaveFilterModal
             isOpen={true}
@@ -710,11 +749,10 @@ const handleSaveFilter = async (name: string) => {
             laboratoriesCount={selectedLaboratories?.length || 0}
             categoriesCount={selectedCategories?.length || 0}
             pharmaciesCount={selectedPharmacies?.length || 0}
-            exclusionsCount={exclusionsCount} // 🔥 NOUVEAU
+            exclusionsCount={exclusionsCount}
           />
         )}
 
-        {/* Drawer Charger */}
         {activeDrawer === 'load' && (
           <LoadFiltersDrawer
             isOpen={true}

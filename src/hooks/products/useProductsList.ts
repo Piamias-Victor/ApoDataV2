@@ -1,7 +1,6 @@
 // src/hooks/products/useProductsList.ts
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
-import { useMemo, useEffect } from 'react';
 import type { BaseHookOptions, BaseHookReturn, StandardFilters } from '@/hooks/common/types';
 
 // Types spécifiques produits
@@ -89,10 +88,10 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
 }
 
 /**
- * Hook useProductsList - VERSION FIXÉE avec auto-refetch sur exclusions
+ * Hook useProductsList - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux côté hook avec useMemo
- * ✅ Force refetch quand exclusions changent
+ * ✅ Utilise directement products du store (contient codes finaux avec logique ET/OU)
+ * ✅ Réactivité automatique via useStandardFetch (pas de useEffect manuel)
  */
 export function useProductsList(
   options: UseProductsListOptions = {}
@@ -102,58 +101,16 @@ export function useProductsList(
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
   
-  // 🔥 Récupérer les données brutes du store
+  // 🔥 Récupérer directement products (contient déjà les codes finaux)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
-  const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useProductsList] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
+  console.log('🎯 [useProductsList] Using final product codes from store:', {
+    total: products.length
+  });
 
   // Construction filtres standardisés
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: finalProductCodes,
+    productCodes: products, // 🔥 Directement products du store
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter })
   };
 
@@ -173,14 +130,12 @@ export function useProductsList(
     comparisonDateRange: options.comparisonDateRange || comparisonDateRange,
     includeComparison: true,
     filters: standardFilters,
-    forceRefresh: false // Par défaut
+    forceRefresh: false
   });
 
-  // 🔥 NOUVEAU : Force refetch quand les exclusions changent
-  useEffect(() => {
-    console.log('🔄 [useProductsList] Exclusions changed, triggering refetch');
-    refetch();
-  }, [excludedProducts.length, refetch]);
+  // 🔥 SUPPRIMÉ : useEffect manuel
+  // La réactivité est gérée automatiquement par useStandardFetch
+  // Quand products change → stableFilters change → fetchData se relance
 
   // Conversion des données (strings → numbers)
   const convertedData: ProductsListResponse | null = rawData ? {

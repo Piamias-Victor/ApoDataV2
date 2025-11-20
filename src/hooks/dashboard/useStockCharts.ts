@@ -1,5 +1,4 @@
 // src/hooks/dashboard/useStockCharts.ts
-import { useMemo, useEffect } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { StandardFilters } from '@/hooks/common/types';
@@ -36,9 +35,9 @@ interface UseStockChartsReturn {
 }
 
 /**
- * Hook useStockCharts - VERSION AVEC EXCLUSIONS
+ * Hook useStockCharts - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  * ✅ Support des productCodes en options pour override
  */
 export function useStockCharts(options: UseStockChartsOptions): UseStockChartsReturn {
@@ -52,60 +51,18 @@ export function useStockCharts(options: UseStockChartsOptions): UseStockChartsRe
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
   
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    // Si productCodes fournis en options, les utiliser directement
-    if (productCodes.length > 0) {
-      return productCodes;
-    }
+  // Si productCodes fournis en options, les utiliser directement
+  const finalProductCodes = productCodes.length > 0 ? productCodes : products;
 
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useStockCharts] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length,
-      overridden: productCodes.length > 0
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts, productCodes]);
+  console.log('🎯 [useStockCharts] Using products from store:', {
+    total: finalProductCodes.length,
+    excluded: excludedProducts.length,
+    overridden: productCodes.length > 0
+  });
 
   // Construction des filtres
   const standardFilters: StandardFilters & Record<string, any> = {
@@ -123,14 +80,6 @@ export function useStockCharts(options: UseStockChartsOptions): UseStockChartsRe
     dateRange: dateRange || analysisDateRange,
     filters: standardFilters
   });
-
-  // 🔥 Force refetch quand les exclusions changent (sauf si productCodes en override)
-  useEffect(() => {
-    if (productCodes.length === 0) {
-      console.log('🔄 [useStockCharts] Exclusions changed, triggering refetch');
-      result.refetch();
-    }
-  }, [excludedProducts.length, result.refetch, productCodes.length]);
 
   return {
     data: result.data?.data || null,

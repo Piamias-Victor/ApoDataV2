@@ -1,5 +1,5 @@
 // src/hooks/ventes/useMarketShareHierarchy.ts
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
 import type { StandardFilters } from '@/hooks/common/types';
@@ -73,9 +73,9 @@ interface UseMarketShareHierarchyReturn {
 }
 
 /**
- * Hook useMarketShareHierarchy - VERSION AVEC EXCLUSIONS
+ * Hook useMarketShareHierarchy - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  */
 export function useMarketShareHierarchy(
   options: UseMarketShareHierarchyOptions
@@ -85,64 +85,24 @@ export function useMarketShareHierarchy(
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useMarketShareHierarchy] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts]);
+  console.log('🎯 [useMarketShareHierarchy] Using products from store:', {
+    total: products.length,
+    excluded: excludedProducts.length
+  });
 
   const standardFilters: StandardFilters & Record<string, any> = {
-    productCodes: finalProductCodes,
+    productCodes: products, // 🔥 Directement products du store
     bcbSegmentCodes: [],
     hierarchyLevel: options.hierarchyLevel,
     page: currentPage,
     limit: options.limit || 5,
     ...(pharmacyFilter.length > 0 && { pharmacyIds: pharmacyFilter }),
     ...(options.filters?.products && { 
-      productCodes: [...finalProductCodes, ...options.filters.products] 
+      productCodes: [...products, ...options.filters.products] 
     }),
     ...(options.filters?.bcbSegments && { 
       bcbSegmentCodes: options.filters.bcbSegments 
@@ -170,12 +130,6 @@ export function useMarketShareHierarchy(
   const refetch = useCallback(async () => {
     await baseRefetch();
   }, [baseRefetch]);
-
-  // 🔥 Force refetch quand les exclusions changent
-  useEffect(() => {
-    console.log('🔄 [useMarketShareHierarchy] Exclusions changed, triggering refetch');
-    refetch();
-  }, [excludedProducts.length, refetch]);
 
   const setPage = useCallback((page: number) => {
     setCurrentPage(page);

@@ -1,7 +1,6 @@
 // src/hooks/dashboard/useDailyMetrics.ts
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { useStandardFetch } from '@/hooks/common/useStandardFetch';
-import { useMemo, useEffect } from 'react';
 import type { StandardFilters } from '@/hooks/common/types';
 
 interface DailyMetricsEntry {
@@ -44,9 +43,9 @@ interface UseDailyMetricsReturn {
 }
 
 /**
- * Hook useDailyMetrics - VERSION AVEC EXCLUSIONS
+ * Hook useDailyMetrics - VERSION SIMPLIFIÉE
  * 
- * ✅ Calcule les codes finaux avec exclusions via useMemo
+ * ✅ Utilise directement products du store (contient logique ET/OU + exclusions)
  * ✅ Support des productCodes en options pour override
  */
 export function useDailyMetrics(
@@ -55,60 +54,18 @@ export function useDailyMetrics(
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
 
-  // 🔥 Récupération des données brutes du store
+  // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
-  const selectedLaboratories = useFiltersStore((state) => state.selectedLaboratories);
-  const selectedCategories = useFiltersStore((state) => state.selectedCategories);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
 
-  // 🔥 Calcul des codes finaux avec useMemo (stable)
-  const finalProductCodes = useMemo(() => {
-    // Si productCodes fournis en options, les utiliser directement
-    if (options.productCodes && options.productCodes.length > 0) {
-      return options.productCodes;
-    }
+  // Si productCodes fournis en options, les utiliser directement
+  const finalProductCodes = options.productCodes || products;
 
-    const allCodes = new Set<string>();
-    const excludedSet = new Set(excludedProducts);
-    
-    // Ajouter produits manuels (après exclusion)
-    products.forEach(code => {
-      if (!excludedSet.has(code)) {
-        allCodes.add(code);
-      }
-    });
-    
-    // Ajouter codes des labos (après exclusion)
-    selectedLaboratories.forEach(lab => {
-      lab.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    // Ajouter codes des catégories (après exclusion)
-    selectedCategories.forEach(cat => {
-      cat.productCodes.forEach(code => {
-        if (!excludedSet.has(code)) {
-          allCodes.add(code);
-        }
-      });
-    });
-    
-    const finalCodes = Array.from(allCodes);
-    
-    console.log('🎯 [useDailyMetrics] Final product codes calculated:', {
-      total: finalCodes.length,
-      products: products.length,
-      labs: selectedLaboratories.length,
-      cats: selectedCategories.length,
-      excluded: excludedProducts.length,
-      overridden: !!options.productCodes
-    });
-    
-    return finalCodes;
-  }, [products, selectedLaboratories, selectedCategories, excludedProducts, options.productCodes]);
+  console.log('🎯 [useDailyMetrics] Using products from store:', {
+    total: finalProductCodes.length,
+    excluded: excludedProducts.length,
+    overridden: !!options.productCodes
+  });
 
   const standardFilters: StandardFilters & Record<string, any> = {
     productCodes: finalProductCodes,
@@ -130,14 +87,6 @@ export function useDailyMetrics(
     dateRange: options.dateRange || analysisDateRange,
     filters: standardFilters
   });
-
-  // 🔥 Force refetch quand les exclusions changent (sauf si productCodes en override)
-  useEffect(() => {
-    if (!options.productCodes) {
-      console.log('🔄 [useDailyMetrics] Exclusions changed, triggering refetch');
-      refetch();
-    }
-  }, [excludedProducts.length, refetch, options.productCodes]);
 
   return {
     data: response?.data || null,

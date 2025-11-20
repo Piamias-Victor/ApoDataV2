@@ -2,7 +2,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Interface pour stocker les infos laboratoires
 interface SelectedLaboratory {
   readonly name: string;
   readonly productCodes: string[];
@@ -10,7 +9,6 @@ interface SelectedLaboratory {
   readonly sourceType?: 'laboratory' | 'brand';
 }
 
-// Interface pour stocker les infos catégories
 interface SelectedCategory {
   readonly name: string;
   readonly type: 'universe' | 'category';
@@ -18,7 +16,6 @@ interface SelectedCategory {
   readonly productCount: number;
 }
 
-// Interface pour stocker les infos produits
 interface SelectedProduct {
   readonly name: string;
   readonly code: string;
@@ -26,7 +23,6 @@ interface SelectedProduct {
   readonly universe?: string | undefined;
 }
 
-// Interface pour stocker les infos pharmacies
 interface SelectedPharmacy {
   readonly id: string;
   readonly name: string;
@@ -38,7 +34,7 @@ interface SelectedPharmacy {
 }
 
 interface FilterState {
-  readonly products: string[];
+  readonly products: string[]; // 🔥 Contient maintenant les codes finaux
   readonly selectedProducts: SelectedProduct[];
   readonly laboratories: string[];
   readonly selectedLaboratories: SelectedLaboratory[];
@@ -49,6 +45,8 @@ interface FilterState {
   
   readonly excludedProducts: string[];
   readonly selectedExcludedProducts: SelectedProduct[];
+  
+  readonly filterLogic: 'OR' | 'AND';
   
   readonly dateRange: {
     readonly start: string | null;
@@ -79,6 +77,8 @@ interface FilterActions {
   readonly setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => void;
   readonly clearExcludedProducts: () => void;
   
+  readonly setFilterLogic: (logic: 'OR' | 'AND') => void;
+  
   readonly setDateRange: (start: string | null, end: string | null) => void;
   readonly setAnalysisDateRange: (start: string, end: string) => void;
   readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
@@ -95,6 +95,7 @@ interface FilterActions {
   readonly resetToDefaultDates: () => void;
   
   readonly getFinalProductCodes: () => string[];
+  readonly recalculateProductCodes: () => void; // 🔥 NOUVEAU - Public pour forcer recalcul
 }
 
 const getDefaultAnalysisDates = (): { start: string; end: string } => {
@@ -129,6 +130,7 @@ const initialState: FilterState = {
   selectedPharmacies: [],
   excludedProducts: [],
   selectedExcludedProducts: [],
+  filterLogic: 'OR',
   dateRange: {
     start: null,
     end: null,
@@ -149,8 +151,104 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     (set, get) => ({
       ...initialState,
 
-      // 🔥 SUPPRIMÉ : recalculateProductCodes()
-      // Le filtrage des exclusions se fait dans getFinalProductCodes() et dans les hooks
+      // 🔥 FONCTION INTERNE - Calcul des codes finaux
+      recalculateProductCodes: () => {
+        const state = get();
+        const excludedSet = new Set(state.excludedProducts);
+        const logic = state.filterLogic;
+        
+        // 1. Produits manuels (stockés dans selectedProducts)
+        const manualProducts = new Set(
+          state.selectedProducts.map(p => p.code).filter(code => !excludedSet.has(code))
+        );
+        
+        // 2. Produits des laboratoires
+        const labProducts = new Set<string>();
+        state.selectedLaboratories.forEach(lab => {
+          lab.productCodes.forEach(code => {
+            if (!excludedSet.has(code)) {
+              labProducts.add(code);
+            }
+          });
+        });
+        
+        // 3. Produits des catégories avec logique ET/OU
+        let categoryProducts: Set<string>;
+        
+        if (state.selectedCategories.length === 0) {
+          categoryProducts = new Set<string>();
+        } else if (logic === 'OR') {
+          categoryProducts = new Set<string>();
+          state.selectedCategories.forEach(cat => {
+            cat.productCodes.forEach(code => {
+              if (!excludedSet.has(code)) {
+                categoryProducts.add(code);
+              }
+            });
+          });
+        } else {
+          const categorySets = state.selectedCategories.map(cat =>
+            new Set(cat.productCodes.filter(code => !excludedSet.has(code)))
+          );
+          
+          if (categorySets.length === 1) {
+            const firstSet = categorySets[0];
+            categoryProducts = firstSet !== undefined ? firstSet : new Set<string>();
+          } else {
+            categoryProducts = new Set<string>();
+            const firstSet = categorySets[0];
+            
+            if (firstSet !== undefined) {
+              firstSet.forEach(code => {
+                const inAllCategories = categorySets.every(set => set.has(code));
+                if (inAllCategories) {
+                  categoryProducts.add(code);
+                }
+              });
+            }
+          }
+        }
+        
+        // 4. Combinaison finale selon la logique
+        let finalCodes: Set<string>;
+        
+        const hasLabs = labProducts.size > 0;
+        const hasCats = categoryProducts.size > 0;
+        
+        if (!hasLabs && !hasCats) {
+          finalCodes = manualProducts;
+        } else if (hasLabs && !hasCats) {
+          finalCodes = new Set([...manualProducts, ...labProducts]);
+        } else if (!hasLabs && hasCats) {
+          finalCodes = new Set([...manualProducts, ...categoryProducts]);
+        } else {
+          if (logic === 'OR') {
+            finalCodes = new Set([...manualProducts, ...labProducts, ...categoryProducts]);
+          } else {
+            const intersection = new Set<string>();
+            labProducts.forEach(code => {
+              if (categoryProducts.has(code)) {
+                intersection.add(code);
+              }
+            });
+            finalCodes = new Set([...manualProducts, ...intersection]);
+          }
+        }
+        
+        const result = Array.from(finalCodes);
+        
+        console.log('🎯 [Store] Product codes recalculated:', {
+          logic,
+          manual: manualProducts.size,
+          labs: labProducts.size,
+          categories: categoryProducts.size,
+          final: result.length,
+          excluded: state.excludedProducts.length
+        });
+        
+        // 🔥 Mettre à jour products directement
+        set({ products: result });
+      },
 
       setProductFilters: (codes: string[]) => {
         set({ products: codes });
@@ -162,10 +260,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           products: products.length
         });
         
-        set({ 
-          products: codes,
-          selectedProducts: products
-        });
+        set({ selectedProducts: products });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       setLaboratoryFilters: (codes: string[]) => {
@@ -182,6 +278,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           laboratories: codes,
           selectedLaboratories: laboratories
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       setCategoryFilters: (codes: string[]) => {
@@ -198,6 +295,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           categories: codes,
           selectedCategories: categories
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       setPharmacyFilters: (codes: string[]) => {
@@ -230,6 +328,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       setExcludedProducts: (codes: string[]) => {
         console.log('🚫 [Store] Setting excluded products:', codes.length);
         set({ excludedProducts: codes });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => {
@@ -242,6 +341,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           excludedProducts: codes,
           selectedExcludedProducts: products
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       clearExcludedProducts: () => {
@@ -250,6 +350,13 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           excludedProducts: [],
           selectedExcludedProducts: []
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
+      },
+
+      setFilterLogic: (logic: 'OR' | 'AND') => {
+        console.log('🔀 [Store] Setting filter logic:', logic);
+        set({ filterLogic: logic });
+        get().recalculateProductCodes(); // 🔥 CRITIQUE - Recalcul auto quand logique change
       },
 
       setDateRange: (start: string | null, end: string | null) => {
@@ -293,6 +400,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             selectedCategories: [],
             excludedProducts: [],
             selectedExcludedProducts: [],
+            filterLogic: 'OR',
             dateRange: { start: null, end: null },
             analysisDateRange: { start: freshDates.start, end: freshDates.end },
             comparisonDateRange: { start: null, end: null },
@@ -308,9 +416,9 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       clearProductFilters: () => {
         console.log('🗑️ [Store] Clearing product filters and names');
         set({ 
-          products: [],
           selectedProducts: []
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       clearLaboratoryFilters: () => {
@@ -319,6 +427,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           laboratories: [],
           selectedLaboratories: []
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       clearCategoryFilters: () => {
@@ -327,6 +436,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           categories: [],
           selectedCategories: []
         });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       clearPharmacyFilters: () => {
@@ -381,54 +491,15 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         set({ isPharmacyLocked: false });
       },
 
-      // ✅ CONSERVÉ : getFinalProductCodes() applique les exclusions
+      // 🔥 CONSERVÉ pour compatibilité (retourne directement products)
       getFinalProductCodes: () => {
         const state = get();
-        const excludedSet = new Set(state.excludedProducts);
-        
-        const allCodes = new Set<string>();
-        
-        // Ajouter produits manuels (après exclusion)
-        state.products.forEach(code => {
-          if (!excludedSet.has(code)) {
-            allCodes.add(code);
-          }
-        });
-        
-        // Ajouter codes des labos (après exclusion)
-        state.selectedLaboratories.forEach(lab => {
-          lab.productCodes.forEach(code => {
-            if (!excludedSet.has(code)) {
-              allCodes.add(code);
-            }
-          });
-        });
-        
-        // Ajouter codes des catégories (après exclusion)
-        state.selectedCategories.forEach(cat => {
-          cat.productCodes.forEach(code => {
-            if (!excludedSet.has(code)) {
-              allCodes.add(code);
-            }
-          });
-        });
-        
-        const finalCodes = Array.from(allCodes);
-        
-        console.log('🎯 [Store] Final product codes calculated:', {
-          total: finalCodes.length,
-          products: state.products.length,
-          labs: state.selectedLaboratories.length,
-          cats: state.selectedCategories.length,
-          excluded: state.excludedProducts.length
-        });
-        
-        return finalCodes;
+        return state.products;
       },
     }),
     {
       name: 'apodata-filters',
-      version: 10,
+      version: 11,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -491,6 +562,12 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
               ...lab,
               sourceType: undefined,
             })),
+          };
+        }
+        if (version < 11) {
+          return {
+            ...persistedState,
+            filterLogic: 'OR',
           };
         }
         return persistedState;
