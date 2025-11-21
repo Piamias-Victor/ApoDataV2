@@ -35,10 +35,6 @@ export const TableRow: React.FC<TableRowProps> = ({
     return 'text-red-700 bg-red-50';
   };
 
-  const avgSellPriceTtc = product.quantity_sold > 0 && product.ca_ttc > 0
-    ? product.ca_ttc / product.quantity_sold
-    : 0;
-
   const stockDays = product.current_stock > 0 && product.quantity_sold > 0
     ? (product.current_stock / product.quantity_sold) * 30
     : 0;
@@ -47,7 +43,26 @@ export const TableRow: React.FC<TableRowProps> = ({
     ? (product.current_stock / product.quantity_sold) * 30
     : 0;
 
-  const renderEvolution = () => {
+  const renderCaEvolution = () => {
+    if (product.ca_ttc_comparison === null || product.ca_ttc_comparison === undefined) {
+      return <span className="text-[9px] text-gray-400">N/A</span>;
+    }
+    
+    if (product.ca_ttc_comparison === 0) {
+      return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+    }
+    
+    const evolution = ((product.ca_ttc - product.ca_ttc_comparison) / product.ca_ttc_comparison) * 100;
+    const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
+    
+    return (
+      <span className={`text-[10px] font-semibold ${colorClass}`}>
+        {evolution > 0 ? '+' : ''}{evolution.toFixed(0)}%
+      </span>
+    );
+  };
+
+  const renderQuantityEvolution = () => {
     if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === undefined) {
       return <span className="text-[9px] text-gray-400">N/A</span>;
     }
@@ -68,17 +83,17 @@ export const TableRow: React.FC<TableRowProps> = ({
 
   return (
     <tr className={`${isEven ? 'bg-white' : 'bg-gray-50'} hover:bg-gray-100 transition-colors`}>
-      {/* Produit */}
-      <td className="px-1.5 py-1.5">
-        <div className="text-[10px] font-medium text-gray-900 max-w-[200px] truncate" title={product.product_name}>
-          {product.product_name}
-        </div>
-      </td>
-
       {/* Code EAN */}
       <td className="px-1.5 py-1.5">
         <div className="text-[9px] text-gray-600 font-mono">
           {product.code_ean}
+        </div>
+      </td>
+
+      {/* Produit */}
+      <td className="px-1.5 py-1.5">
+        <div className="text-[10px] font-medium text-gray-900 max-w-[200px] truncate" title={product.product_name}>
+          {product.product_name}
         </div>
       </td>
 
@@ -98,6 +113,11 @@ export const TableRow: React.FC<TableRowProps> = ({
             </div>
           </td>
 
+          {/* Évolution CA */}
+          <td className="px-1.5 py-1.5 text-right">
+            {renderCaEvolution()}
+          </td>
+
           {/* Quantité vendue */}
           <td className="px-1.5 py-1.5 text-right">
             <div className="text-[10px] font-medium text-gray-900">
@@ -105,12 +125,12 @@ export const TableRow: React.FC<TableRowProps> = ({
             </div>
           </td>
 
-          {/* Évolution */}
+          {/* Évolution Qté */}
           <td className="px-1.5 py-1.5 text-right">
-            {renderEvolution()}
+            {renderQuantityEvolution()}
           </td>
 
-          {/* ✅ AJOUT - Quantité achetée */}
+          {/* Quantité achetée */}
           <td className="px-1.5 py-1.5 text-right">
             <div className="text-[10px] text-gray-900">
               {formatNumber(product.quantity_bought)}
@@ -142,13 +162,6 @@ export const TableRow: React.FC<TableRowProps> = ({
           <td className="px-1.5 py-1.5 text-center">
             <div className={`inline-flex px-1 py-0.5 text-[9px] font-semibold rounded ${getMarginColorClass(product.margin_rate_percent)}`}>
               {formatPercentage(product.margin_rate_percent)}
-            </div>
-          </td>
-
-          {/* Prix moyen vente TTC */}
-          <td className="px-1.5 py-1.5 text-right">
-            <div className="text-[10px] text-gray-700">
-              {avgSellPriceTtc > 0 ? avgSellPriceTtc.toFixed(2) : '-'}
             </div>
           </td>
 
@@ -184,7 +197,7 @@ export const TableRow: React.FC<TableRowProps> = ({
 
           {/* Évolution */}
           <td className="px-1.5 py-1.5 text-right">
-            {renderEvolution()}
+            {renderQuantityEvolution()}
           </td>
 
           {/* Marge unitaire HT */}

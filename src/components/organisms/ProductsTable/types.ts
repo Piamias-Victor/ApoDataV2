@@ -7,7 +7,7 @@ export interface ProductMetrics {
   readonly current_stock: number;
   readonly quantity_sold: number;
   readonly ca_ttc: number;
-  readonly quantity_bought: number; // ✅ AJOUT
+  readonly quantity_bought: number;
   readonly purchase_amount: number;
   readonly total_margin_ht: number;
   readonly margin_rate_percent: number;
@@ -15,6 +15,7 @@ export interface ProductMetrics {
   readonly avg_buy_price_ht: number;
   readonly unit_margin_ht: number;
   readonly quantity_sold_comparison: number | null;
+  readonly ca_ttc_comparison: number | null;
 }
 
 export type ViewMode = 'totals' | 'averages';
@@ -28,7 +29,8 @@ export type SortableColumn =
   | 'current_stock'
   | 'quantity_sold'
   | 'quantity_sold_evolution'
-  | 'quantity_bought' // ✅ AJOUT
+  | 'ca_ttc_evolution'
+  | 'quantity_bought'
   | 'ca_ttc'
   | 'purchase_amount'
   | 'total_margin_ht'

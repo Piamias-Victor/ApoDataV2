@@ -50,6 +50,7 @@ interface ProductMetrics {
   readonly quantity_bought: number;
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
+  readonly ca_ttc_comparison: number | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // ========== PÉRIODE DE COMPARAISON ==========
-    let comparisonMap = new Map<string, number>();
+    let comparisonMap = new Map<string, { quantity_sold: number; ca_ttc: number }>();
     
     if (body.comparisonDateRange?.start && body.comparisonDateRange?.end) {
       console.log('📊 [API Products] Calculating comparison period');
@@ -167,29 +168,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
       
       comparisonProducts.forEach(product => {
-        comparisonMap.set(product.code_ean, product.quantity_sold);
+        comparisonMap.set(product.code_ean, {
+          quantity_sold: product.quantity_sold,
+          ca_ttc: product.ca_ttc
+        });
       });
       
       console.log('✅ [API Products] Comparison data loaded:', {
         comparisonProductsCount: comparisonProducts?.length || 0,
         sampleComparison: comparisonProducts?.[0] ? {
           code_ean: comparisonProducts[0].code_ean,
-          quantity_sold: comparisonProducts[0].quantity_sold
+          quantity_sold: comparisonProducts[0].quantity_sold,
+          ca_ttc: comparisonProducts[0].ca_ttc
         } : null
       });
     }
 
     // ========== FUSION DES RÉSULTATS ==========
-    const productsWithComparison = products.map(product => ({
-      ...product,
-      quantity_sold_comparison: comparisonMap.get(product.code_ean) ?? null
-    }));
+    const productsWithComparison = products.map(product => {
+      const comparison = comparisonMap.get(product.code_ean);
+      return {
+        ...product,
+        quantity_sold_comparison: comparison?.quantity_sold ?? null,
+        ca_ttc_comparison: comparison?.ca_ttc ?? null
+      };
+    });
 
     if (productsWithComparison.length > 0 && productsWithComparison[0]) {
       console.log('🔍 [API Products] Sample product with comparison:', {
         code_ean: productsWithComparison[0].code_ean,
         quantity_sold: productsWithComparison[0].quantity_sold,
-        quantity_sold_comparison: productsWithComparison[0].quantity_sold_comparison
+        quantity_sold_comparison: productsWithComparison[0].quantity_sold_comparison,
+        ca_ttc: productsWithComparison[0].ca_ttc,
+        ca_ttc_comparison: productsWithComparison[0].ca_ttc_comparison
       });
     }
 
@@ -226,7 +237,7 @@ async function executeAdminQuery(
   productCodes: string[],
   pharmacyIds?: string[],
   hasProductFilter: boolean = true
-): Promise<Omit<ProductMetrics, 'quantity_sold_comparison'>[]> {
+): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison'>[]> {
   const pharmacyFilter = pharmacyIds && pharmacyIds.length > 0
     ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
@@ -374,7 +385,7 @@ async function executeUserQuery(
   productCodes: string[],
   pharmacyId: string,
   hasProductFilter: boolean = true
-): Promise<Omit<ProductMetrics, 'quantity_sold_comparison'>[]> {
+): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison'>[]> {
   
   const productFilter = hasProductFilter 
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'

@@ -79,6 +79,17 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               </div>
             </th>
 
+            {/* Évolution CA */}
+            <th 
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => handleSort('ca_ttc_evolution')}
+            >
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Evol CA</span>
+                {getSortIcon('ca_ttc_evolution')}
+              </div>
+            </th>
+
             {/* Quantité vendue */}
             <th 
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
@@ -90,12 +101,18 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               </div>
             </th>
 
-            {/* Évolution */}
-            <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-              <span>Evol</span>
+            {/* Évolution Qté */}
+            <th 
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => handleSort('quantity_sold_evolution')}
+            >
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Evol Qté</span>
+                {getSortIcon('quantity_sold_evolution')}
+              </div>
             </th>
 
-            {/* ✅ AJOUT - Quantité achetée */}
+            {/* Quantité achetée */}
             <th 
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_bought')}
@@ -191,8 +208,14 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Évolution */}
-            <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-              <span>Evol</span>
+            <th 
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => handleSort('quantity_sold_evolution')}
+            >
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>Evol</span>
+                {getSortIcon('quantity_sold_evolution')}
+              </div>
             </th>
 
             {/* Marge unitaire HT */}

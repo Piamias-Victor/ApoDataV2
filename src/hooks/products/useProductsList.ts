@@ -19,6 +19,7 @@ export interface ProductMetrics {
   readonly quantity_bought: number;
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
+  readonly ca_ttc_comparison: number | null;
 }
 
 // Type de la réponse API (avec strings)
@@ -37,6 +38,7 @@ interface ProductMetricsRaw {
   readonly quantity_bought: string | number;
   readonly purchase_amount: string | number;
   readonly quantity_sold_comparison: string | number | null;
+  readonly ca_ttc_comparison: string | number | null;
 }
 
 interface ProductsListResponseRaw {
@@ -83,6 +85,9 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
     purchase_amount: Number(raw.purchase_amount) || 0,
     quantity_sold_comparison: raw.quantity_sold_comparison !== null 
       ? Number(raw.quantity_sold_comparison) || 0 
+      : null,
+    ca_ttc_comparison: raw.ca_ttc_comparison !== null 
+      ? Number(raw.ca_ttc_comparison) || 0 
       : null
   };
 }
@@ -132,10 +137,6 @@ export function useProductsList(
     filters: standardFilters,
     forceRefresh: false
   });
-
-  // 🔥 SUPPRIMÉ : useEffect manuel
-  // La réactivité est gérée automatiquement par useStandardFetch
-  // Quand products change → stableFilters change → fetchData se relance
 
   // Conversion des données (strings → numbers)
   const convertedData: ProductsListResponse | null = rawData ? {

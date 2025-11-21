@@ -5,7 +5,6 @@ import type { ProductMetrics, SortableColumn, SortDirection } from './types';
 * Formatage intelligent des nombres pour UI pharmaceutique
 */
 export function formatNumber(value: number | null | undefined): string {
-  // Validation et fallback
   if (value === null || value === undefined || isNaN(Number(value))) {
     return '0';
   }
@@ -34,7 +33,6 @@ export function formatNumber(value: number | null | undefined): string {
 * Formatage monnaie avec format intelligent et validation
 */
 export function formatCurrency(value: number | null | undefined): string {
-  // Validation et fallback
   if (value === null || value === undefined || isNaN(Number(value))) {
     return '0€';
   }
@@ -47,7 +45,6 @@ export function formatCurrency(value: number | null | undefined): string {
 * Formatage pourcentage avec validation robuste
 */
 export function formatPercentage(value: number | null | undefined): string {
-  // Validation et fallback
   if (value === null || value === undefined || isNaN(Number(value))) {
     return '0.0%';
   }
@@ -60,7 +57,6 @@ export function formatPercentage(value: number | null | undefined): string {
 * Obtenir classe couleur pour marge selon seuils métier avec validation
 */
 export function getMarginColorClass(marginPercent: number | null | undefined): string {
-  // Validation et fallback
   if (marginPercent === null || marginPercent === undefined || isNaN(Number(marginPercent))) {
     return 'text-gray-600 bg-gray-50';
   }
@@ -81,12 +77,23 @@ export function getMarginColorClass(marginPercent: number | null | undefined): s
 /**
 * Calcule l'évolution en pourcentage entre quantité actuelle et comparaison
 */
-function calculateEvolution(product: ProductMetrics): number | null {
+function calculateQuantityEvolution(product: ProductMetrics): number | null {
   if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === 0) {
     return null;
   }
   
   return ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
+}
+
+/**
+* Calcule l'évolution en pourcentage entre CA actuel et comparaison
+*/
+function calculateCaEvolution(product: ProductMetrics): number | null {
+  if (product.ca_ttc_comparison === null || product.ca_ttc_comparison === 0) {
+    return null;
+  }
+  
+  return ((product.ca_ttc - product.ca_ttc_comparison) / product.ca_ttc_comparison) * 100;
 }
 
 /**
@@ -104,10 +111,22 @@ export function sortProducts(
   return [...products].sort((a, b) => {
     // CAS SPÉCIAL : quantity_sold_evolution (valeur calculée)
     if (column === 'quantity_sold_evolution') {
-      const evolA = calculateEvolution(a);
-      const evolB = calculateEvolution(b);
+      const evolA = calculateQuantityEvolution(a);
+      const evolB = calculateQuantityEvolution(b);
       
-      // Les N/A vont à la fin
+      if (evolA === null && evolB === null) return 0;
+      if (evolA === null) return 1;
+      if (evolB === null) return -1;
+      
+      const comparison = evolA - evolB;
+      return direction === 'asc' ? comparison : -comparison;
+    }
+    
+    // CAS SPÉCIAL : ca_ttc_evolution (valeur calculée)
+    if (column === 'ca_ttc_evolution') {
+      const evolA = calculateCaEvolution(a);
+      const evolB = calculateCaEvolution(b);
+      
       if (evolA === null && evolB === null) return 0;
       if (evolA === null) return 1;
       if (evolB === null) return -1;
@@ -125,14 +144,15 @@ export function sortProducts(
       'current_stock', 
       'quantity_sold', 
       'ca_ttc', 
-      'quantity_bought', // ✅ AJOUT
+      'quantity_bought',
       'purchase_amount',
       'total_margin_ht', 
       'margin_rate_percent', 
       'avg_sell_price_ttc',
       'avg_buy_price_ht', 
       'unit_margin_ht', 
-      'quantity_sold_comparison'
+      'quantity_sold_comparison',
+      'ca_ttc_comparison'
     ];
     
     if (numericColumns.includes(column as keyof ProductMetrics)) {
@@ -157,7 +177,6 @@ export function sortProducts(
     
     // Tri numérique avec validation
     if (typeof aValue === 'number' && typeof bValue === 'number') {
-      // Vérification NaN
       if (isNaN(aValue)) {
         if (isNaN(bValue)) return 0;
         return direction === 'asc' ? 1 : -1;
@@ -181,7 +200,6 @@ export function filterProducts(
   products: ProductMetrics[],
   searchQuery: string
 ): ProductMetrics[] {
-  // Validation robuste de searchQuery
   if (!searchQuery || typeof searchQuery !== 'string' || !searchQuery.trim()) {
     return products;
   }

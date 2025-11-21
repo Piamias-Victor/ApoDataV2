@@ -127,11 +127,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     
     if (!dataToExport || dataToExport.length === 0) return [];
     
-    const calculateEvolutionForExport = (product: ProductMetrics): string => {
-      if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === 0) {
+    const calculateEvolutionForExport = (current: number, comparison: number | null): string => {
+      if (comparison === null || comparison === 0) {
         return 'N/A';
       }
-      const evolution = ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
+      const evolution = ((current - comparison) / comparison) * 100;
       return evolution.toFixed(1);
     };
     
@@ -144,9 +144,16 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       if (viewMode === 'totals') {
         exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
+        exportRow['Évolution CA (%)'] = calculateEvolutionForExport(
+          product.ca_ttc, 
+          product.ca_ttc_comparison
+        );
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
-        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
-        exportRow['Quantité achetée'] = Number(product.quantity_bought || 0); // ✅ AJOUT
+        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(
+          product.quantity_sold,
+          product.quantity_sold_comparison
+        );
+        exportRow['Quantité achetée'] = Number(product.quantity_bought || 0);
         exportRow['Montant achat (€)'] = Number(product.purchase_amount || 0);
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
         exportRow['Marge totale HT (€)'] = Number(product.total_margin_ht || 0);
@@ -171,7 +178,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         exportRow['Prix moyen vente TTC (€)'] = Number(product.avg_sell_price_ttc || 0);
         exportRow['Prix moyen achat HT (€)'] = Number(product.avg_buy_price_ht || 0);
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
-        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(product);
+        exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(
+          product.quantity_sold,
+          product.quantity_sold_comparison
+        );
         exportRow['Marge unitaire HT (€)'] = Number(product.unit_margin_ht || 0);
         
         const marginRate = Number(product.margin_rate_percent || 0);
