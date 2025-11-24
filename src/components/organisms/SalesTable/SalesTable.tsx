@@ -10,8 +10,7 @@ import { Badge } from '@/components/atoms/Badge/Badge';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { SalesProductChart } from '../SalesProductChart/SalesProductChart';
 import { useSalesProducts } from '@/hooks/dashboard/useSalesProducts';
-import { useExportCsv } from '@/hooks/export/useExportCsv';
-import { CsvExporter } from '@/utils/export/csvExporter';
+import { useExportSalesProducts } from '@/hooks/dashboard/useExportSalesProducts';
 import { 
   formatLargeNumber, 
   formatCurrency, 
@@ -51,7 +50,8 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     hasData 
   } = useSalesProducts();
 
-  const { exportToCsv, isExporting } = useExportCsv();
+  // ✅ Hook export dédié (données complètes brutes)
+  const { exportAllToCsv, isExporting } = useExportSalesProducts();
 
   const processedData = useMemo(() => {
     return processProductSummaries(
@@ -63,100 +63,10 @@ export const SalesTable: React.FC<SalesTableProps> = ({
     );
   }, [productSummaries, searchQuery, sortConfig, currentPage, itemsPerPage]);
 
-  const prepareSalesDataForExport = useCallback(() => {
-    if (!productSummaries || productSummaries.length === 0) return [];
-    
-    const exportData = [];
-    
-    exportData.push({
-      'Produit': 'INFORMATIONS GÉNÉRALES',
-      'Code EAN': '',
-      'Laboratoire': '',
-      'Quantité Recherche': searchQuery || 'Toutes',
-      'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
-      'Page Actuelle': currentPage.toString(),
-      'Total Produits': productSummaries.length.toString(),
-      'Temps de Requête (ms)': queryTime.toString(),
-      'Quantité Achetée': '',
-      'Quantité Vendue': '',
-      'Prix Achat Moyen (€)': '',
-      'Prix Vente Moyen (€)': '',
-      'Taux Marge Moyen (%)': '',
-      'Part Marché Qté (%)': '',
-      'Part Marché Marge (%)': '',
-      'Montant TTC (€)': '',
-      'Montant Marge (€)': ''
-    });
-
-    exportData.push({
-      'Produit': '--- DONNÉES PRODUITS ---',
-      'Code EAN': '',
-      'Laboratoire': '',
-      'Quantité Recherche': '',
-      'Tri Actuel': '',
-      'Page Actuelle': '',
-      'Total Produits': '',
-      'Temps de Requête (ms)': '',
-      'Quantité Achetée': '',
-      'Quantité Vendue': '',
-      'Prix Achat Moyen (€)': '',
-      'Prix Vente Moyen (€)': '',
-      'Taux Marge Moyen (%)': '',
-      'Part Marché Qté (%)': '',
-      'Part Marché Marge (%)': '',
-      'Montant TTC (€)': '',
-      'Montant Marge (€)': ''
-    });
-    
-    productSummaries.forEach(product => {
-      exportData.push({
-        'Produit': product.nom,
-        'Code EAN': product.code_ean,
-        'Laboratoire': product.bcb_lab || '-',
-        'Quantité Recherche': searchQuery || 'Toutes',
-        'Tri Actuel': sortConfig.column ? `${sortConfig.column} (${sortConfig.direction})` : 'Aucun',
-        'Page Actuelle': currentPage.toString(),
-        'Total Produits': productSummaries.length.toString(),
-        'Temps de Requête (ms)': queryTime.toString(),
-        'Quantité Achetée': product.quantity_bought.toString(),
-        'Quantité Vendue': product.quantite_vendue.toString(),
-        'Prix Achat Moyen (€)': product.prix_achat_moyen.toFixed(2),
-        'Prix Vente Moyen (€)': product.prix_vente_moyen.toFixed(2),
-        'Taux Marge Moyen (%)': product.taux_marge_moyen.toFixed(2),
-        'Part Marché Qté (%)': product.part_marche_quantite_pct.toFixed(2),
-        'Part Marché Marge (%)': product.part_marche_marge_pct.toFixed(2),
-        'Montant TTC (€)': product.montant_ventes_ttc.toFixed(2),
-        'Montant Marge (€)': product.montant_marge_total.toFixed(2)
-      });
-    });
-    
-    return exportData;
-  }, [productSummaries, searchQuery, sortConfig, currentPage, queryTime]);
-
+  // ✅ Export complet avec filtre recherche appliqué
   const handleExport = useCallback(() => {
-    const exportData = prepareSalesDataForExport();
-    
-    if (exportData.length === 0) {
-      console.warn('Aucune donnée à exporter');
-      return;
-    }
-    
-    const searchSuffix = searchQuery ? `_recherche_${searchQuery.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
-    const filename = CsvExporter.generateFilename(`apodata_tableau_ventes${searchSuffix}`);
-    
-    if (!exportData[0]) {
-      console.error('Données export invalides');
-      return;
-    }
-    
-    const headers = Object.keys(exportData[0]);
-    
-    exportToCsv({
-      filename,
-      headers,
-      data: exportData
-    });
-  }, [prepareSalesDataForExport, exportToCsv, searchQuery]);
+    exportAllToCsv(searchQuery);
+  }, [exportAllToCsv, searchQuery]);
 
   const toggleProductExpansion = useCallback((codeEan: string) => {
     setExpandedProducts(prev => {
@@ -191,6 +101,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
+    setCurrentPage(1);
   }, []);
 
   const handlePrevPage = useCallback(() => {
@@ -224,7 +135,7 @@ export const SalesTable: React.FC<SalesTableProps> = ({
             onClick={handleExport}
             isExporting={isExporting}
             disabled={!hasData || isLoading || productSummaries.length === 0}
-            label="Export CSV"
+            label={`Export CSV complet (${productSummaries.length} lignes)`}
           />
           
           <Button

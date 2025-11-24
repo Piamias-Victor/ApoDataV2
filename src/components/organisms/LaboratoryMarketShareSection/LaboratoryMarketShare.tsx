@@ -7,11 +7,9 @@ import { ExportButton } from "@/components/molecules/ExportButton/ExportButton";
 import { LaboratoryTableHeaderWithRanking } from "@/components/molecules/LaboratoryTable/LaboratoryTableHeaderWithRanking";
 import { LaboratoryTableRowWithRanking } from "@/components/molecules/LaboratoryTable/LaboratoryTableRowWithRanking";
 import { SearchBar } from "@/components/molecules/SearchBar/SearchBar";
-import { useExportCsv } from "@/hooks/export/useExportCsv";
+import { useExportLaboratoryMarketShare } from "@/hooks/laboratories/useExportLaboratoryMarketShare";
 import { useLaboratoryMarketShareWithFilters } from "@/hooks/laboratories/useLaboratoryMarketShareWithFilters";
-import { formatBigNumber, formatEvolutionPercentage, formatPDM, formatRankGain } from "@/hooks/utils/formatters/ranking";
 import { LaboratorySortableColumn, SortConfig, SortDirection } from "@/types/laboratory";
-import { CsvExporter } from "@/utils/export/csvExporter";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
 
@@ -36,7 +34,8 @@ export const LaboratoryMarketShare: React.FC = () => {
     hasComparison
   } = useLaboratoryMarketShareWithFilters({ pageSize: 50 });
 
-  const { exportToCsv, isExporting } = useExportCsv();
+  // ✅ Hook export dédié (données complètes brutes)
+  const { exportAllToCsv, isExporting } = useExportLaboratoryMarketShare();
 
   const handleSort = useCallback((column: LaboratorySortableColumn) => {
     setSortConfig(prev => {
@@ -74,8 +73,12 @@ export const LaboratoryMarketShare: React.FC = () => {
         const aValue = a[sortConfig.column!];
         const bValue = b[sortConfig.column!];
 
-        if (aValue === null || aValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1;
-        if (bValue === null || bValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue === null || aValue === undefined) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        if (bValue === null || bValue === undefined) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
 
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           const comparison = aValue.localeCompare(bValue);
@@ -93,45 +96,10 @@ export const LaboratoryMarketShare: React.FC = () => {
     return processed;
   }, [data, searchQuery, sortConfig]);
 
+  // ✅ Export complet avec filtre recherche appliqué
   const handleExport = useCallback(() => {
-    const exportData = filteredAndSortedData.map(lab => {
-      const baseData: Record<string, any> = {
-        'Laboratoire': lab.laboratory_name,
-        'Rang': lab.rang_actuel,
-      };
-
-      if (hasComparison) {
-        baseData['Gain Rang'] = formatRankGain(lab.gain_rang);
-      }
-
-      baseData['Nb Produits'] = lab.product_count;
-      baseData['Volume Achats'] = lab.quantity_bought;
-      baseData['Montant Achats'] = formatBigNumber(lab.ca_achats);
-      baseData['Volume Ventes'] = lab.quantity_sold;
-      baseData['Montant Ventes'] = formatBigNumber(lab.ca_selection);
-
-      if (hasComparison) {
-        baseData['Evol % Achats'] = formatEvolutionPercentage(lab.evol_achats_pct);
-        baseData['Evol % Ventes'] = formatEvolutionPercentage(lab.evol_ventes_pct);
-      }
-
-      baseData['Taux Marge'] = formatPDM(lab.margin_rate_percent);
-      baseData['PDM'] = formatPDM(lab.part_marche_ca_pct);
-
-      if (hasComparison) {
-        baseData['Evol PDM %'] = formatEvolutionPercentage(lab.evol_pdm_pct);
-      }
-
-      return baseData;
-    });
-
-    if (exportData.length === 0) return;
-
-    const filename = CsvExporter.generateFilename('apodata_laboratoires_ranking');
-    const headers = Object.keys(exportData[0]!);
-
-    exportToCsv({ filename, headers, data: exportData });
-  }, [filteredAndSortedData, exportToCsv, hasComparison]);
+    exportAllToCsv(searchQuery);
+  }, [exportAllToCsv, searchQuery]);
 
   const colSpan = hasComparison ? 13 : 9;
 
@@ -154,8 +122,8 @@ export const LaboratoryMarketShare: React.FC = () => {
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
-            disabled={filteredAndSortedData.length === 0}
-            label={`Export CSV (${filteredAndSortedData.length} lignes)`}
+            disabled={total === 0}
+            label={`Export CSV complet (${total} lignes)`}
           />
         </div>
         
@@ -179,7 +147,7 @@ export const LaboratoryMarketShare: React.FC = () => {
                 <tr>
                   <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
                       <span>Chargement...</span>
                     </div>
                   </td>
