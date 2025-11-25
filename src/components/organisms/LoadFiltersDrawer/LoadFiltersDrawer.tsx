@@ -1,24 +1,18 @@
 // src/components/organisms/LoadFiltersDrawer/LoadFiltersDrawer.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  FolderOpen, 
-  Package, 
-  TestTube, 
-  Tag, 
-  Trash2, 
+import {
+  X,
+  FolderOpen,
+  Trash2,
   Edit3,
   Check,
   AlertCircle,
-  Layers, // 🔥 Pour groupes génériques
-  Zap, // 🔥 Pour filtres prix/TVA
 } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 import { Input } from '@/components/atoms/Input/Input';
-import { Card } from '@/components/atoms/Card/Card';
 import type { SavedFilter, ClassicSavedFilter, GenericSavedFilter } from '@/types/savedFilters';
 import { FilterTypeBadge } from '@/components/atoms/FilterTypeBadge/FilterTypeBadge';
 
@@ -61,6 +55,17 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Filtrer les filtres selon la recherche
+  const filteredFilters = useMemo(() => {
+    if (!searchQuery.trim()) return savedFilters;
+
+    const query = searchQuery.toLowerCase();
+    return savedFilters.filter(filter =>
+      filter.name.toLowerCase().includes(query)
+    );
+  }, [savedFilters, searchQuery]);
 
   const handleStartEdit = (filter: SavedFilter) => {
     setEditingId(filter.id);
@@ -74,7 +79,7 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
 
   const handleSaveEdit = async (id: string) => {
     if (!editingName.trim()) return;
-    
+
     try {
       await onRename(id, editingName.trim());
       setEditingId(null);
@@ -106,122 +111,25 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
     }).format(date);
   };
 
-  // 🔥 Helper pour rendre le preview selon le type
-  const renderFilterPreview = (filter: SavedFilter) => {
+  // Helper pour résumé compact inline
+  const renderCompactSummary = (filter: SavedFilter): string => {
     if (filter.filter_type === 'classic') {
-      const classicFilter = filter as ClassicSavedFilter;
-      const productsCount = classicFilter.product_codes.length;
-      const laboratoriesCount = classicFilter.laboratory_names.length;
-      const categoriesCount = classicFilter.category_names.length;
-
-      return (
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="flex items-center space-x-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
-            <Package className="w-4 h-4 text-purple-600 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-purple-900">
-                {productsCount}
-              </p>
-              <p className="text-xs text-purple-700 truncate">
-                Produit{productsCount > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-200">
-            <TestTube className="w-4 h-4 text-green-600 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-green-900">
-                {laboratoriesCount}
-              </p>
-              <p className="text-xs text-green-700 truncate">
-                Labo{laboratoriesCount > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 p-2 bg-orange-50 rounded-lg border border-orange-200">
-            <Tag className="w-4 h-4 text-orange-600 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-orange-900">
-                {categoriesCount}
-              </p>
-              <p className="text-xs text-orange-700 truncate">
-                Catégorie{categoriesCount > 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-        </div>
-      );
+      const f = filter as ClassicSavedFilter;
+      const parts = [];
+      if (f.product_codes.length > 0) parts.push(`📦 ${f.product_codes.length} produit${f.product_codes.length > 1 ? 's' : ''}`);
+      if (f.laboratory_names.length > 0) parts.push(`🧪 ${f.laboratory_names.length} labo${f.laboratory_names.length > 1 ? 's' : ''}`);
+      if (f.category_names.length > 0) parts.push(`🏷️ ${f.category_names.length} catég.`);
+      return parts.join(' • ');
     } else {
-      const genericFilter = filter as GenericSavedFilter;
-      const groupsCount = genericFilter.generic_groups.length;
-      const productsCount = genericFilter.generic_products.length;
-      const laboratoriesCount = genericFilter.generic_laboratories.length;
-      
-      const hasPriceFilters = Object.values(genericFilter.price_filters).some(
-        range => range.min !== null || range.max !== null
-      );
-      const hasTvaFilters = genericFilter.tva_rates.length > 0;
-      const hasStatusFilter = genericFilter.generic_status !== 'BOTH';
-
-      return (
-        <>
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <div className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200">
-              <Layers className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-bold text-indigo-900">
-                  {groupsCount}
-                </p>
-                <p className="text-xs text-indigo-700 truncate">
-                  Groupe{groupsCount > 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
-              <Package className="w-4 h-4 text-purple-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-bold text-purple-900">
-                  {productsCount}
-                </p>
-                <p className="text-xs text-purple-700 truncate">
-                  Produit{productsCount > 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-200">
-              <TestTube className="w-4 h-4 text-green-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-lg font-bold text-green-900">
-                  {laboratoriesCount}
-                </p>
-                <p className="text-xs text-green-700 truncate">
-                  Labo{laboratoriesCount > 1 ? 's' : ''}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Indicateur filtres additionnels */}
-          {(hasPriceFilters || hasTvaFilters || hasStatusFilter) && (
-            <div className="flex items-center space-x-2 p-2 bg-amber-50 rounded-lg border border-amber-200 mb-3">
-              <Zap className="w-4 h-4 text-amber-600 flex-shrink-0" />
-              <p className="text-xs text-amber-800">
-                {hasPriceFilters && 'Filtres prix'}
-                {hasPriceFilters && (hasTvaFilters || hasStatusFilter) && ' • '}
-                {hasTvaFilters && `TVA (${genericFilter.tva_rates.length})`}
-                {hasTvaFilters && hasStatusFilter && ' • '}
-                {hasStatusFilter && genericFilter.generic_status}
-              </p>
-            </div>
-          )}
-        </>
-      );
+      const f = filter as GenericSavedFilter;
+      const parts = [];
+      if (f.generic_groups.length > 0) parts.push(`🔷 ${f.generic_groups.length} groupe${f.generic_groups.length > 1 ? 's' : ''}`);
+      if (f.generic_products.length > 0) parts.push(`📦 ${f.generic_products.length} produit${f.generic_products.length > 1 ? 's' : ''}`);
+      if (f.generic_laboratories.length > 0) parts.push(`🧪 ${f.generic_laboratories.length} labo${f.generic_laboratories.length > 1 ? 's' : ''}`);
+      return parts.join(' • ');
     }
   };
+
 
   return (
     <AnimatePresence>
@@ -269,6 +177,22 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
               </div>
             </div>
 
+            {/* Barre de recherche */}
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <Input
+                type="text"
+                placeholder="🔍 Rechercher un filtre par nom..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+              {searchQuery && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {filteredFilters.length} résultat{filteredFilters.length > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {isLoading ? (
@@ -279,141 +203,136 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                     className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"
                   />
                 </div>
-              ) : savedFilters.length === 0 ? (
+              ) : filteredFilters.length === 0 ? (
                 // Empty state
                 <div className="flex flex-col items-center justify-center h-64 text-center">
                   <div className="p-4 bg-gray-100 rounded-full mb-4">
                     <FolderOpen className="w-12 h-12 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Aucun filtre sauvegardé
+                    {searchQuery ? 'Aucun résultat' : 'Aucun filtre sauvegardé'}
                   </h3>
                   <p className="text-gray-600 max-w-sm">
-                    Commencez par sélectionner des produits, laboratoires ou catégories, puis cliquez sur "Sauvegarder" pour créer votre premier filtre.
+                    {searchQuery
+                      ? `Aucun filtre ne correspond à "${searchQuery}"`
+                      : 'Commencez par sélectionner des produits, laboratoires ou catégories, puis cliquez sur "Sauvegarder" pour créer votre premier filtre.'
+                    }
                   </p>
                 </div>
               ) : (
-                // Liste des filtres
-                <div className="space-y-4">
-                  {savedFilters.map((filter) => {
-                    const isEditing = editingId === filter.id;
-                    const isDeleting = deletingId === filter.id;
+                <>
+                  {/* Avertissement unique en haut */}
+                  <div className="mb-4 flex items-start space-x-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800">
+                      Le chargement d'un filtre remplacera vos filtres actuels
+                    </p>
+                  </div>
 
-                    return (
-                      <Card
-                        key={filter.id}
-                        variant="elevated"
-                        padding="lg"
-                        className="hover:shadow-lg transition-shadow"
-                      >
-                        {/* Nom du filtre + Badge */}
-                        {isEditing ? (
-                          <div className="flex items-center space-x-2 mb-4">
-                            <Input
-                              type="text"
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              className="flex-1"
-                              disabled={isRenamingFilter}
-                            />
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleSaveEdit(filter.id)}
-                              disabled={isRenamingFilter || !editingName.trim()}
-                            >
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelEdit}
-                              disabled={isRenamingFilter}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                  {filter.name}
-                                </h3>
-                                <FilterTypeBadge type={filter.filter_type} />
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                Modifié le {formatDate(filter.updated_at)}
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => handleStartEdit(filter)}
-                                disabled={isDeletingFilter || isLoadingFilter}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                                title="Renommer"
-                              >
-                                <Edit3 className="w-4 h-4 text-gray-600" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(filter.id)}
-                                disabled={isDeleting || isLoadingFilter}
-                                className="p-2 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="Supprimer"
-                              >
-                                {isDeleting ? (
-                                  <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                                    className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full"
-                                  />
-                                ) : (
-                                  <Trash2 className="w-4 h-4 text-red-600" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                  {/* Liste compacte des filtres */}
+                  <div className="space-y-2">
+                    {filteredFilters.map((filter) => {
+                      const isEditing = editingId === filter.id;
+                      const isDeleting = deletingId === filter.id;
 
-                        {/* Preview sélections */}
-                        {renderFilterPreview(filter)}
-
-                        {/* Avertissement remplacement */}
-                        <div className="flex items-start space-x-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
-                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                          <p className="text-xs text-amber-800">
-                            Le chargement remplacera vos filtres actuels
-                          </p>
-                        </div>
-
-                        {/* Action Charger */}
-                        <Button
-                          variant="primary"
-                          size="md"
-                          onClick={() => onLoad(filter.id)}
-                          disabled={isLoadingFilter || isDeletingFilter || isEditing}
-                          className="w-full"
+                      return (
+                        <div
+                          key={filter.id}
+                          className="p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
                         >
-                          {isLoadingFilter ? (
-                            <span className="flex items-center justify-center space-x-2">
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                                className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                              />
-                              <span>Chargement...</span>
-                            </span>
-                          ) : (
-                            <span className="flex items-center justify-center space-x-2">
-                              <FolderOpen className="w-4 h-4" />
-                              <span>Charger ce filtre</span>
-                            </span>
+                          {/* Ligne 1: Nom + Badge + Actions */}
+                          <div className="flex items-center justify-between mb-2">
+                            {isEditing ? (
+                              <div className="flex items-center space-x-2 flex-1">
+                                <Input
+                                  type="text"
+                                  value={editingName}
+                                  onChange={(e) => setEditingName(e.target.value)}
+                                  className="flex-1"
+                                  disabled={isRenamingFilter}
+                                />
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleSaveEdit(filter.id)}
+                                  disabled={isRenamingFilter || !editingName.trim()}
+                                >
+                                  <Check className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={handleCancelEdit}
+                                  disabled={isRenamingFilter}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                  <h3 className="text-base font-semibold text-gray-900 truncate">
+                                    {filter.name}
+                                  </h3>
+                                  <FilterTypeBadge type={filter.filter_type} />
+                                </div>
+                                <div className="flex items-center space-x-1 flex-shrink-0">
+                                  <button
+                                    onClick={() => handleStartEdit(filter)}
+                                    disabled={isDeletingFilter || isLoadingFilter}
+                                    className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                                    title="Renommer"
+                                  >
+                                    <Edit3 className="w-4 h-4 text-gray-600" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(filter.id)}
+                                    disabled={isDeleting || isLoadingFilter}
+                                    className="p-1.5 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                    title="Supprimer"
+                                  >
+                                    {isDeleting ? (
+                                      <motion.div
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                                        className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full"
+                                      />
+                                    ) : (
+                                      <Trash2 className="w-4 h-4 text-red-600" />
+                                    )}
+                                  </button>
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => onLoad(filter.id)}
+                                    disabled={isLoadingFilter || isDeletingFilter || isEditing}
+                                    className="ml-2"
+                                  >
+                                    Charger
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Ligne 2: Résumé compact */}
+                          {!isEditing && (
+                            <div className="text-sm text-gray-600 mb-1">
+                              {renderCompactSummary(filter)}
+                            </div>
                           )}
-                        </Button>
-                      </Card>
-                    );
-                  })}
-                </div>
+
+                          {/* Ligne 3: Date */}
+                          {!isEditing && (
+                            <p className="text-xs text-gray-500">
+                              Modifié le {formatDate(filter.updated_at)}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </motion.div>
