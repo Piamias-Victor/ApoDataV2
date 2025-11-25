@@ -42,12 +42,14 @@ interface FilterState {
   readonly selectedCategories: SelectedCategory[];
   readonly pharmacy: string[];
   readonly selectedPharmacies: SelectedPharmacy[];
-  
+
   readonly excludedProducts: string[];
   readonly selectedExcludedProducts: SelectedProduct[];
-  
+
   readonly filterLogic: 'OR' | 'AND';
-  
+
+  readonly tvaRates: number[];
+
   readonly dateRange: {
     readonly start: string | null;
     readonly end: string | null;
@@ -72,13 +74,16 @@ interface FilterActions {
   readonly setCategoryFiltersWithNames: (codes: string[], categories: SelectedCategory[]) => void;
   readonly setPharmacyFilters: (codes: string[]) => void;
   readonly setPharmacyFiltersWithNames: (ids: string[], pharmacies: SelectedPharmacy[]) => void;
-  
+
   readonly setExcludedProducts: (codes: string[]) => void;
   readonly setExcludedProductsWithNames: (codes: string[], products: SelectedProduct[]) => void;
   readonly clearExcludedProducts: () => void;
-  
+
   readonly setFilterLogic: (logic: 'OR' | 'AND') => void;
-  
+
+  readonly setTvaRates: (rates: number[]) => void;
+  readonly clearTvaRates: () => void;
+
   readonly setDateRange: (start: string | null, end: string | null) => void;
   readonly setAnalysisDateRange: (start: string, end: string) => void;
   readonly setComparisonDateRange: (start: string | null, end: string | null) => void;
@@ -93,15 +98,15 @@ interface FilterActions {
   readonly lockPharmacyFilter: (pharmacyId: string) => void;
   readonly unlockPharmacyFilter: () => void;
   readonly resetToDefaultDates: () => void;
-  
+
   readonly getFinalProductCodes: () => string[];
-  readonly recalculateProductCodes: () => void; // 🔥 NOUVEAU - Public pour forcer recalcul
+  readonly recalculateProductCodes: () => Promise<void>; // 🔥 ASYNC - Appelle l'API de filtrage TVA
 }
 
 const getDefaultAnalysisDates = (): { start: string; end: string } => {
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  
+
   const toDateString = (date: Date): string => {
     try {
       const isoString = date.toISOString();
@@ -110,7 +115,7 @@ const getDefaultAnalysisDates = (): { start: string; end: string } => {
       return '';
     }
   };
-  
+
   return {
     start: toDateString(firstDayOfMonth),
     end: toDateString(today)
@@ -131,6 +136,7 @@ const initialState: FilterState = {
   excludedProducts: [],
   selectedExcludedProducts: [],
   filterLogic: 'OR',
+  tvaRates: [],
   dateRange: {
     start: null,
     end: null,
@@ -152,16 +158,16 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       ...initialState,
 
       // 🔥 FONCTION INTERNE - Calcul des codes finaux
-      recalculateProductCodes: () => {
+      recalculateProductCodes: async () => {
         const state = get();
         const excludedSet = new Set(state.excludedProducts);
         const logic = state.filterLogic;
-        
+
         // 1. Produits manuels (stockés dans selectedProducts)
         const manualProducts = new Set(
           state.selectedProducts.map(p => p.code).filter(code => !excludedSet.has(code))
         );
-        
+
         // 2. Produits des laboratoires
         const labProducts = new Set<string>();
         state.selectedLaboratories.forEach(lab => {
@@ -171,10 +177,10 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             }
           });
         });
-        
+
         // 3. Produits des catégories avec logique ET/OU
         let categoryProducts: Set<string>;
-        
+
         if (state.selectedCategories.length === 0) {
           categoryProducts = new Set<string>();
         } else if (logic === 'OR') {
@@ -190,14 +196,14 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           const categorySets = state.selectedCategories.map(cat =>
             new Set(cat.productCodes.filter(code => !excludedSet.has(code)))
           );
-          
+
           if (categorySets.length === 1) {
             const firstSet = categorySets[0];
             categoryProducts = firstSet !== undefined ? firstSet : new Set<string>();
           } else {
             categoryProducts = new Set<string>();
             const firstSet = categorySets[0];
-            
+
             if (firstSet !== undefined) {
               firstSet.forEach(code => {
                 const inAllCategories = categorySets.every(set => set.has(code));
@@ -208,13 +214,13 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             }
           }
         }
-        
+
         // 4. Combinaison finale selon la logique
         let finalCodes: Set<string>;
-        
+
         const hasLabs = labProducts.size > 0;
         const hasCats = categoryProducts.size > 0;
-        
+
         if (!hasLabs && !hasCats) {
           finalCodes = manualProducts;
         } else if (hasLabs && !hasCats) {
@@ -234,18 +240,54 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             finalCodes = new Set([...manualProducts, ...intersection]);
           }
         }
-        
-        const result = Array.from(finalCodes);
-        
+
+        let result = Array.from(finalCodes);
+
+        // 5. 🔥 NOUVEAU - Appliquer le filtre TVA si des taux sont sélectionnés
+        if (state.tvaRates.length > 0 && result.length > 0) {
+          try {
+            console.log('💰 [Store] Applying TVA filter:', state.tvaRates);
+
+            const response = await fetch('/api/filters/apply-tva', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                productCodes: result,
+                tvaRates: state.tvaRates,
+                dateRange: state.analysisDateRange,
+                pharmacyId: state.isPharmacyLocked ? state.pharmacy[0] : null
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const beforeTva = result.length;
+              result = data.productCodes;
+
+              console.log('✅ [Store] TVA filter applied:', {
+                before: beforeTva,
+                after: result.length,
+                filtered: beforeTva - result.length,
+                tvaRates: state.tvaRates
+              });
+            } else {
+              console.error('❌ [Store] TVA filter API error:', response.status);
+            }
+          } catch (error) {
+            console.error('❌ [Store] TVA filter error:', error);
+          }
+        }
+
         console.log('🎯 [Store] Product codes recalculated:', {
           logic,
           manual: manualProducts.size,
           labs: labProducts.size,
           categories: categoryProducts.size,
+          tvaFiltered: state.tvaRates.length > 0,
           final: result.length,
           excluded: state.excludedProducts.length
         });
-        
+
         // 🔥 Mettre à jour products directement
         set({ products: result });
       },
@@ -259,7 +301,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           codes: codes.length,
           products: products.length
         });
-        
+
         set({ selectedProducts: products });
         get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
@@ -273,8 +315,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           codes: codes.length,
           laboratories: laboratories.length
         });
-        
-        set({ 
+
+        set({
           laboratories: codes,
           selectedLaboratories: laboratories
         });
@@ -290,8 +332,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           codes: codes.length,
           categories: categories.length
         });
-        
-        set({ 
+
+        set({
           categories: codes,
           selectedCategories: categories
         });
@@ -318,8 +360,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           ids: ids.length,
           pharmacies: pharmacies.length
         });
-        
-        set({ 
+
+        set({
           pharmacy: ids,
           selectedPharmacies: pharmacies
         });
@@ -336,8 +378,8 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           codes: codes.length,
           products: products.length
         });
-        
-        set({ 
+
+        set({
           excludedProducts: codes,
           selectedExcludedProducts: products
         });
@@ -346,7 +388,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearExcludedProducts: () => {
         console.log('🗑️ [Store] Clearing excluded products');
-        set({ 
+        set({
           excludedProducts: [],
           selectedExcludedProducts: []
         });
@@ -357,6 +399,18 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         console.log('🔀 [Store] Setting filter logic:', logic);
         set({ filterLogic: logic });
         get().recalculateProductCodes(); // 🔥 CRITIQUE - Recalcul auto quand logique change
+      },
+
+      setTvaRates: (rates: number[]) => {
+        console.log('💰 [Store] Setting TVA rates:', rates);
+        set({ tvaRates: rates });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto quand taux TVA changent
+      },
+
+      clearTvaRates: () => {
+        console.log('🗑️ [Store] Clearing TVA rates');
+        set({ tvaRates: [] });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
       setDateRange: (start: string | null, end: string | null) => {
@@ -373,12 +427,12 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           console.warn('❌ Analysis dates cannot be empty');
           return;
         }
-        
+
         if (new Date(start) > new Date(end)) {
           console.warn('❌ Start date must be before end date');
           return;
         }
-        
+
         set({ analysisDateRange: { start, end } });
       },
 
@@ -389,7 +443,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
       clearAllFilters: () => {
         const state = get();
         const freshDates = getDefaultAnalysisDates();
-        
+
         if (state.isPharmacyLocked) {
           set({
             products: [],
@@ -401,6 +455,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             excludedProducts: [],
             selectedExcludedProducts: [],
             filterLogic: 'OR',
+            tvaRates: [],
             dateRange: { start: null, end: null },
             analysisDateRange: { start: freshDates.start, end: freshDates.end },
             comparisonDateRange: { start: null, end: null },
@@ -415,7 +470,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearProductFilters: () => {
         console.log('🗑️ [Store] Clearing product filters and names');
-        set({ 
+        set({
           selectedProducts: []
         });
         get().recalculateProductCodes(); // 🔥 Recalcul auto
@@ -423,7 +478,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearLaboratoryFilters: () => {
         console.log('🗑️ [Store] Clearing laboratory filters and names');
-        set({ 
+        set({
           laboratories: [],
           selectedLaboratories: []
         });
@@ -432,7 +487,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearCategoryFilters: () => {
         console.log('🗑️ [Store] Clearing category filters and names');
-        set({ 
+        set({
           categories: [],
           selectedCategories: []
         });
@@ -446,7 +501,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           return;
         }
         console.log('🗑️ [Store] Clearing pharmacy filters and names');
-        set({ 
+        set({
           pharmacy: [],
           selectedPharmacies: []
         });
@@ -458,11 +513,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       clearAnalysisDateRange: () => {
         const freshDates = getDefaultAnalysisDates();
-        set({ 
-          analysisDateRange: { 
-            start: freshDates.start, 
-            end: freshDates.end 
-          } 
+        set({
+          analysisDateRange: {
+            start: freshDates.start,
+            end: freshDates.end
+          }
         });
       },
 
@@ -472,11 +527,11 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
       resetToDefaultDates: () => {
         const freshDates = getDefaultAnalysisDates();
-        set({ 
-          analysisDateRange: { 
-            start: freshDates.start, 
-            end: freshDates.end 
-          } 
+        set({
+          analysisDateRange: {
+            start: freshDates.start,
+            end: freshDates.end
+          }
         });
       },
 
@@ -499,7 +554,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 11,
+      version: 12,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -568,6 +623,12 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           return {
             ...persistedState,
             filterLogic: 'OR',
+          };
+        }
+        if (version < 12) {
+          return {
+            ...persistedState,
+            tvaRates: [],
           };
         }
         return persistedState;

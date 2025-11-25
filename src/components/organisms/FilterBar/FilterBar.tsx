@@ -15,11 +15,12 @@ import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
 import { SaveFilterModal } from '@/components/organisms/SaveFilterModal/SaveFilterModal';
 import { LoadFiltersDrawer } from '@/components/organisms/LoadFiltersDrawer/LoadFiltersDrawer';
 import { ExclusionDrawer } from '@/components/organisms/ExclusionDrawer/ExclusionDrawer';
-import { 
-  Package, 
-  TestTube, 
-  Tag, 
-  Building, 
+import { FilterDrawer } from '@/components/organisms/FilterDrawer/FilterDrawer';
+import {
+  Package,
+  TestTube,
+  Tag,
+  Building,
   Calendar,
   X,
   Filter,
@@ -27,11 +28,12 @@ import {
   FolderOpen,
   Ban,
   GitMerge,
+  Receipt,
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
 
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | null;
+type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | 'filters' | null;
 
 interface FilterChipProps {
   readonly icon: React.ReactNode;
@@ -42,10 +44,10 @@ interface FilterChipProps {
   readonly tooltip?: string;
 }
 
-const FilterChip: React.FC<FilterChipProps> = ({ 
-  icon, 
-  label, 
-  value, 
+const FilterChip: React.FC<FilterChipProps> = ({
+  icon,
+  label,
+  value,
   onRemove,
   color,
   tooltip
@@ -77,7 +79,7 @@ const FilterChip: React.FC<FilterChipProps> = ({
         </span>
         <span className="text-xs font-medium">{label}</span>
         <span className="text-xs font-semibold">{value}</span>
-        
+
         {onRemove && (
           <button
             onClick={onRemove}
@@ -127,7 +129,7 @@ export const FilterBar: React.FC = () => {
   const { data: session } = useSession();
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [showActiveFilters] = useState(true);
-  
+
   const {
     savedFilters,
     isLoading: isLoadingSavedFilters,
@@ -140,7 +142,7 @@ export const FilterBar: React.FC = () => {
     renameFilter,
     deleteFilter,
   } = useSavedFilters();
-  
+
   const {
     selectedProducts,
     selectedLaboratories,
@@ -156,14 +158,17 @@ export const FilterBar: React.FC = () => {
     clearPharmacyFilters,
     clearExcludedProducts,
     clearAllFilters,
-    isPharmacyLocked
+    isPharmacyLocked,
+    tvaRates,
+    setTvaRates,
+    clearTvaRates,
   } = useFiltersStore();
 
   const totalFiltersCount = useMemo(() => {
-    return (selectedProducts?.length || 0) + 
-           (selectedLaboratories?.length || 0) + 
-           (selectedCategories?.length || 0) + 
-           (selectedPharmacies?.length || 0);
+    return (selectedProducts?.length || 0) +
+      (selectedLaboratories?.length || 0) +
+      (selectedCategories?.length || 0) +
+      (selectedPharmacies?.length || 0);
   }, [selectedProducts, selectedLaboratories, selectedCategories, selectedPharmacies]);
 
   const exclusionsCount = useMemo(() => {
@@ -174,13 +179,13 @@ export const FilterBar: React.FC = () => {
     const hasCategories = (selectedCategories?.length || 0) > 0;
     const hasLaboratories = (selectedLaboratories?.length || 0) > 0;
     const hasMultipleCategories = (selectedCategories?.length || 0) > 1;
-    
+
     return hasMultipleCategories || (hasCategories && hasLaboratories);
   }, [selectedCategories, selectedLaboratories]);
 
   const formatDateRange = useMemo(() => {
     if (!analysisDateRange?.start || !analysisDateRange?.end) return null;
-    
+
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
       const day = date.getDate().toString().padStart(2, '0');
@@ -193,7 +198,7 @@ export const FilterBar: React.FC = () => {
 
   const labInfo = useMemo(() => {
     if (!selectedLaboratories || selectedLaboratories.length === 0) return null;
-    
+
     if (selectedLaboratories.length === 1) {
       const lab = selectedLaboratories[0];
       return {
@@ -201,7 +206,7 @@ export const FilterBar: React.FC = () => {
         tooltip: `${lab?.productCount || 0} produits`
       };
     }
-    
+
     return {
       value: `${selectedLaboratories.length}`,
       tooltip: selectedLaboratories
@@ -212,7 +217,7 @@ export const FilterBar: React.FC = () => {
 
   const productInfo = useMemo(() => {
     if (!selectedProducts || selectedProducts.length === 0) return null;
-    
+
     if (selectedProducts.length === 1) {
       const product = selectedProducts[0];
       return {
@@ -220,11 +225,11 @@ export const FilterBar: React.FC = () => {
         tooltip: product?.code || ''
       };
     }
-    
+
     const displayCount = 3;
     const displayed = selectedProducts.slice(0, displayCount);
     const remaining = selectedProducts.length - displayCount;
-    
+
     return {
       value: `${selectedProducts.length}`,
       tooltip: [
@@ -236,7 +241,7 @@ export const FilterBar: React.FC = () => {
 
   const categoryInfo = useMemo(() => {
     if (!selectedCategories || selectedCategories.length === 0) return null;
-    
+
     if (selectedCategories.length === 1) {
       const category = selectedCategories[0];
       return {
@@ -244,7 +249,7 @@ export const FilterBar: React.FC = () => {
         tooltip: `${category?.productCount || 0} produits`
       };
     }
-    
+
     return {
       value: `${selectedCategories.length}`,
       tooltip: selectedCategories
@@ -255,7 +260,7 @@ export const FilterBar: React.FC = () => {
 
   const pharmacyInfo = useMemo(() => {
     if (!selectedPharmacies || selectedPharmacies.length === 0) return null;
-    
+
     if (selectedPharmacies.length === 1) {
       const pharmacy = selectedPharmacies[0];
       return {
@@ -263,7 +268,7 @@ export const FilterBar: React.FC = () => {
         tooltip: pharmacy ? `${pharmacy.address || ''}\nCA: ${pharmacy.ca?.toLocaleString() || 0}€` : ''
       };
     }
-    
+
     return {
       value: `${selectedPharmacies.length}`,
       tooltip: selectedPharmacies
@@ -274,7 +279,7 @@ export const FilterBar: React.FC = () => {
 
   const exclusionInfo = useMemo(() => {
     if (!selectedExcludedProducts || selectedExcludedProducts.length === 0) return null;
-    
+
     if (selectedExcludedProducts.length === 1) {
       const product = selectedExcludedProducts[0];
       return {
@@ -282,11 +287,11 @@ export const FilterBar: React.FC = () => {
         tooltip: `Code: ${product?.code || ''}`
       };
     }
-    
+
     const displayCount = 3;
     const displayed = selectedExcludedProducts.slice(0, displayCount);
     const remaining = selectedExcludedProducts.length - displayCount;
-    
+
     return {
       value: `${selectedExcludedProducts.length}`,
       tooltip: [
@@ -301,47 +306,55 @@ export const FilterBar: React.FC = () => {
     (selectedLaboratories && selectedLaboratories.length > 0) ||
     (selectedCategories && selectedCategories.length > 0) ||
     (selectedPharmacies && selectedPharmacies.length > 0) ||
-    (selectedExcludedProducts && selectedExcludedProducts.length > 0)
+    (selectedExcludedProducts && selectedExcludedProducts.length > 0) ||
+    (tvaRates && tvaRates.length > 0)
   );
 
   const filterButtons: FilterButton[] = [
-    { 
-      id: 'products', 
-      label: 'Produits', 
-      icon: <Package className="w-full h-full" />, 
+    {
+      id: 'products',
+      label: 'Produits',
+      icon: <Package className="w-full h-full" />,
       adminOnly: false,
       hiddenRoutes: ['/generique']
     },
-    { 
-      id: 'laboratories', 
-      label: 'Labos', 
-      icon: <TestTube className="w-full h-full" />, 
+    {
+      id: 'laboratories',
+      label: 'Labos',
+      icon: <TestTube className="w-full h-full" />,
       adminOnly: false,
       hiddenRoutes: ['/generique']
     },
-    { 
-      id: 'categories', 
-      label: 'Catégories', 
-      icon: <Tag className="w-full h-full" />, 
+    {
+      id: 'categories',
+      label: 'Catégories',
+      icon: <Tag className="w-full h-full" />,
       adminOnly: false,
       hiddenRoutes: ['/generique']
     },
-    { 
-      id: 'pharmacy', 
-      label: 'Pharmacies', 
-      icon: <Building className="w-full h-full" />, 
-      adminOnly: true 
+    {
+      id: 'pharmacy',
+      label: 'Pharmacies',
+      icon: <Building className="w-full h-full" />,
+      adminOnly: true
     },
-    { 
-      id: 'date', 
-      label: 'Période', 
-      icon: <Calendar className="w-full h-full" />, 
-      adminOnly: false 
+    {
+      id: 'date',
+      label: 'Période',
+      icon: <Calendar className="w-full h-full" />,
+      adminOnly: false
     },
-    { 
-      id: 'filter', 
-      label: 'Filtre', 
-      icon: <Filter className="w-full h-full" />, 
+    {
+      id: 'filters',
+      label: 'Filtre',
+      icon: <Filter className="w-full h-full" />,
+      adminOnly: false,
+      hiddenRoutes: ['/generique']
+    },
+    {
+      id: 'filter',
+      label: 'Filtre',
+      icon: <Filter className="w-full h-full" />,
       adminOnly: false,
       visibleOnlyRoutes: ['/generique']
     },
@@ -368,8 +381,8 @@ export const FilterBar: React.FC = () => {
     setActiveDrawer(null);
   };
 
-  const filterType: 'classic' | 'generic' = pathname.includes('/generiques') 
-    ? 'generic' 
+  const filterType: 'classic' | 'generic' = pathname.includes('/generiques')
+    ? 'generic'
     : 'classic';
 
   const handleSaveFilter = async (name: string) => {
@@ -394,6 +407,7 @@ export const FilterBar: React.FC = () => {
     pharmacy: selectedPharmacies?.length || 0,
     date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
     filter: 0,
+    filters: tvaRates?.length || 0,
     exclusion: exclusionsCount
   };
 
@@ -430,7 +444,7 @@ export const FilterBar: React.FC = () => {
                 >
                   <div className="w-3.5 h-3.5">{button.icon}</div>
                   <span className="font-medium text-xs">{button.label}</span>
-                  
+
                   <AnimatePresence>
                     {filterCounts[button.id as keyof typeof filterCounts] > 0 && (
                       <motion.div
@@ -512,7 +526,7 @@ export const FilterBar: React.FC = () => {
               >
                 <FolderOpen className="w-3.5 h-3.5" />
                 <span className="font-medium text-xs">Charger</span>
-                
+
                 <AnimatePresence>
                   {savedFilters.length > 0 && (
                     <motion.div
@@ -543,7 +557,7 @@ export const FilterBar: React.FC = () => {
               >
                 <Ban className="w-3.5 h-3.5" />
                 <span className="font-medium text-xs">Exclusions</span>
-                
+
                 <AnimatePresence>
                   {exclusionsCount > 0 && (
                     <motion.div
@@ -573,7 +587,7 @@ export const FilterBar: React.FC = () => {
               >
                 <div className="flex items-center gap-1.5 pb-2 px-0.5">
                   <span className="text-[10px] font-medium text-gray-500 mr-1">Actifs:</span>
-                  
+
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {formatDateRange && (
                       <FilterChip
@@ -644,6 +658,18 @@ export const FilterBar: React.FC = () => {
                       />
                     )}
 
+                    {tvaRates && tvaRates.length > 0 && (
+                      <FilterChip
+                        key="tva"
+                        icon={<Receipt className="w-3 h-3" />}
+                        label="TVA"
+                        value={tvaRates.sort((a, b) => a - b).join('%, ') + '%'}
+                        onRemove={clearTvaRates}
+                        color="blue"
+                        tooltip={`${tvaRates.length} taux sélectionné${tvaRates.length > 1 ? 's' : ''}`}
+                      />
+                    )}
+
                     {showLogicToggle && (
                       <FilterChip
                         key="logic"
@@ -651,7 +677,7 @@ export const FilterBar: React.FC = () => {
                         label="Logique"
                         value={filterLogic === 'OR' ? 'OU' : 'ET'}
                         color="blue"
-                        tooltip={filterLogic === 'OR' 
+                        tooltip={filterLogic === 'OR'
                           ? 'Union : tous les produits des sélections'
                           : 'Intersection : seulement les produits communs'
                         }
@@ -686,48 +712,56 @@ export const FilterBar: React.FC = () => {
           <ProductsDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
-        
+
         {activeDrawer === 'laboratories' && (
           <LaboratoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
-        
+
         {activeDrawer === 'categories' && (
           <CategoriesDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
-        
+
         {activeDrawer === 'pharmacy' && session?.user?.role === 'admin' && (
           <PharmacyDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
-        
+
         {activeDrawer === 'date' && (
           <DateDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
-        
+
         {activeDrawer === 'filter' && (
           <GenericFilterDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
             dateRange={analysisDateRange || { start: '', end: '' }}
+          />
+        )}
+
+        {activeDrawer === 'filters' && (
+          <FilterDrawer
+            isOpen={true}
+            onClose={handleDrawerClose}
+            onCountChange={() => { }}
           />
         )}
 
@@ -735,7 +769,7 @@ export const FilterBar: React.FC = () => {
           <ExclusionDrawer
             isOpen={true}
             onClose={handleDrawerClose}
-            onCountChange={() => {}}
+            onCountChange={() => { }}
           />
         )}
 
