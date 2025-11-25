@@ -3,13 +3,12 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   X, Search, Loader2, Building, MapPin, Euro, Users, Filter, Check,
   CheckSquare, Square, AlertCircle // NOUVEAUX ICONES
 } from 'lucide-react';
 import { Input } from '@/components/atoms/Input/Input';
 import { usePharmacySearch } from '@/hooks/pharmacies/usePharmacySearch';
-import { useFiltersStore } from '@/stores/useFiltersStore';
 import type { SelectedPharmacy } from '@/stores/useFiltersStore';
 
 type ViewMode = 'search' | 'filters';
@@ -36,7 +35,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   onCountChange
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('search');
-  
+
   const {
     pharmacies,
     isLoading,
@@ -54,6 +53,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
     caRanges,
     regions,
     getSelectedPharmaciesFromStore,
+    pharmacyInfoMap, // NOUVEAU
     // NOUVELLES PROPRIÉTÉS BULK
     bulkSelectAllPharmacies,
     isBulkSelecting,
@@ -68,6 +68,33 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   // Récupération des pharmacies sélectionnées depuis le store
   const selectedPharmaciesInfo = getSelectedPharmaciesFromStore();
 
+  // Créer une liste combinée des pharmacies à afficher (store + nouvelles sélections)
+  const allSelectedPharmaciesForDisplay = React.useMemo(() => {
+    const combined: SelectedPharmacy[] = [...selectedPharmaciesInfo];
+    const existingIds = new Set(selectedPharmaciesInfo.map(p => p.id));
+
+    // Ajouter les nouvelles sélections qui ne sont pas déjà dans le store
+    selectedPharmacies.forEach(pharmacyId => {
+      if (!existingIds.has(pharmacyId)) {
+        // Chercher les infos de la pharmacie dans pharmacyInfoMap (maintenant disponible !)
+        const pharmacyInfo = pharmacyInfoMap.get(pharmacyId);
+        if (pharmacyInfo) {
+          combined.push({
+            id: pharmacyInfo.id,
+            name: pharmacyInfo.name,
+            address: pharmacyInfo.address,
+            ca: pharmacyInfo.ca,
+            area: pharmacyInfo.area,
+            employees_count: pharmacyInfo.employees_count,
+            id_nat: pharmacyInfo.id_nat
+          });
+        }
+      }
+    });
+
+    return combined;
+  }, [selectedPharmaciesInfo, selectedPharmacies, pharmacyInfoMap]);
+
   // Update count when selection changes
   React.useEffect(() => {
     onCountChange(selectedPharmacies.size);
@@ -76,26 +103,26 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   // NOUVELLE FONCTION : Gestion "Tout sélectionner"
   const handleSelectAll = async () => {
     setBulkWarning(null);
-    
+
     try {
       console.log('🌟 [PharmacyDrawer] Starting "Select All" process');
-      
+
       const result = await bulkSelectAllPharmacies();
-      
+
       // Sélectionner automatiquement toutes les pharmacies récupérées
       bulkSelectPharmacies(result.pharmacies);
-      
+
       // Afficher warning si données tronquées
       if (result.truncated) {
         setBulkWarning(`Attention: Seules les ${result.pharmacies.length.toLocaleString()} premières pharmacies sur ${result.totalCount.toLocaleString()} ont été sélectionnées.`);
       }
-      
+
       console.log('✅ [PharmacyDrawer] "Select All" completed:', {
         selected: result.pharmacies.length,
         total: result.totalCount,
         truncated: result.truncated
       });
-      
+
     } catch (error) {
       console.error('❌ [PharmacyDrawer] "Select All" failed:', error);
       setBulkWarning('Erreur lors de la sélection massive. Veuillez réessayer.');
@@ -112,25 +139,25 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   const handlePharmacyToggle = (pharmacyId: string) => {
     console.log('PharmacyDrawer handlePharmacyToggle called:', pharmacyId);
     togglePharmacy(pharmacyId);
-    
+
     // Reset warning si on modifie les sélections
     setBulkWarning(null);
   };
 
-  // Fonction pour désélectionner une pharmacie du store
-  const handleDeselectStoredPharmacy = (pharmacyId: string) => {
-    console.log('🗑️ [PharmacyDrawer] Deselecting stored pharmacy:', pharmacyId);
-    
-    // Filtrer cette pharmacie des sélections du store
-    const remainingPharmacies = selectedPharmaciesInfo.filter(pharmacy => pharmacy.id !== pharmacyId);
-    const remainingIds = remainingPharmacies.map(pharmacy => pharmacy.id);
-    
-    // Mettre à jour le store
-    const setPharmacyFiltersWithNames = useFiltersStore.getState().setPharmacyFiltersWithNames;
-    setPharmacyFiltersWithNames(remainingIds, remainingPharmacies);
-    
+  // Fonction pour désélectionner une pharmacie de la liste affichée
+  const handleDeselectDisplayedPharmacy = (pharmacyId: string) => {
+    console.log('🗑️ [PharmacyDrawer] Deselecting displayed pharmacy:', pharmacyId);
+
+    // Utiliser togglePharmacy qui gère à la fois le store et les nouvelles sélections
+    togglePharmacy(pharmacyId);
+
     // Reset warning si on modifie les sélections
     setBulkWarning(null);
+  };
+
+  // Fonction pour désélectionner une pharmacie du store (ancienne fonction, maintenant redirige vers togglePharmacy)
+  const handleDeselectStoredPharmacy = (pharmacyId: string) => {
+    handleDeselectDisplayedPharmacy(pharmacyId);
   };
 
   // Vérifier si une pharmacie est sélectionnée
@@ -162,10 +189,10 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   const hasResults = pharmacies.length > 0;
   const showEmptyMessage = searchQuery.length >= 2 && !isLoading && !hasResults && !error;
   const isSearching = searchQuery.length >= 2;
-  const showSelectedSection = !isSearching && selectedPharmaciesInfo.length > 0;
+  const showSelectedSection = allSelectedPharmaciesForDisplay.length > 0; // Utiliser la liste combinée
 
   const getPlaceholderText = () => {
-    return viewMode === 'search' 
+    return viewMode === 'search'
       ? 'Rechercher une pharmacie...'
       : 'Filtrer par CA et régions...';
   };
@@ -203,11 +230,11 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 Pharmacies
               </h2>
               <p className="text-sm text-gray-500">
-                {selectedPharmaciesInfo.length > 0 
+                {selectedPharmaciesInfo.length > 0
                   ? `${selectedPharmaciesInfo.length} pharmacies appliquées`
-                  : selectedPharmacies.size > 0 
-                  ? `${selectedPharmacies.size} nouvelles sélections`
-                  : 'Aucune sélection'
+                  : selectedPharmacies.size > 0
+                    ? `${selectedPharmacies.size} nouvelles sélections`
+                    : 'Aucune sélection'
                 }
                 {totalPharmaciesCount > 0 && (
                   <span className="ml-1 text-xs text-gray-400">
@@ -270,7 +297,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 className="pl-10 bg-gray-50 border-gray-200 focus:border-orange-300 focus:ring-orange-200"
               />
             </div>
-            
+
             {searchQuery.length > 0 && searchQuery.length < 2 && (
               <p className="text-xs text-gray-500">
                 Minimum 2 caractères requis
@@ -290,7 +317,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                     Sélection massive
                   </span>
                 </div>
-                
+
                 {selectedPharmacies.size > 0 && (
                   <div className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
                     {selectedPharmacies.size.toLocaleString()} sélectionnées
@@ -321,7 +348,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                     </>
                   )}
                 </button>
-                
+
                 {(selectedPharmacies.size > 0 || selectedPharmaciesInfo.length > 0) && (
                   <button
                     onClick={handleDeselectAll}
@@ -350,7 +377,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
-          
+
           {/* SECTION PHARMACIES SÉLECTIONNÉES - DESIGN IDENTIQUE LABORATOIRES */}
           {showSelectedSection && viewMode === 'search' && (
             <div className="border-b border-gray-200 bg-gray-50">
@@ -358,7 +385,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-gray-700 flex items-center">
                     <Check className="w-4 h-4 mr-2 text-green-600" />
-                    Pharmacies sélectionnées ({selectedPharmaciesInfo.length})
+                    Pharmacies sélectionnées ({allSelectedPharmaciesForDisplay.length})
                   </h3>
                   <button
                     onClick={clearPharmacyFilters}
@@ -367,9 +394,9 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                     Tout effacer
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
-                  {selectedPharmaciesInfo.map((pharmacy: SelectedPharmacy, index) => (
+                  {allSelectedPharmaciesForDisplay.map((pharmacy: SelectedPharmacy, index) => (
                     <motion.div
                       key={`selected-${pharmacy.id}-${index}`}
                       initial={{ opacity: 0, y: -10 }}
@@ -384,7 +411,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                             {pharmacy.name}
                           </span>
                         </div>
-                        
+
                         {/* Informations compactes */}
                         <div className="flex items-center space-x-3 text-xs text-gray-600">
                           <div className="flex items-center">
@@ -400,12 +427,12 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                             <span className="text-blue-600">{pharmacy.employees_count}</span>
                           </div>
                         </div>
-                        
+
                         <p className="text-xs text-orange-600 mt-1">
-                          {pharmacy.area} • Déjà appliquée
+                          {pharmacy.area} • Sélectionnée
                         </p>
                       </div>
-                      
+
                       <button
                         onClick={() => handleDeselectStoredPharmacy(pharmacy.id)}
                         className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -550,13 +577,13 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                         transition={{ delay: index * 0.05 }}
                         className={`
                           p-4 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
-                          ${selectionType === 'stored' 
-                            ? 'border-orange-300 bg-orange-50' 
-                            : selectionType === 'new'
-                            ? 'border-green-300 bg-green-50'
-                            : isSelected 
+                          ${selectionType === 'stored'
                             ? 'border-orange-300 bg-orange-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                            : selectionType === 'new'
+                              ? 'border-green-300 bg-green-50'
+                              : isSelected
+                                ? 'border-orange-300 bg-orange-50'
+                                : 'border-gray-200 hover:border-gray-300'
                           }
                         `}
                         onClick={() => handlePharmacyToggle(pharmacy.id)}
@@ -573,7 +600,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                                 </span>
                               )}
                             </div>
-                            
+
                             {/* Address */}
                             <div className="flex items-center text-xs text-gray-600 mb-2">
                               <MapPin className="w-3 h-3 mr-1" />
@@ -604,7 +631,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                                 </span>
                               </div>
                             )}
-                            
+
                             {selectionType === 'new' && (
                               <div className="flex items-center mb-2">
                                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
@@ -643,7 +670,7 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                   <p className="text-xs text-gray-400 mb-4">
                     Utilisez la recherche ou sélectionnez toutes les pharmacies
                   </p>
-                  
+
                   {/* Bouton "Tout sélectionner" alternatif */}
                   <button
                     onClick={handleSelectAll}
