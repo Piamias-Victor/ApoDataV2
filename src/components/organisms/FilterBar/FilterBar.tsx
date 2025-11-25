@@ -160,7 +160,6 @@ export const FilterBar: React.FC = () => {
     clearAllFilters,
     isPharmacyLocked,
     tvaRates,
-    setTvaRates,
     clearTvaRates,
   } = useFiltersStore();
 
