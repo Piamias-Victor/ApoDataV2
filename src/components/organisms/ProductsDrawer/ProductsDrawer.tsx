@@ -65,11 +65,11 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   const parseCodes = useCallback((text: string): string[] => {
     // Nettoyer le texte
     const cleanText = text.replace(/\s+/g, '');
-    
+
     // DÉTECTION EAN13 : Chaîne continue de chiffres
     if (/^\d+$/.test(cleanText) && cleanText.length >= 13) {
       const codes: string[] = [];
-      
+
       // Découper par tranches de 13 caractères
       for (let i = 0; i <= cleanText.length - 13; i += 13) {
         const code = cleanText.substring(i, i + 13);
@@ -77,13 +77,13 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
           codes.push(code);
         }
       }
-      
+
       if (codes.length > 0) {
         console.log('📊 [Parser] Detected EAN13 string:', codes.length, 'codes');
         return [...new Set(codes)]; // Dédupliquer
       }
     }
-    
+
     // PARSING CLASSIQUE : Séparateurs multiples
     const separators = /[,;\s\t\n\r|]+/;
     const codes = text
@@ -91,7 +91,7 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
       .map(code => code.trim())
       .filter(code => code.length > 0)
       .filter(code => /^\d+$/.test(code)); // Garder seulement les codes numériques
-    
+
     console.log('📊 [Parser] Detected separated codes:', codes.length);
     return [...new Set(codes)]; // Dédupliquer
   }, []);
@@ -115,12 +115,12 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
       const startTime = Date.now();
       const results = await bulkSearchProducts(codes);
       const totalTime = Date.now() - startTime;
-      
+
       // Sélectionner automatiquement tous les produits trouvés
       if (results.found.length > 0) {
         bulkSelectProducts(results.found);
       }
-      
+
       // Afficher les résultats avec performance
       setBulkResults({
         found: results.found.length,
@@ -148,11 +148,11 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   // Fonction pour désélectionner un produit du store
   const handleDeselectStoredProduct = (code: string) => {
     console.log('🗑️ [ProductsDrawer] Deselecting stored product:', code);
-    
+
     // Filtrer ce produit des sélections du store
     const remainingProducts = selectedProductsInfo.filter(product => product.code !== code);
     const remainingCodes = remainingProducts.map(product => product.code);
-    
+
     // Mettre à jour le store
     const setProductFiltersWithNames = useFiltersStore.getState().setProductFiltersWithNames;
     setProductFiltersWithNames(remainingCodes, remainingProducts);
@@ -186,23 +186,23 @@ export const ProductsDrawer: React.FC<ProductsDrawerProps> = ({
   const showSelectedSection = !isSearching && selectedProductsInfo.length > 0;
 
   // Ajouter après la ligne 118 (après les autres états)
-const [selectAllInProgress, setSelectAllInProgress] = useState(false);
+  const [selectAllInProgress, setSelectAllInProgress] = useState(false);
 
-// Ajouter après handleBulkImport
-const handleSelectAll = useCallback(() => {
-  setSelectAllInProgress(true);
-  
-  // Sélectionner tous les produits affichés dans les résultats
-  products.forEach(product => {
-    if (!isProductSelected(product.code_13_ref)) {
-      toggleProduct(product.code_13_ref);
-    }
-  });
-  
-  setSelectAllInProgress(false);
-}, [products, isProductSelected, toggleProduct]);
+  // Ajouter après handleBulkImport
+  const handleSelectAll = useCallback(() => {
+    setSelectAllInProgress(true);
 
-// Dans le JSX, remplacer la section "Search Input" (ligne 160-226) par :
+    // Sélectionner tous les produits affichés dans les résultats
+    products.forEach(product => {
+      if (!isProductSelected(product.code_13_ref)) {
+        toggleProduct(product.code_13_ref);
+      }
+    });
+
+    setSelectAllInProgress(false);
+  }, [products, isProductSelected, toggleProduct]);
+
+  // Dans le JSX, remplacer la section "Search Input" (ligne 160-226) par :
 
   return (
     <>
@@ -251,37 +251,37 @@ const handleSelectAll = useCallback(() => {
 
         {/* Search Input */}
         <div className="p-4 border-b border-gray-100">
-  <div className="relative">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-    <Input
-      type="text"
-      placeholder="Rechercher un produit (3+ caractères)..."
-      value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
-      className="pl-10 bg-gray-50 border-gray-200 focus:border-blue-300 focus:ring-blue-200"
-    />
-  </div>
-  
-  {/* Ligne avec message + bouton tout sélectionner */}
-  <div className="flex items-center justify-between mt-2">
-    {searchQuery.length > 0 && searchQuery.length < 3 && (
-      <p className="text-xs text-amber-600">
-        Tapez au moins 3 caractères pour rechercher
-      </p>
-    )}
-    
-    {hasResults && !isLoading && (
-      <button
-        onClick={handleSelectAll}
-        disabled={selectAllInProgress || products.every(p => isProductSelected(p.code_13_ref))}
-        className="ml-auto px-3 py-1.5 text-xs font-medium bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-      >
-        <Check className="w-3.5 h-3.5" />
-        Tout sélectionner ({products.length})
-      </button>
-    )}
-  </div>
-          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Rechercher un produit (3+ caractères)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-gray-50 border-gray-200 focus:border-blue-300 focus:ring-blue-200"
+            />
+          </div>
+
+          {/* Ligne avec message + bouton tout sélectionner */}
+          <div className="flex items-center justify-between mt-2">
+            {searchQuery.length > 0 && searchQuery.length < 3 && (
+              <p className="text-xs text-amber-600">
+                Tapez au moins 3 caractères pour rechercher
+              </p>
+            )}
+
+            {hasResults && !isLoading && (
+              <button
+                onClick={handleSelectAll}
+                disabled={selectAllInProgress || products.every(p => isProductSelected(p.code_13_ref))}
+                className="ml-auto px-3 py-1.5 text-xs font-medium bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Tout sélectionner ({products.length})
+              </button>
+            )}
+          </div>
+
           {/* Bouton Import Bulk */}
           <button
             onClick={() => setShowBulkInput(!showBulkInput)}
@@ -304,7 +304,7 @@ const handleSelectAll = useCallback(() => {
               <p className="text-xs text-gray-500">
                 Formats acceptés : codes séparés (virgule, espace) ou collés ensemble (détection auto EAN13)
               </p>
-              
+
               {/* Résultats import */}
               {bulkResults && (
                 <div className="p-2 bg-white rounded border border-gray-200">
@@ -328,7 +328,7 @@ const handleSelectAll = useCallback(() => {
                   )}
                 </div>
               )}
-              
+
               <button
                 onClick={handleBulkImport}
                 disabled={!bulkInput.trim() || isBulkSearching}
@@ -356,7 +356,7 @@ const handleSelectAll = useCallback(() => {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
-          
+
           {/* SECTION PRODUITS SÉLECTIONNÉS */}
           {showSelectedSection && (
             <div className="border-b border-gray-200 bg-gray-50">
@@ -373,7 +373,7 @@ const handleSelectAll = useCallback(() => {
                     Tout effacer
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   {selectedProductsInfo.map((productInfo, index) => (
                     <motion.div
@@ -393,18 +393,18 @@ const handleSelectAll = useCallback(() => {
                             <p className="text-xs text-gray-500 mt-1">
                               {productInfo.code}
                             </p>
-                            
+
                             {(productInfo.brandLab || productInfo.universe) && (
                               <div className="flex items-center space-x-1 mt-1 flex-wrap gap-1">
                                 {productInfo.brandLab && (
-                                  <span className="inline-block px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[100px]" 
-                                        title={productInfo.brandLab}>
+                                  <span className="inline-block px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[100px]"
+                                    title={productInfo.brandLab}>
                                     {productInfo.brandLab.length > 30 ? `${productInfo.brandLab.substring(0, 30)}...` : productInfo.brandLab}
                                   </span>
                                 )}
                                 {productInfo.universe && (
-                                  <span className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded truncate max-w-[100px]" 
-                                        title={productInfo.universe}>
+                                  <span className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded truncate max-w-[100px]"
+                                    title={productInfo.universe}>
                                     {productInfo.universe.length > 30 ? `${productInfo.universe.substring(0, 30)}...` : productInfo.universe}
                                   </span>
                                 )}
@@ -413,7 +413,7 @@ const handleSelectAll = useCallback(() => {
                           </div>
                         </div>
                       </div>
-                      
+
                       <button
                         onClick={() => handleDeselectStoredProduct(productInfo.code)}
                         className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -493,13 +493,13 @@ const handleSelectAll = useCallback(() => {
                       transition={{ delay: index * 0.05 }}
                       className={`
                         p-3 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
-                        ${selectionType === 'stored' 
-                          ? 'border-blue-300 bg-blue-50' 
-                          : selectionType === 'new'
-                          ? 'border-green-300 bg-green-50'
-                          : isSelected 
+                        ${selectionType === 'stored'
                           ? 'border-blue-300 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          : selectionType === 'new'
+                            ? 'border-green-300 bg-green-50'
+                            : isSelected
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
                         }
                       `}
                       onClick={() => handleProductToggle(product.code_13_ref)}
@@ -508,7 +508,11 @@ const handleSelectAll = useCallback(() => {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => handleProductToggle(product.code_13_ref)}
+                          onChange={(e) => {
+                            e.stopPropagation(); // Empêcher la propagation au parent
+                            handleProductToggle(product.code_13_ref);
+                          }}
+                          onClick={(e) => e.stopPropagation()} // Aussi pour le click
                           className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
                         <div className="flex-1 min-w-0">
@@ -528,7 +532,7 @@ const handleSelectAll = useCallback(() => {
                               </span>
                             </div>
                           )}
-                          
+
                           {selectionType === 'new' && (
                             <div className="flex items-center mt-2">
                               <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
@@ -537,18 +541,18 @@ const handleSelectAll = useCallback(() => {
                               </span>
                             </div>
                           )}
-                          
+
                           {(product.brand_lab || product.universe) && (
                             <div className="flex items-center space-x-2 mt-2 flex-wrap gap-1">
                               {product.brand_lab && (
-                                <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[120px]" 
-                                      title={product.brand_lab}>
+                                <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[120px]"
+                                  title={product.brand_lab}>
                                   {product.brand_lab.length > 40 ? `${product.brand_lab.substring(0, 40)}...` : product.brand_lab}
                                 </span>
                               )}
                               {product.universe && (
-                                <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded truncate max-w-[120px]" 
-                                      title={product.universe}>
+                                <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded truncate max-w-[120px]"
+                                  title={product.universe}>
                                   {product.universe.length > 40 ? `${product.universe.substring(0, 40)}...` : product.universe}
                                 </span>
                               )}
