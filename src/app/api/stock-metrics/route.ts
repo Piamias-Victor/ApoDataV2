@@ -18,14 +18,14 @@ function validateStockMetricsRequest(body: any): StockMetricsRequest {
   if (!body.dateRange?.start || !body.dateRange?.end) {
     throw new Error('Date range is required');
   }
-  
+
   const startDate = new Date(body.dateRange.start);
   const endDate = new Date(body.dateRange.end);
-  
+
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
     throw new Error('Invalid date format');
   }
-  
+
   return {
     dateRange: {
       start: body.dateRange.start,
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<StockMetr
     console.log('📝 [API] Request body received:', JSON.stringify(body, null, 2));
 
     const validatedRequest = validateStockMetricsRequest(body);
-    
+
     console.log('✅ [API] Request validated:', {
       dateRange: validatedRequest.dateRange,
       hasComparison: !!validatedRequest.comparisonDateRange,
@@ -91,18 +91,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<StockMetr
     });
 
     const stockMetrics = await calculateStockMetrics(validatedRequest);
-    
-    let comparison: { 
-      quantite_stock_actuel_total: number; 
-      montant_stock_actuel_total: number; 
-      stock_moyen_12_mois: number; 
+
+    let comparison: {
+      quantite_stock_actuel_total: number;
+      montant_stock_actuel_total: number;
+      stock_moyen_12_mois: number;
       jours_de_stock_actuels: number | null;
       quantite_commandee: number;
       quantite_receptionnee: number;
       montant_commande_ht: number;
       montant_receptionne_ht: number;
     } | undefined;
-    
+
     if (validatedRequest.comparisonDateRange) {
       console.log('📊 [API] Calculating comparison period stock metrics');
       const comparisonRequest: StockMetricsRequest = {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<StockMetr
       queryTime: Date.now() - startTime,
       cached: false
     };
-    
+
     console.log('✅ [API] Stock metrics calculation completed', {
       quantite_stock: response.quantite_stock_actuel_total,
       montant_stock: response.montant_stock_actuel_total,
@@ -146,8 +146,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<StockMetr
 
   } catch (error) {
     console.error('❌ [API] Stock metrics calculation failed:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal server error' 
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
     }, { status: 500 });
   }
 }
@@ -164,7 +164,7 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
   const hasProductFilter = allProductCodes.length > 0;
   const hasPharmacyFilter = pharmacyIds && pharmacyIds.length > 0;
 
-  const productFilter = hasProductFilter 
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
@@ -173,28 +173,50 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
     : '';
 
   const params: any[] = [dateRange.start, dateRange.end];
-  
+
   if (hasProductFilter) {
     params.push(allProductCodes);
   }
-  
+
   if (hasPharmacyFilter) {
     params.push(pharmacyIds);
   }
 
   const query = `
     WITH current_stock AS (
-      SELECT DISTINCT ON (ip.code_13_ref_id)
-        ip.code_13_ref_id,
-        ins.stock as quantite_stock_actuel,
-        ins.weighted_average_price as prix_stock_unitaire,
-        ins.stock * ins.weighted_average_price as valeur_stock_produit
-      FROM data_inventorysnapshot ins
-      JOIN data_internalproduct ip ON ins.product_id = ip.id
-      WHERE ins.weighted_average_price > 0
+      SELECT 
+        SUM(latest_stock.stock) as quantite_stock_total,
+        SUM(latest_stock.stock * latest_stock.weighted_average_price) as valeur_stock_ht_total
+      FROM data_internalproduct ip
+      JOIN LATERAL (
+        SELECT DISTINCT ON (ins.product_id)
+          ins.stock, 
+          ins.weighted_average_price
+        FROM data_inventorysnapshot ins
+        WHERE ins.product_id = ip.id
+          AND ins.weighted_average_price > 0
+        ORDER BY ins.product_id, ins.date DESC
+      ) latest_stock ON true
+      WHERE 1=1
         ${productFilter}
         ${pharmacyFilter}
-      ORDER BY ip.code_13_ref_id, ins.date DESC
+    ),
+    stock_by_product AS (
+      SELECT 
+        ip.code_13_ref_id,
+        latest_stock.stock as quantite_stock_actuel
+      FROM data_internalproduct ip
+      JOIN LATERAL (
+        SELECT DISTINCT ON (ins.product_id)
+          ins.stock
+        FROM data_inventorysnapshot ins
+        WHERE ins.product_id = ip.id
+          AND ins.weighted_average_price > 0
+        ORDER BY ins.product_id, ins.date DESC
+      ) latest_stock ON true
+      WHERE 1=1
+        ${productFilter}
+        ${pharmacyFilter}
     ),
     average_monthly_sales AS (
       SELECT 
@@ -236,33 +258,33 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
         ORDER BY ins.date DESC
         LIMIT 1
       ) latest_price ON true
-      WHERE o.delivery_date >= $1::date 
+      WHERE o.delivery_date >= $1::date
         AND o.delivery_date <= $2::date
         AND o.delivery_date IS NOT NULL
         ${productFilter}
         ${pharmacyFilter.replace('ip.', 'o.')}
     )
-    SELECT 
-      COALESCE(SUM(cs.quantite_stock_actuel), 0) as quantite_stock_actuel_total,
-      COALESCE(ROUND(SUM(cs.valeur_stock_produit), 2), 0) as montant_stock_actuel_total,
-      COALESCE(ROUND(AVG(cs.quantite_stock_actuel), 0), 0) as stock_moyen_12_mois,
-      CASE 
-        WHEN SUM(ams.ventes_12_mois_total) > 0 
+    SELECT
+      (SELECT COALESCE(quantite_stock_total, 0) FROM current_stock) as quantite_stock_actuel_total,
+      (SELECT COALESCE(valeur_stock_ht_total, 0) FROM current_stock) as montant_stock_actuel_total,
+      COALESCE(ROUND(AVG(sbp.quantite_stock_actuel), 0), 0) as stock_moyen_12_mois,
+      CASE
+        WHEN SUM(ams.ventes_12_mois_total) > 0
         THEN ROUND(
-          COALESCE(SUM(cs.quantite_stock_actuel), 0) / (SUM(ams.ventes_12_mois_total) / 365.0), 
+          (SELECT COALESCE(quantite_stock_total, 0) FROM current_stock) / (SUM(ams.ventes_12_mois_total) / 365.0),
           1
         )
         ELSE NULL
       END as jours_de_stock_actuels,
-      COUNT(DISTINCT cs.code_13_ref_id) as nb_references_produits,
+      COUNT(DISTINCT sbp.code_13_ref_id) as nb_references_produits,
       COUNT(DISTINCT ip_meta.pharmacy_id) as nb_pharmacies,
       COALESCE((SELECT quantite_commandee FROM order_reception_data), 0) as quantite_commandee,
       COALESCE((SELECT quantite_receptionnee FROM order_reception_data), 0) as quantite_receptionnee,
       COALESCE((SELECT montant_commande_ht FROM order_reception_data), 0) as montant_commande_ht,
       COALESCE((SELECT montant_receptionne_ht FROM order_reception_data), 0) as montant_receptionne_ht
-    FROM current_stock cs
-    LEFT JOIN average_monthly_sales ams ON cs.code_13_ref_id = ams.code_13_ref_id
-    LEFT JOIN data_internalproduct ip_meta ON cs.code_13_ref_id = ip_meta.code_13_ref_id
+    FROM stock_by_product sbp
+    LEFT JOIN average_monthly_sales ams ON sbp.code_13_ref_id = ams.code_13_ref_id
+    LEFT JOIN data_internalproduct ip_meta ON sbp.code_13_ref_id = ip_meta.code_13_ref_id
     WHERE ip_meta.id IS NOT NULL
       ${productFilter.replace('ip.', 'ip_meta.')}
       ${pharmacyFilter.replace('ip.', 'ip_meta.')};
