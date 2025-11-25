@@ -36,7 +36,7 @@ interface UseProductSearchReturn {
   readonly clearProductFilters: () => void;
   readonly pendingProductCodes: Set<string>;
   readonly getSelectedProductsFromStore: () => SelectedProduct[];
-  
+
   // FONCTIONS BULK OPTIMISÉES - API DÉDIÉE
   readonly bulkSearchProducts: (codes: string[]) => Promise<BulkSearchResponse>;
   readonly isBulkSearching: boolean;
@@ -49,7 +49,7 @@ export function useProductSearch(): UseProductSearchReturn {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isBulkSearching, setIsBulkSearching] = useState(false);
-  
+
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
   const [previousStoreCodes, setPreviousStoreCodes] = useState<Set<string>>(new Set());
@@ -59,7 +59,7 @@ export function useProductSearch(): UseProductSearchReturn {
 
   useEffect(() => {
     console.log('🔄 [useProductSearch] Initializing from store:', storedProductCodes.length);
-    
+
     const storedCodesSet = new Set(storedProductCodes);
     setPendingProductCodes(storedCodesSet);
     setPreviousStoreCodes(storedCodesSet);
@@ -67,11 +67,11 @@ export function useProductSearch(): UseProductSearchReturn {
 
   useEffect(() => {
     const allPendingCodes = new Set(previousStoreCodes);
-    
+
     selectedProducts.forEach(code => {
       allPendingCodes.add(code);
     });
-    
+
     setPendingProductCodes(allPendingCodes);
     console.log('📦 [useProductSearch] Updated pending codes:', {
       fromStore: previousStoreCodes.size,
@@ -96,10 +96,21 @@ export function useProductSearch(): UseProductSearchReturn {
     setError(null);
 
     try {
+      // Nettoyage intelligent de la requête
+      let cleanQuery = query.trim();
+
+      // Si la requête ne contient que des chiffres et des espaces (cas typique copier-coller EAN)
+      // et qu'elle a une longueur significative (ex: > 5 chars)
+      // On enlève tous les espaces pour reconstituer le code
+      if (/^[\d\s]+$/.test(cleanQuery) && cleanQuery.replace(/\s/g, '').length > 5) {
+        console.log('🧹 [useProductSearch] Detected potential EAN with spaces, cleaning...');
+        cleanQuery = cleanQuery.replace(/\s/g, '');
+      }
+
       console.log('🔍 [useProductSearch] Starting search:', {
-        query: query.trim(),
-        length: query.trim().length,
-        type: query.startsWith('*') ? 'code_end' : /^\d+$/.test(query) ? 'code_start' : 'keywords'
+        original: query,
+        cleaned: cleanQuery,
+        type: cleanQuery.startsWith('*') ? 'code_end' : /^\d+$/.test(cleanQuery) ? 'code_start' : 'keywords'
       });
 
       const response = await fetch('/api/products/search', {
@@ -107,8 +118,8 @@ export function useProductSearch(): UseProductSearchReturn {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          query: query.trim()
+        body: JSON.stringify({
+          query: cleanQuery
         }),
       });
 
@@ -118,7 +129,7 @@ export function useProductSearch(): UseProductSearchReturn {
       }
 
       const data: SearchResponse = await response.json();
-      
+
       console.log('✅ [useProductSearch] Search results:', {
         count: data.count,
         queryTime: data.queryTime,
@@ -126,7 +137,7 @@ export function useProductSearch(): UseProductSearchReturn {
         firstResult: data.products?.[0]?.name ?? 'N/A',
         allResults: data.products?.map(p => p.name).slice(0, 5) ?? []
       });
-      
+
       setProducts(data.products || []);
 
     } catch (err) {
@@ -143,7 +154,7 @@ export function useProductSearch(): UseProductSearchReturn {
     console.log('🚀 [useProductSearch] Starting BULK API search for', codes.length, 'codes');
     setIsBulkSearching(true);
     setError(null);
-    
+
     try {
       const cleanCodes = codes
         .map(code => code.trim())
@@ -165,7 +176,7 @@ export function useProductSearch(): UseProductSearchReturn {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           codes: cleanCodes
         }),
       });
@@ -176,7 +187,7 @@ export function useProductSearch(): UseProductSearchReturn {
       }
 
       const result: BulkSearchResponse = await response.json();
-      
+
       console.log('🎯 [useProductSearch] BULK API search complete:', {
         found: result.found.length,
         notFound: result.notFound.length,
@@ -184,9 +195,9 @@ export function useProductSearch(): UseProductSearchReturn {
         queryTime: `${result.queryTime}ms`,
         performance: result.queryTime < 500 ? '🚀 EXCELLENT' : result.queryTime < 1000 ? '✅ GOOD' : '⚠️ SLOW'
       });
-      
+
       return result;
-      
+
     } catch (err) {
       console.error('❌ [useProductSearch] Bulk search error:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors de la recherche bulk');
@@ -199,7 +210,7 @@ export function useProductSearch(): UseProductSearchReturn {
   // FONCTION : Sélectionner plusieurs produits d'un coup
   const bulkSelectProducts = useCallback((products: Product[]) => {
     console.log('✅ [useProductSearch] Bulk selecting', products.length, 'products');
-    
+
     setSelectedProducts(prev => {
       const newSet = new Set(prev);
       products.forEach(product => {
@@ -207,7 +218,7 @@ export function useProductSearch(): UseProductSearchReturn {
       });
       return newSet;
     });
-    
+
     // Ajouter les produits trouvés à la liste pour applyFilters
     setProducts(prevProducts => {
       const existingCodes = new Set(prevProducts.map(p => p.code_13_ref));
@@ -234,7 +245,7 @@ export function useProductSearch(): UseProductSearchReturn {
 
   const toggleProduct = useCallback((code: string) => {
     console.log('🔄 [useProductSearch] Toggle product:', code);
-    
+
     setSelectedProducts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(code)) {
@@ -256,7 +267,7 @@ export function useProductSearch(): UseProductSearchReturn {
 
   const applyFilters = useCallback(() => {
     console.log('✅ [useProductSearch] Applying filters to store with names');
-    
+
     const newProductsInfo: SelectedProduct[] = [];
     const allProductCodes: string[] = [];
 
@@ -267,7 +278,7 @@ export function useProductSearch(): UseProductSearchReturn {
 
     selectedProducts.forEach(code => {
       const productInfo = products.find(product => product.code_13_ref === code);
-      
+
       if (productInfo && !newProductsInfo.some(existing => existing.code === code)) {
         const newProduct: SelectedProduct = {
           name: productInfo.name,
@@ -275,7 +286,7 @@ export function useProductSearch(): UseProductSearchReturn {
           ...(productInfo.brand_lab && { brandLab: productInfo.brand_lab }),
           ...(productInfo.universe && { universe: productInfo.universe })
         };
-        
+
         newProductsInfo.push(newProduct);
         allProductCodes.push(code);
       }
@@ -283,7 +294,7 @@ export function useProductSearch(): UseProductSearchReturn {
 
     const setProductFiltersWithNames = useFiltersStore.getState().setProductFiltersWithNames;
     setProductFiltersWithNames(allProductCodes, newProductsInfo);
-    
+
     console.log('📊 Applied products to store:', {
       totalProducts: newProductsInfo.length,
       totalCodes: allProductCodes.length,
@@ -298,7 +309,7 @@ export function useProductSearch(): UseProductSearchReturn {
     console.log('🗑️ [useProductSearch] Clear ALL product filters');
     const clearProductFilters = useFiltersStore.getState().clearProductFilters;
     clearProductFilters();
-    
+
     setSelectedProducts(new Set());
     setPendingProductCodes(new Set());
     setPreviousStoreCodes(new Set());
