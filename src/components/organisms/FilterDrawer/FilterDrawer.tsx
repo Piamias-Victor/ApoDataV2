@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Filter } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { TvaRateFilter } from '@/components/atoms/TvaRateFilter/TvaRateFilter';
+import { ProductTypeFilter } from '@/components/atoms/ProductTypeFilter/ProductTypeFilter';
 
 interface FilterDrawerProps {
     readonly isOpen: boolean;
@@ -20,21 +21,27 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 }) => {
     const tvaRates = useFiltersStore((state) => state.tvaRates);
     const setTvaRates = useFiltersStore((state) => state.setTvaRates);
+    const productType = useFiltersStore((state) => state.productType);
+    const setProductType = useFiltersStore((state) => state.setProductType);
 
     // État local pour les taux TVA (avant application)
     const [localTvaRates, setLocalTvaRates] = useState<number[]>(tvaRates);
+    const [localProductType, setLocalProductType] = useState<'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE'>(productType);
 
     // Sync avec le store quand le drawer s'ouvre
     useEffect(() => {
         if (isOpen) {
             setLocalTvaRates(tvaRates);
+            setLocalProductType(productType);
         }
-    }, [isOpen, tvaRates]);
+    }, [isOpen, tvaRates, productType]);
 
     // Calculer s'il y a des changements
     const hasChanges = () => {
-        if (localTvaRates.length !== tvaRates.length) return true;
-        return !localTvaRates.every(rate => tvaRates.includes(rate));
+        const tvaChanged = localTvaRates.length !== tvaRates.length ||
+            !localTvaRates.every(rate => tvaRates.includes(rate));
+        const typeChanged = localProductType !== productType;
+        return tvaChanged || typeChanged;
     };
 
     const changesCount = hasChanges() ? 1 : 0;
@@ -45,8 +52,12 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     }, [changesCount, onCountChange]);
 
     const handleApply = () => {
-        console.log('🎯 [FilterDrawer] Applying TVA rates:', localTvaRates);
+        console.log('🎯 [FilterDrawer] Applying filters:', {
+            tvaRates: localTvaRates,
+            productType: localProductType
+        });
         setTvaRates(localTvaRates);
+        setProductType(localProductType);
         onClose();
     };
 
@@ -90,8 +101,13 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                         <div className="flex items-center justify-between text-sm">
                             <div className="flex items-center space-x-4">
                                 <span className="text-gray-600">
-                                    <span className="font-medium text-indigo-600">{localTvaRates.length}</span> taux sélectionné{localTvaRates.length > 1 ? 's' : ''}
+                                    <span className="font-medium text-indigo-600">{localTvaRates.length}</span> taux TVA
                                 </span>
+                                {localProductType !== 'ALL' && (
+                                    <span className="text-gray-600">
+                                        <span className="font-medium text-indigo-600">1</span> type
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -104,6 +120,14 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                                 selectedRates={localTvaRates}
                                 onChange={setLocalTvaRates}
                             />
+
+                            {/* Section Type de Produit */}
+                            <div className="pt-4 border-t border-gray-200">
+                                <ProductTypeFilter
+                                    selectedType={localProductType}
+                                    onChange={setLocalProductType}
+                                />
+                            </div>
 
                             {/* 🔮 Espace pour futurs filtres */}
                             <div className="pt-4 border-t border-gray-200">
@@ -120,8 +144,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                             onClick={handleApply}
                             disabled={!hasChanges()}
                             className={`w-full py-3 rounded-lg font-medium transition-colors ${hasChanges()
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 }`}
                         >
                             Appliquer {hasChanges() && '(1 changement)'}

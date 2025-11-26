@@ -49,6 +49,7 @@ interface FilterState {
   readonly filterLogic: 'OR' | 'AND';
 
   readonly tvaRates: number[];
+  readonly productType: 'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE';
 
   readonly dateRange: {
     readonly start: string | null;
@@ -83,6 +84,9 @@ interface FilterActions {
 
   readonly setTvaRates: (rates: number[]) => void;
   readonly clearTvaRates: () => void;
+
+  readonly setProductType: (type: 'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE') => void;
+  readonly clearProductType: () => void;
 
   readonly setDateRange: (start: string | null, end: string | null) => void;
   readonly setAnalysisDateRange: (start: string, end: string) => void;
@@ -137,6 +141,7 @@ const initialState: FilterState = {
   selectedExcludedProducts: [],
   filterLogic: 'OR',
   tvaRates: [],
+  productType: 'ALL',
   dateRange: {
     start: null,
     end: null,
@@ -243,17 +248,29 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
         let result = Array.from(finalCodes);
 
-        // 5. 🔥 NOUVEAU - Appliquer le filtre TVA si des taux sont sélectionnés
-        if (state.tvaRates.length > 0 && result.length > 0) {
+        // 5. 🔥 NOUVEAU - Appliquer les filtres TVA et/ou type de produit
+        const hasTvaFilter = state.tvaRates.length > 0;
+        const hasProductTypeFilter = state.productType !== 'ALL';
+        const hasAnyFilter = hasTvaFilter || hasProductTypeFilter;
+
+        // Si on a des filtres actifs, on les applique :
+        // - Soit sur les codes sélectionnés (si result.length > 0)
+        // - Soit sur TOUS les produits (mode FILTERS_ONLY si result.length === 0)
+        if (hasAnyFilter) {
           try {
-            console.log('💰 [Store] Applying TVA filter:', state.tvaRates);
+            console.log('💰 [Store] Applying filters:', {
+              tvaRates: state.tvaRates,
+              productType: state.productType,
+              mode: result.length > 0 ? 'SELECTION' : 'FILTERS_ONLY'
+            });
 
             const response = await fetch('/api/filters/apply-tva', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                productCodes: result,
+                productCodes: result.length > 0 ? result : null, // null = TOUS les produits
                 tvaRates: state.tvaRates,
+                productType: state.productType,
                 dateRange: state.analysisDateRange,
                 pharmacyId: state.isPharmacyLocked ? state.pharmacy[0] : null
               })
@@ -261,20 +278,21 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
 
             if (response.ok) {
               const data = await response.json();
-              const beforeTva = result.length;
+              const beforeFilter = result.length;
               result = data.productCodes;
 
-              console.log('✅ [Store] TVA filter applied:', {
-                before: beforeTva,
+              console.log('✅ [Store] Filters applied:', {
+                before: beforeFilter,
                 after: result.length,
-                filtered: beforeTva - result.length,
-                tvaRates: state.tvaRates
+                filtered: beforeFilter - result.length,
+                tvaRates: state.tvaRates,
+                productType: state.productType
               });
             } else {
-              console.error('❌ [Store] TVA filter API error:', response.status);
+              console.error('❌ [Store] Filter API error:', response.status);
             }
           } catch (error) {
-            console.error('❌ [Store] TVA filter error:', error);
+            console.error('❌ [Store] Filter error:', error);
           }
         }
 
@@ -284,6 +302,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           labs: labProducts.size,
           categories: categoryProducts.size,
           tvaFiltered: state.tvaRates.length > 0,
+          productTypeFiltered: state.productType !== 'ALL',
           final: result.length,
           excluded: state.excludedProducts.length
         });
@@ -413,6 +432,18 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         get().recalculateProductCodes(); // 🔥 Recalcul auto
       },
 
+      setProductType: (type: 'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE') => {
+        console.log('💊 [Store] Setting product type:', type);
+        set({ productType: type });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
+      },
+
+      clearProductType: () => {
+        console.log('🗑️ [Store] Clearing product type');
+        set({ productType: 'ALL' });
+        get().recalculateProductCodes(); // 🔥 Recalcul auto
+      },
+
       setDateRange: (start: string | null, end: string | null) => {
         set({ dateRange: { start, end } });
       },
@@ -456,6 +487,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
             selectedExcludedProducts: [],
             filterLogic: 'OR',
             tvaRates: [],
+            productType: 'ALL',
             dateRange: { start: null, end: null },
             analysisDateRange: { start: freshDates.start, end: freshDates.end },
             comparisonDateRange: { start: null, end: null },
@@ -554,7 +586,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
     }),
     {
       name: 'apodata-filters',
-      version: 12,
+      version: 13,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           return {
@@ -629,6 +661,12 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
           return {
             ...persistedState,
             tvaRates: [],
+          };
+        }
+        if (version < 13) {
+          return {
+            ...persistedState,
+            productType: 'ALL',
           };
         }
         return persistedState;

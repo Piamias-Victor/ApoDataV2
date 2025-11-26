@@ -36,7 +36,7 @@ interface UseProductExclusionReturn {
   readonly clearExclusions: () => void;
   readonly pendingProductCodes: Set<string>;
   readonly getExcludedProductsFromStore: () => SelectedProduct[];
-  
+
   // Fonctions bulk
   readonly bulkSearchProducts: (codes: string[]) => Promise<BulkSearchResponse>;
   readonly isBulkSearching: boolean;
@@ -55,7 +55,7 @@ export function useProductExclusion(): UseProductExclusionReturn {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isBulkSearching, setIsBulkSearching] = useState(false);
-  
+
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [pendingProductCodes, setPendingProductCodes] = useState<Set<string>>(new Set());
   const [previousStoreCodes, setPreviousStoreCodes] = useState<Set<string>>(new Set());
@@ -69,7 +69,7 @@ export function useProductExclusion(): UseProductExclusionReturn {
   // Initialisation depuis le store
   useEffect(() => {
     console.log('🔄 [useProductExclusion] Initializing from store:', storedExcludedCodes.length);
-    
+
     const storedCodesSet = new Set(storedExcludedCodes);
     setPendingProductCodes(storedCodesSet);
     setPreviousStoreCodes(storedCodesSet);
@@ -78,11 +78,11 @@ export function useProductExclusion(): UseProductExclusionReturn {
   // Mise à jour des codes pending
   useEffect(() => {
     const allPendingCodes = new Set(previousStoreCodes);
-    
+
     selectedProducts.forEach(code => {
       allPendingCodes.add(code);
     });
-    
+
     setPendingProductCodes(allPendingCodes);
     console.log('🚫 [useProductExclusion] Updated pending exclusions:', {
       fromStore: previousStoreCodes.size,
@@ -174,7 +174,7 @@ export function useProductExclusion(): UseProductExclusionReturn {
 
   const applyExclusions = useCallback(() => {
     const codesArray = Array.from(pendingProductCodes);
-    
+
     // 🔥 Construire les infos complètes pour chaque produit exclu
     const productsInfo: SelectedProduct[] = codesArray.map(code => {
       // Chercher dans les produits sélectionnés actuels
@@ -187,13 +187,13 @@ export function useProductExclusion(): UseProductExclusionReturn {
           universe: productFromSearch.universe
         };
       }
-      
+
       // Chercher dans le store
       const productFromStore = storedExcludedProducts.find(p => p.code === code);
       if (productFromStore) {
         return productFromStore;
       }
-      
+
       // Fallback
       return {
         code,
@@ -222,7 +222,7 @@ export function useProductExclusion(): UseProductExclusionReturn {
   // 🔥 NOUVEAU - Recherche bulk pour import EAN13
   const bulkSearchProducts = useCallback(async (codes: string[]): Promise<BulkSearchResponse> => {
     setIsBulkSearching(true);
-    
+
     try {
       const startTime = Date.now();
       const response = await fetch('/api/products/bulk-search', {
@@ -256,19 +256,31 @@ export function useProductExclusion(): UseProductExclusionReturn {
   }, []);
 
   // 🔥 NOUVEAU - Sélection bulk (pour import)
+  // 🔥 NOUVEAU - Sélection bulk (pour import)
   const bulkSelectProducts = useCallback((productsToSelect: Product[]) => {
+    // 1. Ajouter à la sélection
     setSelectedProducts(prev => {
       const newSelection = new Set(prev);
       productsToSelect.forEach((product: Product) => {
         newSelection.add(product.code_13_ref);
       });
-      
-      console.log('➕ [useProductExclusion] Bulk selection:', {
-        added: productsToSelect.length,
-        total: newSelection.size
-      });
-      
       return newSelection;
+    });
+
+    // 2. Ajouter aux produits connus (pour que applyExclusions puisse les retrouver)
+    setProducts(prevProducts => {
+      const newProducts = [...prevProducts];
+      productsToSelect.forEach(newProduct => {
+        if (!newProducts.some(p => p.code_13_ref === newProduct.code_13_ref)) {
+          newProducts.push(newProduct);
+        }
+      });
+      return newProducts;
+    });
+
+    console.log('➕ [useProductExclusion] Bulk selection applied:', {
+      count: productsToSelect.length,
+      productsUpdated: true
     });
   }, []);
 
