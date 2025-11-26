@@ -174,13 +174,8 @@ export const FilterBar: React.FC = () => {
     return selectedExcludedProducts?.length || 0;
   }, [selectedExcludedProducts]);
 
-  const showLogicToggle = useMemo(() => {
-    const hasCategories = (selectedCategories?.length || 0) > 0;
-    const hasLaboratories = (selectedLaboratories?.length || 0) > 0;
-    const hasMultipleCategories = (selectedCategories?.length || 0) > 1;
-
-    return hasMultipleCategories || (hasCategories && hasLaboratories);
-  }, [selectedCategories, selectedLaboratories]);
+  // 🔥 Bouton ET/OU toujours visible
+  const showLogicToggle = true;
 
   const formatDateRange = useMemo(() => {
     if (!analysisDateRange?.start || !analysisDateRange?.end) return null;
