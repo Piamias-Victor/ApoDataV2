@@ -7,13 +7,13 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Badge } from '@/components/atoms/Badge/Badge';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Euro, 
-  Package2, 
-  ChevronDown, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Euro,
+  Package2,
+  ChevronDown,
+  LogOut,
   GitCompareArrows,
   Loader2,
   Building2,
@@ -75,7 +75,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -88,21 +88,21 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
 
   const handleNavigation = async (href: string): Promise<void> => {
     if (pathname === href) return;
-    
+
     try {
       setIsNavigating(true);
       setTargetRoute(href);
       setIsMobileMenuOpen(false);
       setActiveDropdown(null);
-      
+
       await router.prefetch(href);
       router.push(href);
-      
+
       setTimeout(() => {
         setIsNavigating(false);
         setTargetRoute(null);
       }, 5000);
-      
+
     } catch (error) {
       console.error('Navigation error:', error);
       setIsNavigating(false);
@@ -131,14 +131,14 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
 
   // Vérifier si un item du groupe est actif
   const isGroupActive = (group: NavigationGroup): boolean => {
-    return group.items.some(item => 
+    return group.items.some(item =>
       pathname === item.href || pathname.startsWith(item.href + '/')
     );
   };
 
   // Obtenir l'item actif d'un groupe
   const getActiveItemInGroup = (group: NavigationGroup): NavigationItem | undefined => {
-    return group.items.find(item => 
+    return group.items.find(item =>
       pathname === item.href || pathname.startsWith(item.href + '/')
     );
   };
@@ -158,7 +158,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
       >
         <div className="container-apodata">
           <div className="flex items-center justify-between h-16">
-            
+
             {/* Logo */}
             <div className="flex items-center">
               <motion.div
@@ -178,7 +178,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                 const groupActive = isGroupActive(group);
                 const activeItem = getActiveItemInGroup(group);
                 const isOpen = activeDropdown === group.name;
-                
+
                 return (
                   <div key={group.name} className="relative">
                     <motion.button
@@ -191,7 +191,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                         flex items-center space-x-2 px-4 py-2 rounded-lg
                         transition-all duration-200 relative
                         ${groupActive
-                          ? 'text-blue-600 bg-blue-50 border border-blue-200' 
+                          ? 'text-blue-600 bg-blue-50 border border-blue-200'
                           : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
                         }
                         ${isNavigating ? 'opacity-50 cursor-not-allowed' : ''}
@@ -218,8 +218,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                     <AnimatePresence>
                       {isOpen && (
                         <>
-                          <div 
-                            className="fixed inset-0 z-40" 
+                          <div
+                            className="fixed inset-0 z-40"
                             onClick={() => setActiveDropdown(null)}
                           />
                           <motion.div
@@ -238,7 +238,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                               {group.items.map((item) => {
                                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                                 const isLoadingThis = isNavigating && targetRoute === item.href;
-                                
+
                                 return (
                                   <motion.button
                                     key={item.name}
@@ -247,8 +247,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                                     className={`
                                       w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg
                                       transition-colors duration-200 text-left
-                                      ${isActive 
-                                        ? 'bg-blue-50 text-blue-600' 
+                                      ${isActive
+                                        ? 'bg-blue-50 text-blue-600'
                                         : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
                                       }
                                       ${isNavigating ? 'opacity-50' : ''}
@@ -316,8 +316,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                   <AnimatePresence>
                     {userMenuOpen && (
                       <>
-                        <div 
-                          className="fixed inset-0 z-40" 
+                        <div
+                          className="fixed inset-0 z-40"
                           onClick={() => setUserMenuOpen(false)}
                         />
                         <motion.div
@@ -342,8 +342,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                                   {session.user.email}
                                 </div>
                                 <div className="mt-1">
-                                  <Badge 
-                                    variant={getRoleBadgeVariant(session.user.role)} 
+                                  <Badge
+                                    variant={getRoleBadgeVariant(session.user.role)}
                                     size="xs"
                                   >
                                     {session.user.role}
@@ -351,7 +351,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                                 </div>
                               </div>
                             </div>
-                            
+
                             {session.user.pharmacyName && (
                               <div className="mt-3 pt-3 border-t border-gray-100/50">
                                 <div className="text-xs text-gray-500">Pharmacie</div>
@@ -361,8 +361,31 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="p-2">
+                            {session.user.role === 'admin' && (
+                              <motion.button
+                                onClick={() => {
+                                  setUserMenuOpen(false);
+                                  handleNavigation('/admin/pharmacies');
+                                }}
+                                className="
+                                  w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg
+                                  text-gray-700 hover:bg-blue-50 hover:text-blue-600
+                                  transition-colors duration-200 text-left
+                                "
+                                whileHover={{ x: 2 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <span className="w-4 h-4 flex-shrink-0">
+                                  <Building2 className="w-full h-full" />
+                                </span>
+                                <span className="text-sm font-medium">
+                                  Gérer les comptes
+                                </span>
+                              </motion.button>
+                            )}
+
                             <motion.button
                               onClick={handleLogout}
                               className="
@@ -420,7 +443,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                 <div className="py-4 space-y-4">
                   {navigationGroups.map((group) => {
                     const groupActive = isGroupActive(group);
-                    
+
                     return (
                       <div key={group.name} className="px-4">
                         <div className="flex items-center space-x-2 mb-2">
@@ -436,7 +459,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                           {group.items.map((item) => {
                             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                             const isLoadingThis = isNavigating && targetRoute === item.href;
-                            
+
                             return (
                               <motion.button
                                 key={item.name}
@@ -445,8 +468,8 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                                 className={`
                                   w-full flex items-center space-x-3 px-3 py-2 rounded-lg
                                   transition-colors duration-200 text-left
-                                  ${isActive 
-                                    ? 'bg-blue-50 text-blue-600' 
+                                  ${isActive
+                                    ? 'bg-blue-50 text-blue-600'
                                     : 'text-gray-700 hover:bg-gray-50'
                                   }
                                   ${isNavigating ? 'opacity-50' : ''}
@@ -478,14 +501,32 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                           {session.user.email}
                         </div>
                         <div className="mt-1">
-                          <Badge 
-                            variant={getRoleBadgeVariant(session.user.role)} 
+                          <Badge
+                            variant={getRoleBadgeVariant(session.user.role)}
                             size="xs"
                           >
                             {session.user.role}
                           </Badge>
                         </div>
                       </div>
+
+                      {session.user.role === 'admin' && (
+                        <motion.button
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            handleNavigation('/admin/pharmacie');
+                          }}
+                          className="
+                            w-full flex items-center space-x-3 px-3 py-2 rounded-lg
+                            text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200 text-left
+                          "
+                          whileHover={{ x: 4 }}
+                        >
+                          <Building2 className="w-4 h-4" />
+                          <span className="text-sm font-medium">Gérer les comptes</span>
+                        </motion.button>
+                      )}
+
                       <motion.button
                         onClick={handleLogout}
                         className="
@@ -509,7 +550,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
 
       {/* Filter Bar */}
       <FilterBar />
-      
+
       {/* Loading Overlay - En dehors du header pour un positionnement correct */}
       <AnimatePresence>
         {isNavigating && (
@@ -531,15 +572,15 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ className = ''
                 <div className="mb-4">
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
                 </div>
-                
+
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Chargement en cours...
                 </h3>
-                
+
                 <p className="text-gray-600 text-sm leading-relaxed">
                   Vos données seront disponibles dans quelques instants.
                 </p>
-                
+
                 <div className="mt-4 flex items-center justify-center space-x-1">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
