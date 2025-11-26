@@ -22,10 +22,10 @@ export type ViewMode = 'totals' | 'averages';
 
 export type SortDirection = 'asc' | 'desc' | null;
 
-export type SortableColumn = 
+export type SortableColumn =
   | 'product_name'
   | 'bcb_lab'
-  | 'code_ean' 
+  | 'code_ean'
   | 'current_stock'
   | 'quantity_sold'
   | 'quantity_sold_evolution'
@@ -37,7 +37,8 @@ export type SortableColumn =
   | 'margin_rate_percent'
   | 'avg_sell_price_ttc'
   | 'avg_buy_price_ht'
-  | 'unit_margin_ht';
+  | 'unit_margin_ht'
+  | 'days_stock';
 
 export interface SortConfig {
   readonly column: SortableColumn | null;

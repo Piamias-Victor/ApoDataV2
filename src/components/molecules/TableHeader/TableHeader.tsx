@@ -18,7 +18,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
 }) => {
   const getSortIcon = (column: SortableColumn) => {
     if (sortConfig.column !== column) return null;
-    
+
     return sortConfig.direction === 'asc' ? (
       <ChevronUp className="w-2.5 h-2.5" />
     ) : (
@@ -34,7 +34,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
     <thead className="bg-gray-50">
       <tr>
         {/* Code EAN */}
-        <th 
+        <th
           className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={() => handleSort('code_ean')}
         >
@@ -45,7 +45,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
         </th>
 
         {/* Nom produit */}
-        <th 
+        <th
           className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={() => handleSort('product_name')}
         >
@@ -56,7 +56,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
         </th>
 
         {/* Laboratoire */}
-        <th 
+        <th
           className="px-1.5 py-1.5 text-left text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
           onClick={() => handleSort('bcb_lab')}
         >
@@ -69,7 +69,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
         {viewMode === 'totals' ? (
           <>
             {/* CA TTC */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('ca_ttc')}
             >
@@ -80,7 +80,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Évolution CA */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('ca_ttc_evolution')}
             >
@@ -91,7 +91,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Quantité vendue */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_sold')}
             >
@@ -102,7 +102,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Évolution Qté */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_sold_evolution')}
             >
@@ -113,7 +113,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Quantité achetée */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_bought')}
             >
@@ -124,7 +124,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Montant achat */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('purchase_amount')}
             >
@@ -135,7 +135,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Stock actuel */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('current_stock')}
             >
@@ -146,7 +146,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Marge totale HT */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('total_margin_ht')}
             >
@@ -157,7 +157,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Taux marge */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('margin_rate_percent')}
             >
@@ -168,14 +168,20 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Jours stock */}
-            <th className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-              <span>J.Stk</span>
+            <th
+              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+              onClick={() => handleSort('days_stock')}
+            >
+              <div className="flex items-center justify-end space-x-0.5">
+                <span>J.Stk</span>
+                {getSortIcon('days_stock')}
+              </div>
             </th>
           </>
         ) : (
           <>
             {/* Prix moyen vente TTC */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('avg_sell_price_ttc')}
             >
@@ -186,7 +192,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Prix moyen achat HT */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('avg_buy_price_ht')}
             >
@@ -197,7 +203,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Quantité vendue */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_sold')}
             >
@@ -208,7 +214,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Évolution */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('quantity_sold_evolution')}
             >
@@ -219,7 +225,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Marge unitaire HT */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('unit_margin_ht')}
             >
@@ -230,7 +236,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Taux marge */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('margin_rate_percent')}
             >
@@ -241,7 +247,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
             </th>
 
             {/* Stock actuel */}
-            <th 
+            <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
               onClick={() => handleSort('current_stock')}
             >
