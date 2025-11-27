@@ -10,16 +10,16 @@ import { Badge } from '@/components/atoms/Badge/Badge';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
-import type { 
-  PharmacyMetrics, 
-  SortConfig, 
-  SortableColumn, 
+import type {
+  PharmacyMetrics,
+  SortConfig,
+  SortableColumn,
   SortDirection,
-  PaginationInfo 
+  PaginationInfo
 } from './types';
-import { 
-  sortPharmacies, 
-  filterPharmacies, 
+import {
+  sortPharmacies,
+  filterPharmacies,
   paginatePharmacies,
   formatCurrency,
   formatPercentage,
@@ -53,7 +53,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
     direction: 'desc'
   });
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const itemsPerPage = 50;
   const { exportToCsv, isExporting } = useExportCsv();
 
@@ -63,7 +63,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
         const newDirection: SortDirection = prev.direction === 'asc' ? 'desc' : 'asc';
         return { column, direction: newDirection };
       }
-      
+
       return {
         column,
         direction: column === 'pharmacy_name' ? 'asc' : 'desc'
@@ -79,21 +79,21 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
   const processedDataBeforePagination = useMemo(() => {
     const filteredPharmacies = filterPharmacies(pharmacies, searchQuery);
     const sortedPharmacies = sortPharmacies(
-      filteredPharmacies, 
+      filteredPharmacies,
       sortConfig.column || 'ca_ventes',
       sortConfig.direction
     );
-    
+
     return sortedPharmacies;
   }, [pharmacies, searchQuery, sortConfig]);
 
   const processedData = useMemo(() => {
     const paginationResult = paginatePharmacies(
-      processedDataBeforePagination, 
-      currentPage, 
+      processedDataBeforePagination,
+      currentPage,
       itemsPerPage
     );
-    
+
     const paginationInfo: PaginationInfo = {
       totalItems: processedDataBeforePagination.length,
       totalPages: paginationResult.totalPages,
@@ -110,13 +110,15 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
 
   const prepareDataForExport = useCallback(() => {
     if (!processedDataBeforePagination || processedDataBeforePagination.length === 0) return [];
-    
+
     return processedDataBeforePagination.map(pharmacy => ({
       'Nom Pharmacie': pharmacy.pharmacy_name || '',
       'Rang Ventes': pharmacy.rang_ventes_actuel !== 999999 ? pharmacy.rang_ventes_actuel : 'N/A',
       'Rang Précédent': pharmacy.rang_ventes_precedent || 'N/A',
       'Gain Rang': pharmacy.gain_rang_ventes !== null ? pharmacy.gain_rang_ventes : 'N/A',
+      'Qté Achetée': pharmacy.quantite_achetee || 0,
       'CA Achats (€)': Number(pharmacy.ca_achats || 0).toFixed(2),
+      'Qté Vendue': pharmacy.quantite_vendue || 0,
       'CA Ventes (€)': Number(pharmacy.ca_ventes || 0).toFixed(2),
       'Évol Achats (%)': pharmacy.evol_achats_pct !== null ? Number(pharmacy.evol_achats_pct).toFixed(2) : 'N/A',
       'Évol Ventes (%)': pharmacy.evol_ventes_pct !== null ? Number(pharmacy.evol_ventes_pct).toFixed(2) : 'N/A',
@@ -128,15 +130,15 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
 
   const handleExport = useCallback(() => {
     const exportData = prepareDataForExport();
-    
+
     if (exportData.length === 0) {
       console.warn('Aucune donnée à exporter');
       return;
     }
-    
+
     const filename = CsvExporter.generateFilename('apodata_pharmacies_analytics');
     const headers = Object.keys(exportData[0] || {});
-    
+
     exportToCsv({ filename, headers, data: exportData });
   }, [prepareDataForExport, exportToCsv]);
 
@@ -156,7 +158,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
     if (sortConfig.column !== column) {
       return <ChevronUp className="w-3 h-3 text-gray-400" />;
     }
-    return sortConfig.direction === 'asc' 
+    return sortConfig.direction === 'asc'
       ? <ChevronUp className="w-3 h-3 text-blue-600" />
       : <ChevronDown className="w-3 h-3 text-blue-600" />;
   };
@@ -171,21 +173,21 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
 
   return (
     <div className={`space-y-4 ${className}`}>
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
             {processedData.pagination.totalItems} pharmacie{processedData.pagination.totalItems !== 1 ? 's' : ''}
           </div>
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
             disabled={!pharmacies || pharmacies.length === 0}
             label={`Export CSV (${processedDataBeforePagination.length} lignes)`}
           />
-          
+
           {onRefresh && (
             <Button
               variant="ghost"
@@ -193,8 +195,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
               onClick={handleRefresh}
               disabled={isLoading}
               iconLeft={
-                <RotateCcw 
-                  className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} 
+                <RotateCcw
+                  className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
                 />
               }
               className="text-gray-600 hover:text-gray-900"
@@ -203,7 +205,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
             </Button>
           )}
         </div>
-        
+
         <SearchBar
           placeholder="Rechercher une pharmacie..."
           onSearch={handleSearch}
@@ -216,7 +218,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th 
+                <th
                   onClick={() => handleSort('pharmacy_name')}
                   className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -225,8 +227,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="pharmacy_name" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('rang_ventes_actuel')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
@@ -235,8 +237,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="rang_ventes_actuel" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('gain_rang_ventes')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
@@ -245,8 +247,18 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="gain_rang_ventes" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
+                  onClick={() => handleSort('quantite_achetee')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Qté.A</span>
+                    <SortIcon column="quantite_achetee" />
+                  </div>
+                </th>
+
+                <th
                   onClick={() => handleSort('ca_achats')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -255,8 +267,18 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="ca_achats" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
+                  onClick={() => handleSort('quantite_vendue')}
+                  className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center justify-end space-x-1">
+                    <span>Qté.V</span>
+                    <SortIcon column="quantite_vendue" />
+                  </div>
+                </th>
+
+                <th
                   onClick={() => handleSort('ca_ventes')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -265,8 +287,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="ca_ventes" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('evol_achats_pct')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
                 >
@@ -275,8 +297,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="evol_achats_pct" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('evol_ventes_pct')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
                 >
@@ -285,8 +307,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="evol_ventes_pct" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('evol_relative_achats_pct')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
                 >
@@ -295,8 +317,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="evol_relative_achats_pct" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('evol_relative_ventes_pct')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
                 >
@@ -305,8 +327,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="evol_relative_ventes_pct" />
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   onClick={() => handleSort('pourcentage_marge')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
@@ -315,13 +337,14 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                     <SortIcon column="pourcentage_marge" />
                   </div>
                 </th>
+
               </tr>
             </thead>
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       <span>Chargement des pharmacies...</span>
@@ -330,8 +353,8 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                 </tr>
               ) : processedData.pharmacies.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
-                    {searchQuery 
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
+                    {searchQuery
                       ? `Aucune pharmacie trouvée pour "${searchQuery}"`
                       : 'Aucune pharmacie disponible'
                     }
@@ -339,24 +362,23 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                 </tr>
               ) : (
                 processedData.pharmacies.map((pharmacy, index) => (
-                  <tr 
-                    key={pharmacy.pharmacy_id} 
-                    className={`transition-colors ${
-                      index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
-                    }`}
+                  <tr
+                    key={pharmacy.pharmacy_id}
+                    className={`transition-colors ${index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
+                      }`}
                   >
                     <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
                       <div className="max-w-[200px] truncate" title={pharmacy.pharmacy_name}>
                         {pharmacy.pharmacy_name}
                       </div>
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       <span className="text-[11px] text-gray-900 font-medium">
                         {formatRang(pharmacy.rang_ventes_actuel)}
                       </span>
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       {pharmacy.gain_rang_ventes !== null ? (
                         <Badge variant={getRangVariant(pharmacy.gain_rang_ventes)}>
@@ -368,15 +390,23 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         <span className="text-gray-400 text-[10px]">N/A</span>
                       )}
                     </td>
-                    
+
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                      {pharmacy.quantite_achetee?.toLocaleString('fr-FR') || 0}
+                    </td>
+
                     <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatCurrency(pharmacy.ca_achats)}
                     </td>
-                    
+
+                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                      {pharmacy.quantite_vendue?.toLocaleString('fr-FR') || 0}
+                    </td>
+
                     <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {formatCurrency(pharmacy.ca_ventes)}
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       {pharmacy.evol_achats_pct !== null ? (
                         <Badge variant={getEvolutionVariant(pharmacy.evol_achats_pct)}>
@@ -388,7 +418,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         <span className="text-gray-400 text-[10px]">N/A</span>
                       )}
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       {pharmacy.evol_ventes_pct !== null ? (
                         <Badge variant={getEvolutionVariant(pharmacy.evol_ventes_pct)}>
@@ -400,7 +430,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         <span className="text-gray-400 text-[10px]">N/A</span>
                       )}
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       {pharmacy.evol_relative_achats_pct !== null ? (
                         <Badge variant={getEvolutionVariant(pharmacy.evol_relative_achats_pct)}>
@@ -412,7 +442,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         <span className="text-gray-400 text-[10px]">N/A</span>
                       )}
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       {pharmacy.evol_relative_ventes_pct !== null ? (
                         <Badge variant={getEvolutionVariant(pharmacy.evol_relative_ventes_pct)}>
@@ -424,7 +454,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         <span className="text-gray-400 text-[10px]">N/A</span>
                       )}
                     </td>
-                    
+
                     <td className="px-2 py-2 text-center">
                       <Badge variant={getMarginVariant(pharmacy.pourcentage_marge)}>
                         <span className="text-[10px] font-semibold">
@@ -432,6 +462,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                         </span>
                       </Badge>
                     </td>
+
                   </tr>
                 ))
               )}
@@ -446,7 +477,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {processedData.pagination.totalPages} ({processedData.pagination.totalItems} pharmacies)
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -457,7 +488,7 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
             >
               Précédent
             </Button>
-            
+
             <Button
               variant="secondary"
               size="sm"

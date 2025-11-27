@@ -14,9 +14,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' && 
-                     process.env.UPSTASH_REDIS_REST_URL && 
-                     process.env.UPSTASH_REDIS_REST_TOKEN;
+const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN;
 const CACHE_TTL = 43200; // 12 heures
 
 interface PharmaciesAnalyticsRequest {
@@ -37,29 +37,30 @@ interface PharmaciesAnalyticsRequest {
 interface PharmacyMetrics {
   readonly pharmacy_id: string;
   readonly pharmacy_name: string;
-  
+
   // Rangs
   readonly rang_ventes_actuel: number;
   readonly rang_ventes_precedent: number | null;
   readonly gain_rang_ventes: number | null;
-  
+
   // Achats
   readonly ca_achats: number;
   readonly ca_achats_comparison: number | null;
   readonly evol_achats_pct: number | null;
   readonly evol_relative_achats_pct: number | null;
-  
+
   // Ventes
   readonly ca_ventes: number;
   readonly ca_ventes_comparison: number | null;
   readonly evol_ventes_pct: number | null;
   readonly evol_relative_ventes_pct: number | null;
-  
+
   // Marge
   readonly pourcentage_marge: number;
-  
+
   // Données complémentaires (optionnel pour export)
   readonly quantite_vendue: number;
+  readonly quantite_achetee: number;
   readonly valeur_stock_ht: number;
   readonly part_marche_pct: number;
 }
@@ -73,10 +74,10 @@ interface PharmaciesAnalyticsResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
-  
+
   try {
     console.log('🔥 [API] Pharmacies Analytics called');
-    
+
     const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== 'admin') {
       console.log('❌ [API] Unauthorized - Admin only');
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body: PharmaciesAnalyticsRequest = await request.json();
     console.log('📥 [API] Request body:', body);
-    
+
     if (!body.dateRange?.start || !body.dateRange?.end) {
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
@@ -180,17 +181,17 @@ async function executePharmaciesAnalyticsQuery(
   hasPharmacyFilter: boolean = false,
   comparisonDateRange?: { start: string; end: string }
 ): Promise<PharmacyMetrics[]> {
-  
+
   const productFilter = hasProductFilter ? 'AND ip.code_13_ref_id = ANY($3::text[])' : '';
-  const pharmacyFilterMain = hasPharmacyFilter ? 
+  const pharmacyFilterMain = hasPharmacyFilter ?
     (hasProductFilter ? 'AND ip.pharmacy_id = ANY($4::uuid[])' : 'AND ip.pharmacy_id = ANY($3::uuid[])') : '';
 
   const params: any[] = [dateRange.start, dateRange.end];
-  
+
   if (hasProductFilter) {
     params.push(productCodes);
   }
-  
+
   if (hasPharmacyFilter) {
     params.push(pharmacyIds);
   }
@@ -202,21 +203,25 @@ async function executePharmaciesAnalyticsQuery(
       SELECT 
         dp.id as pharmacy_id,
         dp.name as pharmacy_name,
-        COALESCE(SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)), 0) as ca_achats
+        COALESCE(SUM(valid_purchases.qte_r * COALESCE(closest_snap.weighted_average_price, 0)), 0) as ca_achats,
+        COALESCE(SUM(valid_purchases.qte_r), 0) as quantite_achetee
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
-      LEFT JOIN data_productorder po ON ip.id = po.product_id
-      LEFT JOIN data_order o ON po.order_id = o.id 
-        AND o.delivery_date >= $1::date 
-        AND o.delivery_date <= $2::date
-        AND o.delivery_date IS NOT NULL
-        AND po.qte_r > 0
+      LEFT JOIN (
+        SELECT po.product_id, po.qte_r, o.delivery_date
+        FROM data_productorder po
+        JOIN data_order o ON po.order_id = o.id
+        WHERE o.delivery_date >= $1::date 
+          AND o.delivery_date <= $2::date
+          AND o.delivery_date IS NOT NULL
+          AND po.qte_r > 0
+      ) valid_purchases ON ip.id = valid_purchases.product_id
       LEFT JOIN LATERAL (
         SELECT weighted_average_price
         FROM data_inventorysnapshot ins2
-        WHERE ins2.product_id = po.product_id
+        WHERE ins2.product_id = valid_purchases.product_id
           AND ins2.weighted_average_price > 0
-        ORDER BY ABS(EXTRACT(EPOCH FROM (ins2.date::timestamp - o.delivery_date::timestamp)))
+        ORDER BY ABS(EXTRACT(EPOCH FROM (ins2.date::timestamp - valid_purchases.delivery_date::timestamp)))
         LIMIT 1
       ) closest_snap ON true
       WHERE 1=1
@@ -274,21 +279,24 @@ async function executePharmaciesAnalyticsQuery(
     pharmacy_achats_comparison AS (
       SELECT 
         dp.id as pharmacy_id,
-        COALESCE(SUM(po.qte_r * COALESCE(closest_snap.weighted_average_price, 0)), 0) as ca_achats_comparison
+        COALESCE(SUM(valid_purchases_comp.qte_r * COALESCE(closest_snap.weighted_average_price, 0)), 0) as ca_achats_comparison
       FROM data_pharmacy dp
       LEFT JOIN data_internalproduct ip ON dp.id = ip.pharmacy_id
-      LEFT JOIN data_productorder po ON ip.id = po.product_id
-      LEFT JOIN data_order o ON po.order_id = o.id 
-        AND o.delivery_date >= '${comparisonDateRange.start}'::date 
-        AND o.delivery_date <= '${comparisonDateRange.end}'::date
-        AND o.delivery_date IS NOT NULL
-        AND po.qte_r > 0
+      LEFT JOIN (
+        SELECT po.product_id, po.qte_r, o.delivery_date
+        FROM data_productorder po
+        JOIN data_order o ON po.order_id = o.id
+        WHERE o.delivery_date >= '${comparisonDateRange.start}'::date 
+          AND o.delivery_date <= '${comparisonDateRange.end}'::date
+          AND o.delivery_date IS NOT NULL
+          AND po.qte_r > 0
+      ) valid_purchases_comp ON ip.id = valid_purchases_comp.product_id
       LEFT JOIN LATERAL (
         SELECT weighted_average_price
         FROM data_inventorysnapshot ins2
-        WHERE ins2.product_id = po.product_id
+        WHERE ins2.product_id = valid_purchases_comp.product_id
           AND ins2.weighted_average_price > 0
-        ORDER BY ABS(EXTRACT(EPOCH FROM (ins2.date::timestamp - o.delivery_date::timestamp)))
+        ORDER BY ABS(EXTRACT(EPOCH FROM (ins2.date::timestamp - valid_purchases_comp.delivery_date::timestamp)))
         LIMIT 1
       ) closest_snap ON true
       WHERE 1=1
@@ -451,6 +459,7 @@ async function executePharmaciesAnalyticsQuery(
       
       -- Données complémentaires
       COALESCE(pv.quantite_vendue, 0) as quantite_vendue,
+      COALESCE(pa.quantite_achetee, 0) as quantite_achetee,
       COALESCE(pv.valeur_stock_ht, 0) as valeur_stock_ht,
       CASE 
         WHEN gt.ca_ventes_total > 0 
@@ -499,7 +508,7 @@ function generateCacheKey(params: {
     hasProductFilter: params.hasProductFilter,
     hasPharmacyFilter: params.hasPharmacyFilter
   });
-  
+
   const hash = crypto.createHash('md5').update(data).digest('hex');
   return `pharmacies:analytics:v2:${hash}`;
 }
