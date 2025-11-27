@@ -68,18 +68,36 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   // Récupération des pharmacies sélectionnées depuis le store
   const selectedPharmaciesInfo = getSelectedPharmaciesFromStore();
 
+  // NOUVEAU: State local pour stocker les infos complètes des pharmacies sélectionnées
+  const [selectedPharmaciesInfoMap, setSelectedPharmaciesInfoMap] = React.useState<Map<string, SelectedPharmacy>>(new Map());
+
   // Créer une liste combinée des pharmacies à afficher (store + nouvelles sélections)
   const allSelectedPharmaciesForDisplay = React.useMemo(() => {
-    const combined: SelectedPharmacy[] = [...selectedPharmaciesInfo];
-    const existingIds = new Set(selectedPharmaciesInfo.map(p => p.id));
+    const combinedMap = new Map<string, SelectedPharmacy>();
 
-    // Ajouter les nouvelles sélections qui ne sont pas déjà dans le store
+    // 1. Ajouter les pharmacies du store
+    selectedPharmaciesInfo.forEach(p => combinedMap.set(p.id, p));
+
+    // 2. Ajouter les pharmacies du state local persistent (celles qu'on vient de cocher/décocher)
+    selectedPharmaciesInfoMap.forEach((p, id) => {
+      // Si elle est dans selectedPharmacies (cochée), on l'ajoute/écrase
+      if (selectedPharmacies.has(id)) {
+        combinedMap.set(id, p);
+      }
+      // Si elle n'est PAS dans selectedPharmacies mais qu'elle est dans la map locale,
+      // ça veut dire qu'on vient de la décocher mais on veut la garder visible !
+      else {
+        combinedMap.set(id, p);
+      }
+    });
+
+    // 3. Ajouter les pharmacies nouvellement sélectionnées qui ne seraient pas encore dans la map
+    // (cas où on sélectionne via la recherche sans passer par le toggle classique ou bulk)
     selectedPharmacies.forEach(pharmacyId => {
-      if (!existingIds.has(pharmacyId)) {
-        // Chercher les infos de la pharmacie dans pharmacyInfoMap (maintenant disponible !)
+      if (!combinedMap.has(pharmacyId)) {
         const pharmacyInfo = pharmacyInfoMap.get(pharmacyId);
         if (pharmacyInfo) {
-          combined.push({
+          combinedMap.set(pharmacyId, {
             id: pharmacyInfo.id,
             name: pharmacyInfo.name,
             address: pharmacyInfo.address,
@@ -92,8 +110,8 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
       }
     });
 
-    return combined;
-  }, [selectedPharmaciesInfo, selectedPharmacies, pharmacyInfoMap]);
+    return Array.from(combinedMap.values());
+  }, [selectedPharmaciesInfo, selectedPharmacies, pharmacyInfoMap, selectedPharmaciesInfoMap]);
 
   // Update count when selection changes
   React.useEffect(() => {
@@ -111,6 +129,21 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
 
       // Sélectionner automatiquement toutes les pharmacies récupérées
       bulkSelectPharmacies(result.pharmacies);
+
+      // Mettre à jour la map locale avec TOUTES les pharmacies sélectionnées
+      const newMap = new Map(selectedPharmaciesInfoMap);
+      result.pharmacies.forEach(p => {
+        newMap.set(p.id, {
+          id: p.id,
+          name: p.name,
+          address: p.address,
+          ca: p.ca,
+          area: p.area,
+          employees_count: p.employees_count,
+          id_nat: p.id_nat
+        });
+      });
+      setSelectedPharmaciesInfoMap(newMap);
 
       // Afficher warning si données tronquées
       if (result.truncated) {
@@ -133,11 +166,42 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
   const handleDeselectAll = () => {
     console.log('🗑️ [PharmacyDrawer] Deselecting all pharmacies');
     clearPharmacyFilters();
+    setSelectedPharmaciesInfoMap(new Map()); // Clear la map locale aussi
     setBulkWarning(null);
   };
 
   const handlePharmacyToggle = (pharmacyId: string) => {
     console.log('PharmacyDrawer handlePharmacyToggle called:', pharmacyId);
+
+    // Gestion de la map locale pour la persistance visuelle
+    const isCurrentlySelected = selectedPharmacies.has(pharmacyId);
+
+    setSelectedPharmaciesInfoMap(prev => {
+      const newMap = new Map(prev);
+
+      // Si on va la sélectionner (elle n'est pas sélectionnée actuellement)
+      if (!isCurrentlySelected) {
+        // On cherche ses infos pour les stocker
+        const pharmacyInfo = pharmacyInfoMap.get(pharmacyId);
+        if (pharmacyInfo) {
+          newMap.set(pharmacyId, {
+            id: pharmacyInfo.id,
+            name: pharmacyInfo.name,
+            address: pharmacyInfo.address,
+            ca: pharmacyInfo.ca,
+            area: pharmacyInfo.area,
+            employees_count: pharmacyInfo.employees_count,
+            id_nat: pharmacyInfo.id_nat
+          });
+        }
+      }
+      // Si on va la désélectionner, on NE LA SUPPRIME PAS de la map
+      // pour qu'elle reste visible dans la liste "Sélectionnées" (décochée)
+      // C'est exactement le comportement demandé !
+
+      return newMap;
+    });
+
     togglePharmacy(pharmacyId);
 
     // Reset warning si on modifie les sélections
@@ -396,52 +460,68 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  {allSelectedPharmaciesForDisplay.map((pharmacy: SelectedPharmacy, index) => (
-                    <motion.div
-                      key={`selected-${pharmacy.id}-${index}`}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center mb-1">
-                          <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
-                          <span className="text-sm font-medium text-gray-900 truncate">
-                            {pharmacy.name}
-                          </span>
-                        </div>
+                  {allSelectedPharmaciesForDisplay.map((pharmacy: SelectedPharmacy, index) => {
+                    const isSelected = selectedPharmacies.has(pharmacy.id);
 
-                        {/* Informations compactes */}
-                        <div className="flex items-center space-x-3 text-xs text-gray-600">
-                          <div className="flex items-center">
-                            <MapPin className="w-3 h-3 mr-1" />
-                            <span className="truncate max-w-32">{pharmacy.address}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Euro className="w-3 h-3 mr-1 text-green-600" />
-                            <span className="font-medium text-green-600">{formatCA(pharmacy.ca)}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Users className="w-3 h-3 mr-1 text-blue-600" />
-                            <span className="text-blue-600">{pharmacy.employees_count}</span>
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-orange-600 mt-1">
-                          {pharmacy.area} • Sélectionnée
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => handleDeselectStoredPharmacy(pharmacy.id)}
-                        className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Désélectionner cette pharmacie"
+                    return (
+                      <motion.div
+                        key={`selected-${pharmacy.id}-${index}`}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`
+                          flex items-center justify-between p-3 border rounded-lg transition-colors duration-200
+                          ${isSelected
+                            ? 'bg-white border-orange-200'
+                            : 'bg-gray-50 border-gray-200 opacity-75'
+                          }
+                        `}
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </motion.div>
-                  ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center mb-1">
+                            <div className={`w-2 h-2 rounded-full mr-2 ${isSelected ? 'bg-orange-500' : 'bg-gray-400'}`} />
+                            <span className={`text-sm font-medium truncate ${isSelected ? 'text-gray-900' : 'text-gray-500 line-through'}`}>
+                              {pharmacy.name}
+                            </span>
+                          </div>
+
+                          {/* Informations compactes */}
+                          <div className={`flex items-center space-x-3 text-xs ${isSelected ? 'text-gray-600' : 'text-gray-400'}`}>
+                            <div className="flex items-center">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              <span className="truncate max-w-32">{pharmacy.address}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Euro className={`w-3 h-3 mr-1 ${isSelected ? 'text-green-600' : 'text-gray-400'}`} />
+                              <span className={`font-medium ${isSelected ? 'text-green-600' : 'text-gray-400'}`}>{formatCA(pharmacy.ca)}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Users className={`w-3 h-3 mr-1 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                              <span className={`${isSelected ? 'text-blue-600' : 'text-gray-400'}`}>{pharmacy.employees_count}</span>
+                            </div>
+                          </div>
+
+                          <p className={`text-xs mt-1 ${isSelected ? 'text-orange-600' : 'text-gray-500 italic'}`}>
+                            {pharmacy.area} • {isSelected ? 'Sélectionnée' : 'Désélectionnée'}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={() => handleDeselectStoredPharmacy(pharmacy.id)}
+                          className={`
+                            ml-2 p-1.5 rounded-full transition-colors
+                            ${isSelected
+                              ? 'text-red-400 hover:text-red-600 hover:bg-red-50'
+                              : 'text-green-500 hover:text-green-700 hover:bg-green-50'
+                            }
+                          `}
+                          title={isSelected ? "Désélectionner" : "Ré-ajouter"}
+                        >
+                          {isSelected ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                        </button>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
