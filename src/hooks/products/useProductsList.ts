@@ -20,6 +20,8 @@ export interface ProductMetrics {
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
   readonly ca_ttc_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
+  readonly purchase_amount_comparison: number | null;
 }
 
 // Type de la réponse API (avec strings)
@@ -39,6 +41,8 @@ interface ProductMetricsRaw {
   readonly purchase_amount: string | number;
   readonly quantity_sold_comparison: string | number | null;
   readonly ca_ttc_comparison: string | number | null;
+  readonly quantity_bought_comparison: string | number | null;
+  readonly purchase_amount_comparison: string | number | null;
 }
 
 interface ProductsListResponseRaw {
@@ -83,11 +87,17 @@ function convertProductMetrics(raw: ProductMetricsRaw): ProductMetrics {
     ca_ttc: Number(raw.ca_ttc) || 0,
     quantity_bought: Number(raw.quantity_bought) || 0,
     purchase_amount: Number(raw.purchase_amount) || 0,
-    quantity_sold_comparison: raw.quantity_sold_comparison !== null 
-      ? Number(raw.quantity_sold_comparison) || 0 
+    quantity_sold_comparison: raw.quantity_sold_comparison !== null
+      ? Number(raw.quantity_sold_comparison) || 0
       : null,
-    ca_ttc_comparison: raw.ca_ttc_comparison !== null 
-      ? Number(raw.ca_ttc_comparison) || 0 
+    ca_ttc_comparison: raw.ca_ttc_comparison !== null
+      ? Number(raw.ca_ttc_comparison) || 0
+      : null,
+    quantity_bought_comparison: raw.quantity_bought_comparison !== null
+      ? Number(raw.quantity_bought_comparison) || 0
+      : null,
+    purchase_amount_comparison: raw.purchase_amount_comparison !== null
+      ? Number(raw.purchase_amount_comparison) || 0
       : null
   };
 }
@@ -105,7 +115,7 @@ export function useProductsList(
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
-  
+
   // 🔥 Récupérer directement products (contient déjà les codes finaux)
   const products = useFiltersStore((state) => state.products);
 

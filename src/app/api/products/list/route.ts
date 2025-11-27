@@ -13,9 +13,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' && 
-                     process.env.UPSTASH_REDIS_REST_URL && 
-                     process.env.UPSTASH_REDIS_REST_TOKEN;
+const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN;
 const CACHE_TTL = 43200; // 12 heures
 
 interface ProductListRequest {
@@ -51,14 +51,16 @@ interface ProductMetrics {
   readonly purchase_amount: number;
   readonly quantity_sold_comparison: number | null;
   readonly ca_ttc_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
+  readonly purchase_amount_comparison: number | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
-  
+
   try {
     console.log('🔥 [API Products] Request started');
-    
+
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API Products] Unauthorized');
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('💥 [API Products] JSON parsing error:', jsonError);
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    
+
     if (!body.dateRange?.start || !body.dateRange?.end) {
       console.log('❌ [API Products] Missing date range');
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
@@ -146,9 +148,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     console.log('🗃️ [API Products] Executing main period query...');
-    
+
     // ========== PÉRIODE PRINCIPALE ==========
-    const products = context.isAdmin 
+    const products = context.isAdmin
       ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
@@ -158,28 +160,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // ========== PÉRIODE DE COMPARAISON ==========
-    let comparisonMap = new Map<string, { quantity_sold: number; ca_ttc: number }>();
-    
+    let comparisonMap = new Map<string, {
+      quantity_sold: number;
+      ca_ttc: number;
+      quantity_bought: number;
+      purchase_amount: number;
+    }>();
+
     if (body.comparisonDateRange?.start && body.comparisonDateRange?.end) {
       console.log('📊 [API Products] Calculating comparison period');
-      
+
       const comparisonProducts = context.isAdmin
         ? await executeAdminQuery(body.comparisonDateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
         : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
-      
+
       comparisonProducts.forEach(product => {
         comparisonMap.set(product.code_ean, {
           quantity_sold: product.quantity_sold,
-          ca_ttc: product.ca_ttc
+          ca_ttc: product.ca_ttc,
+          quantity_bought: product.quantity_bought,
+          purchase_amount: product.purchase_amount
         });
       });
-      
+
       console.log('✅ [API Products] Comparison data loaded:', {
         comparisonProductsCount: comparisonProducts?.length || 0,
         sampleComparison: comparisonProducts?.[0] ? {
           code_ean: comparisonProducts[0].code_ean,
           quantity_sold: comparisonProducts[0].quantity_sold,
-          ca_ttc: comparisonProducts[0].ca_ttc
+          ca_ttc: comparisonProducts[0].ca_ttc,
+          quantity_bought: comparisonProducts[0].quantity_bought,
+          purchase_amount: comparisonProducts[0].purchase_amount
         } : null
       });
     }
@@ -190,7 +201,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return {
         ...product,
         quantity_sold_comparison: comparison?.quantity_sold ?? null,
-        ca_ttc_comparison: comparison?.ca_ttc ?? null
+        ca_ttc_comparison: comparison?.ca_ttc ?? null,
+        quantity_bought_comparison: comparison?.quantity_bought ?? null,
+        purchase_amount_comparison: comparison?.purchase_amount ?? null
       };
     });
 
@@ -200,7 +213,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         quantity_sold: productsWithComparison[0].quantity_sold,
         quantity_sold_comparison: productsWithComparison[0].quantity_sold_comparison,
         ca_ttc: productsWithComparison[0].ca_ttc,
-        ca_ttc_comparison: productsWithComparison[0].ca_ttc_comparison
+        ca_ttc_comparison: productsWithComparison[0].ca_ttc_comparison,
+        quantity_bought: productsWithComparison[0].quantity_bought,
+        quantity_bought_comparison: productsWithComparison[0].quantity_bought_comparison,
+        purchase_amount: productsWithComparison[0].purchase_amount,
+        purchase_amount_comparison: productsWithComparison[0].purchase_amount_comparison
       });
     }
 
@@ -237,28 +254,28 @@ async function executeAdminQuery(
   productCodes: string[],
   pharmacyIds?: string[],
   hasProductFilter: boolean = true
-): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison'>[]> {
+): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison' | 'quantity_bought_comparison' | 'purchase_amount_comparison'>[]> {
   const pharmacyFilter = pharmacyIds && pharmacyIds.length > 0
     ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
 
-  const productFilter = hasProductFilter 
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
   const params = [];
   let paramIndex = 1;
-  
+
   params.push(dateRange.start);
   params.push(dateRange.end);
-  
+
   if (hasProductFilter) {
     params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
-  
+
   if (pharmacyIds && pharmacyIds.length > 0) {
     params.push(pharmacyIds);
   }
@@ -385,9 +402,9 @@ async function executeUserQuery(
   productCodes: string[],
   pharmacyId: string,
   hasProductFilter: boolean = true
-): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison'>[]> {
-  
-  const productFilter = hasProductFilter 
+): Promise<Omit<ProductMetrics, 'quantity_sold_comparison' | 'ca_ttc_comparison' | 'quantity_bought_comparison' | 'purchase_amount_comparison'>[]> {
+
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 

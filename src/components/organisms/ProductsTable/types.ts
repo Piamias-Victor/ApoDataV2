@@ -16,6 +16,8 @@ export interface ProductMetrics {
   readonly unit_margin_ht: number;
   readonly quantity_sold_comparison: number | null;
   readonly ca_ttc_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
+  readonly purchase_amount_comparison: number | null;
 }
 
 export type ViewMode = 'totals' | 'averages';
@@ -31,8 +33,10 @@ export type SortableColumn =
   | 'quantity_sold_evolution'
   | 'ca_ttc_evolution'
   | 'quantity_bought'
+  | 'quantity_bought_evolution'
   | 'ca_ttc'
   | 'purchase_amount'
+  | 'purchase_amount_evolution'
   | 'total_margin_ht'
   | 'margin_rate_percent'
   | 'avg_sell_price_ttc'

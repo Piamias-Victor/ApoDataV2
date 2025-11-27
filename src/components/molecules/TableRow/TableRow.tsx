@@ -47,14 +47,14 @@ export const TableRow: React.FC<TableRowProps> = ({
     if (product.ca_ttc_comparison === null || product.ca_ttc_comparison === undefined) {
       return <span className="text-[9px] text-gray-400">N/A</span>;
     }
-    
+
     if (product.ca_ttc_comparison === 0) {
       return <span className="text-[9px] font-semibold text-blue-600">New</span>;
     }
-    
+
     const evolution = ((product.ca_ttc - product.ca_ttc_comparison) / product.ca_ttc_comparison) * 100;
     const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
-    
+
     return (
       <span className={`text-[10px] font-semibold ${colorClass}`}>
         {evolution > 0 ? '+' : ''}{evolution.toFixed(0)}%
@@ -66,14 +66,52 @@ export const TableRow: React.FC<TableRowProps> = ({
     if (product.quantity_sold_comparison === null || product.quantity_sold_comparison === undefined) {
       return <span className="text-[9px] text-gray-400">N/A</span>;
     }
-    
+
     if (product.quantity_sold_comparison === 0) {
       return <span className="text-[9px] font-semibold text-blue-600">New</span>;
     }
-    
+
     const evolution = ((product.quantity_sold - product.quantity_sold_comparison) / product.quantity_sold_comparison) * 100;
     const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
-    
+
+    return (
+      <span className={`text-[10px] font-semibold ${colorClass}`}>
+        {evolution > 0 ? '+' : ''}{evolution.toFixed(0)}%
+      </span>
+    );
+  };
+
+  const renderQuantityBoughtEvolution = () => {
+    if (product.quantity_bought_comparison === null || product.quantity_bought_comparison === undefined) {
+      return <span className="text-[9px] text-gray-400">N/A</span>;
+    }
+
+    if (product.quantity_bought_comparison === 0) {
+      return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+    }
+
+    const evolution = ((product.quantity_bought - product.quantity_bought_comparison) / product.quantity_bought_comparison) * 100;
+    const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
+
+    return (
+      <span className={`text-[10px] font-semibold ${colorClass}`}>
+        {evolution > 0 ? '+' : ''}{evolution.toFixed(0)}%
+      </span>
+    );
+  };
+
+  const renderPurchaseAmountEvolution = () => {
+    if (product.purchase_amount_comparison === null || product.purchase_amount_comparison === undefined) {
+      return <span className="text-[9px] text-gray-400">N/A</span>;
+    }
+
+    if (product.purchase_amount_comparison === 0) {
+      return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+    }
+
+    const evolution = ((product.purchase_amount - product.purchase_amount_comparison) / product.purchase_amount_comparison) * 100;
+    const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
+
     return (
       <span className={`text-[10px] font-semibold ${colorClass}`}>
         {evolution > 0 ? '+' : ''}{evolution.toFixed(0)}%
@@ -137,11 +175,21 @@ export const TableRow: React.FC<TableRowProps> = ({
             </div>
           </td>
 
+          {/* Évolution Qté Achetée */}
+          <td className="px-1.5 py-1.5 text-right">
+            {renderQuantityBoughtEvolution()}
+          </td>
+
           {/* Montant achat */}
           <td className="px-1.5 py-1.5 text-right">
             <div className="text-[10px] text-gray-900">
               {formatCurrency(product.purchase_amount)}
             </div>
+          </td>
+
+          {/* Évolution Montant Achat */}
+          <td className="px-1.5 py-1.5 text-right">
+            {renderPurchaseAmountEvolution()}
           </td>
 
           {/* Stock actuel */}

@@ -12,13 +12,13 @@ import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
-import type { 
-  ProductMetrics, 
-  ViewMode, 
-  SortConfig, 
-  SortableColumn, 
+import type {
+  ProductMetrics,
+  ViewMode,
+  SortConfig,
+  SortableColumn,
   SortDirection,
-  PaginationInfo 
+  PaginationInfo
 } from './types';
 import { sortProducts, filterProducts, paginateProducts } from './utils';
 
@@ -44,23 +44,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     direction: null
   });
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const itemsPerPage = 50;
   const { exportToCsv, isExporting } = useExportCsv();
 
   const handleSort = useCallback((column: SortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        const newDirection: SortDirection = 
+        const newDirection: SortDirection =
           prev.direction === 'asc' ? 'desc' :
-          prev.direction === 'desc' ? null : 'asc';
-        
+            prev.direction === 'desc' ? null : 'asc';
+
         return {
           column: newDirection ? column : null,
           direction: newDirection
         };
       }
-      
+
       return {
         column,
         direction: 'asc'
@@ -93,21 +93,21 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   const processedDataBeforePagination = useMemo(() => {
     const filteredProducts = filterProducts(products, searchQuery);
     const sortedProducts = sortProducts(
-      filteredProducts, 
+      filteredProducts,
       sortConfig.column || 'product_name',
       sortConfig.direction
     );
-    
+
     return sortedProducts;
   }, [products, searchQuery, sortConfig]);
 
   const processedData = useMemo(() => {
     const paginationResult = paginateProducts(
-      processedDataBeforePagination, 
-      currentPage, 
+      processedDataBeforePagination,
+      currentPage,
       itemsPerPage
     );
-    
+
     const paginationInfo: PaginationInfo = {
       totalItems: processedDataBeforePagination.length,
       totalPages: paginationResult.totalPages,
@@ -124,9 +124,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   const prepareTableDataForExport = useCallback(() => {
     const dataToExport = processedDataBeforePagination;
-    
+
     if (!dataToExport || dataToExport.length === 0) return [];
-    
+
     const calculateEvolutionForExport = (current: number, comparison: number | null): string => {
       if (comparison === null || comparison === 0) {
         return 'N/A';
@@ -134,7 +134,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       const evolution = ((current - comparison) / comparison) * 100;
       return evolution.toFixed(1);
     };
-    
+
     return dataToExport.map(product => {
       const exportRow: any = {
         'Code EAN': product.code_ean || '',
@@ -144,32 +144,44 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       if (viewMode === 'totals') {
         exportRow['CA TTC (€)'] = Number(product.ca_ttc || 0);
+        exportRow['CA TTC (N-1) (€)'] = Number(product.ca_ttc_comparison || 0);
         exportRow['Évolution CA (%)'] = calculateEvolutionForExport(
-          product.ca_ttc, 
+          product.ca_ttc,
           product.ca_ttc_comparison
         );
         exportRow['Quantité vendue'] = Number(product.quantity_sold || 0);
+        exportRow['Quantité vendue (N-1)'] = Number(product.quantity_sold_comparison || 0);
         exportRow['Évolution Qté (%)'] = calculateEvolutionForExport(
           product.quantity_sold,
           product.quantity_sold_comparison
         );
         exportRow['Quantité achetée'] = Number(product.quantity_bought || 0);
+        exportRow['Quantité achetée (N-1)'] = Number(product.quantity_bought_comparison || 0);
+        exportRow['Évolution Qté A. (%)'] = calculateEvolutionForExport(
+          product.quantity_bought,
+          product.quantity_bought_comparison
+        );
         exportRow['Montant achat (€)'] = Number(product.purchase_amount || 0);
+        exportRow['Montant achat (N-1) (€)'] = Number(product.purchase_amount_comparison || 0);
+        exportRow['Évolution Mt.Ach (%)'] = calculateEvolutionForExport(
+          product.purchase_amount,
+          product.purchase_amount_comparison
+        );
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
         exportRow['Marge totale HT (€)'] = Number(product.total_margin_ht || 0);
-        
+
         const marginRate = Number(product.margin_rate_percent || 0);
         exportRow['Taux marge (%)'] = marginRate.toFixed(2);
-        
+
         const qtySold = Number(product.quantity_sold || 0);
         const caTtc = Number(product.ca_ttc || 0);
         const currentStock = Number(product.current_stock || 0);
-        
+
         if (qtySold > 0 && caTtc > 0) {
           const prixMoyenVente = caTtc / qtySold;
           exportRow['Prix moyen vente TTC (€)'] = prixMoyenVente.toFixed(2);
         }
-        
+
         if (currentStock > 0 && qtySold > 0) {
           const joursStock = (currentStock / qtySold) * 30;
           exportRow['Jours de stock'] = joursStock.toFixed(1);
@@ -183,15 +195,15 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           product.quantity_sold_comparison
         );
         exportRow['Marge unitaire HT (€)'] = Number(product.unit_margin_ht || 0);
-        
+
         const marginRate = Number(product.margin_rate_percent || 0);
         exportRow['Taux marge (%)'] = marginRate.toFixed(2);
-        
+
         exportRow['Stock actuel'] = Number(product.current_stock || 0);
-        
+
         const currentStock = Number(product.current_stock || 0);
         const qtySold = Number(product.quantity_sold || 0);
-        
+
         if (currentStock > 0 && qtySold > 0) {
           const rotationJours = (currentStock / qtySold) * 30;
           exportRow['Rotation stock (jours)'] = rotationJours.toFixed(1);
@@ -204,22 +216,22 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   const handleExport = useCallback(() => {
     const exportData = prepareTableDataForExport();
-    
+
     if (exportData.length === 0) {
       console.warn('Aucune donnée à exporter');
       return;
     }
-    
+
     const modeLabel = viewMode === 'totals' ? 'totaux' : 'moyennes';
     const filename = CsvExporter.generateFilename(`apodata_produits_${modeLabel}`);
-    
+
     if (!exportData[0]) {
       console.error('Données export invalides');
       return;
     }
-    
+
     const headers = Object.keys(exportData[0]);
-    
+
     exportToCsv({
       filename,
       headers,
@@ -245,7 +257,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center space-x-3">
           <ViewToggle
@@ -255,14 +267,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           <div className="text-xs text-gray-500">
             {processedData.pagination.totalItems} produit{processedData.pagination.totalItems > 1 ? 's' : ''}
           </div>
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
             disabled={!products || products.length === 0}
             label={`CSV (${processedDataBeforePagination.length})`}
           />
-          
+
           {onRefresh && (
             <Button
               variant="ghost"
@@ -270,8 +282,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               onClick={onRefresh}
               disabled={isLoading}
               iconLeft={
-                <RotateCcw 
-                  className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} 
+                <RotateCcw
+                  className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`}
                 />
               }
               className="text-gray-600 hover:text-gray-900"
@@ -280,7 +292,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             </Button>
           )}
         </div>
-        
+
         <SearchBar
           onSearch={handleSearch}
           placeholder="Rechercher par nom, code EAN ou *fin_code..."
@@ -290,13 +302,13 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       <Card variant="elevated" padding="none" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            
+
             <TableHeader
               viewMode={viewMode}
               sortConfig={sortConfig}
               onSort={handleSort}
             />
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
@@ -310,7 +322,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
               ) : processedData.products.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="px-3 py-8 text-center text-gray-500 text-xs">
-                    {searchQuery 
+                    {searchQuery
                       ? `Aucun produit trouvé pour "${searchQuery}"`
                       : 'Aucun produit disponible'
                     }
@@ -327,7 +339,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 ))
               )}
             </tbody>
-            
+
           </table>
         </div>
       </Card>
@@ -335,10 +347,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-xs text-gray-600">
-            {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
+            {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex}
             {' '}sur {processedData.pagination.totalItems}
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -349,11 +361,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             >
               Préc.
             </Button>
-            
+
             <span className="text-xs text-gray-600">
               {currentPage}/{processedData.pagination.totalPages}
             </span>
-            
+
             <Button
               variant="secondary"
               size="sm"
@@ -366,7 +378,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           </div>
         </div>
       )}
-      
+
     </div>
   );
 };
