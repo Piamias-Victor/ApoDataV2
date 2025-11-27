@@ -6,7 +6,6 @@ import { ChevronUp, ChevronLeft, ChevronRight, RotateCcw, Search, Eye, AlertTria
 import { SearchBar } from '@/components/molecules/SearchBar/SearchBar';
 import { Card } from '@/components/atoms/Card/Card';
 import { Button } from '@/components/atoms/Button/Button';
-import { Badge } from '@/components/atoms/Badge/Badge';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { RuptureDetailsChart } from '../RuptureDetailsChart/RuptureDetailsChart';
 import { useRupturesProducts } from '@/hooks/dashboard/useRupturesProducts';
@@ -18,9 +17,9 @@ interface RupturesProductsTableProps {
   onRefresh?: () => void;
 }
 
-type SortableColumn = 'nom' | 'code_ean' | 'quantite_vendue' | 'quantite_commandee' | 
-                      'quantite_receptionnee' | 'delta_quantite' | 'taux_reception' | 
-                      'prix_achat_moyen' | 'quantite_stock' | 'montant_delta';
+type SortableColumn = 'nom' | 'code_ean' | 'quantite_vendue' | 'quantite_commandee' |
+  'quantite_receptionnee' | 'delta_quantite' | 'taux_reception' |
+  'prix_achat_moyen' | 'quantite_stock' | 'montant_delta';
 
 interface SortConfig {
   column: SortableColumn;
@@ -65,17 +64,16 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
     direction: 'desc'
   });
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const itemsPerPage = 50;
 
-  const { 
-    productSummaries, 
-    getRuptureDetails, 
-    isLoading, 
-    error, 
-    refetch, 
-    queryTime,
-    hasData 
+  const {
+    productSummaries,
+    getRuptureDetails,
+    isLoading,
+    error,
+    refetch,
+    hasData
   } = useRupturesProducts();
 
   const { exportToCsv, isExporting } = useExportCsv();
@@ -85,7 +83,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = productSummaries.filter(product => 
+      filtered = productSummaries.filter(product =>
         product.nom.toLowerCase().includes(query) ||
         product.code_ean.includes(query)
       );
@@ -94,16 +92,16 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
     const sorted = [...filtered].sort((a, b) => {
       const aValue = a[sortConfig.column];
       const bValue = b[sortConfig.column];
-      
+
       if (typeof aValue === 'string') {
-        return sortConfig.direction === 'asc' 
+        return sortConfig.direction === 'asc'
           ? aValue.localeCompare(bValue as string)
           : (bValue as string).localeCompare(aValue);
       }
-      
+
       const numA = aValue as number;
       const numB = bValue as number;
-      
+
       return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
     });
 
@@ -125,7 +123,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
 
   const prepareCsvData = useCallback(() => {
     if (!productSummaries || productSummaries.length === 0) return [];
-    
+
     const exportData = productSummaries.map(product => ({
       'Produit': product.nom,
       'Code EAN': product.code_ean,
@@ -138,27 +136,27 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
       'Prix Achat Moyen (€)': product.prix_achat_moyen.toFixed(2),
       'Montant Delta (€)': product.montant_delta.toFixed(2)
     }));
-    
+
     return exportData;
   }, [productSummaries]);
 
   const handleExport = useCallback(() => {
     const exportData = prepareCsvData();
-    
+
     if (exportData.length === 0) {
       console.warn('Aucune donnée à exporter');
       return;
     }
-    
+
     const filename = CsvExporter.generateFilename('apodata_ruptures_produits');
-    
+
     if (!exportData[0]) {
       console.error('Données export invalides');
       return;
     }
-    
+
     const headers = Object.keys(exportData[0]);
-    
+
     exportToCsv({
       filename,
       headers,
@@ -235,7 +233,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
             {searchQuery ? 'Aucun produit trouvé' : 'Aucune donnée disponible'}
           </h3>
           <p className="text-gray-600">
-            {searchQuery 
+            {searchQuery
               ? `Aucun résultat pour "${searchQuery}"`
               : 'Sélectionnez des filtres pour voir les données.'
             }
@@ -255,10 +253,9 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
             </h2>
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <span>{processedData.pagination.totalItems} produits</span>
-              <Badge variant="gray" size="sm">{queryTime}ms</Badge>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <ExportButton
               onClick={handleExport}
@@ -266,7 +263,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
               disabled={!hasData || isLoading}
               label="Export CSV"
             />
-            
+
             <Button
               variant="ghost"
               size="sm"
@@ -278,7 +275,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
             </Button>
           </div>
         </div>
-        
+
         <SearchBar
           onSearch={setSearchQuery}
           placeholder="Rechercher par nom ou code EAN..."
@@ -290,7 +287,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th 
+                <th
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('nom')}
                 >
@@ -299,8 +296,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('nom')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('code_ean')}
                 >
@@ -309,8 +306,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('code_ean')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('quantite_vendue')}
                 >
@@ -319,8 +316,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('quantite_vendue')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('quantite_commandee')}
                 >
@@ -329,8 +326,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('quantite_commandee')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('quantite_receptionnee')}
                 >
@@ -339,8 +336,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('quantite_receptionnee')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('delta_quantite')}
                 >
@@ -349,8 +346,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('delta_quantite')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('taux_reception')}
                 >
@@ -359,8 +356,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('taux_reception')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('prix_achat_moyen')}
                 >
@@ -369,8 +366,8 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('prix_achat_moyen')}</span>
                   </div>
                 </th>
-                
-                <th 
+
+                <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('quantite_stock')}
                 >
@@ -379,13 +376,13 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                     <span className="text-gray-400">{getSortIndicator('quantite_stock')}</span>
                   </div>
                 </th>
-                
+
                 <th className="w-16 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Détails
                 </th>
               </tr>
             </thead>
-            
+
             <tbody className="divide-y divide-gray-100">
               {processedData.products.map((product, index) => {
                 const ruptureDetails = getRuptureDetails(product.code_ean);
@@ -400,64 +397,63 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                           {product.nom}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3">
                         <div className="text-sm text-gray-600 font-mono">
                           {product.code_ean}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm font-medium text-gray-900">
                           {formatLargeNumber(product.quantite_vendue)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatLargeNumber(product.quantite_commandee)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatLargeNumber(product.quantite_receptionnee)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getDeltaColorClass(product.delta_quantite)}`}>
                           {product.delta_quantite > 0 ? '-' : ''}{Math.abs(product.delta_quantite)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getReceptionColorClass(product.taux_reception)}`}>
                           {formatPercentage(product.taux_reception)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatCurrency(product.prix_achat_moyen)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-right">
                         <div className="text-sm text-gray-900">
                           {formatLargeNumber(product.quantite_stock)}
                         </div>
                       </td>
-                      
+
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleProductExpansion(product.code_ean)}
                           disabled={!hasDetailData}
-                          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
-                            hasDetailData 
-                              ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900' 
-                              : 'opacity-50 cursor-not-allowed text-gray-400'
-                          }`}
+                          className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${hasDetailData
+                            ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+                            : 'opacity-50 cursor-not-allowed text-gray-400'
+                            }`}
                         >
                           {hasDetailData ? (
                             isExpanded ? <ChevronUp className="w-4 h-4" /> : <Eye className="w-4 h-4" />
@@ -467,7 +463,7 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
                         </button>
                       </td>
                     </tr>
-                    
+
                     {isExpanded && hasDetailData && (
                       <tr>
                         <td colSpan={10} className="p-0">
@@ -491,10 +487,10 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
       {processedData.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
-            Affichage {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex} 
+            Affichage {processedData.pagination.startIndex + 1}-{processedData.pagination.endIndex}
             sur {processedData.pagination.totalItems} produits
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -505,11 +501,11 @@ export const RupturesProductsTable: React.FC<RupturesProductsTableProps> = ({
             >
               Précédent
             </Button>
-            
+
             <span className="text-sm text-gray-600">
               Page {currentPage} sur {processedData.pagination.totalPages}
             </span>
-            
+
             <Button
               variant="secondary"
               size="sm"

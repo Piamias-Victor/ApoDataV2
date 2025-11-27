@@ -56,6 +56,7 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
   const [editingName, setEditingName] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [expandedFilterId, setExpandedFilterId] = useState<string | null>(null);
 
   // Filtrer les filtres selon la recherche
   const filteredFilters = useMemo(() => {
@@ -127,6 +128,87 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
       if (f.generic_products.length > 0) parts.push(`📦 ${f.generic_products.length} produit${f.generic_products.length > 1 ? 's' : ''}`);
       if (f.generic_laboratories.length > 0) parts.push(`🧪 ${f.generic_laboratories.length} labo${f.generic_laboratories.length > 1 ? 's' : ''}`);
       return parts.join(' • ');
+    }
+  };
+
+  // Helper pour afficher les détails complets
+  const renderDetailedView = (filter: SavedFilter) => {
+    if (filter.filter_type === 'classic') {
+      const f = filter as ClassicSavedFilter;
+      return (
+        <div className="mt-3 space-y-3 text-sm">
+          {f.laboratory_names.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">🧪 Laboratoires ({f.laboratory_names.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {f.laboratory_names.map((lab, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
+                    {lab}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {f.category_names.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">🏷️ Catégories ({f.category_names.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {f.category_names.map((cat, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs">
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {f.product_codes.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">📦 Produits ({f.product_codes.length})</div>
+              <div className="text-xs text-gray-600">
+                {f.product_codes.length} produit{f.product_codes.length > 1 ? 's' : ''} sélectionné{f.product_codes.length > 1 ? 's' : ''}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      const f = filter as GenericSavedFilter;
+      return (
+        <div className="mt-3 space-y-3 text-sm">
+          {f.generic_laboratories.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">🧪 Laboratoires ({f.generic_laboratories.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {f.generic_laboratories.map((lab, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">
+                    {lab.laboratory_name} ({lab.product_count})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {f.generic_groups.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">🔷 Groupes génériques ({f.generic_groups.length})</div>
+              <div className="flex flex-wrap gap-1">
+                {f.generic_groups.map((group, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs">
+                    {group.generic_group} ({group.product_count})
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {f.generic_products.length > 0 && (
+            <div>
+              <div className="font-semibold text-gray-700 mb-1">📦 Produits ({f.generic_products.length})</div>
+              <div className="text-xs text-gray-600">
+                {f.generic_products.length} produit{f.generic_products.length > 1 ? 's' : ''} sélectionné{f.generic_products.length > 1 ? 's' : ''}
+              </div>
+            </div>
+          )}
+        </div>
+      );
     }
   };
 
@@ -308,18 +390,36 @@ export const LoadFiltersDrawer: React.FC<LoadFiltersDrawerProps> = ({
                                     disabled={isLoadingFilter || isDeletingFilter || isEditing}
                                     className="ml-2"
                                   >
-                                    Charger
+                                    Mes Filtres
                                   </Button>
                                 </div>
                               </>
                             )}
                           </div>
 
-                          {/* Ligne 2: Résumé compact */}
+                          {/* Ligne 2: Résumé compact cliquable */}
                           {!isEditing && (
-                            <div className="text-sm text-gray-600 mb-1">
-                              {renderCompactSummary(filter)}
-                            </div>
+                            <button
+                              onClick={() => setExpandedFilterId(expandedFilterId === filter.id ? null : filter.id)}
+                              className="w-full text-left text-sm text-gray-600 mb-1 hover:text-blue-600 transition-colors flex items-center justify-between group"
+                            >
+                              <span>{renderCompactSummary(filter)}</span>
+                              <span className="text-xs text-gray-400 group-hover:text-blue-500">
+                                {expandedFilterId === filter.id ? '▼ Masquer' : '▶ Voir détails'}
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Vue détaillée (expandable) */}
+                          {!isEditing && expandedFilterId === filter.id && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              {renderDetailedView(filter)}
+                            </motion.div>
                           )}
 
                           {/* Ligne 3: Date */}
