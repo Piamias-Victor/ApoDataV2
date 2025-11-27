@@ -35,7 +35,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
   const {
     labOrBrandMode, // NOUVEAU
     setLabOrBrandMode, // NOUVEAU
-    
+
     products,
     isLoadingProducts,
     errorProducts,
@@ -43,7 +43,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     setProductQuery,
     selectedProducts,
     toggleProduct,
-    
+
     laboratories,
     isLoadingLaboratories,
     errorLaboratories,
@@ -51,13 +51,13 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
     setLaboratoryQuery,
     selectedLaboratories,
     toggleLaboratory,
-    
+
     getSelectedProductsArray,
     getSelectedLaboratoriesArray,
     clearAllSelections
   } = useGenericFilterSearch();
 
-  const { 
+  const {
     selectedGroups,
     selectedProducts: storedProducts,
     selectedLaboratories: storedLaboratories,
@@ -152,7 +152,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
 
   const localSelectedCount = selectedProducts.size + selectedLaboratories.size;
   const storeSelectedCount = selectedGroups.length + storedProducts.length + storedLaboratories.length;
-  
+
   const totalChanges = localSelectedCount + (hasAnyFilterChanges() ? 1 : 0);
 
   React.useEffect(() => {
@@ -162,28 +162,28 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
   const handleApplyAll = async () => {
     const productsToAdd = getSelectedProductsArray();
     const laboratoriesToAdd = getSelectedLaboratoriesArray();
-    
+
     console.log('🚀 [GenericFilterDrawer] APPLYING ALL FILTERS');
 
     if (productsToAdd.length > 0) {
       addProducts(productsToAdd);
     }
-    
+
     if (laboratoriesToAdd.length > 0) {
       addLaboratories(laboratoriesToAdd);
     }
-    
+
     if (hasAnyFilterChanges()) {
       const { setTvaRates, setGenericStatus } = useGenericGroupStore.getState();
-      
+
       if (hasTvaChanges()) {
         setTvaRates(localTvaRates);
       }
-      
+
       if (hasStatusChanges()) {
         setGenericStatus(localGenericStatus);
       }
-      
+
       if (hasPriceChanges()) {
         const newFilters = {
           prixFabricant: {
@@ -199,11 +199,11 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
             max: localPriceFilters.remise.max === '' ? null : parseFloat(localPriceFilters.remise.max)
           }
         };
-        
+
         await setPriceFilters(newFilters);
       }
     }
-    
+
     clearAllSelections();
   };
 
@@ -232,11 +232,11 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl"
+          className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-2xl flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex-none bg-white border-b border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-3">
                 <Filter className="w-5 h-5 text-purple-600" />
@@ -267,7 +267,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   <span className="font-medium text-green-600">{productCodes.length}</span> codes
                 </span>
               </div>
-              
+
               {(storeSelectedCount > 0 || hasActiveFilters) && (
                 <button
                   onClick={handleClearAll}
@@ -281,9 +281,9 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           </div>
 
           {/* Content */}
-          <div className="h-[calc(100%-140px)] overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="space-y-6">
-              
+
               {/* SÉLECTIONS ACTIVES - identique */}
               {(selectedGroups.length > 0 || storedProducts.length > 0 || storedLaboratories.length > 0 || hasActiveFilters) && (
                 <div className="space-y-3">
@@ -298,19 +298,19 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                       <p className="text-xs font-medium text-indigo-700 uppercase tracking-wider">
                         ⚡ Filtres appliqués
                       </p>
-                      
+
                       {tvaRates.length > 0 && (
                         <div className="text-xs text-gray-700">
                           <span className="font-medium">TVA :</span> {tvaRates.sort((a, b) => a - b).join('%, ')}%
                         </div>
                       )}
-                      
+
                       {genericStatus !== 'BOTH' && (
                         <div className="text-xs text-gray-700">
                           <span className="font-medium">Type :</span> {genericStatus}
                         </div>
                       )}
-                      
+
                       {hasPriceFilters() && (
                         <div className="text-xs text-gray-700">
                           <span className="font-medium">Prix :</span> Filtres de prix actifs
@@ -366,8 +366,8 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                             <p className="text-xs text-gray-500 flex items-center space-x-2">
                               <span className={`
                                 px-2 py-0.5 rounded text-xs font-medium
-                                ${product.bcb_generic_status === 'RÉFÉRENT' 
-                                  ? 'bg-green-100 text-green-700' 
+                                ${product.bcb_generic_status === 'RÉFÉRENT'
+                                  ? 'bg-green-100 text-green-700'
                                   : 'bg-blue-100 text-blue-700'}
                               `}>
                                 {product.bcb_generic_status}
@@ -418,7 +418,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
               )}
 
               {/* 🔥 NOUVEAU - DEUX INPUTS SÉPARÉS AU LIEU DU TOGGLE */}
-              
+
               {/* 1. RECHERCHE PAR MARQUE (bcb_lab = exploitant) */}
               <div className="space-y-3 pt-4 border-t border-gray-200">
                 <div className="flex items-center space-x-2">
@@ -426,7 +426,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   <h3 className="text-sm font-semibold text-gray-900">Recherche par Marque</h3>
                   <span className="text-xs text-gray-500">(Exploitant)</span>
                 </div>
-                
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
@@ -460,11 +460,10 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                       <button
                         key={lab.laboratory_name}
                         onClick={() => toggleLaboratory(lab)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${
-                          selectedLaboratories.has(lab.laboratory_name)
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${selectedLaboratories.has(lab.laboratory_name)
                             ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
                             : 'bg-white border-gray-200 hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
@@ -490,7 +489,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   <h3 className="text-sm font-semibold text-gray-900">Recherche par Laboratoire</h3>
                   <span className="text-xs text-gray-500">(Titulaire AMM)</span>
                 </div>
-                
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
@@ -524,11 +523,10 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                       <button
                         key={lab.laboratory_name}
                         onClick={() => toggleLaboratory(lab)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${
-                          selectedLaboratories.has(lab.laboratory_name)
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${selectedLaboratories.has(lab.laboratory_name)
                             ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-200'
                             : 'bg-white border-gray-200 hover:border-purple-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
@@ -553,7 +551,7 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                   <Package className="w-4 h-4 text-pink-600" />
                   <h3 className="text-sm font-semibold text-gray-900">Rechercher un produit</h3>
                 </div>
-                
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
@@ -583,11 +581,10 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                     <button
                       key={product.code_13_ref}
                       onClick={() => toggleProduct(product)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${
-                        selectedProducts.has(product.code_13_ref)
+                      className={`w-full text-left p-3 rounded-lg border transition-all ${selectedProducts.has(product.code_13_ref)
                           ? 'bg-pink-50 border-pink-300 ring-2 ring-pink-200'
                           : 'bg-white border-gray-200 hover:border-pink-300'
-                      }`}
+                        }`}
                     >
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {product.name}
@@ -595,8 +592,8 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
                       <div className="flex items-center space-x-2 mt-1">
                         <span className={`
                           px-2 py-0.5 rounded text-xs font-medium
-                          ${product.bcb_generic_status === 'RÉFÉRENT' 
-                            ? 'bg-green-100 text-green-700' 
+                          ${product.bcb_generic_status === 'RÉFÉRENT'
+                            ? 'bg-green-100 text-green-700'
                             : 'bg-blue-100 text-blue-700'}
                         `}>
                           {product.bcb_generic_status}
@@ -638,15 +635,14 @@ export const GenericFilterDrawer: React.FC<GenericFilterDrawerProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          <div className="flex-none bg-white border-t border-gray-200 px-6 py-4">
             <button
               onClick={handleApplyAll}
               disabled={totalChanges === 0}
-              className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                totalChanges > 0
+              className={`w-full py-3 rounded-lg font-medium transition-colors ${totalChanges > 0
                   ? 'bg-purple-600 text-white hover:bg-purple-700'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
+                }`}
             >
               Appliquer {totalChanges > 0 && `(${totalChanges === 1 && !hasAnyFilterChanges() ? `${totalChanges} nouveau` : totalChanges > 1 && !hasAnyFilterChanges() ? `${totalChanges} nouveaux` : hasAnyFilterChanges() && localSelectedCount === 0 ? 'filtres' : 'tout'})`}
             </button>
