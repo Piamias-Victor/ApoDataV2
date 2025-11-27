@@ -461,7 +461,9 @@ export const PharmacyDrawer: React.FC<PharmacyDrawerProps> = ({
 
                 <div className="space-y-2">
                   {allSelectedPharmaciesForDisplay.map((pharmacy: SelectedPharmacy, index) => {
-                    const isSelected = selectedPharmacies.has(pharmacy.id);
+                    // CORRECTION: Vérifier si la pharmacie est sélectionnée (soit nouvellement, soit déjà stockée)
+                    // On utilise la fonction helper existante ou la logique combinée
+                    const isSelected = selectedPharmacies.has(pharmacy.id) || selectedPharmaciesInfo.some(p => p.id === pharmacy.id);
 
                     return (
                       <motion.div
