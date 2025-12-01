@@ -31,7 +31,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // 🔥 DÉTECTION AUTOMATIQUE du contexte
   const pathname = usePathname();
   const isGenericContext = pathname?.includes('/generique') ?? false;
-  
+
   const {
     products,
     isLoading,
@@ -60,12 +60,19 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // 🔥 Accès aux stores selon contexte AUTO-DÉTECTÉ
   const storedExcludedCodesFilters = useFiltersStore(state => state.excludedProducts);
   const storedExcludedCodesGeneric = useGenericGroupStore(state => state.excludedProducts);
-  
-  const storedExcludedCodes = isGenericContext 
-    ? storedExcludedCodesGeneric 
+
+  const storedExcludedProductsFilters = useFiltersStore(state => state.selectedExcludedProducts);
+  const storedExcludedProductsGeneric = useGenericGroupStore(state => state.selectedExcludedProducts);
+
+  const storedExcludedCodes = isGenericContext
+    ? storedExcludedCodesGeneric
     : storedExcludedCodesFilters;
 
-  const excludedProductsInfo = getExcludedProductsFromStore();
+  const storedExcludedProducts = isGenericContext
+    ? storedExcludedProductsGeneric
+    : storedExcludedProductsFilters;
+
+  const excludedProductsInfo = storedExcludedProducts;
 
   // 🔥 Log contexte détecté
   useEffect(() => {
@@ -86,24 +93,24 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // Parser codes
   const parseCodes = useCallback((text: string): string[] => {
     const cleanText = text.replace(/\s+/g, '');
-    
+
     // DÉTECTION EAN13
     if (/^\d+$/.test(cleanText) && cleanText.length >= 13) {
       const codes: string[] = [];
-      
+
       for (let i = 0; i <= cleanText.length - 13; i += 13) {
         const code = cleanText.substring(i, i + 13);
         if (code.length === 13) {
           codes.push(code);
         }
       }
-      
+
       if (codes.length > 0) {
         console.log('📊 [Parser] Detected EAN13 string:', codes.length, 'codes');
         return [...new Set(codes)];
       }
     }
-    
+
     // PARSING CLASSIQUE
     const separators = /[,;\s\t\n\r|]+/;
     const codes = text
@@ -111,7 +118,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
       .map(code => code.trim())
       .filter(code => code.length > 0)
       .filter(code => /^\d+$/.test(code));
-    
+
     console.log('📊 [Parser] Detected separated codes:', codes.length);
     return [...new Set(codes)];
   }, []);
@@ -135,11 +142,11 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
       const startTime = Date.now();
       const results = await bulkSearchProducts(codes);
       const totalTime = Date.now() - startTime;
-      
+
       if (results.found.length > 0) {
         bulkSelectProducts(results.found);
       }
-      
+
       setBulkResults({
         found: results.found.length,
         notFound: results.notFound
@@ -165,10 +172,10 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // 🔥 Désélectionner selon contexte AUTO-DÉTECTÉ
   const handleDeselectStoredExclusion = (code: string) => {
     console.log(`🗑️ [ExclusionDrawer:${isGenericContext ? 'generic' : 'filters'}] Deselecting:`, code);
-    
+
     const remainingExclusions = excludedProductsInfo.filter(product => product.code !== code);
     const remainingCodes = remainingExclusions.map(product => product.code);
-    
+
     if (isGenericContext) {
       useGenericGroupStore.getState().setExcludedProductsWithNames(remainingCodes, remainingExclusions);
     } else {
@@ -179,7 +186,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // 🔥 Appliquer exclusions selon contexte AUTO-DÉTECTÉ
   const applyExclusions = useCallback(() => {
     console.log(`✅ [ExclusionDrawer:${isGenericContext ? 'generic' : 'filters'}] Applying exclusions:`, selectedProducts.size);
-    
+
     if (isGenericContext) {
       // Récupérer les infos complètes des produits sélectionnés
       const selectedProductsArray = Array.from(selectedProducts);
@@ -191,12 +198,12 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
           brandLab: p.brand_lab,
           universe: p.universe
         }));
-      
+
       // Merger avec les exclusions existantes
       const existingExclusions = useGenericGroupStore.getState().selectedExcludedProducts;
       const allExclusions = [...existingExclusions, ...productsInfo];
       const allCodes = allExclusions.map(p => p.code);
-      
+
       useGenericGroupStore.getState().setExcludedProductsWithNames(allCodes, allExclusions);
     } else {
       applyExclusionsHook();
@@ -206,7 +213,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
   // 🔥 Clear exclusions selon contexte AUTO-DÉTECTÉ
   const clearExclusions = useCallback(() => {
     console.log(`🗑️ [ExclusionDrawer:${isGenericContext ? 'generic' : 'filters'}] Clearing all`);
-    
+
     if (isGenericContext) {
       useGenericGroupStore.getState().clearExcludedProducts();
     } else {
@@ -303,7 +310,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                 Les produits exclus seront retirés de tous vos filtres
               </p>
               <p className="text-xs text-amber-700 mt-1">
-                {isGenericContext 
+                {isGenericContext
                   ? 'Utilisez pour affiner vos groupes génériques, produits et laboratoires'
                   : 'Utilisez pour affiner vos sélections (labos, catégories...)'
                 }
@@ -329,7 +336,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
               Tapez au moins 3 caractères pour rechercher
             </p>
           )}
-          
+
           {/* Bouton Import Bulk */}
           <button
             onClick={() => setShowBulkInput(!showBulkInput)}
@@ -352,7 +359,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
               <p className="text-xs text-red-600">
                 Formats acceptés : codes séparés (virgule, espace) ou collés ensemble
               </p>
-              
+
               {/* Résultats import */}
               {bulkResults && (
                 <div className="p-2 bg-white rounded border border-red-200">
@@ -376,7 +383,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                   )}
                 </div>
               )}
-              
+
               <button
                 onClick={handleBulkImport}
                 disabled={!bulkInput.trim() || isBulkSearching}
@@ -404,7 +411,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
-          
+
           {/* SECTION PRODUITS EXCLUS */}
           {showExcludedSection && (
             <div className="border-b-2 border-red-200 bg-red-50">
@@ -421,7 +428,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                     Tout réactiver
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   {excludedProductsInfo.map((productInfo, index) => (
                     <motion.div
@@ -441,18 +448,18 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                             <p className="text-xs text-gray-500 mt-1">
                               {productInfo.code}
                             </p>
-                            
+
                             {(productInfo.brandLab || productInfo.universe) && (
                               <div className="flex items-center space-x-1 mt-1 flex-wrap gap-1">
                                 {productInfo.brandLab && (
-                                  <span className="inline-block px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[100px]" 
-                                        title={productInfo.brandLab}>
+                                  <span className="inline-block px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[100px]"
+                                    title={productInfo.brandLab}>
                                     {productInfo.brandLab.length > 30 ? `${productInfo.brandLab.substring(0, 30)}...` : productInfo.brandLab}
                                   </span>
                                 )}
                                 {productInfo.universe && (
-                                  <span className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded truncate max-w-[100px]" 
-                                        title={productInfo.universe}>
+                                  <span className="inline-block px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded truncate max-w-[100px]"
+                                    title={productInfo.universe}>
                                     {productInfo.universe.length > 30 ? `${productInfo.universe.substring(0, 30)}...` : productInfo.universe}
                                   </span>
                                 )}
@@ -461,7 +468,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                           </div>
                         </div>
                       </div>
-                      
+
                       <button
                         onClick={() => handleDeselectStoredExclusion(productInfo.code)}
                         className="ml-2 p-1 text-green-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
@@ -541,13 +548,13 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                       transition={{ delay: index * 0.05 }}
                       className={`
                         p-3 border-2 rounded-xl transition-all duration-200 cursor-pointer hover:shadow-md
-                        ${exclusionType === 'stored' 
-                          ? 'border-red-400 bg-red-50' 
+                        ${exclusionType === 'stored'
+                          ? 'border-red-400 bg-red-50'
                           : exclusionType === 'new'
-                          ? 'border-orange-400 bg-orange-50'
-                          : isExcluded 
-                          ? 'border-red-300 bg-red-50'
-                          : 'border-gray-200 hover:border-red-300'
+                            ? 'border-orange-400 bg-orange-50'
+                            : isExcluded
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-gray-200 hover:border-red-300'
                         }
                       `}
                       onClick={() => handleProductToggle(product.code_13_ref)}
@@ -557,6 +564,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                           type="checkbox"
                           checked={isExcluded}
                           onChange={() => handleProductToggle(product.code_13_ref)}
+                          onClick={(e) => e.stopPropagation()}
                           className="mt-1 w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
                         />
                         <div className="flex-1 min-w-0">
@@ -575,7 +583,7 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                               </span>
                             </div>
                           )}
-                          
+
                           {exclusionType === 'new' && (
                             <div className="flex items-center mt-2">
                               <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
@@ -584,18 +592,18 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
                               </span>
                             </div>
                           )}
-                          
+
                           {(product.brand_lab || product.universe) && (
                             <div className="flex items-center space-x-2 mt-2 flex-wrap gap-1">
                               {product.brand_lab && (
-                                <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[120px]" 
-                                      title={product.brand_lab}>
+                                <span className="inline-block px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded truncate max-w-[120px]"
+                                  title={product.brand_lab}>
                                   {product.brand_lab.length > 40 ? `${product.brand_lab.substring(0, 40)}...` : product.brand_lab}
                                 </span>
                               )}
                               {product.universe && (
-                                <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded truncate max-w-[120px]" 
-                                      title={product.universe}>
+                                <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-700 rounded truncate max-w-[120px]"
+                                  title={product.universe}>
                                   {product.universe.length > 40 ? `${product.universe.substring(0, 40)}...` : product.universe}
                                 </span>
                               )}
