@@ -485,6 +485,7 @@ export const LaboratoriesDrawer: React.FC<LaboratoriesDrawerProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleLaboratoryToggle(laboratory.laboratory_name, laboratory.product_codes, sourceType)}
+                          onClick={(e) => e.stopPropagation()}
                           className="mt-2 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                         />
                       </div>

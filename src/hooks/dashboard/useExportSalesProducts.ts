@@ -110,7 +110,7 @@ export function useExportSalesProducts(): UseExportSalesProductsReturn {
 
         if (result.hasComparison) {
           baseData['Quantité Vendue Comparaison'] = product.quantite_vendue_comparison;
-          baseData['Évolution Quantité (%)'] = product.evol_quantite_pct;
+          baseData['Évolution Qté (%)'] = product.evol_quantite_pct;
         }
 
         baseData['Prix Achat Moyen (€)'] = product.prix_achat_moyen;
@@ -125,8 +125,8 @@ export function useExportSalesProducts(): UseExportSalesProductsReturn {
         return baseData;
       });
 
-      const searchSuffix = searchFilter 
-        ? `_recherche_${searchFilter.replace(/[^a-zA-Z0-9]/g, '_')}` 
+      const searchSuffix = searchFilter
+        ? `_recherche_${searchFilter.replace(/[^a-zA-Z0-9]/g, '_')}`
         : '';
       const filename = CsvExporter.generateFilename(`apodata_ventes_complet${searchSuffix}`);
       const headers = Object.keys(exportData[0]!);

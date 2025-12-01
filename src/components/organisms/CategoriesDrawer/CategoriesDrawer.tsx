@@ -65,13 +65,13 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   // Fonction pour désélectionner une catégorie du store
   const handleDeselectStoredCategory = (categoryName: string, categoryType: 'universe' | 'category') => {
     console.log('🗑️ [CategoriesDrawer] Deselecting stored category:', `${categoryType}:${categoryName}`);
-    
+
     // Filtrer cette catégorie des sélections du store
-    const remainingCategories = selectedCategoriesInfo.filter(cat => 
+    const remainingCategories = selectedCategoriesInfo.filter(cat =>
       !(cat.name === categoryName && cat.type === categoryType)
     );
     const remainingCodes = remainingCategories.flatMap(cat => cat.productCodes);
-    
+
     // Mettre à jour le store
     const setCategoryFiltersWithNames = useFiltersStore.getState().setCategoryFiltersWithNames;
     setCategoryFiltersWithNames(remainingCodes, remainingCategories);
@@ -80,7 +80,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   // Vérifier si une catégorie est sélectionnée (store OU nouvelles sélections)
   const isCategorySelected = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): boolean => {
     const categoryKey = createCategoryKey(categoryName, categoryType);
-    
+
     if (selectedCategories.has(categoryKey)) {
       return true;
     }
@@ -93,7 +93,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   // Déterminer le type de sélection pour l'affichage visuel
   const getSelectionType = (categoryName: string, categoryType: 'universe' | 'category', productCodes: string[]): 'new' | 'stored' | 'none' => {
     const categoryKey = createCategoryKey(categoryName, categoryType);
-    
+
     if (selectedCategories.has(categoryKey)) {
       return 'new';
     }
@@ -109,8 +109,8 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
   const showSelectedSection = !isSearching && selectedCategoriesInfo.length > 0;
 
   const getPlaceholderText = () => {
-    return searchMode === 'category' 
-      ? 'Rechercher une catégorie/univers...' 
+    return searchMode === 'category'
+      ? 'Rechercher une catégorie/univers...'
       : 'Rechercher un produit...';
   };
 
@@ -128,17 +128,17 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
 
   const getCategoryColor = (type: 'universe' | 'category', selectionType: 'new' | 'stored' | 'none') => {
     if (type === 'universe') {
-      return selectionType === 'stored' 
+      return selectionType === 'stored'
         ? 'bg-blue-200 text-blue-700'
         : selectionType === 'new'
-        ? 'bg-blue-600 text-white'
-        : 'bg-blue-100 text-blue-600';
+          ? 'bg-blue-600 text-white'
+          : 'bg-blue-100 text-blue-600';
     } else {
       return selectionType === 'stored'
         ? 'bg-green-200 text-green-700'
         : selectionType === 'new'
-        ? 'bg-green-600 text-white'
-        : 'bg-green-100 text-green-600';
+          ? 'bg-green-600 text-white'
+          : 'bg-green-100 text-green-600';
     }
   };
 
@@ -147,14 +147,14 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
       return selectionType === 'stored'
         ? 'border-blue-300 bg-blue-50'
         : selectionType === 'new'
-        ? 'border-blue-500 bg-blue-100'
-        : 'border-gray-200 bg-white hover:border-blue-200';
+          ? 'border-blue-500 bg-blue-100'
+          : 'border-gray-200 bg-white hover:border-blue-200';
     } else {
       return selectionType === 'stored'
         ? 'border-green-300 bg-green-50'
         : selectionType === 'new'
-        ? 'border-green-500 bg-green-100'
-        : 'border-gray-200 bg-white hover:border-green-200';
+          ? 'border-green-500 bg-green-100'
+          : 'border-gray-200 bg-white hover:border-green-200';
     }
   };
 
@@ -208,7 +208,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
             <div className="relative group">
               <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
               <div className="absolute right-0 top-6 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-                <strong>Catégorie :</strong> Recherche dans univers et catégories<br/>
+                <strong>Catégorie :</strong> Recherche dans univers et catégories<br />
                 <strong>Produit :</strong> Trouve les catégories via leurs produits
               </div>
             </div>
@@ -263,7 +263,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
               </button>
             )}
           </div>
-          
+
           {searchQuery.length > 0 && searchQuery.length < 3 && (
             <p className="mt-2 text-xs text-amber-600">
               Tapez au moins 3 caractères pour rechercher
@@ -290,20 +290,19 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                     Tout effacer
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   {selectedCategoriesInfo.map((categoryInfo, index) => {
                     const CategoryIcon = getCategoryIcon(categoryInfo.type);
-                    
+
                     return (
                       <motion.div
                         key={`selected-${categoryInfo.type}-${categoryInfo.name}-${index}`}
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className={`flex items-center justify-between p-3 bg-white border rounded-lg ${
-                          categoryInfo.type === 'universe' ? 'border-blue-200' : 'border-green-200'
-                        }`}
+                        className={`flex items-center justify-between p-3 bg-white border rounded-lg ${categoryInfo.type === 'universe' ? 'border-blue-200' : 'border-green-200'
+                          }`}
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <div className={`
@@ -312,7 +311,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                           `}>
                             <CategoryIcon className="w-4 h-4" />
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium text-gray-900 truncate block">
                               {categoryInfo.name}
@@ -330,7 +329,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                             </div>
                           </div>
                         </div>
-                        
+
                         <button
                           onClick={() => handleDeselectStoredCategory(categoryInfo.name, categoryInfo.type)}
                           className="ml-2 p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -424,7 +423,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                           `}>
                             <CategoryIcon className="w-5 h-5" />
                           </div>
-                          
+
                           <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-semibold text-gray-900 truncate">
                               {category.category_name}
@@ -439,21 +438,19 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                               <span>•</span>
                               <span>{getResultCountText(category.product_count, searchMode)}</span>
                             </p>
-                            
+
                             {/* Indicateurs de statut */}
                             {selectionType === 'stored' && (
                               <div className="flex items-center mt-2">
-                                <div className={`w-2 h-2 rounded-full mr-2 ${
-                                  category.category_type === 'universe' ? 'bg-blue-500' : 'bg-green-500'
-                                }`} />
-                                <span className={`text-xs font-medium ${
-                                  category.category_type === 'universe' ? 'text-blue-600' : 'text-green-600'
-                                }`}>
+                                <div className={`w-2 h-2 rounded-full mr-2 ${category.category_type === 'universe' ? 'bg-blue-500' : 'bg-green-500'
+                                  }`} />
+                                <span className={`text-xs font-medium ${category.category_type === 'universe' ? 'text-blue-600' : 'text-green-600'
+                                  }`}>
                                   Déjà appliqué
                                 </span>
                               </div>
                             )}
-                            
+
                             {selectionType === 'new' && (
                               <div className="flex items-center mt-2">
                                 <div className="w-2 h-2 bg-orange-500 rounded-full mr-2" />
@@ -462,7 +459,7 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                                 </span>
                               </div>
                             )}
-                            
+
                             {/* Produits correspondants en mode produit */}
                             {searchMode === 'product' && category.matching_products && category.matching_products.length > 0 && (
                               <div className="mt-2 space-y-1">
@@ -491,10 +488,11 @@ export const CategoriesDrawer: React.FC<CategoriesDrawerProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleCategoryToggle(category.category_name, category.category_type, category.product_codes)}
+                            onClick={(e) => e.stopPropagation()}
                             className={`
                               mt-2 w-4 h-4 border-gray-300 rounded focus:ring-2
-                              ${category.category_type === 'universe' 
-                                ? 'text-blue-600 focus:ring-blue-500' 
+                              ${category.category_type === 'universe'
+                                ? 'text-blue-600 focus:ring-blue-500'
                                 : 'text-green-600 focus:ring-green-500'
                               }
                             `}

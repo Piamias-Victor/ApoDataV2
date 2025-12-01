@@ -502,7 +502,7 @@ export const FilterBar: React.FC = () => {
                 whileTap={totalFiltersCount > 0 ? { scale: 0.98 } : {}}
               >
                 <Save className="w-3.5 h-3.5" />
-                <span className="font-medium text-xs">Sauver</span>
+                <span className="font-medium text-xs">Enregistrer</span>
               </motion.button>
 
               <motion.button
@@ -519,7 +519,7 @@ export const FilterBar: React.FC = () => {
                 whileTap={{ scale: 0.98 }}
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                <span className="font-medium text-xs">Charger</span>
+                <span className="font-medium text-xs">Mes filtres</span>
 
                 <AnimatePresence>
                   {savedFilters.length > 0 && (

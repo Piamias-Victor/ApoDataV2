@@ -8,8 +8,7 @@ import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useGenericProductsList } from '@/hooks/generic-groups/useGenericProductsList';
 import { useGenericProductDetails } from '@/hooks/generic-groups/useGenericProductDetails';
-import { useExportCsv } from '@/hooks/export/useExportCsv';
-import { CsvExporter } from '@/utils/export/csvExporter';
+import { useExportGenericProducts } from '@/hooks/generic-groups/useExportGenericProducts';
 import { GenericProductChart } from '@/components/organisms/GenericProductChart/GenericProductChart';
 import { useGenericGroupStore } from '@/stores/useGenericGroupStore'; // 🔥 NOUVEAU
 
@@ -20,7 +19,7 @@ interface ProductsTableGenericProps {
   readonly onRefresh?: () => void;
 }
 
-type SortableColumn = 
+type SortableColumn =
   | 'laboratory_name'
   | 'product_name'
   | 'code_ean'
@@ -44,17 +43,17 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     column: 'ca_ventes',
     direction: 'desc'
   });
-  
+
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
   // 🔥 NOUVEAU - Vérifier les filtres actifs depuis le store
   const hasActiveFilters = useGenericGroupStore(state => {
-    const hasSelections = state.selectedGroups.length > 0 || 
-                         state.selectedProducts.length > 0 || 
-                         state.selectedLaboratories.length > 0;
-    const hasFilters = state.hasPriceFilters() || 
-                      state.tvaRates.length > 0 || 
-                      state.genericStatus !== 'BOTH';
+    const hasSelections = state.selectedGroups.length > 0 ||
+      state.selectedProducts.length > 0 ||
+      state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() ||
+      state.tvaRates.length > 0 ||
+      state.genericStatus !== 'BOTH';
     return hasSelections || hasFilters;
   });
 
@@ -91,7 +90,12 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     clearCache
   } = useGenericProductDetails(dateRange);
 
-  const { exportToCsv, isExporting } = useExportCsv();
+  // ✅ Hook export dédié (données complètes brutes)
+  const { exportAllToCsv, isExporting } = useExportGenericProducts(
+    dateRange,
+    productCodes,
+    isGlobalMode
+  );
 
   useEffect(() => {
     clearCache();
@@ -110,7 +114,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
 
   const toggleExpansion = useCallback(async (codeEan: string) => {
     const isExpanded = expandedProducts.has(codeEan);
-    
+
     if (!isExpanded) {
       if (!hasDetails(codeEan)) {
         await fetchDetails(codeEan);
@@ -125,28 +129,10 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     }
   }, [expandedProducts, hasDetails, fetchDetails]);
 
+  // ✅ Export complet avec filtre recherche appliqué
   const handleExport = useCallback(() => {
-    if (!products || products.length === 0) return;
-
-    const exportData = products.map(product => ({
-      'Laboratoire': product.laboratory_name,
-      'Produit': product.product_name,
-      'Code EAN': product.code_ean,
-      'Prix Brut Grossiste (€)': product.prix_brut_grossiste !== null ? Number(product.prix_brut_grossiste).toFixed(2) : 'N/A',
-      'Prix Achat (€)': Number(product.avg_buy_price_ht).toFixed(2),
-      'Remise (%)': Number(product.remise_percent).toFixed(2),
-      'Volume Achats': Number(product.quantity_bought),
-      'CA Acheté (€)': Number(product.ca_achats).toFixed(2),
-      'Volume Ventes': Number(product.quantity_sold),
-      'CA Ventes (€)': Number(product.ca_ventes).toFixed(2),
-      'Taux Marge (%)': Number(product.margin_rate_percent).toFixed(2)
-    }));
-
-    const filename = CsvExporter.generateFilename('apodata_produits_generiques');
-    const headers = Object.keys(exportData[0] || {});
-
-    exportToCsv({ filename, headers, data: exportData });
-  }, [products, exportToCsv]);
+    exportAllToCsv(searchInput);
+  }, [exportAllToCsv, searchInput]);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M €`;
@@ -176,7 +162,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
     if (sortConfig.column !== column) {
       return <ChevronUp className="w-4 h-4 text-gray-400" />;
     }
-    return sortConfig.direction === 'asc' 
+    return sortConfig.direction === 'asc'
       ? <ChevronUp className="w-4 h-4 text-blue-600" />
       : <ChevronDown className="w-4 h-4 text-blue-600" />;
   };
@@ -219,7 +205,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-500">
@@ -230,14 +216,14 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               </span>
             )}
           </div>
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
             disabled={!products || products.length === 0}
-            label={`Export CSV (${total} lignes)`}
+            label={`Export CSV complet (${total} lignes)`}
           />
-          
+
           {!hasFilters && products.length > 0 && (
             <Button
               variant="ghost"
@@ -265,7 +251,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-          
+
           <Button
             variant="secondary"
             size="sm"
@@ -294,7 +280,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th 
+                <th
                   onClick={() => handleSort('laboratory_name')}
                   className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -303,7 +289,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="laboratory_name" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('product_name')}
                   className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -312,7 +298,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="product_name" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('code_ean')}
                   className="px-2 py-2 text-left text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-28"
                 >
@@ -321,7 +307,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="code_ean" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('prix_brut_grossiste')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -330,7 +316,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="prix_brut_grossiste" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('avg_buy_price_ht')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -339,7 +325,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="avg_buy_price_ht" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('remise_percent')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
@@ -348,7 +334,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="remise_percent" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('quantity_bought')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -357,7 +343,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="quantity_bought" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('ca_achats')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -366,7 +352,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="ca_achats" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('quantity_sold')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -375,7 +361,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="quantity_sold" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('ca_ventes')}
                   className="px-2 py-2 text-right text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 >
@@ -384,7 +370,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                     <SortIcon column="ca_ventes" />
                   </div>
                 </th>
-                <th 
+                <th
                   onClick={() => handleSort('margin_rate_percent')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-16"
                 >
@@ -398,7 +384,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 </th>
               </tr>
             </thead>
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
@@ -418,10 +404,9 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
               ) : (
                 products.map((product, index) => (
                   <React.Fragment key={`${product.code_ean}-${index}`}>
-                    <tr 
-                      className={`transition-colors ${
-                        index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
-                      }`}
+                    <tr
+                      className={`transition-colors ${index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
+                        }`}
                     >
                       <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
                         <div className="max-w-[120px] truncate" title={product.laboratory_name}>
@@ -437,7 +422,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                         {product.code_ean}
                       </td>
                       <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                        {product.prix_brut_grossiste !== null 
+                        {product.prix_brut_grossiste !== null
                           ? `${product.prix_brut_grossiste.toFixed(2)} €`
                           : <span className="text-gray-400">N/A</span>
                         }
@@ -527,7 +512,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
                 ))
               )}
             </tbody>
-            
+
           </table>
         </div>
       </Card>
@@ -537,7 +522,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} ({total} produits au total)
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -548,7 +533,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
             >
               Précédent
             </Button>
-            
+
             <Button
               variant="secondary"
               size="sm"
@@ -561,7 +546,7 @@ export const ProductsTableGeneric: React.FC<ProductsTableGenericProps> = ({
           </div>
         </div>
       )}
-      
+
     </div>
   );
 };

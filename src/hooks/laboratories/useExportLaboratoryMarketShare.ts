@@ -109,7 +109,7 @@ export function useExportLaboratoryMarketShare(): UseExportLaboratoryMarketShare
 
         if (result.hasComparison) {
           baseData['Montant Achats Comparaison (€)'] = lab.ca_achats_comparison;
-          baseData['Évolution Achats (%)'] = lab.evol_achats_pct;
+          baseData['Évolution Achats € (%)'] = lab.evol_achats_pct;
         }
 
         baseData['Volume Ventes'] = lab.quantity_sold;
@@ -117,7 +117,7 @@ export function useExportLaboratoryMarketShare(): UseExportLaboratoryMarketShare
 
         if (result.hasComparison) {
           baseData['Montant Ventes Comparaison (€)'] = lab.ca_selection_comparison;
-          baseData['Évolution Ventes (%)'] = lab.evol_ventes_pct;
+          baseData['Évolution Ventes € (%)'] = lab.evol_ventes_pct;
         }
 
         baseData['Taux Marge (%)'] = lab.margin_rate_percent;
