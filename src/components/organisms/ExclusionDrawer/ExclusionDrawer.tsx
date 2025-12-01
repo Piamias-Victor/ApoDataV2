@@ -43,7 +43,6 @@ export const ExclusionDrawer: React.FC<ExclusionDrawerProps> = ({
     applyExclusions: applyExclusionsHook,
     clearExclusions: clearExclusionsHook,
     pendingProductCodes,
-    getExcludedProductsFromStore,
     bulkSearchProducts,
     isBulkSearching,
     bulkSelectProducts
