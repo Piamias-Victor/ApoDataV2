@@ -19,17 +19,6 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
   loading = false,
   onEdit
 }) => {
-  // Formatage des montants en euros
-  const formatCurrency = (amount: number | null): string => {
-    if (amount === null) return '-';
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
   // Formatage des dates
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('fr-FR', {

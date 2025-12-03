@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const UpdateUserSchema = z.object({
-    role: z.enum(['admin', 'user', 'viewer']).optional(),
+    role: z.enum(['admin', 'user', 'viewer', 'pharmacy_user']).optional(),
     pharmacyId: z.string().uuid().optional().nullable()
 });
 
