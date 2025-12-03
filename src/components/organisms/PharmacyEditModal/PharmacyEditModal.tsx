@@ -24,7 +24,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
   const [formData, setFormData] = useState<PharmacyUpdateData>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Initialiser le formulaire quand la pharmacie change
   useEffect(() => {
     if (pharmacy) {
@@ -34,20 +34,21 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
         address: pharmacy.address,
         area: pharmacy.area,
         ca: pharmacy.ca,
-        employees_count: pharmacy.employees_count
+        employees_count: pharmacy.employees_count,
+        ca_rank: pharmacy.ca_rank ?? null
       });
       setError(null);
     }
   }, [pharmacy]);
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!pharmacy) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       await onSave(pharmacy.id, formData);
       onClose();
@@ -58,22 +59,22 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
       setLoading(false);
     }
   };
-  
+
   const handleChange = (field: keyof PharmacyUpdateData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const value = e.target.value;
-    
-    if (field === 'ca' || field === 'employees_count') {
+
+    if (field === 'ca' || field === 'employees_count' || field === 'ca_rank') {
       const numValue = value === '' ? null : parseFloat(value);
       setFormData(prev => ({ ...prev, [field]: numValue }));
     } else {
       setFormData(prev => ({ ...prev, [field]: value || null }));
     }
   };
-  
+
   if (!pharmacy) return null;
-  
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -86,7 +87,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
             onClick={onClose}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
           />
-          
+
           {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -111,7 +112,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                   </button>
                 </div>
               </div>
-              
+
               {/* Form */}
               <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-180px)]">
                 {/* Nom */}
@@ -128,7 +129,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                     placeholder="Pharmacie Centrale"
                   />
                 </div>
-                
+
                 {/* ID National */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -142,7 +143,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                     placeholder="ID-123456"
                   />
                 </div>
-                
+
                 {/* Adresse */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -156,7 +157,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                     placeholder="123 Rue de la Santé, 75001 Paris"
                   />
                 </div>
-                
+
                 {/* Région */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -183,7 +184,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                     <option value="Corse">Corse</option>
                   </select>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* Nombre d'employés */}
                   <div>
@@ -199,7 +200,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                       placeholder="10"
                     />
                   </div>
-                  
+
                   {/* CA */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -215,8 +216,26 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                       placeholder="1500000"
                     />
                   </div>
+
+                  {/* Rang CA */}
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rang CA (Classement manuel)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.ca_rank || ''}
+                      onChange={handleChange('ca_rank')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Ex: 1 pour la meilleure pharmacie"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Plus le chiffre est petit, meilleur est le classement (1 = 1er)
+                    </p>
+                  </div>
                 </div>
-                
+
                 {/* Message d'erreur */}
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -229,7 +248,7 @@ export const PharmacyEditModal: React.FC<PharmacyEditModalProps> = ({
                   </div>
                 )}
               </form>
-              
+
               {/* Footer */}
               <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
                 <button

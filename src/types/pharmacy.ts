@@ -8,6 +8,7 @@ export interface Pharmacy {
   readonly area: string | null;
   readonly ca: number | null;
   readonly employees_count: number | null;
+  readonly ca_rank?: number | null;
   readonly surface?: number | null;
   readonly created_at: string;
   readonly updated_at: string;
@@ -20,6 +21,7 @@ export interface PharmacyUpdateData {
   readonly area?: string | null;
   readonly ca?: number | null;
   readonly employees_count?: number | null;
+  readonly ca_rank?: number | null;
   readonly surface?: number | null;
 }
 

@@ -5,9 +5,11 @@ export interface User {
   readonly name: string;
   readonly role: 'admin' | 'user' | 'viewer';
   readonly pharmacyId: string | null;
+  readonly pharmacyName?: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly lastLoginAt: string | null;
+  readonly deletedAt?: string | null;
 }
 
 export interface CreateUserRequest {
@@ -23,10 +25,34 @@ export interface CreateUserResponse {
   readonly message: string;
 }
 
-export type UserRole = 'admin' | 'user' | 'viewer';
+export type UserRole = 'admin' | 'user' | 'viewer' | 'pharmacy_user';
 
 export const USER_ROLES: Record<UserRole, string> = {
   admin: 'Administrateur',
   user: 'Utilisateur',
-  viewer: 'Lecteur'
+  viewer: 'Lecteur',
+  pharmacy_user: 'Pharmacien'
 } as const;
+
+export interface UserUpdateData {
+  readonly role?: 'admin' | 'user' | 'viewer';
+  readonly pharmacyId?: string | null;
+}
+
+export interface UsersResponse {
+  readonly users: User[];
+  readonly pagination: {
+    readonly currentPage: number;
+    readonly totalPages: number;
+    readonly totalItems: number;
+    readonly itemsPerPage: number;
+  };
+}
+
+export interface UserFilters {
+  readonly search?: string;
+  readonly role?: UserRole;
+  readonly includeDeleted?: boolean;
+  readonly page?: number;
+  readonly limit?: number;
+}

@@ -1,66 +1,80 @@
-// src/hooks/admin/useUsers.tsx
-'use client';
+import { useState, useEffect, useCallback } from 'react';
+import { UserFilters, UsersResponse } from '@/types/user';
 
-import { useState, useCallback } from 'react';
-import type { User } from '@/types/user';
-
-interface UseUsersReturn {
-  readonly users: User[];
-  readonly loading: boolean;
-  readonly error: string | null;
-  readonly createUser: (userData: any) => Promise<void>;
-  readonly refreshUsers: () => Promise<void>;
-}
-
-export const useUsers = (): UseUsersReturn => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+export function useUsers() {
+  const [data, setData] = useState<UsersResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const [filters, setFilters] = useState<UserFilters>({
+    search: '',
+    page: 1,
+    limit: 20,
+    includeDeleted: false
+  });
 
+  const fetchUsers = useCallback(async () => {
+    console.log('🔄 [useUsers] Fetching users...', filters);
     try {
-      const response = await fetch('/api/admin/users', {
-        credentials: 'include'
-      });
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.role) params.append('role', filters.role);
+      if (filters.includeDeleted) params.append('includeDeleted', 'true');
+      if (filters.page) params.append('page', filters.page.toString());
+      if (filters.limit) params.append('limit', filters.limit.toString());
+
+      const url = `/api/admin/users?${params.toString()}`;
+      console.log('🌐 [useUsers] Request URL:', url);
+
+      const response = await fetch(url);
+      console.log('📥 [useUsers] Response status:', response.status);
 
       if (!response.ok) {
-        throw new Error('Erreur de chargement des utilisateurs');
+        throw new Error('Failed to fetch users');
       }
 
-      const data = await response.json();
-      setUsers(data.users || []);
-      
+      const result = await response.json();
+      console.log('✅ [useUsers] Data received:', result);
+      setData(result);
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      console.error('❌ [useUsers] Error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters]);
 
-  const createUser = useCallback(async (userData: any) => {
-    const response = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData),
-      credentials: 'include'
-    });
+  useEffect(() => {
+    console.log('⚡ [useUsers] Effect triggered');
+    fetchUsers();
+  }, [fetchUsers]);
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Erreur de création');
-    }
+  const setSearch = (search: string) => {
+    setFilters(prev => ({ ...prev, search, page: 1 }));
+  };
 
-    await refreshUsers();
-  }, [refreshUsers]);
+  const setPage = (page: number) => {
+    setFilters(prev => ({ ...prev, page }));
+  };
 
-  return {
-    users,
+  const toggleDeleted = () => {
+    setFilters(prev => ({ ...prev, includeDeleted: !prev.includeDeleted, page: 1 }));
+  };
+
+  const returnValue = {
+    data,
     loading,
     error,
-    createUser,
-    refreshUsers
+    filters,
+    setSearch,
+    setPage,
+    toggleDeleted,
+    refetch: fetchUsers
   };
-};
+
+  return returnValue;
+}

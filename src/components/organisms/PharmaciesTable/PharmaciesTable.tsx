@@ -29,7 +29,7 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
       maximumFractionDigits: 0
     }).format(amount);
   };
-  
+
   // Formatage des dates
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -38,7 +38,7 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
       year: 'numeric'
     });
   };
-  
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -58,22 +58,22 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
       </div>
     );
   }
-  
+
   if (pharmacies.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
         <div className="text-center">
-          <svg 
+          <svg
             className="mx-auto h-12 w-12 text-gray-400"
-            fill="none" 
-            viewBox="0 0 24 24" 
+            fill="none"
+            viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" 
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
             />
           </svg>
           <h3 className="mt-4 text-sm font-medium text-gray-900">
@@ -86,7 +86,7 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
       </div>
     );
   }
-  
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -102,11 +102,14 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                 Région
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 CA
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                Emp.
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Rang CA
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Employés
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                 Créée le
@@ -143,15 +146,18 @@ export const PharmaciesTable: React.FC<PharmaciesTableProps> = ({
                     {pharmacy.area || 'N/A'}
                   </span>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatCurrency(pharmacy.ca)}
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {pharmacy.ca ? `${pharmacy.ca.toLocaleString('fr-FR')} €` : '-'}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className="text-sm text-gray-900">
-                    {pharmacy.employees_count || '-'}
-                  </span>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {pharmacy.ca_rank ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      #{pharmacy.ca_rank}
+                    </span>
+                  ) : '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {pharmacy.employees_count || '-'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <span className="text-sm text-gray-500">
