@@ -13,9 +13,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' && 
-                     process.env.UPSTASH_REDIS_REST_URL && 
-                     process.env.UPSTASH_REDIS_REST_TOKEN;
+const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN;
 const CACHE_TTL = 3600; // 1 heure pour données ventes
 
 interface SalesProductsRequest {
@@ -44,14 +44,15 @@ interface SalesProductRow {
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
   readonly quantite_vendue_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
-  
+
   try {
     console.log('🔥 [API Sales Products] Request started');
-    
+
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API Sales Products] Unauthorized');
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('❌ [API Sales Products] Missing date range');
       return NextResponse.json({ error: 'Date range required' }, { status: 400 });
     }
-    
+
     const allProductCodes = Array.from(new Set([
       ...(body.productCodes || []),
       ...(body.laboratoryCodes || []),
@@ -132,8 +133,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ========== PÉRIODE PRINCIPALE ==========
     console.log('🗃️ [API Sales Products] Executing main period query...');
-    
-    const salesData = context.isAdmin 
+
+    const salesData = context.isAdmin
       ? await executeAdminQuery(body.dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(body.dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
@@ -143,37 +144,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // ========== PÉRIODE DE COMPARAISON (UNIQUEMENT SYNTHESE) ==========
-    let comparisonMap = new Map<string, number>();
-    
+    let comparisonMap = new Map<string, { quantite_vendue: number; quantity_bought: number }>();
+
     if (body.comparisonDateRange?.start && body.comparisonDateRange?.end) {
       console.log('📊 [API Sales Products] Calculating comparison period');
-      
+
       const comparisonSales = context.isAdmin
         ? await executeAdminQuery(body.comparisonDateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
         : await executeUserQuery(body.comparisonDateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
-      
+
       const comparisonSyntheses = comparisonSales.filter(row => row.type_ligne === 'SYNTHESE');
-      
+
       comparisonSyntheses.forEach(row => {
-        comparisonMap.set(row.code_ean, row.quantite_vendue);
+        comparisonMap.set(row.code_ean, {
+          quantite_vendue: row.quantite_vendue,
+          quantity_bought: row.quantity_bought
+        });
       });
-      
+
       console.log('✅ [API Sales Products] Comparison data loaded:', {
         comparisonCount: comparisonSyntheses.length,
         sampleComparison: comparisonSyntheses[0] ? {
           code_ean: comparisonSyntheses[0].code_ean,
-          quantite_vendue: comparisonSyntheses[0].quantite_vendue
+          quantite_vendue: comparisonSyntheses[0].quantite_vendue,
+          quantity_bought: comparisonSyntheses[0].quantity_bought
         } : null
       });
     }
 
     // ========== FUSION DES RÉSULTATS ==========
-    const salesDataWithComparison = salesData.map(row => ({
-      ...row,
-      quantite_vendue_comparison: row.type_ligne === 'SYNTHESE' 
-        ? (comparisonMap.get(row.code_ean) ?? null)
-        : null
-    }));
+    const salesDataWithComparison = salesData.map(row => {
+      const comparisonData = row.type_ligne === 'SYNTHESE' ? comparisonMap.get(row.code_ean) : null;
+
+      return {
+        ...row,
+        quantite_vendue_comparison: comparisonData ? comparisonData.quantite_vendue : null,
+        quantity_bought_comparison: comparisonData ? comparisonData.quantity_bought : null
+      };
+    });
 
     if (salesDataWithComparison.length > 0 && salesDataWithComparison[0]) {
       const sampleSynthese = salesDataWithComparison.find(r => r.type_ligne === 'SYNTHESE');
@@ -224,23 +232,23 @@ async function executeAdminQuery(
     ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
 
-  const productFilter = hasProductFilter 
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
   const params = [];
   let paramIndex = 1;
-  
+
   params.push(dateRange.start);
   params.push(dateRange.end);
-  
+
   if (hasProductFilter) {
     params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
-  
+
   if (pharmacyIds && pharmacyIds.length > 0) {
     params.push(pharmacyIds);
   }
@@ -252,11 +260,11 @@ async function executeAdminQuery(
   const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const useMonthlyGrouping = diffDays > 62;
 
-  const periodGrouping = useMonthlyGrouping 
+  const periodGrouping = useMonthlyGrouping
     ? "DATE_TRUNC('month', s.date)"
     : "s.date";
-  
-  const periodFormat = useMonthlyGrouping 
+
+  const periodFormat = useMonthlyGrouping
     ? "TO_CHAR(ps.periode, 'YYYY-MM')"
     : "TO_CHAR(ps.periode, 'YYYY-MM-DD')";
 
@@ -445,8 +453,8 @@ async function executeUserQuery(
   pharmacyId: string,
   hasProductFilter: boolean = true
 ): Promise<Omit<SalesProductRow, 'quantite_vendue_comparison'>[]> {
-  
-  const productFilter = hasProductFilter 
+
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
@@ -461,11 +469,11 @@ async function executeUserQuery(
   const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const useMonthlyGrouping = diffDays > 62;
 
-  const periodGrouping = useMonthlyGrouping 
+  const periodGrouping = useMonthlyGrouping
     ? "DATE_TRUNC('month', s.date)"
     : "s.date";
-  
-  const periodFormat = useMonthlyGrouping 
+
+  const periodFormat = useMonthlyGrouping
     ? "TO_CHAR(ps.periode, 'YYYY-MM')"
     : "TO_CHAR(ps.periode, 'YYYY-MM-DD')";
 
@@ -663,7 +671,7 @@ function generateCacheKey(params: {
     role: params.role,
     hasProductFilter: params.hasProductFilter
   });
-  
+
   const hash = crypto.createHash('md5').update(data).digest('hex');
   return `sales:products:${hash}`;
 }

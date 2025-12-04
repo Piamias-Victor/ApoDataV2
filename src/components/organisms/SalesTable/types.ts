@@ -22,6 +22,7 @@ export interface SalesProductRow {
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
   readonly quantite_vendue_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
 }
 
 export interface ProductSalesSummary {
@@ -38,10 +39,11 @@ export interface ProductSalesSummary {
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
   readonly quantite_vendue_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
 }
 
-export type SalesSortableColumn = 
-  | 'nom' 
+export type SalesSortableColumn =
+  | 'nom'
   | 'code_ean'
   | 'bcb_lab'
   | 'quantity_bought'

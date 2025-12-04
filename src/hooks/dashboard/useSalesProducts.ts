@@ -21,6 +21,7 @@ interface SalesProductRow {
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
   readonly quantite_vendue_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
 }
 
 interface SalesProductsResponse {
@@ -45,6 +46,7 @@ export interface ProductSalesSummary {
   readonly montant_ventes_ttc: number;
   readonly montant_marge_total: number;
   readonly quantite_vendue_comparison: number | null;
+  readonly quantity_bought_comparison: number | null;
 }
 
 interface UseSalesProductsOptions {
@@ -94,7 +96,7 @@ export function useSalesProducts(
   const analysisDateRange = useFiltersStore((state) => state.analysisDateRange);
   const comparisonDateRange = useFiltersStore((state) => state.comparisonDateRange);
   const pharmacyFilter = useFiltersStore((state) => state.pharmacy);
-  
+
   // 🔥 Lecture directe de products (contient déjà logique ET/OU + exclusions)
   const products = useFiltersStore((state) => state.products);
   const excludedProducts = useFiltersStore((state) => state.excludedProducts);
@@ -128,9 +130,9 @@ export function useSalesProducts(
 
   const productSummaries = useMemo((): ProductSalesSummary[] => {
     if (!data?.salesData) return [];
-    
+
     const syntheses = data.salesData.filter(row => row.type_ligne === 'SYNTHESE');
-    
+
     return syntheses.map(row => ({
       nom: row.nom,
       code_ean: row.code_ean,
@@ -144,13 +146,14 @@ export function useSalesProducts(
       part_marche_marge_pct: parseNumericValue(row.part_marche_marge_pct),
       montant_ventes_ttc: parseNumericValue(row.montant_ventes_ttc),
       montant_marge_total: parseNumericValue(row.montant_marge_total),
-      quantite_vendue_comparison: row.quantite_vendue_comparison ?? null
+      quantite_vendue_comparison: row.quantite_vendue_comparison !== null ? parseNumericValue(row.quantite_vendue_comparison) : null,
+      quantity_bought_comparison: row.quantity_bought_comparison !== null ? parseNumericValue(row.quantity_bought_comparison) : null
     }));
   }, [data?.salesData]);
 
   const getSalesDetails = useCallback((codeEan: string): SalesProductRow[] => {
     if (!data?.salesData) return [];
-    return data.salesData.filter(row => 
+    return data.salesData.filter(row =>
       row.code_ean === codeEan && row.type_ligne === 'DETAIL'
     );
   }, [data?.salesData]);

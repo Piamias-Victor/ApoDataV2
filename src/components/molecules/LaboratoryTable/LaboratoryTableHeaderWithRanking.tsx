@@ -76,18 +76,6 @@ export const LaboratoryTableHeaderWithRanking: React.FC<LaboratoryTableHeaderWit
           <SortButton column="ca_selection" align="right">Mt. Ventes</SortButton>
         </th>
 
-        {hasComparison && (
-          <>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
-              <SortButton column="evol_achats_pct" align="right">Evol % achat (€)</SortButton>
-            </th>
-
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
-              <SortButton column="evol_ventes_pct" align="right">Evol % ventes (€)</SortButton>
-            </th>
-          </>
-        )}
-
         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
           <SortButton column="margin_rate_percent" align="right">Taux Marge</SortButton>
         </th>
@@ -95,12 +83,6 @@ export const LaboratoryTableHeaderWithRanking: React.FC<LaboratoryTableHeaderWit
         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
           <SortButton column="part_marche_ca_pct" align="right">PDM</SortButton>
         </th>
-
-        {hasComparison && (
-          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider w-28">
-            <SortButton column="evol_pdm_pct" align="right">Evol PDM %</SortButton>
-          </th>
-        )}
       </tr>
     </thead>
   );

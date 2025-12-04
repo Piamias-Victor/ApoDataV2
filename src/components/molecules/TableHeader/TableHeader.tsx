@@ -79,17 +79,6 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               </div>
             </th>
 
-            {/* Évolution CA */}
-            <th
-              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort('ca_ttc_evolution')}
-            >
-              <div className="flex items-center justify-end space-x-0.5">
-                <span>Evol CA</span>
-                {getSortIcon('ca_ttc_evolution')}
-              </div>
-            </th>
-
             {/* Quantité vendue */}
             <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
@@ -98,17 +87,6 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               <div className="flex items-center justify-end space-x-0.5">
                 <span>Qté V.</span>
                 {getSortIcon('quantity_sold')}
-              </div>
-            </th>
-
-            {/* Évolution Qté */}
-            <th
-              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort('quantity_sold_evolution')}
-            >
-              <div className="flex items-center justify-end space-x-0.5">
-                <span>Evol Qté</span>
-                {getSortIcon('quantity_sold_evolution')}
               </div>
             </th>
 
@@ -123,17 +101,6 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               </div>
             </th>
 
-            {/* Évolution Qté Achetée */}
-            <th
-              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort('quantity_bought_evolution')}
-            >
-              <div className="flex items-center justify-end space-x-0.5">
-                <span>Evol Qté A.</span>
-                {getSortIcon('quantity_bought_evolution')}
-              </div>
-            </th>
-
             {/* Montant achat */}
             <th
               className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
@@ -142,17 +109,6 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               <div className="flex items-center justify-end space-x-0.5">
                 <span>Mt.Ach</span>
                 {getSortIcon('purchase_amount')}
-              </div>
-            </th>
-
-            {/* Évolution Montant Achat */}
-            <th
-              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort('purchase_amount_evolution')}
-            >
-              <div className="flex items-center justify-end space-x-0.5">
-                <span>Evol Mt.Ach</span>
-                {getSortIcon('purchase_amount_evolution')}
               </div>
             </th>
 
@@ -232,17 +188,6 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
               <div className="flex items-center justify-end space-x-0.5">
                 <span>Qté</span>
                 {getSortIcon('quantity_sold')}
-              </div>
-            </th>
-
-            {/* Évolution */}
-            <th
-              className="px-1.5 py-1.5 text-right text-[9px] font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-              onClick={() => handleSort('quantity_sold_evolution')}
-            >
-              <div className="flex items-center justify-end space-x-0.5">
-                <span>Evol</span>
-                {getSortIcon('quantity_sold_evolution')}
               </div>
             </th>
 

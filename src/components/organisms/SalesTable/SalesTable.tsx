@@ -281,10 +281,6 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                   </div>
                 </th>
 
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Évolution Qté
-                </th>
-
                 <th
                   className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                   onClick={() => handleSort('prix_achat_moyen')}
@@ -362,55 +358,96 @@ export const SalesTable: React.FC<SalesTableProps> = ({
 
                     <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'} hover:bg-gray-50 transition-colors`}>
 
-                      <td className="px-1 py-3">
+                      <td className="px-1 py-3 align-top">
                         <div className="text-xs font-medium text-gray-900 truncate w-32 overflow-hidden" title={product.nom}>
                           {product.nom}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         <div className="text-sm text-gray-600 font-mono">
                           {product.code_ean}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 align-top">
                         <div className="text-sm text-gray-700">
                           {product.bcb_lab || '-'}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3 text-right">
-                        <div className="text-sm font-medium text-blue-600">
-                          {formatLargeNumber(product.quantity_bought)}
+                      <td className="px-4 py-3 text-right align-top">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-medium text-blue-600">
+                            {formatLargeNumber(product.quantity_bought)}
+                          </span>
+                          {(() => {
+                            const current = product.quantity_bought;
+                            const comparison = product.quantity_bought_comparison;
+
+                            if (comparison === null || comparison === undefined) {
+                              return <span className="text-[9px] text-gray-400">N-1: -</span>;
+                            }
+
+                            if (current === 0 && comparison === 0) {
+                              return <span className="text-[9px] text-gray-400">-</span>;
+                            }
+
+                            if (comparison === 0) {
+                              return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+                            }
+
+                            const evolution = ((current - comparison) / comparison) * 100;
+                            const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-500';
+                            const arrow = evolution > 0 ? '↑' : evolution < 0 ? '↓' : '';
+
+                            return (
+                              <div className="flex items-center justify-end space-x-1">
+                                <span className="text-[9px] text-gray-400">{formatLargeNumber(comparison)}</span>
+                                <span className={`text-[9px] font-semibold ${colorClass}`}>
+                                  {arrow} {Math.abs(evolution).toFixed(1)}%
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3 text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatLargeNumber(product.quantite_vendue)}
+                      <td className="px-4 py-3 text-right align-top">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-medium text-gray-900">
+                            {formatLargeNumber(product.quantite_vendue)}
+                          </span>
+                          {(() => {
+                            const current = product.quantite_vendue;
+                            const comparison = product.quantite_vendue_comparison;
+
+                            if (comparison === null || comparison === undefined) {
+                              return <span className="text-[9px] text-gray-400">N-1: -</span>;
+                            }
+
+                            if (current === 0 && comparison === 0) {
+                              return <span className="text-[9px] text-gray-400">-</span>;
+                            }
+
+                            if (comparison === 0) {
+                              return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+                            }
+
+                            const evolution = ((current - comparison) / comparison) * 100;
+                            const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-500';
+                            const arrow = evolution > 0 ? '↑' : evolution < 0 ? '↓' : '';
+
+                            return (
+                              <div className="flex items-center justify-end space-x-1">
+                                <span className="text-[9px] text-gray-400">{formatLargeNumber(comparison)}</span>
+                                <span className={`text-[9px] font-semibold ${colorClass}`}>
+                                  {arrow} {Math.abs(evolution).toFixed(1)}%
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          if (product.quantite_vendue_comparison === null || product.quantite_vendue_comparison === undefined) {
-                            return <span className="text-xs text-gray-400">-</span>;
-                          }
-
-                          if (product.quantite_vendue_comparison === 0) {
-                            return <span className="text-xs font-semibold text-blue-600">Nouveau</span>;
-                          }
-
-                          const evolution = ((product.quantite_vendue - product.quantite_vendue_comparison) / product.quantite_vendue_comparison) * 100;
-                          const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-700';
-
-                          return (
-                            <span className={`text-sm font-semibold ${colorClass}`}>
-                              {evolution > 0 ? '+' : ''}{evolution.toFixed(1)}%
-                            </span>
-                          );
-                        })()}
                       </td>
 
                       <td className="px-4 py-3 text-right">
@@ -454,8 +491,8 @@ export const SalesTable: React.FC<SalesTableProps> = ({
                           onClick={() => toggleProductExpansion(product.code_ean)}
                           disabled={!hasDetailData}
                           className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${hasDetailData
-                              ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
-                              : 'opacity-50 cursor-not-allowed text-gray-400'
+                            ? 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+                            : 'opacity-50 cursor-not-allowed text-gray-400'
                             }`}
                           title={hasDetailData ? 'Voir évolution temporelle' : 'Pas de détails disponibles'}
                         >

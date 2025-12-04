@@ -23,7 +23,6 @@ import {
   paginatePharmacies,
   formatCurrency,
   formatPercentage,
-  formatEvolutionPercentage,
   formatEvolutionRelative,
   formatRang,
   formatGainRang,
@@ -107,6 +106,33 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
       pagination: paginationInfo
     };
   }, [processedDataBeforePagination, currentPage]);
+
+  const renderEvolution = (current: number, comparison: number | null | undefined, formatFn: (v: number) => string) => {
+    if (comparison === null || comparison === undefined) {
+      return <span className="text-[9px] text-gray-400">N-1: -</span>;
+    }
+
+    if (current === 0 && comparison === 0) {
+      return <span className="text-[9px] text-gray-400">-</span>;
+    }
+
+    if (comparison === 0) {
+      return <span className="text-[9px] font-semibold text-blue-600">New</span>;
+    }
+
+    const evolution = ((current - comparison) / comparison) * 100;
+    const colorClass = evolution > 0 ? 'text-green-600' : evolution < 0 ? 'text-red-600' : 'text-gray-500';
+    const arrow = evolution > 0 ? '↑' : evolution < 0 ? '↓' : '';
+
+    return (
+      <div className="flex items-center justify-end space-x-1">
+        <span className="text-[9px] text-gray-400">{formatFn(comparison)}</span>
+        <span className={`text-[9px] font-semibold ${colorClass}`}>
+          {arrow} {Math.abs(evolution).toFixed(1)}%
+        </span>
+      </div>
+    );
+  };
 
   const prepareDataForExport = useCallback(() => {
     if (!processedDataBeforePagination || processedDataBeforePagination.length === 0) return [];
@@ -289,26 +315,6 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                 </th>
 
                 <th
-                  onClick={() => handleSort('evol_achats_pct')}
-                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
-                >
-                  <div className="flex items-center justify-center space-x-1">
-                    <span>ΔA%</span>
-                    <SortIcon column="evol_achats_pct" />
-                  </div>
-                </th>
-
-                <th
-                  onClick={() => handleSort('evol_ventes_pct')}
-                  className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
-                >
-                  <div className="flex items-center justify-center space-x-1">
-                    <span>ΔV%</span>
-                    <SortIcon column="evol_ventes_pct" />
-                  </div>
-                </th>
-
-                <th
                   onClick={() => handleSort('evol_relative_achats_pct')}
                   className="px-2 py-2 text-center text-[10px] font-medium text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 w-20"
                 >
@@ -395,40 +401,26 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                       {pharmacy.quantite_achetee?.toLocaleString('fr-FR') || 0}
                     </td>
 
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatCurrency(pharmacy.ca_achats)}
+                    <td className="px-2 py-2 text-right align-top">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-700 font-medium">
+                          {formatCurrency(pharmacy.ca_achats)}
+                        </span>
+                        {renderEvolution(pharmacy.ca_achats, pharmacy.ca_achats_comparison, formatCurrency)}
+                      </div>
                     </td>
 
                     <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
                       {pharmacy.quantite_vendue?.toLocaleString('fr-FR') || 0}
                     </td>
 
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {formatCurrency(pharmacy.ca_ventes)}
-                    </td>
-
-                    <td className="px-2 py-2 text-center">
-                      {pharmacy.evol_achats_pct !== null ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evol_achats_pct)}>
-                          <span className="text-[10px] font-semibold">
-                            {formatEvolutionPercentage(pharmacy.evol_achats_pct)}
-                          </span>
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-[10px]">N/A</span>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-2 text-center">
-                      {pharmacy.evol_ventes_pct !== null ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evol_ventes_pct)}>
-                          <span className="text-[10px] font-semibold">
-                            {formatEvolutionPercentage(pharmacy.evol_ventes_pct)}
-                          </span>
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-[10px]">N/A</span>
-                      )}
+                    <td className="px-2 py-2 text-right align-top">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-700 font-medium">
+                          {formatCurrency(pharmacy.ca_ventes)}
+                        </span>
+                        {renderEvolution(pharmacy.ca_ventes, pharmacy.ca_ventes_comparison, formatCurrency)}
+                      </div>
                     </td>
 
                     <td className="px-2 py-2 text-center">
