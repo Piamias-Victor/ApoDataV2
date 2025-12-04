@@ -186,7 +186,7 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
     WITH current_stock AS (
       SELECT 
         SUM(latest_stock.stock) as quantite_stock_total,
-        SUM(latest_stock.stock * latest_stock.weighted_average_price) as valeur_stock_ht_total
+        SUM(latest_stock.stock * COALESCE(latest_stock.weighted_average_price, 0)) as valeur_stock_ht_total
       FROM data_internalproduct ip
       JOIN LATERAL (
         SELECT DISTINCT ON (ins.product_id)
@@ -194,7 +194,6 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
           ins.weighted_average_price
         FROM data_inventorysnapshot ins
         WHERE ins.product_id = ip.id
-          AND ins.weighted_average_price > 0
         ORDER BY ins.product_id, ins.date DESC
       ) latest_stock ON true
       WHERE 1=1
@@ -211,7 +210,6 @@ async function calculateStockMetrics(request: StockMetricsRequest): Promise<Omit
           ins.stock
         FROM data_inventorysnapshot ins
         WHERE ins.product_id = ip.id
-          AND ins.weighted_average_price > 0
         ORDER BY ins.product_id, ins.date DESC
       ) latest_stock ON true
       WHERE 1=1

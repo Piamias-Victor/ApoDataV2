@@ -13,9 +13,9 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' && 
-                     process.env.UPSTASH_REDIS_REST_URL && 
-                     process.env.UPSTASH_REDIS_REST_TOKEN;
+const CACHE_ENABLED = process.env.CACHE_ENABLED === 'true' &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN;
 const CACHE_TTL = 43200; // 12 heures
 
 interface MonthlyDetailsRequest {
@@ -42,14 +42,14 @@ function calculateLast12Months(): { start: string; end: string } {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
   const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  
+
   const startString = startDate.toISOString().split('T')[0];
   const endString = endDate.toISOString().split('T')[0];
-  
+
   if (!startString || !endString) {
     throw new Error('Date calculation failed');
   }
-  
+
   return {
     start: startString,
     end: endString
@@ -58,10 +58,10 @@ function calculateLast12Months(): { start: string; end: string } {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
-  
+
   try {
     console.log('🔥 [API] Monthly details API called');
-    
+
     const context = await getSecurityContext();
     if (!context) {
       console.log('❌ [API] Unauthorized - no security context');
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('💥 [API] JSON parsing error:', jsonError);
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    
+
     const dateRange = calculateLast12Months();
     console.log('📅 [API] Auto-calculated 12 months range:', dateRange);
 
@@ -143,8 +143,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     console.log('🗃️ [API] Executing database query...');
     console.log(`📊 [API] Query type: ${context.isAdmin ? 'ADMIN' : 'USER'}`);
-    
-    const monthlyData = context.isAdmin 
+
+    const monthlyData = context.isAdmin
       ? await executeAdminQuery(dateRange, allProductCodes, secureFilters.pharmacy, hasProductFilter)
       : await executeUserQuery(dateRange, allProductCodes, context.pharmacyId!, hasProductFilter);
 
@@ -197,23 +197,23 @@ async function executeAdminQuery(
     ? 'AND ip.pharmacy_id = ANY($4::uuid[])'
     : '';
 
-  const productFilter = hasProductFilter 
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
   const params = [];
   let paramIndex = 1;
-  
+
   params.push(dateRange.start);
   params.push(dateRange.end);
-  
+
   if (hasProductFilter) {
     params.push(productCodes);
     paramIndex = 4;
   } else {
     paramIndex = 3;
   }
-  
+
   if (pharmacyIds && pharmacyIds.length > 0) {
     params.push(pharmacyIds);
   }
@@ -255,18 +255,44 @@ async function executeAdminQuery(
       GROUP BY ip.code_13_ref_id, ip.name, DATE_TRUNC('month', s.date)
     ),
     monthly_stock AS (
-      SELECT DISTINCT ON (ip.code_13_ref_id, DATE_TRUNC('month', ins.date))
+      SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name,
         DATE_TRUNC('month', ins.date) as mois,
-        ins.stock as quantite_stock_fin_mois
+        SUM(latest_stock.stock) as quantite_stock_fin_mois
       FROM data_inventorysnapshot ins
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN LATERAL (
+        SELECT DISTINCT ON (ins2.product_id)
+          ins2.stock
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = ip.id
+          AND DATE_TRUNC('month', ins2.date) = DATE_TRUNC('month', ins.date)
+        ORDER BY ins2.product_id, ins2.date DESC
+        LIMIT 1
+      ) latest_stock ON true
       WHERE ins.date >= $1::date
         AND ins.date <= $2::date
-        ${productFilter}
-        ${finalPharmacyFilter}
-      ORDER BY ip.code_13_ref_id, DATE_TRUNC('month', ins.date), ins.date DESC
+        ${productFilter.replace('ip.', 'ip.')}
+        ${finalPharmacyFilter.replace('ip.', 'ip.')}
+      GROUP BY ip.code_13_ref_id, DATE_TRUNC('month', ins.date)
+    ),
+    current_stock AS (
+      SELECT 
+        code_13_ref_id,
+        SUM(stock) as current_stock_qty
+      FROM (
+        SELECT DISTINCT ON (internal_prod.id)
+          internal_prod.id,
+          internal_prod.code_13_ref_id,
+          ins.stock
+        FROM data_inventorysnapshot ins
+        INNER JOIN data_internalproduct internal_prod ON ins.product_id = internal_prod.id
+        WHERE 1=1
+          ${productFilter.replace('ip.', 'internal_prod.')}
+          ${finalPharmacyFilter.replace('ip.', 'internal_prod.')}
+        ORDER BY internal_prod.id, ins.date DESC
+      ) latest_stocks
+      GROUP BY code_13_ref_id
     ),
     product_info AS (
       SELECT DISTINCT
@@ -317,11 +343,10 @@ async function executeAdminQuery(
         COALESCE(SUM(ms.quantite_vendue_mois), 0) as quantite_vendue,
         
         COALESCE(
-          (SELECT mst.quantite_stock_fin_mois 
-           FROM monthly_stock mst 
-           WHERE mst.code_13_ref_id = pi.code_13_ref_id 
-           ORDER BY mst.mois DESC 
-           LIMIT 1), 0
+          (SELECT cs.current_stock_qty
+           FROM current_stock cs 
+           WHERE cs.code_13_ref_id = pi.code_13_ref_id
+          ), 0
         ) as quantite_stock,
         
         ROUND(COALESCE(AVG(ms.prix_achat_moyen_mois), 0), 2) as prix_achat_moyen,
@@ -383,8 +408,8 @@ async function executeUserQuery(
   pharmacyId: string,
   hasProductFilter: boolean = true
 ): Promise<MonthlyDetailsRow[]> {
-  
-  const productFilter = hasProductFilter 
+
+  const productFilter = hasProductFilter
     ? 'AND ip.code_13_ref_id = ANY($3::text[])'
     : '';
 
@@ -429,18 +454,43 @@ async function executeUserQuery(
       GROUP BY ip.code_13_ref_id, ip.name, DATE_TRUNC('month', s.date)
     ),
     monthly_stock AS (
-      SELECT DISTINCT ON (ip.code_13_ref_id, DATE_TRUNC('month', ins.date))
+      SELECT 
         ip.code_13_ref_id,
-        ip.name as product_name,
         DATE_TRUNC('month', ins.date) as mois,
-        ins.stock as quantite_stock_fin_mois
+        SUM(latest_stock.stock) as quantite_stock_fin_mois
       FROM data_inventorysnapshot ins
       JOIN data_internalproduct ip ON ins.product_id = ip.id
+      JOIN LATERAL (
+        SELECT DISTINCT ON (ins2.product_id)
+          ins2.stock
+        FROM data_inventorysnapshot ins2
+        WHERE ins2.product_id = ip.id
+          AND DATE_TRUNC('month', ins2.date) = DATE_TRUNC('month', ins.date)
+        ORDER BY ins2.product_id, ins2.date DESC
+        LIMIT 1
+      ) latest_stock ON true
       WHERE ins.date >= $1::date
         AND ins.date <= $2::date
         AND ip.pharmacy_id = ${pharmacyParam}
-        ${productFilter}
-      ORDER BY ip.code_13_ref_id, DATE_TRUNC('month', ins.date), ins.date DESC
+        ${productFilter.replace('ip.', 'ip.')}
+      GROUP BY ip.code_13_ref_id, DATE_TRUNC('month', ins.date)
+    ),
+    current_stock AS (
+      SELECT 
+        code_13_ref_id,
+        SUM(stock) as current_stock_qty
+      FROM (
+        SELECT DISTINCT ON (internal_prod.id)
+          internal_prod.id,
+          internal_prod.code_13_ref_id,
+          ins.stock
+        FROM data_inventorysnapshot ins
+        INNER JOIN data_internalproduct internal_prod ON ins.product_id = internal_prod.id
+        WHERE internal_prod.pharmacy_id = ${pharmacyParam}
+          ${productFilter.replace('ip.', 'internal_prod.')}
+        ORDER BY internal_prod.id, ins.date DESC
+      ) latest_stocks
+      GROUP BY code_13_ref_id
     ),
     product_info AS (
       SELECT DISTINCT
@@ -490,11 +540,10 @@ async function executeUserQuery(
         COALESCE(SUM(ms.quantite_vendue_mois), 0) as quantite_vendue,
         
         COALESCE(
-          (SELECT mst.quantite_stock_fin_mois 
-           FROM monthly_stock mst 
-           WHERE mst.code_13_ref_id = pi.code_13_ref_id 
-           ORDER BY mst.mois DESC 
-           LIMIT 1), 0
+          (SELECT cs.current_stock_qty
+           FROM current_stock cs 
+           WHERE cs.code_13_ref_id = pi.code_13_ref_id
+          ), 0
         ) as quantite_stock,
         
         ROUND(COALESCE(AVG(ms.prix_achat_moyen_mois), 0), 2) as prix_achat_moyen,
@@ -564,7 +613,7 @@ function generateCacheKey(params: {
     role: params.role,
     hasProductFilter: params.hasProductFilter
   });
-  
+
   const hash = crypto.createHash('md5').update(data).digest('hex');
   return `products:monthly-details:${hash}`;
 }
