@@ -43,7 +43,8 @@ const navigationGroups: NavigationGroup[] = [
     icon: <TrendingUp className="w-4 h-4" />,
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-4 h-4" />, badgeVariant: 'gradient-blue' },
-      { name: 'Comparaison', href: '/comparaisons', icon: <GitCompareArrows className="w-4 h-4" />, badgeVariant: 'gradient-purple' }
+      { name: 'Comparaison', href: '/comparaisons', icon: <GitCompareArrows className="w-4 h-4" />, badgeVariant: 'gradient-purple' },
+      { name: 'Comparaison Pharma', href: '/comparaisons-pharmacie', icon: <Building2 className="w-4 h-4" />, badgeVariant: 'gradient-green' }
     ]
   },
   {
