@@ -21,6 +21,7 @@
   "dependencies": {
     "@upstash/redis": "^1.35.3",
     "bcryptjs": "^2.4.3",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.23.12",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.536.0",

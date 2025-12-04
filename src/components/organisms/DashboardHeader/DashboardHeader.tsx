@@ -21,7 +21,8 @@ import {
   Pill,
   TrendingUp,
   Boxes,
-  ShieldMinus
+  ShieldMinus,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -63,7 +64,8 @@ const navigationGroups: NavigationGroup[] = [
       { name: 'Stock', href: '/stock', icon: <Package2 className="w-4 h-4" />, badgeVariant: 'gradient-pink' },
       { name: 'Rupture', href: '/ruptures', icon: <ShieldMinus className="w-4 h-4" />, badgeVariant: 'gradient-pink' },
       { name: 'Générique', href: '/generique', icon: <Pill className="w-4 h-4" />, badgeVariant: 'gradient-blue' },
-      { name: 'Pharmacies', href: '/pharmacies', icon: <Building2 className="w-4 h-4" />, badgeVariant: 'gradient-green' }
+      { name: 'Pharmacies', href: '/pharmacies', icon: <Building2 className="w-4 h-4" />, badgeVariant: 'gradient-green' },
+      { name: 'Declaration BRI', href: '/declaration-bri', icon: <FileSpreadsheet className="w-4 h-4" />, badgeVariant: 'gradient-purple' }
     ]
   }
 ];
