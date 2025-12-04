@@ -13,8 +13,8 @@ import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
-import type { 
-  GenericSortConfig, 
+import type {
+  GenericSortConfig,
   GenericLaboratorySortableColumn,
   SortDirection
 } from '@/types/laboratory';
@@ -36,12 +36,12 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
 
   // 🔥 NOUVEAU - Vérifier filtres actifs depuis le store
   const hasActiveFilters = useGenericGroupStore(state => {
-    const hasSelections = state.selectedGroups.length > 0 || 
-                         state.selectedProducts.length > 0 || 
-                         state.selectedLaboratories.length > 0;
-    const hasFilters = state.hasPriceFilters() || 
-                      state.tvaRates.length > 0 || 
-                      state.genericStatus !== 'BOTH';
+    const hasSelections = state.selectedGroups.length > 0 ||
+      state.selectedProducts.length > 0 ||
+      state.selectedLaboratories.length > 0;
+    const hasFilters = state.hasPriceFilters() ||
+      state.tvaRates.length > 0 ||
+      state.genericStatus !== 'BOTH';
     return hasSelections || hasFilters;
   });
 
@@ -59,7 +59,8 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     previousPage,
     nextPage,
     isGlobalMode,
-    manualFetch
+    manualFetch,
+    fetchAll
   } = useLaboratoryMarketShare({
     enabled: true,
     productCodes,
@@ -73,16 +74,16 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
   const handleSort = useCallback((column: GenericLaboratorySortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        const newDirection: SortDirection = 
+        const newDirection: SortDirection =
           prev.direction === 'asc' ? 'desc' :
-          prev.direction === 'desc' ? null : 'asc';
-        
+            prev.direction === 'desc' ? null : 'asc';
+
         return {
           column: newDirection ? column : null,
           direction: newDirection
         };
       }
-      
+
       return { column, direction: 'asc' };
     });
   }, []);
@@ -122,26 +123,35 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
     return processed;
   }, [data, searchQuery, sortConfig]);
 
-  const handleExport = useCallback(() => {
-    const exportData = filteredAndSortedData.map(lab => ({
-      'Laboratoire': lab.laboratory_name,
-      'Nombre de produits': lab.product_count,
-      'Volume achats': lab.quantity_bought,
-      'CA Achats (€)': lab.ca_achats,
-      'Part Marché Achat (%)': (lab.part_marche_achats_pct || 0 / 100).toFixed(3),
-      'Taux de marge (%)': Number(lab.margin_rate_percent || 0).toFixed(1),
-      'Volume ventes': lab.quantity_sold,
-      'CA Ventes (€)': lab.ca_selection,
-      'Part Marché Vente (%)': (lab.part_marche_ca_pct / 100).toFixed(3)
-    }));
+  const handleExport = useCallback(async () => {
+    try {
+      const allData = await fetchAll();
 
-    if (exportData.length === 0) return;
+      if (!allData || allData.length === 0) {
+        console.warn('Aucune donnée à exporter');
+        return;
+      }
 
-    const filename = CsvExporter.generateFilename('apodata_laboratoires_generiques');
-    const headers = Object.keys(exportData[0]!);
+      const exportData = allData.map(lab => ({
+        'Laboratoire': lab.laboratory_name,
+        'Nombre de produits': lab.product_count,
+        'Volume achats': lab.quantity_bought,
+        'CA Achats (€)': lab.ca_achats,
+        'Part Marché Achat (%)': (lab.part_marche_achats_pct || 0 / 100).toFixed(3),
+        'Taux de marge (%)': Number(lab.margin_rate_percent || 0).toFixed(1),
+        'Volume ventes': lab.quantity_sold,
+        'CA Ventes (€)': lab.ca_selection,
+        'Part Marché Vente (%)': (lab.part_marche_ca_pct / 100).toFixed(3)
+      }));
 
-    exportToCsv({ filename, headers, data: exportData });
-  }, [filteredAndSortedData, exportToCsv]);
+      const filename = CsvExporter.generateFilename('apodata_laboratoires_generiques');
+      const headers = Object.keys(exportData[0]!);
+
+      exportToCsv({ filename, headers, data: exportData });
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+    }
+  }, [fetchAll, exportToCsv]);
 
   if (error) {
     return (
@@ -202,15 +212,15 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
               Actualiser
             </Button>
           )}
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
             disabled={filteredAndSortedData.length === 0}
-            label={`Export CSV (${filteredAndSortedData.length} lignes)`}
+            label={`Export CSV`}
           />
         </div>
-        
+
         <SearchBar
           onSearch={handleSearch}
           placeholder="Rechercher un laboratoire..."
@@ -224,7 +234,7 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
               sortConfig={sortConfig}
               onSort={handleSort}
             />
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
@@ -238,9 +248,9 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
-                    {searchQuery 
+                    {searchQuery
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
-                      : hasActiveFilters 
+                      : hasActiveFilters
                         ? 'Aucun laboratoire ne correspond aux filtres appliqués'
                         : 'Aucune donnée disponible'
                     }
@@ -265,7 +275,7 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} • {total} laboratoires
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -276,7 +286,7 @@ export const LaboratoryMarketShareGenericSection: React.FC<LaboratoryMarketShare
             >
               Précédent
             </Button>
-            
+
             <Button
               variant="secondary"
               size="sm"

@@ -26,6 +26,7 @@ interface UseLaboratoryMarketShareReturn {
   readonly refetch: () => Promise<void>;
   readonly isGlobalMode: boolean;
   readonly manualFetch: () => Promise<void>;
+  readonly fetchAll: () => Promise<LaboratoryMarketShare[]>;
 }
 
 export function useLaboratoryMarketShare(
@@ -45,15 +46,15 @@ export function useLaboratoryMarketShare(
   const pharmacyIds = useFiltersStore(state => state.pharmacy);
 
   // 🔥 NOUVEAU - Vérifier filtres actifs
-  const hasActiveSelections = useGenericGroupStore(state => 
-    state.selectedGroups.length > 0 || 
-    state.selectedProducts.length > 0 || 
+  const hasActiveSelections = useGenericGroupStore(state =>
+    state.selectedGroups.length > 0 ||
+    state.selectedProducts.length > 0 ||
     state.selectedLaboratories.length > 0
   );
   const hasPriceFilters = useGenericGroupStore(state => state.hasPriceFilters());
   const hasTvaFilters = useGenericGroupStore(state => state.tvaRates.length > 0);
   const hasGenericStatusFilter = useGenericGroupStore(state => state.genericStatus !== 'BOTH');
-  
+
   const hasAnyActiveFilters = hasActiveSelections || hasPriceFilters || hasTvaFilters || hasGenericStatusFilter;
 
   const { enabled, productCodes, dateRange, pageSize = 10, autoFetch = true } = options;
@@ -63,7 +64,7 @@ export function useLaboratoryMarketShare(
 
     // 🔥 MODIFIÉ - Logique similaire à useGenericProductsList
     const shouldUseGlobalMode = forceGlobal || hasLoadedGlobal;
-    
+
     if (!shouldUseGlobalMode && productCodes.length === 0) {
       if (hasAnyActiveFilters) {
         // Filtres actifs mais 0 résultat → afficher tableau vide
@@ -112,7 +113,7 @@ export function useLaboratoryMarketShare(
       }
 
       const result = await response.json();
-      
+
       console.log('✅ [useLaboratoryMarketShare] Fetched:', {
         laboratoriesCount: result.laboratories.length,
         total: result.pagination.total
@@ -123,7 +124,7 @@ export function useLaboratoryMarketShare(
       setTotal(result.pagination.total);
       setCurrentPage(page);
       setIsGlobalMode(result.isGlobalMode || false);
-      
+
       if (shouldUseGlobalMode) {
         setHasLoadedGlobal(true);
       }
@@ -186,6 +187,44 @@ export function useLaboratoryMarketShare(
     await fetchData(1, true);
   }, [fetchData]);
 
+  const fetchAll = useCallback(async (): Promise<LaboratoryMarketShare[]> => {
+    if (!enabled) return [];
+
+    const shouldUseGlobalMode = hasLoadedGlobal;
+
+    if (!shouldUseGlobalMode && productCodes.length === 0) {
+      if (hasAnyActiveFilters) {
+        return [];
+      } else {
+        return [];
+      }
+    }
+
+    try {
+      const response = await fetch('/api/generic-groups/laboratory-market-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dateRange,
+          productCodes: shouldUseGlobalMode ? [] : productCodes,
+          pharmacyIds,
+          page: 1,
+          pageSize: 100000 // Fetch all
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.laboratories;
+    } catch (err) {
+      console.error('❌ [useLaboratoryMarketShare] Error fetching all:', err);
+      return [];
+    }
+  }, [enabled, productCodes, dateRange, pharmacyIds, hasAnyActiveFilters, hasLoadedGlobal]);
+
   return {
     data,
     isLoading,
@@ -199,6 +238,7 @@ export function useLaboratoryMarketShare(
     nextPage,
     refetch,
     isGlobalMode,
-    manualFetch
+    manualFetch,
+    fetchAll
   };
 }
