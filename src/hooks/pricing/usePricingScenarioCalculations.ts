@@ -8,7 +8,10 @@ import type { PricingInputs, PricingResults } from '@/types/pricingCalculator';
  * Hook calcul prix/marge selon formules Excel
  * RSF → UG (dilution) → RFA1 → RFA2 → Marge HT
  */
-export function usePricingScenarioCalculations(inputs: PricingInputs): PricingResults {
+export function usePricingScenarioCalculations(
+  inputs: PricingInputs,
+  targetMargin?: number // Marge cible en € (du scénario 1)
+): PricingResults {
   return useMemo(() => {
     const { prixTarif, rsf, rfa1, rfa2, tva, quantiteCommandee, ugGratuits, prixPublic } = inputs;
 
@@ -17,7 +20,7 @@ export function usePricingScenarioCalculations(inputs: PricingInputs): PricingRe
 
     // 2. Prix net avec UG (dilution par quantité totale)
     const quantiteTotale = quantiteCommandee + ugGratuits;
-    const prixNetAvecUG = quantiteTotale > 0 
+    const prixNetAvecUG = quantiteTotale > 0
       ? (prixNetRemise * quantiteCommandee) / quantiteTotale
       : prixNetRemise;
 
@@ -41,6 +44,15 @@ export function usePricingScenarioCalculations(inputs: PricingInputs): PricingRe
     // 8. Marge en % (marge HT / prix public HT)
     const margePourcent = prixPublicHT > 0 ? (margeEuros / prixPublicHT) * 100 : 0;
 
+    // 9. Prix public suggéré pour atteindre la marge cible
+    let prixPublicSuggere: number | undefined;
+    if (targetMargin !== undefined && prixNetAvecRFA2 > 0) {
+      // Prix Public HT = Marge cible + Prix Net Final
+      const prixPublicHTSuggere = targetMargin + prixNetAvecRFA2;
+      // Conversion HT → TTC
+      prixPublicSuggere = Number((prixPublicHTSuggere * (1 + tva / 100)).toFixed(2));
+    }
+
     return {
       prixNetRemise: Number(prixNetRemise.toFixed(2)),
       prixNetAvecUG: Number(prixNetAvecUG.toFixed(2)),
@@ -50,7 +62,8 @@ export function usePricingScenarioCalculations(inputs: PricingInputs): PricingRe
       prixNetAvecRFA2: Number(prixNetAvecRFA2.toFixed(2)),
       margeEuros: Number(margeEuros.toFixed(2)),
       coef: Number(coef.toFixed(2)),
-      margePourcent: Number(margePourcent.toFixed(0))
+      margePourcent: Number(margePourcent.toFixed(2)), // 2 décimales au lieu de 0
+      ...(prixPublicSuggere !== undefined && { prixPublicSuggere })
     };
-  }, [inputs]);
+  }, [inputs, targetMargin]);
 }

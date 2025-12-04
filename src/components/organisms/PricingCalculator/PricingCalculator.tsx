@@ -84,7 +84,7 @@ export const PricingCalculator: React.FC = () => {
 
       {/* Description */}
       <p className="text-sm text-gray-600">
-        Simulez vos conditions tarifaires avec remises RFA et RSF. 
+        Simulez vos conditions tarifaires avec remises RFA et RSF.
         Maximum {MAX_SCENARIOS} scénarios simultanés.
       </p>
 
@@ -99,10 +99,12 @@ export const PricingCalculator: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {scenarios.map((scenario) => (
+          {scenarios.map((scenario, index) => (
             <ScenarioWithCalculation
               key={scenario.id}
               scenario={scenario}
+              scenarioIndex={index}
+              scenarios={scenarios}
               onUpdate={updateScenarioInput}
               onDelete={deleteScenario}
               onNameChange={updateScenarioName}
@@ -116,11 +118,21 @@ export const PricingCalculator: React.FC = () => {
 
 const ScenarioWithCalculation: React.FC<{
   scenario: PricingScenario;
+  scenarioIndex: number;
+  scenarios: PricingScenario[];
   onUpdate: (id: string, field: keyof PricingInputs, value: number) => void;
   onDelete: (id: string) => void;
   onNameChange: (id: string, name: string) => void;
-}> = ({ scenario, onUpdate, onDelete, onNameChange }) => {
-  const results = usePricingScenarioCalculations(scenario.inputs);
+}> = ({ scenario, scenarioIndex, scenarios, onUpdate, onDelete, onNameChange }) => {
+  // Calculer les résultats du scénario 1 pour référence
+  const scenario1Results = scenarios[0] ?
+    usePricingScenarioCalculations(scenarios[0].inputs) : null;
+
+  // Pour le scénario 3 (index 2), passer la marge du scénario 1
+  const targetMargin = scenarioIndex === 2 && scenario1Results ?
+    scenario1Results.margeEuros : undefined;
+
+  const results = usePricingScenarioCalculations(scenario.inputs, targetMargin);
 
   const scenarioWithResults = {
     ...scenario,

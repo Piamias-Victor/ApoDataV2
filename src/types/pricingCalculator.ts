@@ -33,6 +33,7 @@ export interface PricingResults {
   readonly margeEuros: number;
   readonly coef: number;
   readonly margePourcent: number;
+  readonly prixPublicSuggere?: number; // Prix TTC suggéré pour atteindre marge cible
 }
 
 export const DEFAULT_INPUTS: PricingInputs = {

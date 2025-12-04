@@ -109,6 +109,18 @@ export const PricingScenarioCard: React.FC<PricingScenarioCardProps> = ({
           <ResultRow label="Marge %" value={results.margePourcent} isPercent highlight />
         </div>
       </div>
+
+      {/* Prix suggéré pour atteindre la marge du scénario 1 */}
+      {results.prixPublicSuggere && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-xs text-blue-700 mb-1 font-medium">
+            💡 Pour atteindre la même marge que le Scénario 1 :
+          </p>
+          <p className="text-sm font-bold text-blue-900">
+            Prix Public TTC suggéré : {results.prixPublicSuggere.toFixed(2)} €
+          </p>
+        </div>
+      )}
     </Card>
   );
 };
@@ -145,7 +157,7 @@ const ResultRow: React.FC<{
   <div className="flex justify-between text-sm">
     <span className={highlight ? 'font-semibold text-gray-900' : 'text-gray-600'}>{label}</span>
     <span className={highlight ? 'font-bold text-blue-600' : 'font-medium text-gray-900'}>
-      {isPercent ? `${value}%` : isCoef ? value.toFixed(2) : `${value.toFixed(2)} €`}
+      {isPercent ? `${value.toFixed(2)}%` : isCoef ? value.toFixed(2) : `${value.toFixed(2)} €`}
     </span>
   </div>
 );
