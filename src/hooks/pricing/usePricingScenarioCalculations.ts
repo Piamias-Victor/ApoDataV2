@@ -38,8 +38,8 @@ export function usePricingScenarioCalculations(
     // 6. Marge en euros HT (prix public HT - prix net final HT)
     const margeEuros = prixPublicHT - prixNetAvecRFA2;
 
-    // 7. Coefficient (prix public HT / prix net final HT)
-    const coef = prixNetAvecRFA2 > 0 ? prixPublicHT / prixNetAvecRFA2 : 0;
+    // 7. Coefficient (prix public TTC / prix net final HT)
+    const coef = prixNetAvecRFA2 > 0 ? prixPublic / prixNetAvecRFA2 : 0;
 
     // 8. Marge en % (marge HT / prix public HT)
     const margePourcent = prixPublicHT > 0 ? (margeEuros / prixPublicHT) * 100 : 0;
