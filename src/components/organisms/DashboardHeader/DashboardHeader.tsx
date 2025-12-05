@@ -29,7 +29,7 @@ interface NavigationItem {
   readonly name: string;
   readonly href: string;
   readonly icon: React.ReactNode;
-  readonly badgeVariant: 'gradient-blue' | 'gradient-green' | 'gradient-purple' | 'gradient-pink';
+  readonly badgeVariant: 'gradient-blue' | 'gradient-green' | 'gradient-purple' | 'gradient-pink' | 'gradient-orange';
 }
 
 interface NavigationGroup {
@@ -65,7 +65,8 @@ const navigationGroups: NavigationGroup[] = [
       { name: 'Rupture', href: '/ruptures', icon: <ShieldMinus className="w-4 h-4" />, badgeVariant: 'gradient-pink' },
       { name: 'Générique', href: '/generique', icon: <Pill className="w-4 h-4" />, badgeVariant: 'gradient-blue' },
       { name: 'Pharmacies', href: '/pharmacies', icon: <Building2 className="w-4 h-4" />, badgeVariant: 'gradient-green' },
-      { name: 'Declaration BRI', href: '/declaration-bri', icon: <FileSpreadsheet className="w-4 h-4" />, badgeVariant: 'gradient-purple' }
+      { name: 'Declaration BRI', href: '/declaration-bri', icon: <FileSpreadsheet className="w-4 h-4" />, badgeVariant: 'gradient-purple' },
+      { name: 'Hausse Tarifaire', href: '/hausse-tarifaire', icon: <TrendingUp className="w-4 h-4" />, badgeVariant: 'gradient-orange' }
     ]
   }
 ];
