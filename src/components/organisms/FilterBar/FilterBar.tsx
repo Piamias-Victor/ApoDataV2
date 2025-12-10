@@ -2,19 +2,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, TestTube } from 'lucide-react';
+import { Calendar, TestTube, Tag } from 'lucide-react';
 import { Drawer } from '@/components/molecules/Drawer/Drawer';
 import { PharmacyFilterPanel } from '../FilterPanel/PharmacyFilterPanel';
 import { DateFilterPanel } from '../FilterPanel/DateFilterPanel';
 import { LaboratoriesFilterPanel } from '../FilterPanel/LaboratoriesFilterPanel';
+import { CategoriesFilterPanel } from '../FilterPanel/CategoriesFilterPanel';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const FilterBar: React.FC = () => {
     const [isScrolled, setIsScrolled] = useState(false);
-    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | null>(null);
-    const { pharmacies, dateRange, laboratories } = useFilterStore();
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | null>(null);
+    const { pharmacies, dateRange, laboratories, categories } = useFilterStore();
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -94,6 +95,22 @@ export const FilterBar: React.FC = () => {
                         </div>
                     </button>
 
+                    {/* Categories Filter (NEW) */}
+                    <button
+                        onClick={() => setActiveDrawer('categories')}
+                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50/50 transition-all group"
+                    >
+                        <div className="p-1.5 bg-green-50 text-green-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <Tag className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Catégories</span>
+                            <span className="font-bold text-gray-900">
+                                {categories.length > 0 ? `${categories.length} sélectionnée(s)` : 'Toutes'}
+                            </span>
+                        </div>
+                    </button>
+
                     {/* Separator */}
                     <div className="w-px h-8 bg-gray-200 mx-1" />
 
@@ -129,6 +146,15 @@ export const FilterBar: React.FC = () => {
                 accentColor="purple"
             >
                 <LaboratoriesFilterPanel onClose={handleClose} />
+            </Drawer>
+
+            <Drawer
+                isOpen={activeDrawer === 'categories'}
+                onClose={handleClose}
+                title="Catégories"
+                accentColor="red"
+            >
+                <CategoriesFilterPanel onClose={handleClose} />
             </Drawer>
         </>
     );
