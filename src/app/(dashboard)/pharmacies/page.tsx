@@ -12,9 +12,11 @@ import { PharmaciesTableAnalytics } from '@/components/organisms/PharmaciesTable
 import { PharmaciesGeographicSection } from '@/components/organisms/PharmaciesGeographicSection/PharmaciesGeographicSection';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
 import { PreOrdersChart } from '@/components/organisms/PreOrdersChart/PreOrdersChart';
+import { PharmaciesMonthlyTable } from '@/components/organisms/PharmaciesMonthlyTable/PharmaciesMonthlyTable';
 import { usePharmaciesAnalytics } from '@/hooks/pharmacies/usePharmaciesAnalytics';
 import { useProductsList } from '@/hooks/products/useProductsList';
 import { usePreOrders } from '@/hooks/analytics/usePreOrders';
+import { useMonthlyMetrics } from '@/hooks/pharmacies/useMonthlyMetrics';
 
 /**
  * Composant Tooltip réutilisable
@@ -138,6 +140,12 @@ export default function PharmaciesPage() {
     fetchPreOrders
   } = usePreOrders();
 
+  const {
+    data: monthlyMetricsData,
+    isLoading: isLoadingMonthly,
+    fetchMonthlyMetrics
+  } = useMonthlyMetrics();
+
   const filters = useMemo(() => ({
     products: productsFilter,
     laboratories: laboratoriesFilter,
@@ -158,6 +166,20 @@ export default function PharmaciesPage() {
       laboratoryCodes: laboratoriesFilter
     });
   }, [analysisDateRange, pharmacyFilter, productsFilter, categoriesFilter, laboratoriesFilter, fetchPreOrders]);
+
+  // Récupérer les données mensuelles
+  useEffect(() => {
+    fetchMonthlyMetrics({
+      dateRange: {
+        start: analysisDateRange.start,
+        end: analysisDateRange.end
+      },
+      pharmacyIds: pharmacyFilter,
+      productCodes: productsFilter,
+      categoryCodes: categoriesFilter,
+      laboratoryCodes: laboratoriesFilter
+    });
+  }, [analysisDateRange, pharmacyFilter, productsFilter, categoriesFilter, laboratoriesFilter, fetchMonthlyMetrics]);
 
   // Afficher un loader pendant le chargement
   if (status === 'loading') {
@@ -211,6 +233,15 @@ Analysez la performance globale et identifiez les pharmacies les plus performant
 - Comparaison Quantité / Montant HT
 
 Permet d'anticiper les livraisons et d'analyser les tendances d'achats.`,
+
+    monthlyMetrics: `Tableau mensuel détaillé par pharmacie :
+
+- Vue mois par mois : Ventes et achats pour chaque mois de la période
+- Lignes expandables : Cliquez sur ▶ pour voir les détails d'achats
+- Évolutions : Comparaison automatique vs mois précédent
+- Métriques : Montants, quantités et pourcentages d'évolution
+
+Analysez les tendances mensuelles sans changer les filtres de date.`,
 
     table: `Tableau analytique détaillé par pharmacie :
 
@@ -320,6 +351,19 @@ Cliquez sur les en-têtes pour trier les données.`
           dateRange={analysisDateRange}
           comparisonDateRange={comparisonDateRange}
           includeComparison={!!hasComparison}
+        />
+      </SectionWithHelp>
+
+      {/* Section Tableau Mensuel */}
+      <SectionWithHelp
+        title="Détail Mensuel par Pharmacie"
+        description="Tableau mensuel avec ventes et achats pour chaque pharmacie (lignes expandables pour voir les détails)"
+        tooltipContent={tooltips.monthlyMetrics}
+        icon={<Building2 className="w-5 h-5 text-orange-600" />}
+      >
+        <PharmaciesMonthlyTable
+          data={monthlyMetricsData}
+          isLoading={isLoadingMonthly}
         />
       </SectionWithHelp>
 
