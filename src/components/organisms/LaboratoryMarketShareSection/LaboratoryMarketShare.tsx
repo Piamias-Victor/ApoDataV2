@@ -41,12 +41,10 @@ export const LaboratoryMarketShare: React.FC = () => {
   // Store integration for laboratory selection
   const selectedLaboratories = useFiltersStore(state => state.selectedLaboratories);
   const setLaboratoryFiltersWithNames = useFiltersStore(state => state.setLaboratoryFiltersWithNames);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   // Handle laboratory row click - REPLACE selection instead of toggle
   const handleLaboratoryClick = useCallback(async (laboratory: typeof data[0]) => {
     // Always replace the selection with the clicked laboratory
-    setIsLoadingProducts(true);
     try {
       const response = await fetch(`/api/laboratory/products?name=${encodeURIComponent(laboratory.laboratory_name)}`);
 
@@ -71,8 +69,6 @@ export const LaboratoryMarketShare: React.FC = () => {
       setLaboratoryFiltersWithNames(codes, newSelectedLaboratories);
     } catch (error) {
       console.error('Error fetching laboratory products:', error);
-    } finally {
-      setIsLoadingProducts(false);
     }
   }, [setLaboratoryFiltersWithNames]);
 

@@ -42,14 +42,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body: RequestBody = await request.json();
-    const { 
-      dateRange, 
-      productCodes = [], 
+    const {
+      dateRange,
+      productCodes = [],
       pharmacyIds = [], // 🔥 AJOUT
-      page = 1, 
-      pageSize = 50, 
-      searchQuery = '', 
-      sortColumn = 'quantity_sold', 
+      page = 1,
+      pageSize = 50,
+      searchQuery = '',
+      sortColumn = 'quantity_sold',
       sortDirection = 'desc',
       showGlobalTop = false
     } = body;
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Admin avec filtre pharmacy : utiliser pharmacyIds
     // Admin sans filtre : toutes les pharmacies
     // Non-admin : forcer sa pharmacie uniquement
-    const effectivePharmacyIds = isAdmin 
+    const effectivePharmacyIds = isAdmin
       ? pharmacyIds // Admin : utilise le filtre ou [] pour toutes
       : (session.user.pharmacyId ? [session.user.pharmacyId] : []); // Non-admin : force sa pharmacy
 
@@ -74,20 +74,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // 🔥 CALCUL INDICES PARAMS DYNAMIQUES
     let paramIndex = 3; // Commence après dateRange.start et dateRange.end
-    
+
     if (hasPharmacyFilter) {
       paramIndex++; // +1 pour pharmacyIds
     }
-    
+
     if (!isGlobalMode && productCodes.length > 0) {
       paramIndex++; // +1 pour productCodes
     }
 
-    const searchFilter = searchQuery 
+    const searchFilter = searchQuery
       ? `AND (
-          LOWER(dgp.name) LIKE LOWER($${paramIndex}) 
-          OR dgp.code_13_ref LIKE $${paramIndex}
-          OR LOWER(dgp.bcb_lab) LIKE LOWER($${paramIndex})
+          LOWER(ps.name) LIKE LOWER($${paramIndex})
+          OR COALESCE(ps.code_13_ref, pp.code_13_ref) LIKE $${paramIndex}
+          OR LOWER(COALESCE(ps.bcb_lab, pp.bcb_lab)) LIKE LOWER($${paramIndex})
         )`
       : '';
 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let params: any[];
 
     // 🔥 CONSTRUCTION FILTRE PHARMACY SQL
-    const pharmacyFilter = hasPharmacyFilter 
+    const pharmacyFilter = hasPharmacyFilter
       ? `AND ip.pharmacy_id = ANY($3::uuid[])`
       : '';
 
