@@ -4,6 +4,7 @@ import { getSecurityContext, enforcePharmacySecurity } from '@/lib/api-security'
 import { db } from '@/lib/db';
 import { ExcelExporter } from '@/utils/export/excelExporter';
 import type { BriExportFilters, PharmacyTotal, ProductTotal, ProductPharmacyDetail } from '@/types/declaration-bri';
+import { getPharmacyCip } from '@/lib/bri-mapping';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -75,10 +76,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Feuille 1: Total par pharmacie
         exporter.addSheet(
             'Total',
-            ['Nom Pharmacie', 'IDNAT', 'Qté Vendues'],
+            ['Nom Pharmacie', 'CIP', 'Qté Vendues'],
             pharmacyTotals.map(p => ({
                 'Nom Pharmacie': p.pharmacy_name,
-                'IDNAT': p.id_nat,
+                'CIP': getPharmacyCip(p.pharmacy_name, p.id_nat) || '',
                 'Qté Vendues': p.total_quantity_sold
             }))
         );
@@ -108,10 +109,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
             exporter.addSheet(
                 sheetName,
-                ['Nom Pharmacie', 'IDNAT', 'Qté Vendue'],
+                ['Nom Pharmacie', 'CIP', 'Qté Vendue'],
                 details.map(d => ({
                     'Nom Pharmacie': d.pharmacy_name,
-                    'IDNAT': d.id_nat,
+                    'CIP': getPharmacyCip(d.pharmacy_name, d.id_nat) || '',
                     'Qté Vendue': d.quantity_sold
                 }))
             );
