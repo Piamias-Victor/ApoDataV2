@@ -2,18 +2,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Building, Calendar } from 'lucide-react';
+import { Calendar, TestTube } from 'lucide-react';
 import { Drawer } from '@/components/molecules/Drawer/Drawer';
-import { PharmacyFilterPanel } from '@/components/organisms/FilterPanel/PharmacyFilterPanel';
-import { DateFilterPanel } from '@/components/organisms/FilterPanel/DateFilterPanel';
+import { PharmacyFilterPanel } from '../FilterPanel/PharmacyFilterPanel';
+import { DateFilterPanel } from '../FilterPanel/DateFilterPanel';
+import { LaboratoriesFilterPanel } from '../FilterPanel/LaboratoriesFilterPanel';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const FilterBar: React.FC = () => {
     const [isScrolled, setIsScrolled] = useState(false);
-    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'product' | null>(null);
-    const { pharmacies, dateRange } = useFilterStore();
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | null>(null);
+    const { pharmacies, dateRange, laboratories } = useFilterStore();
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -23,64 +24,91 @@ export const FilterBar: React.FC = () => {
 
     const handleClose = () => setActiveDrawer(null);
 
-    const formatDateButton = () => {
+    const formatDateRange = (dateRange: { start: string | null; end: string | null }) => {
         if (!dateRange.start) return 'Période';
         try {
-            return `${format(new Date(dateRange.start), 'MMM yyyy', { locale: fr })} - ${format(new Date(dateRange.end || new Date()), 'MMM yyyy', { locale: fr })}`;
+            const start = format(new Date(dateRange.start), 'MMM yyyy', { locale: fr });
+            const end = dateRange.end ? format(new Date(dateRange.end), 'MMM yyyy', { locale: fr }) : 'Aujourd\'hui';
+            return `${start} - ${end}`;
         } catch { return 'Période'; }
     };
 
     return (
         <>
-            <div className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/80 backdrop-blur-md border-b border-gray-200 py-3 shadow-sm' : 'bg-transparent py-4'}`}>
-                <div className="container mx-auto px-4 flex items-center gap-3 overflow-x-auto no-scrollbar">
+            <div
+                className={`
+                    sticky top-4 z-40 transition-all duration-300 mx-auto max-w-fit
+                    ${isScrolled ? 'translate-y-0' : 'translate-y-0'}
+                `}
+            >
+                <div className="flex items-center gap-3 px-2 py-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 ring-1 ring-black/5">
 
-                    {/* Pharmacies Filter */}
+                    {/* Pharmacy Filter */}
                     <button
                         onClick={() => setActiveDrawer('pharmacy')}
-                        className={`
-                            flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border
-                            ${pharmacies.length > 0
-                                ? 'bg-orange-50 border-orange-200 text-orange-700 shadow-sm'
-                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
-                            }
-                         `}
+                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
                     >
-                        <Building className="w-4 h-4" />
-                        <span>Pharmacies</span>
-                        {pharmacies.length > 0 && (
-                            <span className="ml-1 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
-                                {pharmacies.length}
+                        <div className="flex -space-x-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-600">
+                                {pharmacies.length > 0 ? pharmacies.length : 'All'}
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-start leading-tight">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Pharmacies</span>
+                            <span className="text-sm font-bold text-gray-900">
+                                {pharmacies.length > 0
+                                    ? (pharmacies.length === 1 ? pharmacies[0].name : 'Auswahl diff.')
+                                    : 'Toutes les pharmacies'}
                             </span>
-                        )}
+                        </div>
                     </button>
+
+                    {/* Separator */}
+                    <div className="w-px h-8 bg-gray-200 mx-1" />
 
                     {/* Date Filter */}
                     <button
                         onClick={() => setActiveDrawer('date')}
                         className={`
-                            flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border
-                            ${dateRange.start
-                                ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
-                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
-                            }
+                             flex items-center gap-2 px-4 py-2 rounded-xl border transition-all
+                             bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-gray-600
                          `}
                     >
                         <Calendar className="w-4 h-4" />
-                        <span>{formatDateButton()}</span>
+                        <span className="font-bold text-gray-900">{formatDateRange(dateRange)}</span>
+                    </button>
+
+                    {/* Laboratories Filter */}
+                    <button
+                        onClick={() => setActiveDrawer('laboratories')}
+                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/50 transition-all group"
+                    >
+                        <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <TestTube className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Laboratoires</span>
+                            <span className="font-bold text-gray-900">
+                                {laboratories.length > 0 ? `${laboratories.length} sélectionné(s)` : 'Tous'}
+                            </span>
+                        </div>
                     </button>
 
                     {/* Separator */}
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <div className="w-px h-8 bg-gray-200 mx-1" />
 
+                    {/* More Filters (Placeholder) */}
+                    <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors">
+                        <span className="text-xs font-semibold">Plus +</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Drawers */}
             <Drawer
                 isOpen={activeDrawer === 'pharmacy'}
                 onClose={handleClose}
-                title="Pharmacies"
+                title="Sélection Pharmacies"
+                accentColor="orange"
             >
                 <PharmacyFilterPanel onClose={handleClose} />
             </Drawer>
@@ -92,6 +120,15 @@ export const FilterBar: React.FC = () => {
                 accentColor="blue"
             >
                 <DateFilterPanel onClose={handleClose} />
+            </Drawer>
+
+            <Drawer
+                isOpen={activeDrawer === 'laboratories'}
+                onClose={handleClose}
+                title="Laboratoires & Marques"
+                accentColor="purple"
+            >
+                <LaboratoriesFilterPanel onClose={handleClose} />
             </Drawer>
         </>
     );

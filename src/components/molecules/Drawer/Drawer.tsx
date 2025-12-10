@@ -11,7 +11,7 @@ interface DrawerProps {
     title: string;
     children: React.ReactNode;
     width?: string;
-    accentColor?: 'orange' | 'blue';
+    accentColor?: 'orange' | 'blue' | 'purple';
 }
 
 export const Drawer: React.FC<DrawerProps> = ({
@@ -55,7 +55,9 @@ export const Drawer: React.FC<DrawerProps> = ({
                         <div className="flex items-center justify-between px-8 py-6 bg-white/80 backdrop-blur-md z-10">
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{title}</h2>
-                                <div className={`h-1 w-12 rounded-full mt-2 ${accentColor === 'orange' ? 'bg-orange-500' : 'bg-blue-600'}`} />
+                                <div className={`h-1 w-12 rounded-full mt-2 ${accentColor === 'orange' ? 'bg-orange-500' :
+                                        accentColor === 'blue' ? 'bg-blue-600' : 'bg-purple-600'
+                                    }`} />
                             </div>
                             <button
                                 onClick={onClose}
