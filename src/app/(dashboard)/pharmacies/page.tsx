@@ -1,18 +1,20 @@
 // src/app/(dashboard)/pharmacies/page.tsx
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
-import { Info, TrendingUp, Building2, Map, Package } from 'lucide-react';
+import { Info, TrendingUp, Building2, Map, Package, ShoppingCart } from 'lucide-react';
 import { useFiltersStore } from '@/stores/useFiltersStore';
 import { KpisSection } from '@/components/organisms/KpisSection/KpisSection';
 import { PharmaciesKpisSection } from '@/components/organisms/PharmaciesKpisSection/PharmaciesKpisSection';
 import { PharmaciesTableAnalytics } from '@/components/organisms/PharmaciesTable/PharmaciesTableAnalytics';
 import { PharmaciesGeographicSection } from '@/components/organisms/PharmaciesGeographicSection/PharmaciesGeographicSection';
 import { ProductsTable } from '@/components/organisms/ProductsTable/ProductsTable';
+import { PreOrdersChart } from '@/components/organisms/PreOrdersChart/PreOrdersChart';
 import { usePharmaciesAnalytics } from '@/hooks/pharmacies/usePharmaciesAnalytics';
 import { useProductsList } from '@/hooks/products/useProductsList';
+import { usePreOrders } from '@/hooks/analytics/usePreOrders';
 
 /**
  * Composant Tooltip réutilisable
@@ -130,12 +132,32 @@ export default function PharmaciesPage() {
     refetch: refetchProducts
   } = useProductsList();
 
+  const {
+    data: preOrdersData,
+    isLoading: isLoadingPreOrders,
+    fetchPreOrders
+  } = usePreOrders();
+
   const filters = useMemo(() => ({
     products: productsFilter,
     laboratories: laboratoriesFilter,
     categories: categoriesFilter,
     pharmacies: pharmacyFilter
   }), [productsFilter, laboratoriesFilter, categoriesFilter, pharmacyFilter]);
+
+  // Récupérer les données de précommandes au chargement ou changement de filtres
+  useEffect(() => {
+    fetchPreOrders({
+      dateRange: {
+        start: analysisDateRange.start,
+        end: analysisDateRange.end
+      },
+      pharmacyIds: pharmacyFilter, // Pass objects, not IDs
+      productCodes: productsFilter,
+      categoryCodes: categoriesFilter,
+      laboratoryCodes: laboratoriesFilter
+    });
+  }, [analysisDateRange, pharmacyFilter, productsFilter, categoriesFilter, laboratoriesFilter, fetchPreOrders]);
 
   // Afficher un loader pendant le chargement
   if (status === 'loading') {
@@ -181,6 +203,14 @@ Les comparaisons montrent l'évolution vs la période précédente.`,
 - Croissance : Évolution des performances vs période précédente
 
 Analysez la performance globale et identifiez les pharmacies les plus performantes.`,
+
+    preOrders: `Suivi des commandes passées (basé sur la date de création) :
+
+- Visualisation mensuelle des commandes
+- Analyse des précommandes (commandes passées mais pas encore livrées)
+- Comparaison Quantité / Montant HT
+
+Permet d'anticiper les livraisons et d'analyser les tendances d'achats.`,
 
     table: `Tableau analytique détaillé par pharmacie :
 
@@ -263,6 +293,19 @@ Cliquez sur les en-têtes pour trier les données.`
           dateRange={analysisDateRange}
           comparisonDateRange={comparisonDateRange}
           includeComparison={!!hasComparison}
+        />
+      </SectionWithHelp>
+
+      {/* Section Suivi des Précommandes */}
+      <SectionWithHelp
+        title="Suivi des Commandes & Précommandes"
+        description="Analysez l'évolution de vos commandes par date de création (vision mensuelle)"
+        tooltipContent={tooltips.preOrders}
+        icon={<ShoppingCart className="w-5 h-5 text-indigo-600" />}
+      >
+        <PreOrdersChart
+          data={preOrdersData?.metrics || []}
+          isLoading={isLoadingPreOrders}
         />
       </SectionWithHelp>
 
