@@ -1,37 +1,23 @@
-import type { Metadata } from 'next';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { SessionProvider } from '@/components/providers/SessionProvider';
-import { PharmacyProvider } from '@/providers/PharmacyProvider';
-import { ProtectedLayout } from '@/components/templates/ProtectedLayout/ProtectedLayout';
-import './globals.css';
+import type { Metadata } from "next";
+import "./globals.css";
+
+import { Providers } from "@/providers/Providers";
 
 export const metadata: Metadata = {
-  title: 'ApoData Genesis - Dashboard Pharmaceutique',
-  description: 'Plateforme BI ultra-performante pour pharmacies',
-  keywords: 'pharmacie, BI, dashboard, sell-out, sell-in, stock',
+    title: "ApoData - Reprenez la main sur vos données",
+    description: "Maîtrisez vos données pharmaceutiques avec une simplicité inégalée",
 };
 
-interface RootLayoutProps {
-  readonly children: React.ReactNode;
-}
-
-export default async function RootLayout({ children }: RootLayoutProps) {
-  const session = await getServerSession(authOptions);
-
-  return (
-    <html lang="fr" className="scroll-smooth">
-      <body className="min-h-screen bg-gray-50 antialiased">
-        <SessionProvider session={session}>
-          <PharmacyProvider>
-            <ProtectedLayout>
-              <div id="root" className="min-h-screen">
-                {children}
-              </div>
-            </ProtectedLayout>
-          </PharmacyProvider>
-        </SessionProvider>
-      </body>
-    </html>
-  );
+export default function RootLayout({
+    children,
+}: Readonly<{
+    children: React.ReactNode;
+}>) {
+    return (
+        <html lang="fr">
+            <body>
+                <Providers>{children}</Providers>
+            </body>
+        </html>
+    );
 }

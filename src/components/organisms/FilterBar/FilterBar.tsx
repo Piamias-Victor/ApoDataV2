@@ -1,801 +1,98 @@
 // src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useSession } from 'next-auth/react';
-import { Badge } from '@/components/atoms/Badge/Badge';
-import { useFiltersStore } from '@/stores/useFiltersStore';
-import { useSavedFilters } from '@/hooks/filters/useSavedFilters';
-import { ProductsDrawer } from '@/components/organisms/ProductsDrawer/ProductsDrawer';
-import { LaboratoriesDrawer } from '@/components/organisms/LaboratoriesDrawer/LaboratoriesDrawer';
-import { CategoriesDrawer } from '@/components/organisms/CategoriesDrawer/CategoriesDrawer';
-import { PharmacyDrawer } from '@/components/organisms/PharmacyDrawer/PharmacyDrawer';
-import { DateDrawer } from '@/components/organisms/DateDrawer/DateDrawer';
-import { SaveFilterModal } from '@/components/organisms/SaveFilterModal/SaveFilterModal';
-import { LoadFiltersDrawer } from '@/components/organisms/LoadFiltersDrawer/LoadFiltersDrawer';
-import { ExclusionDrawer } from '@/components/organisms/ExclusionDrawer/ExclusionDrawer';
-import { FilterDrawer } from '@/components/organisms/FilterDrawer/FilterDrawer';
-import {
-  Package,
-  TestTube,
-  Tag,
-  Building,
-  Calendar,
-  X,
-  Filter,
-  Save,
-  FolderOpen,
-  Ban,
-  GitMerge,
-  Receipt,
-} from 'lucide-react';
-import { usePathname } from 'next/navigation';
-import { GenericFilterDrawer } from '../GenericFilterDrawer/GenericFilterDrawer';
-
-type DrawerType = 'products' | 'laboratories' | 'categories' | 'pharmacy' | 'date' | 'filter' | 'save' | 'load' | 'exclusion' | 'filters' | null;
-
-interface FilterChipProps {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-  readonly value: string;
-  readonly onRemove?: (() => void) | undefined;
-  readonly color: 'blue' | 'green' | 'purple' | 'pink' | 'orange' | 'red';
-  readonly tooltip?: string;
-}
-
-const FilterChip: React.FC<FilterChipProps> = ({
-  icon,
-  label,
-  value,
-  onRemove,
-  color,
-  tooltip
-}) => {
-  const colorClasses = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
-    green: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
-    pink: 'bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100',
-    orange: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
-    red: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.8, y: -10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.8, y: -10 }}
-      transition={{ duration: 0.2 }}
-      className="relative group"
-    >
-      <div className={`
-        inline-flex items-center gap-1.5 px-2 py-1 rounded-lg
-        border transition-all duration-200
-        ${colorClasses[color]}
-      `}>
-        <span className="w-3 h-3 flex-shrink-0">
-          {icon}
-        </span>
-        <span className="text-xs font-medium">{label}</span>
-        <span className="text-xs font-semibold">{value}</span>
-
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="
-              ml-0.5 -mr-0.5 p-0.5 rounded-full
-              hover:bg-white/50 transition-colors
-            "
-          >
-            <X className="w-2.5 h-2.5" />
-          </button>
-        )}
-      </div>
-
-      {tooltip && (
-        <div className="
-          absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-          opacity-0 group-hover:opacity-100 pointer-events-none
-          transition-opacity duration-200 z-50
-        ">
-          <div className="
-            bg-gray-900 text-white text-xs rounded-lg
-            px-2 py-1.5 max-w-xs whitespace-pre-wrap
-          ">
-            {tooltip}
-            <div className="
-              absolute top-full left-1/2 -translate-x-1/2 -mt-1
-              border-4 border-transparent border-t-gray-900
-            " />
-          </div>
-        </div>
-      )}
-    </motion.div>
-  );
-};
-
-interface FilterButton {
-  readonly id: DrawerType;
-  readonly label: string;
-  readonly icon: React.ReactNode;
-  readonly adminOnly: boolean;
-  readonly hiddenRoutes?: string[];
-  readonly visibleOnlyRoutes?: string[];
-}
+import React, { useState, useEffect } from 'react';
+import { Building, Calendar } from 'lucide-react';
+import { Drawer } from '@/components/molecules/Drawer/Drawer';
+import { PharmacyFilterPanel } from '@/components/organisms/FilterPanel/PharmacyFilterPanel';
+import { DateFilterPanel } from '@/components/organisms/FilterPanel/DateFilterPanel';
+import { useFilterStore } from '@/stores/useFilterStore';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export const FilterBar: React.FC = () => {
-  const pathname = usePathname();
-  const { data: session } = useSession();
-  const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
-  const [showActiveFilters] = useState(true);
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'product' | null>(null);
+    const { pharmacies, dateRange } = useFilterStore();
 
-  const {
-    savedFilters,
-    isLoading: isLoadingSavedFilters,
-    isSaving,
-    isLoadingFilter,
-    isDeletingFilter,
-    isRenamingFilter,
-    loadFilter,
-    saveCurrentFilters,
-    renameFilter,
-    deleteFilter,
-  } = useSavedFilters();
+    useEffect(() => {
+        const handleScroll = () => setIsScrolled(window.scrollY > 20);
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
-  const {
-    selectedProducts,
-    selectedLaboratories,
-    selectedCategories,
-    selectedPharmacies,
-    selectedExcludedProducts,
-    analysisDateRange,
-    filterLogic,
-    setFilterLogic,
-    clearProductFilters,
-    clearLaboratoryFilters,
-    clearCategoryFilters,
-    clearPharmacyFilters,
-    clearExcludedProducts,
-    clearAllFilters,
-    isPharmacyLocked,
-    tvaRates,
-    clearTvaRates,
-  } = useFiltersStore();
+    const handleClose = () => setActiveDrawer(null);
 
-  const totalFiltersCount = useMemo(() => {
-    return (selectedProducts?.length || 0) +
-      (selectedLaboratories?.length || 0) +
-      (selectedCategories?.length || 0) +
-      (selectedPharmacies?.length || 0);
-  }, [selectedProducts, selectedLaboratories, selectedCategories, selectedPharmacies]);
-
-  const exclusionsCount = useMemo(() => {
-    return selectedExcludedProducts?.length || 0;
-  }, [selectedExcludedProducts]);
-
-  // 🔥 Bouton ET/OU toujours visible
-  const showLogicToggle = true;
-
-  const formatDateRange = useMemo(() => {
-    if (!analysisDateRange?.start || !analysisDateRange?.end) return null;
-
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      return `${day}/${month}`;
+    const formatDateButton = () => {
+        if (!dateRange.start) return 'Période';
+        try {
+            return `${format(new Date(dateRange.start), 'MMM yyyy', { locale: fr })} - ${format(new Date(dateRange.end || new Date()), 'MMM yyyy', { locale: fr })}`;
+        } catch { return 'Période'; }
     };
 
-    return `${formatDate(analysisDateRange.start)} - ${formatDate(analysisDateRange.end)}`;
-  }, [analysisDateRange]);
+    return (
+        <>
+            <div className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-white/80 backdrop-blur-md border-b border-gray-200 py-3 shadow-sm' : 'bg-transparent py-4'}`}>
+                <div className="container mx-auto px-4 flex items-center gap-3 overflow-x-auto no-scrollbar">
 
-  const labInfo = useMemo(() => {
-    if (!selectedLaboratories || selectedLaboratories.length === 0) return null;
-
-    if (selectedLaboratories.length === 1) {
-      const lab = selectedLaboratories[0];
-      return {
-        value: lab?.name || 'Laboratoire',
-        tooltip: `${lab?.productCount || 0} produits`
-      };
-    }
-
-    return {
-      value: `${selectedLaboratories.length}`,
-      tooltip: selectedLaboratories
-        .map(lab => `• ${lab?.name || 'Inconnu'} (${lab?.productCount || 0} produits)`)
-        .join('\n')
-    };
-  }, [selectedLaboratories]);
-
-  const productInfo = useMemo(() => {
-    if (!selectedProducts || selectedProducts.length === 0) return null;
-
-    if (selectedProducts.length === 1) {
-      const product = selectedProducts[0];
-      return {
-        value: product?.name || 'Produit',
-        tooltip: product?.code || ''
-      };
-    }
-
-    const displayCount = 3;
-    const displayed = selectedProducts.slice(0, displayCount);
-    const remaining = selectedProducts.length - displayCount;
-
-    return {
-      value: `${selectedProducts.length}`,
-      tooltip: [
-        ...displayed.map(p => `• ${p?.name || 'Produit'}`),
-        remaining > 0 ? `... et ${remaining} autres` : ''
-      ].filter(Boolean).join('\n')
-    };
-  }, [selectedProducts]);
-
-  const categoryInfo = useMemo(() => {
-    if (!selectedCategories || selectedCategories.length === 0) return null;
-
-    if (selectedCategories.length === 1) {
-      const category = selectedCategories[0];
-      return {
-        value: category?.name || 'Catégorie',
-        tooltip: `${category?.productCount || 0} produits`
-      };
-    }
-
-    return {
-      value: `${selectedCategories.length}`,
-      tooltip: selectedCategories
-        .map(cat => `• ${cat?.name || 'Catégorie'} (${cat?.productCount || 0} produits)`)
-        .join('\n')
-    };
-  }, [selectedCategories]);
-
-  const pharmacyInfo = useMemo(() => {
-    if (!selectedPharmacies || selectedPharmacies.length === 0) return null;
-
-    if (selectedPharmacies.length === 1) {
-      const pharmacy = selectedPharmacies[0];
-      return {
-        value: pharmacy?.name || 'Pharmacie',
-        tooltip: pharmacy ? `${pharmacy.address || ''}\nCA: ${pharmacy.ca?.toLocaleString() || 0}€` : ''
-      };
-    }
-
-    return {
-      value: `${selectedPharmacies.length}`,
-      tooltip: selectedPharmacies
-        .map(p => `• ${p?.name || 'Pharmacie'}`)
-        .join('\n')
-    };
-  }, [selectedPharmacies]);
-
-  const exclusionInfo = useMemo(() => {
-    if (!selectedExcludedProducts || selectedExcludedProducts.length === 0) return null;
-
-    if (selectedExcludedProducts.length === 1) {
-      const product = selectedExcludedProducts[0];
-      return {
-        value: product?.name || 'Exclu',
-        tooltip: `Code: ${product?.code || ''}`
-      };
-    }
-
-    const displayCount = 3;
-    const displayed = selectedExcludedProducts.slice(0, displayCount);
-    const remaining = selectedExcludedProducts.length - displayCount;
-
-    return {
-      value: `${selectedExcludedProducts.length}`,
-      tooltip: [
-        ...displayed.map(p => `• ${p?.name || 'Produit'}`),
-        remaining > 0 ? `... et ${remaining} autres` : ''
-      ].filter(Boolean).join('\n')
-    };
-  }, [selectedExcludedProducts]);
-
-  const hasActiveFilters = !!(
-    (selectedProducts && selectedProducts.length > 0) ||
-    (selectedLaboratories && selectedLaboratories.length > 0) ||
-    (selectedCategories && selectedCategories.length > 0) ||
-    (selectedPharmacies && selectedPharmacies.length > 0) ||
-    (selectedExcludedProducts && selectedExcludedProducts.length > 0) ||
-    (tvaRates && tvaRates.length > 0)
-  );
-
-  const filterButtons: FilterButton[] = [
-    {
-      id: 'products',
-      label: 'Produits',
-      icon: <Package className="w-full h-full" />,
-      adminOnly: false,
-      hiddenRoutes: ['/generique']
-    },
-    {
-      id: 'laboratories',
-      label: 'Labos',
-      icon: <TestTube className="w-full h-full" />,
-      adminOnly: false,
-      hiddenRoutes: ['/generique']
-    },
-    {
-      id: 'categories',
-      label: 'Catégories',
-      icon: <Tag className="w-full h-full" />,
-      adminOnly: false,
-      hiddenRoutes: ['/generique']
-    },
-    {
-      id: 'pharmacy',
-      label: 'Pharmacies',
-      icon: <Building className="w-full h-full" />,
-      adminOnly: true
-    },
-    {
-      id: 'date',
-      label: 'Période',
-      icon: <Calendar className="w-full h-full" />,
-      adminOnly: false
-    },
-    {
-      id: 'filters',
-      label: 'Filtre',
-      icon: <Filter className="w-full h-full" />,
-      adminOnly: false,
-      hiddenRoutes: ['/generique']
-    },
-    {
-      id: 'filter',
-      label: 'Filtre',
-      icon: <Filter className="w-full h-full" />,
-      adminOnly: false,
-      visibleOnlyRoutes: ['/generique']
-    },
-  ];
-
-  const visibleButtons = filterButtons.filter(button => {
-    if (button.adminOnly && session?.user?.role !== 'admin') {
-      return false;
-    }
-    if (button.hiddenRoutes?.includes(pathname)) {
-      return false;
-    }
-    if (button.visibleOnlyRoutes && !button.visibleOnlyRoutes.includes(pathname)) {
-      return false;
-    }
-    return true;
-  });
-
-  const handleFilterClick = (filterId: DrawerType): void => {
-    setActiveDrawer(activeDrawer === filterId ? null : filterId);
-  };
-
-  const handleDrawerClose = (): void => {
-    setActiveDrawer(null);
-  };
-
-  const filterType: 'classic' | 'generic' = pathname.includes('/generiques')
-    ? 'generic'
-    : 'classic';
-
-  const handleSaveFilter = async (name: string) => {
-    await saveCurrentFilters(name, filterType);
-    setActiveDrawer(null);
-  };
-
-  const handleLoadFilter = async (id: string) => {
-    await loadFilter(id);
-    setActiveDrawer(null);
-  };
-
-  const handleLogicToggle = () => {
-    const newLogic = filterLogic === 'OR' ? 'AND' : 'OR';
-    setFilterLogic(newLogic);
-  };
-
-  const filterCounts = {
-    products: selectedProducts?.length || 0,
-    laboratories: selectedLaboratories?.length || 0,
-    categories: selectedCategories?.length || 0,
-    pharmacy: selectedPharmacies?.length || 0,
-    date: (analysisDateRange?.start && analysisDateRange?.end) ? 1 : 0,
-    filter: 0,
-    filters: tvaRates?.length || 0,
-    exclusion: exclusionsCount
-  };
-
-  return (
-    <>
-      <motion.div
-        className="
-          fixed top-16 left-0 right-0 z-40
-          bg-white/60 backdrop-blur-lg border-b border-gray-200/50
-          shadow-sm transition-all duration-300
-        "
-        initial={{ y: -60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-      >
-        <div className="container-apodata">
-          <div className="flex items-center justify-between py-2">
-            {/* 🔥 Boutons filtres - COMPACTS */}
-            <div className="flex items-center gap-1.5">
-              {visibleButtons.map(button => (
-                <motion.button
-                  key={button.id}
-                  onClick={() => handleFilterClick(button.id)}
-                  className={`
-                    relative flex items-center gap-1.5 px-2.5 py-1.5 
-                    rounded-lg border transition-all duration-300
-                    ${activeDrawer === button.id
-                      ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
-                      : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                    }
-                  `}
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="w-3.5 h-3.5">{button.icon}</div>
-                  <span className="font-medium text-xs">{button.label}</span>
-
-                  <AnimatePresence>
-                    {filterCounts[button.id as keyof typeof filterCounts] > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                      >
-                        <Badge variant="primary" size="sm">
-                          {filterCounts[button.id as keyof typeof filterCounts]}
-                        </Badge>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              ))}
-
-              {/* 🔥 Toggle ET/OU - COMPACT */}
-              <AnimatePresence>
-                {showLogicToggle && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8, x: -10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.8, x: -10 }}
-                    onClick={handleLogicToggle}
-                    className={`
-                      flex items-center gap-1.5 px-2.5 py-1.5 
-                      rounded-lg border transition-all duration-300
-                      ${filterLogic === 'AND'
-                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700 shadow-sm'
-                        : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                      }
-                    `}
-                    whileHover={{ scale: 1.02, y: -1 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <GitMerge className="w-3.5 h-3.5" />
-                    <span className="font-medium text-xs">
-                      {filterLogic === 'OR' ? 'OU' : 'ET'}
-                    </span>
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* 🔥 Actions - COMPACTS */}
-            <div className="flex items-center gap-1.5">
-              <motion.button
-                onClick={() => handleFilterClick('save')}
-                disabled={totalFiltersCount === 0}
-                className={`
-                  flex items-center gap-1.5 px-2.5 py-1.5 
-                  rounded-lg border transition-all duration-300
-                  ${activeDrawer === 'save'
-                    ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
-                    : totalFiltersCount === 0
-                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                  }
-                `}
-                whileHover={totalFiltersCount > 0 ? { scale: 1.02, y: -1 } : {}}
-                whileTap={totalFiltersCount > 0 ? { scale: 0.98 } : {}}
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span className="font-medium text-xs">Enregistrer</span>
-              </motion.button>
-
-              <motion.button
-                onClick={() => handleFilterClick('load')}
-                className={`
-                  relative flex items-center gap-1.5 px-2.5 py-1.5 
-                  rounded-lg border transition-all duration-300
-                  ${activeDrawer === 'load'
-                    ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
-                    : 'bg-white/70 border-gray-200/70 text-gray-600 hover:bg-white hover:border-gray-300'
-                  }
-                `}
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <FolderOpen className="w-3.5 h-3.5" />
-                <span className="font-medium text-xs">Mes filtres</span>
-
-                <AnimatePresence>
-                  {savedFilters.length > 0 && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                    >
-                      <Badge variant="primary" size="sm">
-                        {savedFilters.length}
-                      </Badge>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-
-              <motion.button
-                onClick={() => handleFilterClick('exclusion')}
-                className={`
-                  relative flex items-center gap-1.5 px-2.5 py-1.5 
-                  rounded-lg border transition-all duration-300
-                  ${activeDrawer === 'exclusion'
-                    ? 'bg-red-100 border-red-300 text-red-700 shadow-sm'
-                    : 'bg-white/70 border-red-200/70 text-red-600 hover:bg-red-50 hover:border-red-300'
-                  }
-                `}
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Ban className="w-3.5 h-3.5" />
-                <span className="font-medium text-xs">Exclusions</span>
-
-                <AnimatePresence>
-                  {exclusionsCount > 0 && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                    >
-                      <Badge variant="danger" size="sm">
-                        {exclusionsCount}
-                      </Badge>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            </div>
-          </div>
-
-          {/* 🔥 Chips actifs - COMPACTS */}
-          <AnimatePresence>
-            {showActiveFilters && (hasActiveFilters || formatDateRange) && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="flex items-center gap-1.5 pb-2 px-0.5">
-                  <span className="text-[10px] font-medium text-gray-500 mr-1">Actifs:</span>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {formatDateRange && (
-                      <FilterChip
-                        icon={<Calendar className="w-3 h-3" />}
-                        label="Période"
-                        value={formatDateRange}
-                        color="blue"
-                      />
-                    )}
-
-                    {pharmacyInfo && (
-                      <FilterChip
-                        key="pharmacy"
-                        icon={<Building className="w-3 h-3" />}
-                        label="Pharmacie"
-                        value={pharmacyInfo.value}
-                        tooltip={pharmacyInfo.tooltip}
-                        onRemove={!isPharmacyLocked ? clearPharmacyFilters : undefined}
-                        color="green"
-                      />
-                    )}
-
-                    {labInfo && (
-                      <FilterChip
-                        key="lab"
-                        icon={<TestTube className="w-3 h-3" />}
-                        label="Labo"
-                        value={labInfo.value}
-                        tooltip={labInfo.tooltip}
-                        onRemove={clearLaboratoryFilters}
-                        color="purple"
-                      />
-                    )}
-
-                    {productInfo && (
-                      <FilterChip
-                        key="product"
-                        icon={<Package className="w-3 h-3" />}
-                        label="Produit"
-                        value={productInfo.value}
-                        tooltip={productInfo.tooltip}
-                        onRemove={clearProductFilters}
-                        color="pink"
-                      />
-                    )}
-
-                    {categoryInfo && (
-                      <FilterChip
-                        key="category"
-                        icon={<Tag className="w-3 h-3" />}
-                        label="Catégorie"
-                        value={categoryInfo.value}
-                        tooltip={categoryInfo.tooltip}
-                        onRemove={clearCategoryFilters}
-                        color="orange"
-                      />
-                    )}
-
-                    {exclusionInfo && (
-                      <FilterChip
-                        key="exclusion"
-                        icon={<Ban className="w-3 h-3" />}
-                        label="Exclusions"
-                        value={exclusionInfo.value}
-                        tooltip={exclusionInfo.tooltip}
-                        onRemove={clearExcludedProducts}
-                        color="red"
-                      />
-                    )}
-
-                    {tvaRates && tvaRates.length > 0 && (
-                      <FilterChip
-                        key="tva"
-                        icon={<Receipt className="w-3 h-3" />}
-                        label="TVA"
-                        value={tvaRates.sort((a, b) => a - b).join('%, ') + '%'}
-                        onRemove={clearTvaRates}
-                        color="blue"
-                        tooltip={`${tvaRates.length} taux sélectionné${tvaRates.length > 1 ? 's' : ''}`}
-                      />
-                    )}
-
-                    {showLogicToggle && (
-                      <FilterChip
-                        key="logic"
-                        icon={<GitMerge className="w-3 h-3" />}
-                        label="Logique"
-                        value={filterLogic === 'OR' ? 'OU' : 'ET'}
-                        color="blue"
-                        tooltip={filterLogic === 'OR'
-                          ? 'Union : tous les produits des sélections'
-                          : 'Intersection : seulement les produits communs'
-                        }
-                      />
-                    )}
-                  </div>
-
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <span className="text-[10px] text-gray-500">
-                      {Object.values(filterCounts).reduce((a, b) => a + b, 0)} filtres
-                    </span>
+                    {/* Pharmacies Filter */}
                     <button
-                      onClick={clearAllFilters}
-                      className="
-                        text-[10px] text-red-600 hover:text-red-700
-                        px-1.5 py-0.5 rounded hover:bg-red-50
-                        transition-colors
-                      "
+                        onClick={() => setActiveDrawer('pharmacy')}
+                        className={`
+                            flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border
+                            ${pharmacies.length > 0
+                                ? 'bg-orange-50 border-orange-200 text-orange-700 shadow-sm'
+                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
+                            }
+                         `}
                     >
-                      Tout effacer
+                        <Building className="w-4 h-4" />
+                        <span>Pharmacies</span>
+                        {pharmacies.length > 0 && (
+                            <span className="ml-1 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                                {pharmacies.length}
+                            </span>
+                        )}
                     </button>
-                  </div>
+
+                    {/* Date Filter */}
+                    <button
+                        onClick={() => setActiveDrawer('date')}
+                        className={`
+                            flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border
+                            ${dateRange.start
+                                ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
+                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
+                            }
+                         `}
+                    >
+                        <Calendar className="w-4 h-4" />
+                        <span>{formatDateButton()}</span>
+                    </button>
+
+                    {/* Separator */}
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.div>
+            </div>
 
-      <AnimatePresence mode="wait">
-        {activeDrawer === 'products' && (
-          <ProductsDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
+            {/* Drawers */}
+            <Drawer
+                isOpen={activeDrawer === 'pharmacy'}
+                onClose={handleClose}
+                title="Pharmacies"
+            >
+                <PharmacyFilterPanel onClose={handleClose} />
+            </Drawer>
 
-        {activeDrawer === 'laboratories' && (
-          <LaboratoriesDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'categories' && (
-          <CategoriesDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'pharmacy' && session?.user?.role === 'admin' && (
-          <PharmacyDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'date' && (
-          <DateDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'filter' && (
-          <GenericFilterDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-            dateRange={analysisDateRange || { start: '', end: '' }}
-          />
-        )}
-
-        {activeDrawer === 'filters' && (
-          <FilterDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'exclusion' && (
-          <ExclusionDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onCountChange={() => { }}
-          />
-        )}
-
-        {activeDrawer === 'save' && (
-          <SaveFilterModal
-            isOpen={true}
-            onClose={handleDrawerClose}
-            onSave={handleSaveFilter}
-            isSaving={isSaving}
-            productsCount={selectedProducts?.length || 0}
-            laboratoriesCount={selectedLaboratories?.length || 0}
-            categoriesCount={selectedCategories?.length || 0}
-            pharmaciesCount={selectedPharmacies?.length || 0}
-            exclusionsCount={exclusionsCount}
-          />
-        )}
-
-        {activeDrawer === 'load' && (
-          <LoadFiltersDrawer
-            isOpen={true}
-            onClose={handleDrawerClose}
-            savedFilters={savedFilters}
-            onLoad={handleLoadFilter}
-            onRename={renameFilter}
-            onDelete={deleteFilter}
-            isLoading={isLoadingSavedFilters}
-            isLoadingFilter={isLoadingFilter}
-            isDeletingFilter={isDeletingFilter}
-            isRenamingFilter={isRenamingFilter}
-          />
-        )}
-      </AnimatePresence>
-    </>
-  );
+            <Drawer
+                isOpen={activeDrawer === 'date'}
+                onClose={handleClose}
+                title="Période"
+                accentColor="blue"
+            >
+                <DateFilterPanel onClose={handleClose} />
+            </Drawer>
+        </>
+    );
 };

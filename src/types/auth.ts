@@ -1,77 +1,52 @@
 // src/types/auth.ts
-import { DefaultSession, DefaultUser } from 'next-auth';
-
-export type UserRole = 'admin' | 'user' | 'viewer';
-
-export interface DatabaseUser {
-  readonly id: string;
-  readonly email: string;
-  readonly name: string;
-  readonly password_hash: string;
-  readonly role: UserRole;
-  readonly pharmacy_id: string | null;
-  readonly is_active: boolean;
-  readonly two_factor_secret: string | null;
-  readonly two_factor_enabled: boolean;
-  readonly two_factor_setup_at: Date | null;
-  readonly created_at: Date;
-  readonly updated_at: Date;
-  readonly last_login_at: Date | null;
+export interface UserRole {
+    id: string;
+    name: string;
 }
 
-export interface AuthUser {
-  readonly id: string;
-  readonly email: string;
-  readonly name: string;
-  readonly role: UserRole;
-  readonly pharmacyId: string | null;
-  readonly pharmacyName: string | null;
-  readonly twoFactorEnabled: boolean;
+export interface User {
+    id: string;
+    email: string;
+    name?: string | null;
+    role?: string;
+    image?: string | null;
+    pharmacyId?: string | null;
+    pharmacyName?: string | null;
+    twoFactorEnabled?: boolean;
+}
+
+export interface DatabaseUser {
+    id: string;
+    email: string;
+    name: string;
+    password_hash: string;
+    role: string;
+    pharmacy_id: string;
+    two_factor_enabled: boolean;
+    two_factor_secret?: string;
+    created_at: Date;
+    updated_at: Date;
 }
 
 declare module 'next-auth' {
-  interface Session extends DefaultSession {
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      role: UserRole;
-      pharmacyId: string | null;
-      pharmacyName: string | null;
-      twoFactorEnabled: boolean;
-    };
-  }
-
-  interface User extends DefaultUser {
-    id: string;
-    email: string;
-    name: string;
-    role: UserRole;
-    pharmacyId: string | null;
-    pharmacyName: string | null;
-    twoFactorEnabled: boolean;
-  }
+    interface Session {
+        user: User;
+    }
+    interface User {
+        id: string;
+        role?: string | undefined;
+        pharmacyId?: string | null | undefined;
+        pharmacyName?: string | null | undefined;
+        twoFactorEnabled?: boolean | undefined;
+    }
 }
 
 declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string;
-    email: string;
-    name: string;
-    role: UserRole;
-    pharmacyId: string | null;
-    pharmacyName: string | null;
-    twoFactorEnabled: boolean;
-  }
+    interface JWT {
+        id: string;
+        role?: string | undefined;
+        pharmacyId?: string | null | undefined;
+        pharmacyName?: string | null | undefined;
+        twoFactorEnabled?: boolean | undefined;
+    }
 }
-
-export interface LoginCredentials {
-  readonly email: string;
-  readonly password: string;
-}
-
-export type AuthError = 
-  | 'CredentialsSignin'
-  | 'InvalidCredentials'
-  | 'AccountDisabled'
-  | 'DatabaseError';

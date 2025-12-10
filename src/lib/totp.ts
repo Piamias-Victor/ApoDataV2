@@ -1,33 +1,19 @@
 // src/lib/totp.ts
 import { authenticator } from 'otplib';
-import QRCode from 'qrcode';
 
-authenticator.options = {
-  window: 1, // Tolérance ±30s
-  step: 30
+export const generateSecret = () => {
+    return authenticator.generateSecret();
 };
 
-export const generateSecret = (): string => {
-  return authenticator.generateSecret();
+export const generateToken = (secret: string) => {
+    return authenticator.generate(secret);
 };
 
-export const generateQRCode = async (
-  email: string,
-  secret: string
-): Promise<string> => {
-  const otpauth = authenticator.keyuri(
-    email,
-    'ApoData Genesis',
-    secret
-  );
-  
-  return QRCode.toDataURL(otpauth);
-};
-
-export const verifyToken = (token: string, secret: string): boolean => {
-  try {
-    return authenticator.verify({ token, secret });
-  } catch {
-    return false;
-  }
+export const verifyToken = (token: string, secret: string) => {
+    try {
+        return authenticator.check(token, secret);
+    } catch (err) {
+        console.error('Error verifying token:', err);
+        return false;
+    }
 };

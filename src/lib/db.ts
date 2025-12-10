@@ -1,68 +1,42 @@
 // src/lib/db.ts
-import { Pool, PoolClient } from 'pg';
+import { Pool, QueryResult, QueryResultRow } from 'pg';
 
-interface DatabaseConfig {
-  readonly connectionString: string;
-  readonly ssl?: boolean | object;
-  readonly max?: number;
-  readonly idleTimeoutMillis?: number;
-  readonly connectionTimeoutMillis?: number;
+if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not defined in environment variables');
 }
 
-class DatabaseConnection {
-  private pool: Pool;
-
-  constructor() {
-    const config: DatabaseConfig = {
-      connectionString: process.env.DATABASE_URL!,
-      ssl: {
-        rejectUnauthorized: false,
-        require: true
-      },
-      max: 20,
-      // idleTimeoutMillis: 30000,
-      // connectionTimeoutMillis: 2000,
-    };
-
-    this.pool = new Pool(config);
-
-    this.pool.on('error', (err: Error) => {
-      console.error('Erreur pool PostgreSQL:', err);
-    });
-  }
-
-  async query<T = any>(text: string, params?: any[]): Promise<T[]> {
-    const start = Date.now();
-    let client: PoolClient | undefined;
-
-    try {
-      client = await this.pool.connect();
-      const result = await client.query(text, params);
-      const duration = Date.now() - start;
-      
-      if (duration > 200) {
-        console.warn(`Requête lente (${duration}ms):`, text);
-      }
-
-      return result.rows;
-    } catch (error) {
-      console.error('Erreur requête DB:', error);
-      throw error;
-    } finally {
-      if (client) {
-        client.release();
-      }
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10, // Max clients in pool
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 2000,
+    ssl: {
+        rejectUnauthorized: false
     }
-  }
+});
 
-  async getClient(): Promise<PoolClient> {
-    return await this.pool.connect();
-  }
+// Singleton pattern for DB connection
+let dbInstance: Pool | null = null;
 
-  async end(): Promise<void> {
-    await this.pool.end();
-  }
-}
+export const getDb = (): Pool => {
+    if (!dbInstance) {
+        dbInstance = pool;
+    }
+    return dbInstance;
+};
 
-export const db = new DatabaseConnection();
-export default db;
+export const query = async <T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
+    const start = Date.now();
+    const res = await pool.query<T>(text, params);
+    const duration = Date.now() - start;
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log('Executed query', { text, duration, rows: res.rowCount });
+    }
+
+    return res;
+};
+
+export const db = {
+    query
+};

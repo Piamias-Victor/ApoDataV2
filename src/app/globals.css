@@ -11,13 +11,13 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
     @apply bg-gray-50 text-gray-900;
     font-size: 16px;
     line-height: 1.5;
   }
-  
+
   *:focus-visible {
     @apply outline-none ring-2 ring-primary-500 ring-offset-2;
   }
@@ -27,19 +27,30 @@
   .container-apodata {
     @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
-  
+
   .interactive-hover {
     @apply transition-all duration-200 ease-in-out;
   }
-  
+
   .interactive-hover:hover {
     @apply transform -translate-y-0.5 shadow-md;
   }
-  
-  .status-positive { @apply text-success-600; }
-  .status-negative { @apply text-danger-600; }
-  .status-neutral { @apply text-gray-600; }
-  .status-warning { @apply text-warning-600; }
+
+  .status-positive {
+    @apply text-success-600;
+  }
+
+  .status-negative {
+    @apply text-danger-600;
+  }
+
+  .status-neutral {
+    @apply text-gray-600;
+  }
+
+  .status-warning {
+    @apply text-warning-600;
+  }
 }
 
 @layer utilities {
@@ -47,7 +58,7 @@
     transform: translateZ(0);
     will-change: transform;
   }
-  
+
   @media (prefers-reduced-motion: reduce) {
     * {
       animation-duration: 0.01ms !important;
@@ -61,33 +72,36 @@
     0% {
       transform: translate(0px, 0px) scale(1);
     }
+
     33% {
       transform: translate(30px, -50px) scale(1.1);
     }
+
     66% {
       transform: translate(-20px, 20px) scale(0.9);
     }
+
     100% {
       transform: translate(0px, 0px) scale(1);
     }
   }
-  
+
   .animate-blob {
     animation: blob 7s infinite;
   }
-  
+
   .animation-delay-2000 {
     animation-delay: 2s;
   }
-  
+
   .animation-delay-4000 {
     animation-delay: 4s;
   }
-  
+
   .animation-delay-6000 {
     animation-delay: 6s;
   }
-  
+
   .animation-delay-8000 {
     animation-delay: 8s;
   }
