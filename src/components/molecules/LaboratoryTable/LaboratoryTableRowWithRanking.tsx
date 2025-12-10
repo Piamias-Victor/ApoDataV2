@@ -6,12 +6,16 @@ interface LaboratoryTableRowWithRankingProps {
   readonly laboratory: LaboratoryMarketShare;
   readonly isEven: boolean;
   readonly hasComparison: boolean;
+  readonly isSelected?: boolean;
+  readonly onClick?: (laboratory: LaboratoryMarketShare) => void;
 }
 
 export const LaboratoryTableRowWithRanking: React.FC<LaboratoryTableRowWithRankingProps> = ({
   laboratory,
   isEven,
-  hasComparison
+  hasComparison,
+  isSelected = false,
+  onClick
 }) => {
 
 
@@ -52,8 +56,17 @@ export const LaboratoryTableRowWithRanking: React.FC<LaboratoryTableRowWithRanki
     );
   };
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(laboratory);
+    }
+  };
+
   return (
-    <tr className={`${isEven ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
+    <tr
+      className={`${isEven ? 'bg-white' : 'bg-gray-50'} ${isSelected ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-blue-50'} transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
+    >
       <td className="px-4 py-3 text-sm font-medium text-gray-900">
         {laboratory.laboratory_name}
       </td>

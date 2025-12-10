@@ -9,6 +9,7 @@ import { LaboratoryTableRowWithRanking } from "@/components/molecules/Laboratory
 import { SearchBar } from "@/components/molecules/SearchBar/SearchBar";
 import { useExportLaboratoryMarketShare } from "@/hooks/laboratories/useExportLaboratoryMarketShare";
 import { useLaboratoryMarketShareWithFilters } from "@/hooks/laboratories/useLaboratoryMarketShareWithFilters";
+import { useFiltersStore } from '@/stores/useFiltersStore';
 import { LaboratorySortableColumn, SortConfig, SortDirection } from "@/types/laboratory";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useCallback, useMemo } from "react";
@@ -37,19 +38,57 @@ export const LaboratoryMarketShare: React.FC = () => {
   // ✅ Hook export dédié (données complètes brutes)
   const { exportAllToCsv, isExporting } = useExportLaboratoryMarketShare();
 
+  // Store integration for laboratory selection
+  const selectedLaboratories = useFiltersStore(state => state.selectedLaboratories);
+  const setLaboratoryFiltersWithNames = useFiltersStore(state => state.setLaboratoryFiltersWithNames);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
+  // Handle laboratory row click - REPLACE selection instead of toggle
+  const handleLaboratoryClick = useCallback(async (laboratory: typeof data[0]) => {
+    // Always replace the selection with the clicked laboratory
+    setIsLoadingProducts(true);
+    try {
+      const response = await fetch(`/api/laboratory/products?name=${encodeURIComponent(laboratory.laboratory_name)}`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch laboratory products');
+        return;
+      }
+
+      const data = await response.json();
+
+      // Replace entire selection with just this laboratory
+      const newSelectedLaboratories = [
+        {
+          name: laboratory.laboratory_name,
+          productCodes: data.productCodes,
+          productCount: data.productCount,
+          sourceType: 'laboratory' as const
+        }
+      ];
+
+      const codes = newSelectedLaboratories.flatMap(lab => lab.productCodes);
+      setLaboratoryFiltersWithNames(codes, newSelectedLaboratories);
+    } catch (error) {
+      console.error('Error fetching laboratory products:', error);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [setLaboratoryFiltersWithNames]);
+
   const handleSort = useCallback((column: LaboratorySortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        const newDirection: SortDirection = 
+        const newDirection: SortDirection =
           prev.direction === 'asc' ? 'desc' :
-          prev.direction === 'desc' ? null : 'asc';
-        
+            prev.direction === 'desc' ? null : 'asc';
+
         return {
           column: newDirection ? column : null,
           direction: newDirection
         };
       }
-      
+
       return { column, direction: 'asc' };
     });
   }, []);
@@ -118,7 +157,7 @@ export const LaboratoryMarketShare: React.FC = () => {
           <div className="text-sm text-gray-500">
             {total} laboratoire{total > 1 ? 's' : ''}
           </div>
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
@@ -126,7 +165,7 @@ export const LaboratoryMarketShare: React.FC = () => {
             label={`Export CSV complet (${total} lignes)`}
           />
         </div>
-        
+
         <SearchBar
           onSearch={handleSearch}
           placeholder="Rechercher un laboratoire..."
@@ -141,7 +180,7 @@ export const LaboratoryMarketShare: React.FC = () => {
               onSort={handleSort}
               hasComparison={hasComparison}
             />
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
@@ -155,7 +194,7 @@ export const LaboratoryMarketShare: React.FC = () => {
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
                   <td colSpan={colSpan} className="px-4 py-12 text-center text-gray-500">
-                    {searchQuery 
+                    {searchQuery
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
                       : 'Aucune donnée disponible'
                     }
@@ -168,6 +207,8 @@ export const LaboratoryMarketShare: React.FC = () => {
                     laboratory={lab}
                     isEven={index % 2 === 0}
                     hasComparison={hasComparison}
+                    isSelected={selectedLaboratories.some(selected => selected.name === lab.laboratory_name)}
+                    onClick={handleLaboratoryClick}
                   />
                 ))
               )}
@@ -181,7 +222,7 @@ export const LaboratoryMarketShare: React.FC = () => {
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} • {total} laboratoires
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -192,7 +233,7 @@ export const LaboratoryMarketShare: React.FC = () => {
             >
               Précédent
             </Button>
-            
+
             <Button
               variant="secondary"
               size="sm"

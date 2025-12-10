@@ -5,11 +5,15 @@ import type { LaboratoryMarketShare } from '@/types/laboratory';
 interface LaboratoryTableRowProps {
   laboratory: LaboratoryMarketShare;
   isEven: boolean;
+  isSelected?: boolean;
+  onClick?: (laboratory: LaboratoryMarketShare) => void;
 }
 
 export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({
   laboratory,
-  isEven
+  isEven,
+  isSelected = false,
+  onClick
 }) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -29,12 +33,21 @@ export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({
     return new Intl.NumberFormat('fr-FR').format(numValue);
   };
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(laboratory);
+    }
+  };
+
   return (
-    <tr className={isEven ? 'bg-white' : 'bg-gray-50'}>
+    <tr
+      className={`${isEven ? 'bg-white' : 'bg-gray-50'} ${isSelected ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-100'} transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
+    >
       <td className="px-4 py-3 text-sm font-medium text-gray-900">
         {laboratory.laboratory_name}
       </td>
-      
+
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatNumber(laboratory.product_count)}
       </td>
@@ -46,19 +59,19 @@ export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatPercent(laboratory.margin_rate_percent, 1)}
       </td>
-      
+
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatCurrency(laboratory.ca_selection)}
       </td>
-      
+
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatCurrency(laboratory.marge_selection)}
       </td>
-      
+
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatPercent(laboratory.part_marche_ca_pct)}
       </td>
-      
+
       <td className="px-4 py-3 text-sm text-gray-700">
         {formatPercent(laboratory.part_marche_marge_pct)}
       </td>

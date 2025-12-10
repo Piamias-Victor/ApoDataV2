@@ -12,6 +12,7 @@ import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 import type {
   ProductMetrics,
   ViewMode,
@@ -47,6 +48,35 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   const itemsPerPage = 50;
   const { exportToCsv, isExporting } = useExportCsv();
+
+  // Store integration for product selection
+  const selectedProducts = useFiltersStore(state => state.selectedProducts);
+  const setProductFiltersWithNames = useFiltersStore(state => state.setProductFiltersWithNames);
+
+  // Handle product row click
+  const handleProductClick = useCallback((product: ProductMetrics) => {
+    const isAlreadySelected = selectedProducts.some(p => p.code === product.code_ean);
+
+    let newSelectedProducts;
+    if (isAlreadySelected) {
+      // Deselect the product
+      newSelectedProducts = selectedProducts.filter(p => p.code !== product.code_ean);
+    } else {
+      // Select the product
+      newSelectedProducts = [
+        ...selectedProducts,
+        {
+          name: product.product_name,
+          code: product.code_ean,
+          brandLab: product.bcb_lab || undefined,
+          universe: undefined
+        }
+      ];
+    }
+
+    const codes = newSelectedProducts.map(p => p.code);
+    setProductFiltersWithNames(codes, newSelectedProducts);
+  }, [selectedProducts, setProductFiltersWithNames]);
 
   const handleSort = useCallback((column: SortableColumn) => {
     setSortConfig(prev => {
@@ -335,6 +365,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                     product={product}
                     viewMode={viewMode}
                     isEven={index % 2 === 0}
+                    isSelected={selectedProducts.some(p => p.code === product.code_ean)}
+                    onClick={handleProductClick}
                   />
                 ))
               )}

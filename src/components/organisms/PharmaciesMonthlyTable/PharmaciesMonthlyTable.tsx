@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { MonthlyMetricsResponse } from '@/types/monthly-metrics';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 
 interface PharmaciesMonthlyTableProps {
     data: MonthlyMetricsResponse | null;
@@ -31,6 +32,29 @@ export const PharmaciesMonthlyTable: React.FC<PharmaciesMonthlyTableProps> = ({ 
         const date = new Date(parseInt(year), parseInt(monthNum) - 1);
         return date.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
     };
+
+    // Store integration for pharmacy selection
+    const selectedPharmacies = useFiltersStore(state => state.selectedPharmacies);
+    const setPharmacyFiltersWithNames = useFiltersStore(state => state.setPharmacyFiltersWithNames);
+
+    // Handle pharmacy row click - REPLACE selection instead of toggle
+    const handlePharmacyClick = useCallback((pharmacy: NonNullable<typeof data>['pharmacies'][0]) => {
+        // Replace entire selection with just this pharmacy
+        const newSelectedPharmacies = [
+            {
+                id: pharmacy.pharmacy_id,
+                name: pharmacy.pharmacy_name,
+                address: '',
+                ca: 0,
+                area: '',
+                employees_count: 0,
+                id_nat: pharmacy.pharmacy_id
+            }
+        ];
+
+        const ids = newSelectedPharmacies.map(p => p.id);
+        setPharmacyFiltersWithNames(ids, newSelectedPharmacies);
+    }, [setPharmacyFiltersWithNames]);
 
     if (isLoading) {
         return (
@@ -91,43 +115,47 @@ export const PharmaciesMonthlyTable: React.FC<PharmaciesMonthlyTableProps> = ({ 
                     </tr>
                 </thead>
                 <tbody>
-                    {data.pharmacies.map((pharmacy, index) => (
-                        <tr
-                            key={pharmacy.pharmacy_id}
-                            className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}
-                        >
-                            <td className="px-3 py-3 font-medium text-gray-900 border-r border-gray-300 sticky left-0 bg-inherit z-10">
-                                {pharmacy.pharmacy_name}
-                            </td>
-                            {data.months.map(month => {
-                                const monthData = pharmacy.months[month];
-                                return (
-                                    <React.Fragment key={`${pharmacy.pharmacy_id}-${month}`}>
-                                        <td className="px-2 py-3 text-right border-r border-gray-200">
-                                            <span className="font-semibold text-gray-900">
-                                                {formatCurrency(monthData?.montant_ventes_ttc)}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-3 text-right border-r border-gray-200">
-                                            <span className="text-gray-700">
-                                                {formatNumber(monthData?.quantite_vendue)}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-3 text-right border-r border-gray-200">
-                                            <span className="font-semibold text-gray-900">
-                                                {formatCurrency(monthData?.montant_achats_ht)}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-3 text-right border-r border-gray-300">
-                                            <span className="text-gray-700">
-                                                {formatNumber(monthData?.quantite_achetee)}
-                                            </span>
-                                        </td>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tr>
-                    ))}
+                    {data.pharmacies.map((pharmacy, index) => {
+                        const isSelected = selectedPharmacies.some(p => p.id === pharmacy.pharmacy_id);
+                        return (
+                            <tr
+                                key={pharmacy.pharmacy_id}
+                                className={`${isSelected ? 'bg-blue-50 ring-2 ring-blue-400' : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors cursor-pointer`}
+                                onClick={() => handlePharmacyClick(pharmacy)}
+                            >
+                                <td className="px-3 py-3 font-medium text-gray-900 border-r border-gray-300 sticky left-0 bg-inherit z-10">
+                                    {pharmacy.pharmacy_name}
+                                </td>
+                                {data.months.map(month => {
+                                    const monthData = pharmacy.months[month];
+                                    return (
+                                        <React.Fragment key={`${pharmacy.pharmacy_id}-${month}`}>
+                                            <td className="px-2 py-3 text-right border-r border-gray-200">
+                                                <span className="font-semibold text-gray-900">
+                                                    {formatCurrency(monthData?.montant_ventes_ttc)}
+                                                </span>
+                                            </td>
+                                            <td className="px-2 py-3 text-right border-r border-gray-200">
+                                                <span className="text-gray-700">
+                                                    {formatNumber(monthData?.quantite_vendue)}
+                                                </span>
+                                            </td>
+                                            <td className="px-2 py-3 text-right border-r border-gray-200">
+                                                <span className="font-semibold text-gray-900">
+                                                    {formatCurrency(monthData?.montant_achats_ht)}
+                                                </span>
+                                            </td>
+                                            <td className="px-2 py-3 text-right border-r border-gray-300">
+                                                <span className="text-gray-700">
+                                                    {formatNumber(monthData?.quantite_achetee)}
+                                                </span>
+                                            </td>
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
 

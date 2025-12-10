@@ -10,6 +10,7 @@ import { Badge } from '@/components/atoms/Badge/Badge';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
+import { useFiltersStore } from '@/stores/useFiltersStore';
 import type {
   PharmacyMetrics,
   SortConfig,
@@ -55,6 +56,39 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
 
   const itemsPerPage = 50;
   const { exportToCsv, isExporting } = useExportCsv();
+
+  // Store integration for pharmacy selection
+  const selectedPharmacies = useFiltersStore(state => state.selectedPharmacies);
+  const setPharmacyFiltersWithNames = useFiltersStore(state => state.setPharmacyFiltersWithNames);
+
+  // Handle pharmacy row click
+  const handlePharmacyClick = useCallback((pharmacy: PharmacyMetrics) => {
+    const isAlreadySelected = selectedPharmacies.some(p => p.id === pharmacy.pharmacy_id);
+
+    if (isAlreadySelected) {
+      // Deselect the pharmacy
+      const newSelectedPharmacies = selectedPharmacies.filter(p => p.id !== pharmacy.pharmacy_id);
+      const ids = newSelectedPharmacies.map(p => p.id);
+      setPharmacyFiltersWithNames(ids, newSelectedPharmacies);
+    } else {
+      // Select the pharmacy
+      const newSelectedPharmacies = [
+        ...selectedPharmacies,
+        {
+          id: pharmacy.pharmacy_id,
+          name: pharmacy.pharmacy_name,
+          address: '',
+          ca: pharmacy.ca_ventes,
+          area: '',
+          employees_count: 0,
+          id_nat: pharmacy.pharmacy_id
+        }
+      ];
+
+      const ids = newSelectedPharmacies.map(p => p.id);
+      setPharmacyFiltersWithNames(ids, newSelectedPharmacies);
+    }
+  }, [selectedPharmacies, setPharmacyFiltersWithNames]);
 
   const handleSort = useCallback((column: SortableColumn) => {
     setSortConfig(prev => {
@@ -367,96 +401,99 @@ export const PharmaciesTableAnalytics: React.FC<PharmaciesTableAnalyticsProps> =
                   </td>
                 </tr>
               ) : (
-                processedData.pharmacies.map((pharmacy, index) => (
-                  <tr
-                    key={pharmacy.pharmacy_id}
-                    className={`transition-colors ${index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-25 hover:bg-gray-50'
-                      }`}
-                  >
-                    <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
-                      <div className="max-w-[200px] truncate" title={pharmacy.pharmacy_name}>
-                        {pharmacy.pharmacy_name}
-                      </div>
-                    </td>
+                processedData.pharmacies.map((pharmacy, index) => {
+                  const isSelected = selectedPharmacies.some(p => p.id === pharmacy.pharmacy_id);
+                  return (
+                    <tr
+                      key={pharmacy.pharmacy_id}
+                      className={`transition-colors ${isSelected ? 'bg-blue-50 ring-2 ring-blue-400 cursor-pointer' : index % 2 === 0 ? 'bg-white hover:bg-gray-50 cursor-pointer' : 'bg-gray-25 hover:bg-gray-50 cursor-pointer'}`}
+                      onClick={() => handlePharmacyClick(pharmacy)}
+                    >
+                      <td className="px-2 py-2 text-[11px] text-gray-900 font-medium">
+                        <div className="max-w-[200px] truncate" title={pharmacy.pharmacy_name}>
+                          {pharmacy.pharmacy_name}
+                        </div>
+                      </td>
 
-                    <td className="px-2 py-2 text-center">
-                      <span className="text-[11px] text-gray-900 font-medium">
-                        {formatRang(pharmacy.rang_ventes_actuel)}
-                      </span>
-                    </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className="text-[11px] text-gray-900 font-medium">
+                          {formatRang(pharmacy.rang_ventes_actuel)}
+                        </span>
+                      </td>
 
-                    <td className="px-2 py-2 text-center">
-                      {pharmacy.gain_rang_ventes !== null ? (
-                        <Badge variant={getRangVariant(pharmacy.gain_rang_ventes)}>
+                      <td className="px-2 py-2 text-center">
+                        {pharmacy.gain_rang_ventes !== null ? (
+                          <Badge variant={getRangVariant(pharmacy.gain_rang_ventes)}>
+                            <span className="text-[10px] font-semibold">
+                              {formatGainRang(pharmacy.gain_rang_ventes)}
+                            </span>
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 text-[10px]">N/A</span>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {pharmacy.quantite_achetee?.toLocaleString('fr-FR') || 0}
+                      </td>
+
+                      <td className="px-2 py-2 text-right align-top">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-gray-700 font-medium">
+                            {formatCurrency(pharmacy.ca_achats)}
+                          </span>
+                          {renderEvolution(pharmacy.ca_achats, pharmacy.ca_achats_comparison, formatCurrency)}
+                        </div>
+                      </td>
+
+                      <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
+                        {pharmacy.quantite_vendue?.toLocaleString('fr-FR') || 0}
+                      </td>
+
+                      <td className="px-2 py-2 text-right align-top">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-gray-700 font-medium">
+                            {formatCurrency(pharmacy.ca_ventes)}
+                          </span>
+                          {renderEvolution(pharmacy.ca_ventes, pharmacy.ca_ventes_comparison, formatCurrency)}
+                        </div>
+                      </td>
+
+                      <td className="px-2 py-2 text-center">
+                        {pharmacy.evol_relative_achats_pct !== null ? (
+                          <Badge variant={getEvolutionVariant(pharmacy.evol_relative_achats_pct)}>
+                            <span className="text-[10px] font-semibold">
+                              {formatEvolutionRelative(pharmacy.evol_relative_achats_pct)}
+                            </span>
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 text-[10px]">N/A</span>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-center">
+                        {pharmacy.evol_relative_ventes_pct !== null ? (
+                          <Badge variant={getEvolutionVariant(pharmacy.evol_relative_ventes_pct)}>
+                            <span className="text-[10px] font-semibold">
+                              {formatEvolutionRelative(pharmacy.evol_relative_ventes_pct)}
+                            </span>
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 text-[10px]">N/A</span>
+                        )}
+                      </td>
+
+                      <td className="px-2 py-2 text-center">
+                        <Badge variant={getMarginVariant(pharmacy.pourcentage_marge)}>
                           <span className="text-[10px] font-semibold">
-                            {formatGainRang(pharmacy.gain_rang_ventes)}
+                            {formatPercentage(pharmacy.pourcentage_marge)}
                           </span>
                         </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-[10px]">N/A</span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {pharmacy.quantite_achetee?.toLocaleString('fr-FR') || 0}
-                    </td>
-
-                    <td className="px-2 py-2 text-right align-top">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-700 font-medium">
-                          {formatCurrency(pharmacy.ca_achats)}
-                        </span>
-                        {renderEvolution(pharmacy.ca_achats, pharmacy.ca_achats_comparison, formatCurrency)}
-                      </div>
-                    </td>
-
-                    <td className="px-2 py-2 text-[11px] text-gray-900 text-right font-medium">
-                      {pharmacy.quantite_vendue?.toLocaleString('fr-FR') || 0}
-                    </td>
-
-                    <td className="px-2 py-2 text-right align-top">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-700 font-medium">
-                          {formatCurrency(pharmacy.ca_ventes)}
-                        </span>
-                        {renderEvolution(pharmacy.ca_ventes, pharmacy.ca_ventes_comparison, formatCurrency)}
-                      </div>
-                    </td>
-
-                    <td className="px-2 py-2 text-center">
-                      {pharmacy.evol_relative_achats_pct !== null ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evol_relative_achats_pct)}>
-                          <span className="text-[10px] font-semibold">
-                            {formatEvolutionRelative(pharmacy.evol_relative_achats_pct)}
-                          </span>
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-[10px]">N/A</span>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-2 text-center">
-                      {pharmacy.evol_relative_ventes_pct !== null ? (
-                        <Badge variant={getEvolutionVariant(pharmacy.evol_relative_ventes_pct)}>
-                          <span className="text-[10px] font-semibold">
-                            {formatEvolutionRelative(pharmacy.evol_relative_ventes_pct)}
-                          </span>
-                        </Badge>
-                      ) : (
-                        <span className="text-gray-400 text-[10px]">N/A</span>
-                      )}
-                    </td>
-
-                    <td className="px-2 py-2 text-center">
-                      <Badge variant={getMarginVariant(pharmacy.pourcentage_marge)}>
-                        <span className="text-[10px] font-semibold">
-                          {formatPercentage(pharmacy.pourcentage_marge)}
-                        </span>
-                      </Badge>
-                    </td>
-
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -139,7 +139,7 @@ const initialState: FilterState = {
   selectedPharmacies: [],
   excludedProducts: [],
   selectedExcludedProducts: [],
-  filterLogic: 'OR',
+  filterLogic: 'AND',
   tvaRates: [],
   productType: 'ALL',
   dateRange: {
@@ -223,26 +223,39 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         // 4. Combinaison finale selon la logique
         let finalCodes: Set<string>;
 
+        const hasManual = manualProducts.size > 0;
         const hasLabs = labProducts.size > 0;
         const hasCats = categoryProducts.size > 0;
 
-        if (!hasLabs && !hasCats) {
-          finalCodes = manualProducts;
-        } else if (hasLabs && !hasCats) {
-          finalCodes = new Set([...manualProducts, ...labProducts]);
-        } else if (!hasLabs && hasCats) {
-          finalCodes = new Set([...manualProducts, ...categoryProducts]);
+        if (logic === 'OR') {
+          // Mode OR : Union de tous les filtres
+          finalCodes = new Set([...manualProducts, ...labProducts, ...categoryProducts]);
         } else {
-          if (logic === 'OR') {
-            finalCodes = new Set([...manualProducts, ...labProducts, ...categoryProducts]);
+          // Mode AND : Intersection de tous les filtres actifs
+          const activeSets: Set<string>[] = [];
+
+          if (hasManual) activeSets.push(manualProducts);
+          if (hasLabs) activeSets.push(labProducts);
+          if (hasCats) activeSets.push(categoryProducts);
+
+          if (activeSets.length === 0) {
+            finalCodes = new Set<string>();
+          } else if (activeSets.length === 1) {
+            const firstSet = activeSets[0];
+            finalCodes = firstSet !== undefined ? firstSet : new Set<string>();
           } else {
-            const intersection = new Set<string>();
-            labProducts.forEach(code => {
-              if (categoryProducts.has(code)) {
-                intersection.add(code);
-              }
-            });
-            finalCodes = new Set([...manualProducts, ...intersection]);
+            // Intersection de tous les sets actifs
+            const firstSet = activeSets[0];
+            finalCodes = new Set<string>();
+
+            if (firstSet !== undefined) {
+              firstSet.forEach(code => {
+                const inAllSets = activeSets.every(set => set.has(code));
+                if (inAllSets) {
+                  finalCodes.add(code);
+                }
+              });
+            }
           }
         }
 
@@ -654,7 +667,7 @@ export const useFiltersStore = create<FilterState & FilterActions>()(
         if (version < 11) {
           return {
             ...persistedState,
-            filterLogic: 'OR',
+            filterLogic: 'AND',
           };
         }
         if (version < 12) {

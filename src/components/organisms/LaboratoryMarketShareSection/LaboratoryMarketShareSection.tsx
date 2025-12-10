@@ -12,8 +12,9 @@ import { Button } from '@/components/atoms/Button/Button';
 import { ExportButton } from '@/components/molecules/ExportButton/ExportButton';
 import { useExportCsv } from '@/hooks/export/useExportCsv';
 import { CsvExporter } from '@/utils/export/csvExporter';
-import type { 
-  SortConfig, 
+import { useFiltersStore } from '@/stores/useFiltersStore';
+import type {
+  SortConfig,
   LaboratorySortableColumn,
   SortDirection
 } from '@/types/laboratory';
@@ -54,19 +55,57 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
 
   const { exportToCsv, isExporting } = useExportCsv();
 
+  // Store integration for laboratory selection
+  const selectedLaboratories = useFiltersStore(state => state.selectedLaboratories);
+  const setLaboratoryFiltersWithNames = useFiltersStore(state => state.setLaboratoryFiltersWithNames);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+
+  // Handle laboratory row click - REPLACE selection instead of toggle
+  const handleLaboratoryClick = useCallback(async (laboratory: typeof data[0]) => {
+    // Always replace the selection with the clicked laboratory
+    setIsLoadingProducts(true);
+    try {
+      const response = await fetch(`/api/laboratory/products?name=${encodeURIComponent(laboratory.laboratory_name)}`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch laboratory products');
+        return;
+      }
+
+      const data = await response.json();
+
+      // Replace entire selection with just this laboratory
+      const newSelectedLaboratories = [
+        {
+          name: laboratory.laboratory_name,
+          productCodes: data.productCodes,
+          productCount: data.productCount,
+          sourceType: 'laboratory' as const
+        }
+      ];
+
+      const codes = newSelectedLaboratories.flatMap(lab => lab.productCodes);
+      setLaboratoryFiltersWithNames(codes, newSelectedLaboratories);
+    } catch (error) {
+      console.error('Error fetching laboratory products:', error);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, [setLaboratoryFiltersWithNames]);
+
   const handleSort = useCallback((column: LaboratorySortableColumn) => {
     setSortConfig(prev => {
       if (prev.column === column) {
-        const newDirection: SortDirection = 
+        const newDirection: SortDirection =
           prev.direction === 'asc' ? 'desc' :
-          prev.direction === 'desc' ? null : 'asc';
-        
+            prev.direction === 'desc' ? null : 'asc';
+
         return {
           column: newDirection ? column : null,
           direction: newDirection
         };
       }
-      
+
       return { column, direction: 'asc' };
     });
   }, []);
@@ -145,11 +184,11 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
               Vue globale
             </div>
           )}
-          
+
           <div className="text-sm text-gray-500">
             {total} laboratoire{total > 1 ? 's' : ''}
           </div>
-          
+
           <ExportButton
             onClick={handleExport}
             isExporting={isExporting}
@@ -157,7 +196,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
             label={`Export CSV (${filteredAndSortedData.length} lignes)`}
           />
         </div>
-        
+
         <SearchBar
           onSearch={handleSearch}
           placeholder="Rechercher un laboratoire..."
@@ -171,7 +210,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
               sortConfig={sortConfig}
               onSort={handleSort}
             />
-            
+
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr>
@@ -185,7 +224,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
-                    {searchQuery 
+                    {searchQuery
                       ? `Aucun laboratoire trouvé pour "${searchQuery}"`
                       : 'Aucune donnée disponible'
                     }
@@ -197,6 +236,8 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
                     key={lab.laboratory_name}
                     laboratory={lab}
                     isEven={index % 2 === 0}
+                    isSelected={selectedLaboratories.some(selected => selected.name === lab.laboratory_name)}
+                    onClick={handleLaboratoryClick}
                   />
                 ))
               )}
@@ -210,7 +251,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
           <div className="text-sm text-gray-600">
             Page {currentPage} sur {totalPages} • {total} laboratoires
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="secondary"
@@ -221,7 +262,7 @@ export const LaboratoryMarketShareSection: React.FC<LaboratoryMarketShareSection
             >
               Précédent
             </Button>
-            
+
             <Button
               variant="secondary"
               size="sm"

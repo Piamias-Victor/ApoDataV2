@@ -6,12 +6,16 @@ interface TableRowProps {
   readonly product: ProductMetrics;
   readonly viewMode: ViewMode;
   readonly isEven: boolean;
+  readonly isSelected?: boolean;
+  readonly onClick?: (product: ProductMetrics) => void;
 }
 
 export const TableRow: React.FC<TableRowProps> = ({
   product,
   viewMode,
-  isEven
+  isEven,
+  isSelected = false,
+  onClick
 }) => {
   const formatNumber = (value: number): string => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
@@ -66,8 +70,17 @@ export const TableRow: React.FC<TableRowProps> = ({
     );
   };
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(product);
+    }
+  };
+
   return (
-    <tr className={`${isEven ? 'bg-white' : 'bg-gray-50'} hover:bg-gray-100 transition-colors`}>
+    <tr
+      className={`${isEven ? 'bg-white' : 'bg-gray-50'} ${isSelected ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-100'} transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
+    >
       {/* Code EAN */}
       <td className="px-1.5 py-1.5 align-top">
         <div className="text-[9px] text-gray-600 font-mono">
