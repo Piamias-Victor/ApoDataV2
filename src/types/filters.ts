@@ -31,6 +31,7 @@ export interface SelectedGroup { // Clusters
 export interface SelectedProduct {
     code: string; // CIP13 ou EAN
     name: string;
+    bcb_product_id?: number; // For grouping
 }
 
 export interface DateRange {

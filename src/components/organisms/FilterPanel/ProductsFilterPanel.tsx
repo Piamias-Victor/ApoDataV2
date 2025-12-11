@@ -11,6 +11,7 @@ import { FilterTabs } from './components/shared/FilterTabs';
 import { FilterSearchInput } from './components/shared/FilterSearchInput';
 import { PinnedSelectionList } from './components/shared/PinnedSelectionList';
 import { ProductList } from './components/ProductList';
+import { TvaFilterSection } from './components/TvaFilterSection';
 
 interface ProductsFilterPanelProps { onClose?: () => void; }
 
@@ -20,14 +21,17 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
     const {
         searchQuery, setSearchQuery,
         results, isLoading, selectedMap,
-        handleToggle, handleRemoveSelection, handleApply, handleClearAll, handleSelectAll
+        handleToggle, handleRemoveSelection, handleApply, handleClearAll, handleSelectAll,
+        selectedTvaRates, handleToggleTva
     } = useProductFilter(onClose);
 
-    // Convert selectedMap to pinned items (one per bcb_product_id)
-    const selectedItems = Array.from(selectedMap.values()).map(item => ({
-        id: item.bcb_product_id,
-        name: `${item.name} (${item.all_codes.length} code${item.all_codes.length > 1 ? 's' : ''})`
-    }));
+    // Convert selectedMap to pinned items (one per bcb_product_id) - limit to 50
+    const selectedItems = Array.from(selectedMap.values())
+        .slice(0, 50)
+        .map(item => ({
+            id: item.bcb_product_id,
+            name: `${item.name} (${item.all_codes.length} code${item.all_codes.length > 1 ? 's' : ''})`
+        }));
 
     const hasSelection = selectedMap.size > 0;
 
@@ -110,12 +114,11 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
                         </div>
                     </>
                 ) : (
-                    /* Par Type Tab - Empty for now */
-                    <div className="text-center py-12 text-gray-400">
-                        <Grid className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                        <p className="text-sm font-medium">Filtre par type</p>
-                        <p className="text-xs mt-1">À venir prochainement</p>
-                    </div>
+                    /* Par Type Tab - TVA Filter */
+                    <TvaFilterSection
+                        selectedTvaRates={selectedTvaRates}
+                        onToggleTva={handleToggleTva}
+                    />
                 )}
             </div>
 
