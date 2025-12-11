@@ -1,8 +1,9 @@
 // src/components/organisms/FilterBar/FilterBar.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Calendar, TestTube, Tag, Package, Building2, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Calendar, TestTube, Tag, Package, Building2, Settings, Ban } from 'lucide-react';
 import { Drawer } from '@/components/molecules/Drawer/Drawer';
 import { PharmacyFilterPanel } from '../FilterPanel/PharmacyFilterPanel';
 import { DateFilterPanel } from '../FilterPanel/DateFilterPanel';
@@ -10,6 +11,8 @@ import { LaboratoriesFilterPanel } from '../FilterPanel/LaboratoriesFilterPanel'
 import { CategoriesFilterPanel } from '../FilterPanel/CategoriesFilterPanel';
 import { ProductsFilterPanel } from '../FilterPanel/ProductsFilterPanel';
 import { LogicalOperatorFilterPanel } from '../FilterPanel/LogicalOperatorFilterPanel';
+import { ExclusionsFilterPanel } from '../FilterPanel/ExclusionsFilterPanel';
+import { FilterSaveLoadBadges } from './FilterSaveLoadBadges';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -18,7 +21,7 @@ interface FilterButtonProps {
     icon: React.ReactNode;
     label: string;
     count: number;
-    color: 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow';
+    color: 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow' | 'black';
     onClick: () => void;
     tooltip?: string;
     isActive: boolean;
@@ -26,6 +29,7 @@ interface FilterButtonProps {
 
 const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, onClick, tooltip, isActive }) => {
     const [showTooltip, setShowTooltip] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
 
     const colorClasses = {
         orange: {
@@ -75,19 +79,28 @@ const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, 
             hover: 'hover:border-yellow-400 hover:bg-yellow-50/50',
             activeBorder: 'border-yellow-500',
             activeGlow: 'shadow-yellow-200'
+        },
+        black: {
+            bg: 'bg-gray-50',
+            text: 'text-gray-900',
+            border: 'border-gray-300',
+            hover: 'hover:border-gray-400 hover:bg-gray-50/50',
+            activeBorder: 'border-gray-900',
+            activeGlow: 'shadow-gray-200'
         }
     };
 
     const colors = colorClasses[color];
 
     return (
-        <div className="relative">
+        <div className="relative pointer-events-none">
             <button
+                ref={buttonRef}
                 onClick={onClick}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border-2 transition-all group
+                    pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border-2 transition-all group
                     ${isActive ? `${colors.activeBorder} shadow-lg ${colors.activeGlow}` : `border-gray-200 ${colors.hover}`}
                 `}
             >
@@ -103,14 +116,22 @@ const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, 
             </button>
 
             {/* Tooltip */}
-            {showTooltip && tooltip && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl max-w-xs">
+            {showTooltip && tooltip && createPortal(
+                <div
+                    className="fixed z-[9999] pointer-events-none animate-in fade-in slide-in-from-top-1 duration-200"
+                    style={{
+                        top: buttonRef.current ? buttonRef.current.getBoundingClientRect().bottom + 8 : 0,
+                        left: buttonRef.current ? buttonRef.current.getBoundingClientRect().left + (buttonRef.current.offsetWidth / 2) : 0,
+                        transform: 'translateX(-50%)'
+                    }}
+                >
+                    <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl max-w-xs relative">
                         <div className="font-semibold mb-1">{label}</div>
                         <div className="text-gray-300">{tooltip}</div>
+                        <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
                     </div>
-                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 rotate-45" />
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -118,8 +139,8 @@ const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, 
 
 export const FilterBar: React.FC = () => {
     const [isScrolled, setIsScrolled] = useState(false);
-    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | 'products' | 'operators' | null>(null);
-    const { pharmacies, dateRange, laboratories, categories, products } = useFilterStore();
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | 'products' | 'operators' | 'exclusions' | null>(null);
+    const { pharmacies, dateRange, laboratories, categories, products, excludedProducts, excludedLaboratories, excludedCategories } = useFilterStore();
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -197,6 +218,16 @@ export const FilterBar: React.FC = () => {
                     <div className="w-px h-10 bg-gray-200" />
 
                     <FilterButton
+                        icon={<Package className="w-4 h-4" />}
+                        label="Produits"
+                        count={products.length}
+                        color="green"
+                        onClick={() => setActiveDrawer('products')}
+                        tooltip={getProductTooltip()}
+                        isActive={products.length > 0}
+                    />
+
+                    <FilterButton
                         icon={<TestTube className="w-4 h-4" />}
                         label="Laboratoires"
                         count={laboratories.length}
@@ -216,15 +247,7 @@ export const FilterBar: React.FC = () => {
                         isActive={categories.length > 0}
                     />
 
-                    <FilterButton
-                        icon={<Package className="w-4 h-4" />}
-                        label="Produits"
-                        count={products.length}
-                        color="green"
-                        onClick={() => setActiveDrawer('products')}
-                        tooltip={getProductTooltip()}
-                        isActive={products.length > 0}
-                    />
+                    <div className="w-px h-10 bg-gray-200" />
 
                     <FilterButton
                         icon={<Settings className="w-4 h-4" />}
@@ -235,7 +258,20 @@ export const FilterBar: React.FC = () => {
                         tooltip="Configurez comment combiner vos filtres (ET/OU)"
                         isActive={false}
                     />
+
+                    <FilterButton
+                        icon={<Ban className="w-4 h-4" />}
+                        label="Exclusions"
+                        count={excludedProducts.length + excludedLaboratories.length + excludedCategories.length}
+                        color="black"
+                        onClick={() => setActiveDrawer('exclusions')}
+                        tooltip="Exclure des produits, labos ou catégories"
+                        isActive={excludedProducts.length > 0 || excludedLaboratories.length > 0 || excludedCategories.length > 0}
+                    />
                 </div>
+
+                {/* Save/Load Badges */}
+                <FilterSaveLoadBadges />
             </div>
 
             <Drawer
@@ -290,6 +326,15 @@ export const FilterBar: React.FC = () => {
                 accentColor="yellow"
             >
                 <LogicalOperatorFilterPanel onClose={handleClose} />
+            </Drawer>
+
+            <Drawer
+                isOpen={activeDrawer === 'exclusions'}
+                onClose={handleClose}
+                title="Exclusions"
+                accentColor="black"
+            >
+                <ExclusionsFilterPanel onClose={handleClose} />
             </Drawer>
         </>
     );

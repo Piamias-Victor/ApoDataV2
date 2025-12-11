@@ -2,7 +2,7 @@ import React from 'react';
 
 interface FilterLoadingStateProps {
     message?: string;
-    color?: 'orange' | 'blue' | 'purple' | 'red' | 'green';
+    color?: 'green' | 'purple' | 'blue' | 'red' | 'orange' | 'gray';
 }
 
 export const FilterLoadingState: React.FC<FilterLoadingStateProps> = ({
@@ -14,7 +14,8 @@ export const FilterLoadingState: React.FC<FilterLoadingStateProps> = ({
         blue: 'border-blue-500',
         purple: 'border-purple-500',
         red: 'border-red-500',
-        green: 'border-green-500'
+        green: 'border-green-500',
+        gray: 'border-gray-500'
     };
 
     return (

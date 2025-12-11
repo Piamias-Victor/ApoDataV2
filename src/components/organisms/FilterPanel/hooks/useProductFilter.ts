@@ -145,30 +145,74 @@ export const useProductFilter = (onClose?: () => void) => {
     }, [searchQuery]);
 
     // Handlers
-    const handleToggle = useCallback((product: Product) => {
+    const handleToggle = (product: Product) => {
+        const bcbId = product.bcb_product_id;
         setSelectedMap(prev => {
             const newMap = new Map(prev);
-            const key = product.bcb_product_id;
-            if (newMap.has(key)) {
-                newMap.delete(key);
+            if (newMap.has(bcbId)) {
+                newMap.delete(bcbId);
             } else {
-                newMap.set(key, {
-                    bcb_product_id: parseInt(product.bcb_product_id),
+                newMap.set(bcbId, {
+                    code: product.code_13_ref,
                     name: product.name,
-                    code: product.code_13_ref
+                    bcb_product_id: parseInt(bcbId)
                 });
             }
             return newMap;
         });
-    }, []);
+    };
 
-    const handleRemoveSelection = useCallback((bcb_product_id: string) => {
+    // New function: Search and auto-select products by codes
+    const searchAndSelectByCodes = async (codes: string[]) => {
+        if (codes.length === 0) return;
+
+        try {
+            setIsLoading(true);
+
+            // Search for all codes
+            const searchPromises = codes.map(code =>
+                fetch('/api/products/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: code, limit: 50 })
+                }).then(res => res.json())
+            );
+
+            const responses = await Promise.all(searchPromises);
+
+            // Auto-select all found products
+            setSelectedMap(prev => {
+                const newMap = new Map(prev);
+
+                responses.forEach((response: SearchResponse) => {
+                    response.products.forEach(product => {
+                        const bcbId = product.bcb_product_id;
+                        if (!newMap.has(bcbId)) {
+                            newMap.set(bcbId, {
+                                code: product.code_13_ref,
+                                name: product.name,
+                                bcb_product_id: parseInt(bcbId)
+                            });
+                        }
+                    });
+                });
+
+                return newMap;
+            });
+        } catch (error) {
+            console.error('Error searching codes:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRemoveSelection = (bcb_product_id: string) => {
         setSelectedMap(prev => {
             const newMap = new Map(prev);
             newMap.delete(bcb_product_id);
             return newMap;
         });
-    }, []);
+    };
 
     const handleSelectAll = useCallback(() => {
         setSelectedMap(prev => {
@@ -238,9 +282,9 @@ export const useProductFilter = (onClose?: () => void) => {
         selectedMap,
         handleToggle,
         handleRemoveSelection,
-        handleApply,
-        handleClearAll,
         handleSelectAll,
+        handleClearAll,
+        handleApply,
         isProductSelected,
         selectedTvaRates,
         handleToggleTva,
@@ -248,10 +292,16 @@ export const useProductFilter = (onClose?: () => void) => {
         handleToggleReimbursement,
         isGeneric,
         setIsGeneric,
-        purchasePriceNetRange, setPurchasePriceNetRange,
-        purchasePriceGrossRange, setPurchasePriceGrossRange,
-        sellPriceRange, setSellPriceRange,
-        discountRange, setDiscountRange,
-        marginRange, setMarginRange
+        purchasePriceNetRange,
+        setPurchasePriceNetRange,
+        purchasePriceGrossRange,
+        setPurchasePriceGrossRange,
+        sellPriceRange,
+        setSellPriceRange,
+        discountRange,
+        setDiscountRange,
+        marginRange,
+        setMarginRange,
+        searchAndSelectByCodes // NEW: Export bulk search function
     };
 };

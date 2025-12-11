@@ -83,7 +83,12 @@ export interface FilterState {
     // 4. Logical Operators
     filterOperators: FilterOperators; // Operators between each filter
 
-    // 5. View State
+    // 5. Exclusions
+    excludedProducts: SelectedProduct[];
+    excludedLaboratories: SelectedLaboratory[];
+    excludedCategories: SelectedCategory[];
+
+    // 6. View State
     isFilterOpen: boolean;
     activeDrawer: string | null;
 }

@@ -5,7 +5,14 @@ import React, { useMemo } from 'react';
 import { Settings, Info, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/atoms/Button/Button';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { FilterItem } from '@/types/filters';
+
+interface FilterGroup {
+    type: string;
+    id: string;
+    name: string;
+    count: number;
+    icon: string;
+}
 
 interface LogicalOperatorFilterPanelProps {
     onClose?: () => void;
@@ -23,150 +30,138 @@ export const LogicalOperatorFilterPanel: React.FC<LogicalOperatorFilterPanelProp
         resetFilterOperators
     } = useFilterStore();
 
-    // Build ordered list of all active filters
-    const activeFilters = useMemo((): FilterItem[] => {
-        const filters: FilterItem[] = [];
+    // Build grouped filters by type
+    const filterGroups = useMemo((): FilterGroup[] => {
+        const groups: FilterGroup[] = [];
 
-        // Pharmacies
-        pharmacies.forEach(p => {
-            filters.push({
+        if (pharmacies.length > 0) {
+            groups.push({
                 type: 'pharmacy',
-                id: `pharmacy-${p.id}`,
-                name: `🏥 ${p.name}`,
-                value: p
+                id: 'pharmacy-group',
+                name: pharmacies.length === 1 ? '🏥 Pharmacie' : '🏥 Pharmacies',
+                count: pharmacies.length,
+                icon: '🏥'
             });
-        });
+        }
 
-        // Laboratories
-        laboratories.forEach(l => {
-            filters.push({
+        if (laboratories.length > 0) {
+            groups.push({
                 type: 'laboratory',
-                id: `laboratory-${l.id}`,
-                name: `🔬 ${l.name}`,
-                value: l
+                id: 'laboratory-group',
+                name: laboratories.length === 1 ? '🔬 Laboratoire' : '🔬 Laboratoires',
+                count: laboratories.length,
+                icon: '🔬'
             });
-        });
+        }
 
-        // Categories
-        categories.forEach(c => {
-            filters.push({
+        if (categories.length > 0) {
+            groups.push({
                 type: 'category',
-                id: `category-${c.id}`,
-                name: `🏷️ ${c.name}`,
-                value: c
+                id: 'category-group',
+                name: categories.length === 1 ? '🏷️ Catégorie' : '🏷️ Catégories',
+                count: categories.length,
+                icon: '🏷️'
             });
-        });
+        }
 
-        // Products
-        products.forEach(p => {
-            filters.push({
+        if (products.length > 0) {
+            groups.push({
                 type: 'product',
-                id: `product-${p.code}`,
-                name: `📦 ${p.name}`,
-                value: p
+                id: 'product-group',
+                name: products.length === 1 ? '📦 Produit' : '📦 Produits',
+                count: products.length,
+                icon: '📦'
             });
-        });
+        }
 
-        // TVA Rates
-        settings.tvaRates.forEach(rate => {
-            filters.push({
+        if (settings.tvaRates.length > 0) {
+            groups.push({
                 type: 'tva',
-                id: `tva-${rate}`,
-                name: `💰 TVA ${rate}%`,
-                value: rate
+                id: 'tva-group',
+                name: settings.tvaRates.length === 1 ? '💰 TVA' : '💰 TVA',
+                count: settings.tvaRates.length,
+                icon: '💰'
             });
-        });
+        }
 
-        // Reimbursement
         if (settings.reimbursementStatus !== 'ALL') {
-            filters.push({
+            groups.push({
                 type: 'reimbursement',
-                id: 'reimbursement',
+                id: 'reimbursement-group',
                 name: `💊 ${settings.reimbursementStatus === 'REIMBURSED' ? 'Remboursé' : 'Non remboursé'}`,
-                value: settings.reimbursementStatus
+                count: 1,
+                icon: '💊'
             });
         }
 
-        // Generic
         if (settings.isGeneric !== undefined) {
-            filters.push({
+            groups.push({
                 type: 'generic',
-                id: 'generic',
+                id: 'generic-group',
                 name: `🧬 ${settings.isGeneric ? 'Générique' : 'Princeps'}`,
-                value: settings.isGeneric
+                count: 1,
+                icon: '🧬'
             });
         }
 
-        // Price Ranges (only non-default values)
+        // Count price ranges
+        let priceRangeCount = 0;
         if (settings.purchasePriceNetRange &&
             (settings.purchasePriceNetRange.min !== 0 || settings.purchasePriceNetRange.max !== 100000)) {
-            filters.push({
-                type: 'priceRange',
-                id: 'purchasePriceNet',
-                name: `💶 Prix HT Net: ${settings.purchasePriceNetRange.min}€ - ${settings.purchasePriceNetRange.max}€`,
-                value: settings.purchasePriceNetRange
-            });
+            priceRangeCount++;
         }
-
         if (settings.purchasePriceGrossRange &&
             (settings.purchasePriceGrossRange.min !== 0 || settings.purchasePriceGrossRange.max !== 100000)) {
-            filters.push({
-                type: 'priceRange',
-                id: 'purchasePriceGross',
-                name: `💶 Prix HT Brut: ${settings.purchasePriceGrossRange.min}€ - ${settings.purchasePriceGrossRange.max}€`,
-                value: settings.purchasePriceGrossRange
-            });
+            priceRangeCount++;
         }
-
         if (settings.sellPriceRange &&
             (settings.sellPriceRange.min !== 0 || settings.sellPriceRange.max !== 100000)) {
-            filters.push({
-                type: 'priceRange',
-                id: 'sellPrice',
-                name: `💶 Prix TTC: ${settings.sellPriceRange.min}€ - ${settings.sellPriceRange.max}€`,
-                value: settings.sellPriceRange
-            });
+            priceRangeCount++;
         }
-
         if (settings.discountRange &&
             (settings.discountRange.min !== 0 || settings.discountRange.max !== 100)) {
-            filters.push({
-                type: 'priceRange',
-                id: 'discount',
-                name: `📊 Remise: ${settings.discountRange.min}% - ${settings.discountRange.max}%`,
-                value: settings.discountRange
-            });
+            priceRangeCount++;
         }
-
         if (settings.marginRange &&
             (settings.marginRange.min !== 0 || settings.marginRange.max !== 100)) {
-            filters.push({
+            priceRangeCount++;
+        }
+
+        if (priceRangeCount > 0) {
+            groups.push({
                 type: 'priceRange',
-                id: 'margin',
-                name: `📊 Marge: ${settings.marginRange.min}% - ${settings.marginRange.max}%`,
-                value: settings.marginRange
+                id: 'price-range-group',
+                name: priceRangeCount === 1 ? '💶 Plage de prix' : '💶 Plages de prix',
+                count: priceRangeCount,
+                icon: '💶'
             });
         }
 
-        return filters;
+        return groups;
     }, [pharmacies, laboratories, categories, products, settings]);
 
     // Generate query summary
     const querySummary = useMemo(() => {
-        if (activeFilters.length === 0) return '';
-        if (activeFilters.length === 1) return activeFilters[0]?.name || '';
+        if (filterGroups.length === 0) return '';
+        if (filterGroups.length === 1) {
+            const group = filterGroups[0];
+            return group ? `${group.name} (${group.count})` : '';
+        }
 
-        let summary = activeFilters[0]?.name || '';
-        for (let i = 0; i < activeFilters.length - 1; i++) {
+        const firstGroup = filterGroups[0];
+        if (!firstGroup) return '';
+
+        let summary = `${firstGroup.name} (${firstGroup.count})`;
+        for (let i = 0; i < filterGroups.length - 1; i++) {
             const operator = filterOperators[i] || 'AND';
             const operatorText = operator === 'AND' ? 'ET' : 'OU';
-            const nextFilter = activeFilters[i + 1];
-            if (nextFilter) {
-                summary += ` ${operatorText} ${nextFilter.name}`;
+            const nextGroup = filterGroups[i + 1];
+            if (nextGroup) {
+                summary += ` ${operatorText} ${nextGroup.name} (${nextGroup.count})`;
             }
         }
         return summary;
-    }, [activeFilters, filterOperators]);
+    }, [filterGroups, filterOperators]);
 
     const handleReset = () => {
         resetFilterOperators();
@@ -178,9 +173,8 @@ export const LogicalOperatorFilterPanel: React.FC<LogicalOperatorFilterPanelProp
 
     return (
         <div className="flex flex-col h-full bg-white">
-            {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                {activeFilters.length === 0 ? (
+                {filterGroups.length === 0 ? (
                     <div className="text-center pt-12 opacity-60">
                         <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                         <p className="font-medium text-gray-500">Aucun filtre actif</p>
@@ -201,17 +195,22 @@ export const LogicalOperatorFilterPanel: React.FC<LogicalOperatorFilterPanelProp
                             </div>
                         </div>
 
-                        {/* Filters with operators */}
+                        {/* Filter Groups with operators */}
                         <div className="space-y-0">
-                            {activeFilters.map((filter, index) => (
-                                <div key={filter.id}>
-                                    {/* Filter Item */}
+                            {filterGroups.map((group, index) => (
+                                <div key={group.id}>
+                                    {/* Filter Group */}
                                     <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4 border-2 border-yellow-200">
-                                        <div className="font-semibold text-gray-900">{filter.name}</div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="font-semibold text-gray-900">{group.name}</div>
+                                            <div className="px-3 py-1 bg-yellow-500 text-white text-sm font-bold rounded-full">
+                                                {group.count}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Operator (if not last item) */}
-                                    {index < activeFilters.length - 1 && (
+                                    {index < filterGroups.length - 1 && (
                                         <div className="flex items-center justify-center py-3">
                                             <div className="flex gap-2 bg-white rounded-xl p-1 border-2 border-yellow-200 shadow-sm">
                                                 <button
@@ -261,7 +260,7 @@ export const LogicalOperatorFilterPanel: React.FC<LogicalOperatorFilterPanelProp
             </div>
 
             {/* Footer */}
-            {activeFilters.length > 0 && (
+            {filterGroups.length > 0 && (
                 <div className="p-6 bg-white border-t-2 border-yellow-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)] shrink-0">
                     <div className="flex gap-3">
                         <Button

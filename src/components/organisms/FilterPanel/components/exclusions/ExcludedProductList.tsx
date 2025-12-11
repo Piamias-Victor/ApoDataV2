@@ -1,4 +1,4 @@
-// src/components/organisms/FilterPanel/components/products/ProductNameTabContent.tsx
+// src/components/organisms/FilterPanel/components/exclusions/ExcludedProductList.tsx
 import React from 'react';
 import { Package } from 'lucide-react';
 import { FilterSearchInput } from '../shared/FilterSearchInput';
@@ -8,7 +8,7 @@ import { ResultsHeader } from '../shared/ResultsHeader';
 import { ProductList } from '../ProductList';
 import { Product, ProductSelection } from '../../hooks/useProductFilter';
 
-interface ProductNameTabContentProps {
+interface ExcludedProductListProps {
     searchQuery: string;
     onSearchChange: (val: string) => void;
     results: Product[];
@@ -21,7 +21,7 @@ interface ProductNameTabContentProps {
     onBulkSearch: (codes: string[]) => Promise<void>;
 }
 
-export const ProductNameTabContent: React.FC<ProductNameTabContentProps> = ({
+export const ExcludedProductList: React.FC<ExcludedProductListProps> = ({
     searchQuery, onSearchChange, results, isLoading, selectedMap,
     onToggle, onRemoveSelection, onSelectAll, onClearAll, onBulkSearch
 }) => {
@@ -42,9 +42,9 @@ export const ProductNameTabContent: React.FC<ProductNameTabContentProps> = ({
                     value={searchQuery}
                     onChange={onSearchChange}
                     placeholder="Rechercher (nom, code, *fin)..."
-                    focusColor="green"
+                    focusColor="gray"
                 />
-                <BulkCodeInput onCodesExtracted={onBulkSearch} buttonColor="green" />
+                <BulkCodeInput onCodesExtracted={onBulkSearch} buttonColor="gray" />
             </div>
 
             {!isLoading && displayResults.length > 0 && (
@@ -54,7 +54,7 @@ export const ProductNameTabContent: React.FC<ProductNameTabContentProps> = ({
                     hasSelection={hasSelection}
                     onSelectAll={onSelectAll}
                     onClearAll={onClearAll}
-                    accentColor="green"
+                    accentColor="gray"
                 />
             )}
 
@@ -83,7 +83,7 @@ export const ProductNameTabContent: React.FC<ProductNameTabContentProps> = ({
                                 items={selectedItems}
                                 onRemove={onRemoveSelection}
                                 icon={Package}
-                                colorTheme="green"
+                                colorTheme="black"
                             />
                         </div>
                     )}
@@ -95,7 +95,7 @@ export const ProductNameTabContent: React.FC<ProductNameTabContentProps> = ({
                             items={selectedItems}
                             onRemove={onRemoveSelection}
                             icon={Package}
-                            colorTheme="green"
+                            colorTheme="black"
                         />
                     )}
 

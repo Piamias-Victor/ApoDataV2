@@ -35,6 +35,16 @@ interface FilterActions {
     setFilterOperator: (index: number, operator: 'AND' | 'OR') => void;
     resetFilterOperators: () => void;
 
+    // Exclusions
+    setExcludedProducts: (products: SelectedProduct[]) => void;
+    setExcludedLaboratories: (laboratories: SelectedLaboratory[]) => void;
+    setExcludedCategories: (categories: SelectedCategory[]) => void;
+    resetExclusions: () => void;
+
+    // Save/Load
+    getFilterState: () => Omit<FilterState, 'isFilterOpen' | 'activeDrawer'>;
+    loadFilterState: (state: Omit<FilterState, 'isFilterOpen' | 'activeDrawer'>) => void;
+
     resetAll: () => void;
 }
 
@@ -63,6 +73,10 @@ const initialState: FilterState = {
     },
     useNMinus1: false,
     filterOperators: [], // Empty by default
+    // Exclusions
+    excludedProducts: [],
+    excludedLaboratories: [],
+    excludedCategories: [],
     // View state
     isFilterOpen: false,
     activeDrawer: null,
@@ -191,7 +205,44 @@ export const useFilterStore = create<FilterState & FilterActions>()(
                 }),
                 resetFilterOperators: () => set({ filterOperators: [] }),
 
-                resetAll: () => set(initialState)
+                // Exclusions Actions
+                setExcludedProducts: (excludedProducts) => set({ excludedProducts }),
+                setExcludedLaboratories: (excludedLaboratories) => set({ excludedLaboratories }),
+                setExcludedCategories: (excludedCategories) => set({ excludedCategories }),
+                resetExclusions: () => set({
+                    excludedProducts: [],
+                    excludedLaboratories: [],
+                    excludedCategories: []
+                }),
+
+                // Save/Load methods
+                getFilterState: () => {
+                    const state = get();
+                    return {
+                        pharmacies: state.pharmacies,
+                        dateRange: state.dateRange,
+                        comparisonDateRange: state.comparisonDateRange,
+                        products: state.products,
+                        laboratories: state.laboratories,
+                        categories: state.categories,
+                        groups: state.groups,
+                        settings: state.settings,
+                        useNMinus1: state.useNMinus1,
+                        filterOperators: state.filterOperators,
+                        excludedProducts: state.excludedProducts,
+                        excludedLaboratories: state.excludedLaboratories,
+                        excludedCategories: state.excludedCategories,
+                    };
+                },
+                loadFilterState: (state) => {
+                    set({
+                        ...state,
+                        isFilterOpen: get().isFilterOpen,
+                        activeDrawer: get().activeDrawer,
+                    });
+                },
+
+                resetAll: () => set(initialState),
             };
         },
         {

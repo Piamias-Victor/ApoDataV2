@@ -11,7 +11,7 @@ interface DrawerProps {
     title: string;
     children: React.ReactNode;
     width?: string;
-    accentColor?: 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow';
+    accentColor?: 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow' | 'black';
 }
 
 export const Drawer: React.FC<DrawerProps> = ({
@@ -60,7 +60,8 @@ export const Drawer: React.FC<DrawerProps> = ({
                                             accentColor === 'red' ? 'bg-red-600' :
                                                 accentColor === 'green' ? 'bg-green-600' :
                                                     accentColor === 'yellow' ? 'bg-yellow-500' :
-                                                        'bg-purple-600'
+                                                        accentColor === 'black' ? 'bg-gray-900' :
+                                                            'bg-purple-600'
                                     }`} />
                             </div>
                             <button

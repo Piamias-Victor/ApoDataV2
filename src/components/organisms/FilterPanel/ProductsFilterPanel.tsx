@@ -30,7 +30,8 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
         purchasePriceGrossRange, setPurchasePriceGrossRange,
         sellPriceRange, setSellPriceRange,
         discountRange, setDiscountRange,
-        marginRange, setMarginRange
+        marginRange, setMarginRange,
+        searchAndSelectByCodes
     } = useProductFilter(onClose);
 
     // selectedItems is computed inside ProductNameTabContent or here? 
@@ -61,6 +62,7 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
                         onRemoveSelection={handleRemoveSelection}
                         onSelectAll={handleSelectAll}
                         onClearAll={handleClearAll}
+                        onBulkSearch={searchAndSelectByCodes}
                     />
                 ) : activeTab === 'type' ? (
                     <div className="py-2 divide-y divide-gray-100">
