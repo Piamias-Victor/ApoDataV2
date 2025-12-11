@@ -20,7 +20,11 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
         storedExcludedProducts.forEach(product => {
             const bcbId = product.bcb_product_id?.toString();
             if (bcbId) {
-                initialMap.set(bcbId, product);
+                initialMap.set(bcbId, {
+                    bcb_product_id: parseInt(bcbId),
+                    name: product.name,
+                    code: product.code
+                });
             }
         });
         setSelectedMap(initialMap);

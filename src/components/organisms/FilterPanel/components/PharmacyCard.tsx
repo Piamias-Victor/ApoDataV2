@@ -4,7 +4,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { MapPin, Euro, Hash, Check, Building2 } from 'lucide-react';
-import { Badge } from '@/components/atoms/Badge/Badge';
+
 
 interface Pharmacy {
     id: string;

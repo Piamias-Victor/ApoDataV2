@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { query } from '@/lib/db';
-import { getAdminProductQuery, getUserProductQuery } from '@/lib/search/productQueries';
+import { getAdminProductQuery } from '@/lib/search/productQueries';
 
 interface SearchRequest {
     query: string;

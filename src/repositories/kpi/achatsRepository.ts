@@ -63,7 +63,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     const codesByType: Record<string, string[]> = {};
     categories.forEach(cat => {
       if (!codesByType[cat.type]) codesByType[cat.type] = [];
-      codesByType[cat.type].push(cat.code);
+      codesByType[cat.type]!.push(cat.code);
     });
 
     // We treat the Categories block as ONE group for the "External Operator" logic
