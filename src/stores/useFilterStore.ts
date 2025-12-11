@@ -48,10 +48,12 @@ interface FilterActions {
     resetAll: () => void;
 }
 
+const currentYear = new Date().getFullYear();
+
 const initialState: FilterState = {
     pharmacies: [],
-    dateRange: { start: null, end: null },
-    comparisonDateRange: { start: null, end: null },
+    dateRange: { start: `${currentYear}-01-01`, end: `${currentYear}-12-31` },
+    comparisonDateRange: { start: `${currentYear - 1}-01-01`, end: `${currentYear - 1}-12-31` },
     products: [],
     laboratories: [],
     categories: [],
