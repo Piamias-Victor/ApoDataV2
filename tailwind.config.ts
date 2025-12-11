@@ -12,7 +12,7 @@ const config: Config = {
         // Primary Colors - Gradients Vibrants Bleu/Indigo/Purple
         primary: {
           50: "#eff6ff",
-          100: "#dbeafe", 
+          100: "#dbeafe",
           200: "#bfdbfe",
           300: "#93c5fd",
           400: "#60a5fa",
@@ -26,7 +26,7 @@ const config: Config = {
         success: {
           50: "#f0fdf4",
           100: "#dcfce7",
-          200: "#bbf7d0", 
+          200: "#bbf7d0",
           300: "#86efac",
           400: "#4ade80",
           500: "#22c55e", // Base green
@@ -40,7 +40,7 @@ const config: Config = {
           50: "#fffbeb",
           100: "#fef3c7",
           200: "#fde68a",
-          300: "#fcd34d", 
+          300: "#fcd34d",
           400: "#fbbf24",
           500: "#f59e0b", // Base orange
           600: "#d97706", // Interactive orange
@@ -54,7 +54,7 @@ const config: Config = {
           100: "#fee2e2",
           200: "#fecaca",
           300: "#fca5a5",
-          400: "#f87171", 
+          400: "#f87171",
           500: "#ef4444", // Base red
           600: "#dc2626", // Interactive red
           700: "#b91c1c", // Active red
@@ -143,6 +143,10 @@ const config: Config = {
         'slide-in': 'slideIn 0.3s ease-out forwards',
         'spin-slow': 'spin 2s linear infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+      },
+      animationDelay: {
+        '1000': '1000ms',
+        '2000': '2000ms',
       },
       keyframes: {
         fadeIn: {

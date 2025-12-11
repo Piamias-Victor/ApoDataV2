@@ -3,8 +3,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Package, TestTube, Folder, Ban } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 import { useFilterStore } from '@/stores/useFilterStore';
+import { useFilterSummary } from './hooks/useFilterSummary';
+import { FilterSummaryBadges } from './components/FilterSummaryBadges';
 
 interface SaveFilterModalProps {
     onClose: () => void;
@@ -13,6 +15,8 @@ interface SaveFilterModalProps {
 export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({ onClose }) => {
     const getFilterState = useFilterStore(state => state.getFilterState);
     const filterState = useMemo(() => getFilterState(), [getFilterState]);
+    const filterCounts = useFilterSummary(filterState);
+
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -23,16 +27,6 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({ onClose }) => 
         setMounted(true);
         return () => setMounted(false);
     }, []);
-
-    const filterCounts = {
-        products: filterState.products.length,
-        laboratories: filterState.laboratories.length,
-        categories: filterState.categories.length,
-        pharmacies: filterState.pharmacies.length,
-        excludedProducts: filterState.excludedProducts.length,
-        excludedLaboratories: filterState.excludedLaboratories.length,
-        excludedCategories: filterState.excludedCategories.length,
-    };
 
     const handleSave = async () => {
         if (!name.trim()) {
@@ -90,7 +84,6 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({ onClose }) => 
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {/* Name Input */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Nom du filtre *
@@ -105,7 +98,6 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({ onClose }) => 
                         />
                     </div>
 
-                    {/* Description (optional) */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Description (optionnel)
@@ -119,41 +111,8 @@ export const SaveFilterModal: React.FC<SaveFilterModalProps> = ({ onClose }) => 
                         />
                     </div>
 
-                    {/* Filter Recap */}
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 border-2 border-gray-200">
-                        <h3 className="text-sm font-bold text-gray-700 mb-3">Récapitulatif du filtre</h3>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                            {filterCounts.products > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <Package className="w-4 h-4 text-green-600" />
-                                    <span className="text-gray-700">{filterCounts.products} produit(s)</span>
-                                </div>
-                            )}
-                            {filterCounts.laboratories > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <TestTube className="w-4 h-4 text-purple-600" />
-                                    <span className="text-gray-700">{filterCounts.laboratories} labo(s)</span>
-                                </div>
-                            )}
-                            {filterCounts.categories > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <Folder className="w-4 h-4 text-red-600" />
-                                    <span className="text-gray-700">{filterCounts.categories} catégorie(s)</span>
-                                </div>
-                            )}
-                            {filterCounts.excludedProducts > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <Ban className="w-4 h-4 text-gray-600" />
-                                    <span className="text-gray-700">{filterCounts.excludedProducts} exclu(s)</span>
-                                </div>
-                            )}
-                        </div>
-                        {Object.values(filterCounts).every(c => c === 0) && (
-                            <p className="text-sm text-gray-500 italic">Aucun filtre actif</p>
-                        )}
-                    </div>
+                    <FilterSummaryBadges counts={filterCounts} />
 
-                    {/* Error */}
                     {error && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
                             {error}
