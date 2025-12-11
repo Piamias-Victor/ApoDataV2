@@ -23,6 +23,12 @@ export const FranceMapSelector: React.FC<FranceMapSelectorProps> = ({
         setIsClient(true);
     }, []);
 
+    const onToggleRegionRef = useRef(onToggleRegion);
+
+    useEffect(() => {
+        onToggleRegionRef.current = onToggleRegion;
+    }, [onToggleRegion]);
+
     // Init Map
     useEffect(() => {
         if (!isClient || !mapRef.current) return;
@@ -64,7 +70,7 @@ export const FranceMapSelector: React.FC<FranceMapSelectorProps> = ({
 
                         layer.on({
                             click: () => {
-                                onToggleRegion(regionName);
+                                onToggleRegionRef.current(regionName);
                             },
                             mouseover: () => {
                                 // Only highlight if not selected (handled by style update loop mostly, but visual feedback needed)

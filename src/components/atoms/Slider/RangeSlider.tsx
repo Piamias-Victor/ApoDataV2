@@ -63,7 +63,10 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
         setMaxVal(value[1]);
     }, [value]);
 
-    const getPercent = (value: number) => Math.round(((value - min) / (max - min)) * 100);
+    const getPercent = React.useCallback(
+        (value: number) => Math.round(((value - min) / (max - min)) * 100),
+        [min, max]
+    );
 
     // Visual updates
     useEffect(() => {

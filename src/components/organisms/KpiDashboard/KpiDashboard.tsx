@@ -23,7 +23,7 @@ export const KpiDashboard: React.FC = () => {
                     Indicateurs clés
                 </h2>
                 <p className="text-gray-600">
-                    Vue d'ensemble de vos performances commerciales et de stock
+                    Vue d&apos;ensemble de vos performances commerciales et de stock
                 </p>
             </div>
 

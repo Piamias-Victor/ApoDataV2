@@ -63,7 +63,7 @@ export const LoadFilterModal: React.FC<LoadFilterModalProps> = ({ onClose }) => 
                         <div className="text-center py-12">
                             <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <p className="font-medium text-gray-500">Aucun filtre sauvegardé</p>
-                            <p className="text-sm text-gray-400 mt-1">Créez votre premier filtre en cliquant sur "Sauvegarder"</p>
+                            <p className="text-sm text-gray-400 mt-1">Créez votre premier filtre en cliquant sur &quot;Sauvegarder&quot;</p>
                         </div>
                     ) : (
                         <div className="space-y-3">

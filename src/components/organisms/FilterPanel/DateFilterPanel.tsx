@@ -24,7 +24,7 @@ export const DateFilterPanel: React.FC<DateFilterPanelProps> = ({ onClose }) => 
 
     useEffect(() => {
         if (!start && !end) setPreset('current_year');
-    }, []);
+    }, [start, end]);
 
     useEffect(() => {
         if (useNMinus1 && start && end) {
