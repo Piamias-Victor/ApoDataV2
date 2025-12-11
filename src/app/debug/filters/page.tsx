@@ -18,7 +18,7 @@ export default function DebugFiltersPage() {
 
     return (
         <div className="p-8 space-y-8 bg-gray-50 min-h-screen">
-            <h1 className="text-3xl font-bold">🛠️ Debug Filtres V2</h1>
+            <h1 className="text-3xl font-bold">🛠️ Debug Filtres V3</h1>
 
             <div className="grid grid-cols-2 gap-8">
                 {/* STATE VIEWER */}
@@ -48,12 +48,10 @@ export default function DebugFiltersPage() {
                         )}
                     </div>
                     <div className="mt-4 text-sm text-gray-500">
-                        Logique : {store.logicOperator} <br />
-                        (Sanofi P1,P2,P3 + Douleur P2,P4)
+                        Filter Operators: {JSON.stringify(store.filterOperators)}
                     </div>
                 </div>
             </div>
         </div>
     );
 }
-

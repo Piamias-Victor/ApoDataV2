@@ -40,6 +40,8 @@ export const usePharmacyFilter = (onClose?: () => void) => {
 
     // Fetch Logic
     useEffect(() => {
+        const controller = new AbortController();
+
         const fetchPharmacies = async () => {
             setIsLoading(true);
             try {

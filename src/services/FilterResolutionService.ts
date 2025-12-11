@@ -10,10 +10,9 @@ import { FilterState } from '@/types/filters';
 export const resolveProductCodes = (state: FilterState): string[] => {
     // Only return manually selected product codes
     // Laboratories, categories, and other filters are resolved server-side
-    const manualCodes = new Set(state.products.map(p => p.code));
-
-    // Apply exclusions
-    state.excludedProductCodes.forEach(code => manualCodes.delete(code));
+    const manualCodes = new Set<string>();
+    // Manually selected products
+    state.products.forEach(p => manualCodes.add(p.code));
 
     return Array.from(manualCodes);
 };

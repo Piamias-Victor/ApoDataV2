@@ -53,11 +53,23 @@ export interface FilterSettings {
     marginRange: { min: number; max: number } | null;
 }
 
+// Individual filter item for operator configuration
+export interface FilterItem {
+    type: 'pharmacy' | 'laboratory' | 'category' | 'product' | 'tva' | 'reimbursement' | 'generic' | 'priceRange';
+    id: string; // Unique identifier
+    name: string; // Display name
+    value: any; // The actual filter value
+}
+
+// Operators between filters (array of operators, one less than number of filters)
+export type FilterOperators = ('AND' | 'OR')[];
+
 export interface FilterState {
     // 1. Target
     pharmacies: SelectedPharmacy[];
     dateRange: DateRange;
     comparisonDateRange: DateRange;
+    useNMinus1: boolean;
 
     // 2. Scope
     products: SelectedProduct[];
@@ -68,11 +80,10 @@ export interface FilterState {
     // 3. Attributes
     settings: FilterSettings;
 
-    // 4. Global
-    excludedProductCodes: string[]; // Blacklist
-    logicOperator: 'AND' | 'OR';
+    // 4. Logical Operators
+    filterOperators: FilterOperators; // Operators between each filter
 
     // 5. View State
     isFilterOpen: boolean;
-    activeDrawer: 'products' | 'pharmacies' | 'laboratories' | 'categories' | 'groups' | null;
+    activeDrawer: string | null;
 }

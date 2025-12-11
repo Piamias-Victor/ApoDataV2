@@ -2,13 +2,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, TestTube, Tag, Package, Building2 } from 'lucide-react';
+import { Calendar, TestTube, Tag, Package, Building2, Settings } from 'lucide-react';
 import { Drawer } from '@/components/molecules/Drawer/Drawer';
 import { PharmacyFilterPanel } from '../FilterPanel/PharmacyFilterPanel';
 import { DateFilterPanel } from '../FilterPanel/DateFilterPanel';
 import { LaboratoriesFilterPanel } from '../FilterPanel/LaboratoriesFilterPanel';
 import { CategoriesFilterPanel } from '../FilterPanel/CategoriesFilterPanel';
 import { ProductsFilterPanel } from '../FilterPanel/ProductsFilterPanel';
+import { LogicalOperatorFilterPanel } from '../FilterPanel/LogicalOperatorFilterPanel';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -17,7 +18,7 @@ interface FilterButtonProps {
     icon: React.ReactNode;
     label: string;
     count: number;
-    color: 'orange' | 'blue' | 'purple' | 'red' | 'green';
+    color: 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow';
     onClick: () => void;
     tooltip?: string;
     isActive: boolean;
@@ -66,6 +67,14 @@ const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, 
             hover: 'hover:border-green-400 hover:bg-green-50/50',
             activeBorder: 'border-green-500',
             activeGlow: 'shadow-green-200'
+        },
+        yellow: {
+            bg: 'bg-yellow-50',
+            text: 'text-yellow-600',
+            border: 'border-yellow-300',
+            hover: 'hover:border-yellow-400 hover:bg-yellow-50/50',
+            activeBorder: 'border-yellow-500',
+            activeGlow: 'shadow-yellow-200'
         }
     };
 
@@ -109,7 +118,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, 
 
 export const FilterBar: React.FC = () => {
     const [isScrolled, setIsScrolled] = useState(false);
-    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | 'products' | null>(null);
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | 'products' | 'operators' | null>(null);
     const { pharmacies, dateRange, laboratories, categories, products } = useFilterStore();
 
     useEffect(() => {
@@ -216,6 +225,16 @@ export const FilterBar: React.FC = () => {
                         tooltip={getProductTooltip()}
                         isActive={products.length > 0}
                     />
+
+                    <FilterButton
+                        icon={<Settings className="w-4 h-4" />}
+                        label="Opérateur Logique"
+                        count={0}
+                        color="yellow"
+                        onClick={() => setActiveDrawer('operators')}
+                        tooltip="Configurez comment combiner vos filtres (ET/OU)"
+                        isActive={false}
+                    />
                 </div>
             </div>
 
@@ -262,6 +281,15 @@ export const FilterBar: React.FC = () => {
                 accentColor="green"
             >
                 <ProductsFilterPanel onClose={handleClose} />
+            </Drawer>
+
+            <Drawer
+                isOpen={activeDrawer === 'operators'}
+                onClose={handleClose}
+                title="Opérateur Logique"
+                accentColor="yellow"
+            >
+                <LogicalOperatorFilterPanel onClose={handleClose} />
             </Drawer>
         </>
     );

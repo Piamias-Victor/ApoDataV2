@@ -31,9 +31,10 @@ interface FilterActions {
     setDateRange: (range: DateRange) => void;
     setComparisonDateRange: (range: DateRange) => void;
 
-    // Global
-    setExcludedProducts: (codes: string[]) => void;
-    setLogicOperator: (operator: 'AND' | 'OR') => void;
+    // Filter Operators
+    setFilterOperator: (index: number, operator: 'AND' | 'OR') => void;
+    resetFilterOperators: () => void;
+
     resetAll: () => void;
 }
 
@@ -60,8 +61,8 @@ const initialState: FilterState = {
         discountRange: null,
         marginRange: null,
     },
-    excludedProductCodes: [],
-    logicOperator: 'AND',
+    useNMinus1: false,
+    filterOperators: [], // Empty by default
     // View state
     isFilterOpen: false,
     activeDrawer: null,
@@ -69,40 +70,132 @@ const initialState: FilterState = {
 
 export const useFilterStore = create<FilterState & FilterActions>()(
     persist(
-        (set) => ({
-            ...initialState,
+        (set, get) => {
+            // Helper to sync filterOperators with current filter count
+            const syncFilterOperators = () => {
+                const state = get();
+                let filterCount = 0;
 
-            // Actions
-            setProducts: (products) => set({ products }),
-            setLaboratories: (laboratories) => set({ laboratories }),
-            setCategories: (categories) => set({ categories }),
-            setGroups: (groups) => set({ groups }),
+                // Count all active filters
+                filterCount += state.pharmacies.length;
+                filterCount += state.laboratories.length;
+                filterCount += state.categories.length;
+                filterCount += state.products.length;
+                filterCount += state.settings.tvaRates.length;
+                if (state.settings.reimbursementStatus !== 'ALL') filterCount++;
+                if (state.settings.isGeneric !== undefined) filterCount++;
 
-            setProductType: (productType) => set((state) => ({ settings: { ...state.settings, productType } })),
-            setTvaRates: (tvaRates) => set((state) => ({ settings: { ...state.settings, tvaRates } })),
-            setPriceRange: (priceRange) => set((state) => ({ settings: { ...state.settings, priceRange } })),
-            setIsGeneric: (isGeneric) => set((state) => ({ settings: { ...state.settings, isGeneric } })),
-            setLppCodes: (lppCodes) => set((state) => ({ settings: { ...state.settings, lppCodes } })),
-            setRefundCodes: (refundCodes) => set((state) => ({ settings: { ...state.settings, refundCodes } })),
-            setReimbursementStatus: (reimbursementStatus) => set((state) => ({ settings: { ...state.settings, reimbursementStatus } })),
+                // Count price ranges (non-default values)
+                if (state.settings.purchasePriceNetRange &&
+                    (state.settings.purchasePriceNetRange.min !== 0 || state.settings.purchasePriceNetRange.max !== 100000)) filterCount++;
+                if (state.settings.purchasePriceGrossRange &&
+                    (state.settings.purchasePriceGrossRange.min !== 0 || state.settings.purchasePriceGrossRange.max !== 100000)) filterCount++;
+                if (state.settings.sellPriceRange &&
+                    (state.settings.sellPriceRange.min !== 0 || state.settings.sellPriceRange.max !== 100000)) filterCount++;
+                if (state.settings.discountRange &&
+                    (state.settings.discountRange.min !== 0 || state.settings.discountRange.max !== 100)) filterCount++;
+                if (state.settings.marginRange &&
+                    (state.settings.marginRange.min !== 0 || state.settings.marginRange.max !== 100)) filterCount++;
 
-            setPurchasePriceNetRange: (range) => set((state) => ({ settings: { ...state.settings, purchasePriceNetRange: range } })),
-            setPurchasePriceGrossRange: (range) => set((state) => ({ settings: { ...state.settings, purchasePriceGrossRange: range } })),
-            setSellPriceRange: (range) => set((state) => ({ settings: { ...state.settings, sellPriceRange: range } })),
-            setDiscountRange: (range) => set((state) => ({ settings: { ...state.settings, discountRange: range } })),
-            setMarginRange: (range) => set((state) => ({ settings: { ...state.settings, marginRange: range } })),
+                const requiredOperators = Math.max(0, filterCount - 1);
+                const currentOperators = state.filterOperators;
 
-            setPharmacies: (pharmacies) => set({ pharmacies }),
-            setDateRange: (dateRange) => set({ dateRange }),
-            setComparisonDateRange: (comparisonDateRange) => set({ comparisonDateRange }),
+                if (currentOperators.length !== requiredOperators) {
+                    const newOperators = [...currentOperators];
 
-            setExcludedProducts: (excludedProductCodes) => set({ excludedProductCodes }),
-            setLogicOperator: (logicOperator) => set({ logicOperator }),
+                    // Add missing operators (default to AND)
+                    while (newOperators.length < requiredOperators) {
+                        newOperators.push('AND');
+                    }
 
-            resetAll: () => set(initialState)
-        }),
+                    // Remove extra operators
+                    if (newOperators.length > requiredOperators) {
+                        newOperators.splice(requiredOperators);
+                    }
+
+                    set({ filterOperators: newOperators });
+                }
+            };
+
+            return {
+                ...initialState,
+
+                // Actions
+                setProducts: (products) => {
+                    set({ products });
+                    syncFilterOperators();
+                },
+                setLaboratories: (laboratories) => {
+                    set({ laboratories });
+                    syncFilterOperators();
+                },
+                setCategories: (categories) => {
+                    set({ categories });
+                    syncFilterOperators();
+                },
+                setGroups: (groups) => {
+                    set({ groups });
+                    syncFilterOperators();
+                },
+
+                setProductType: (productType) => set((state) => ({ settings: { ...state.settings, productType } })),
+                setTvaRates: (tvaRates) => {
+                    set((state) => ({ settings: { ...state.settings, tvaRates } }));
+                    syncFilterOperators();
+                },
+                setPriceRange: (priceRange) => set((state) => ({ settings: { ...state.settings, priceRange } })),
+                setIsGeneric: (isGeneric) => {
+                    set((state) => ({ settings: { ...state.settings, isGeneric } }));
+                    syncFilterOperators();
+                },
+                setLppCodes: (lppCodes) => set((state) => ({ settings: { ...state.settings, lppCodes } })),
+                setRefundCodes: (refundCodes) => set((state) => ({ settings: { ...state.settings, refundCodes } })),
+                setReimbursementStatus: (reimbursementStatus) => {
+                    set((state) => ({ settings: { ...state.settings, reimbursementStatus } }));
+                    syncFilterOperators();
+                },
+
+                setPurchasePriceNetRange: (range) => {
+                    set((state) => ({ settings: { ...state.settings, purchasePriceNetRange: range } }));
+                    syncFilterOperators();
+                },
+                setPurchasePriceGrossRange: (range) => {
+                    set((state) => ({ settings: { ...state.settings, purchasePriceGrossRange: range } }));
+                    syncFilterOperators();
+                },
+                setSellPriceRange: (range) => {
+                    set((state) => ({ settings: { ...state.settings, sellPriceRange: range } }));
+                    syncFilterOperators();
+                },
+                setDiscountRange: (range) => {
+                    set((state) => ({ settings: { ...state.settings, discountRange: range } }));
+                    syncFilterOperators();
+                },
+                setMarginRange: (range) => {
+                    set((state) => ({ settings: { ...state.settings, marginRange: range } }));
+                    syncFilterOperators();
+                },
+
+                setPharmacies: (pharmacies) => {
+                    set({ pharmacies });
+                    syncFilterOperators();
+                },
+                setDateRange: (dateRange) => set({ dateRange }),
+                setComparisonDateRange: (comparisonDateRange) => set({ comparisonDateRange }),
+
+                // Filter Operators Actions
+                setFilterOperator: (index, operator) => set((state) => {
+                    const newOperators = [...state.filterOperators];
+                    newOperators[index] = operator;
+                    return { filterOperators: newOperators };
+                }),
+                resetFilterOperators: () => set({ filterOperators: [] }),
+
+                resetAll: () => set(initialState)
+            };
+        },
         {
-            name: 'apodata-filter-store-v2', // Unique name for V2
+            name: 'apodata-filter-store-v3', // Changed version to clear old data
             partialize: (state) => {
                 // Optionnel: ne pas persister certaines clés si besoin
                 return state;
