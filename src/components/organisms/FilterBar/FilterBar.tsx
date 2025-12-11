@@ -2,20 +2,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, TestTube, Tag } from 'lucide-react';
+import { Calendar, TestTube, Tag, Package } from 'lucide-react';
 import { Drawer } from '@/components/molecules/Drawer/Drawer';
 import { PharmacyFilterPanel } from '../FilterPanel/PharmacyFilterPanel';
 import { DateFilterPanel } from '../FilterPanel/DateFilterPanel';
 import { LaboratoriesFilterPanel } from '../FilterPanel/LaboratoriesFilterPanel';
 import { CategoriesFilterPanel } from '../FilterPanel/CategoriesFilterPanel';
+import { ProductsFilterPanel } from '../FilterPanel/ProductsFilterPanel';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const FilterBar: React.FC = () => {
     const [isScrolled, setIsScrolled] = useState(false);
-    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | null>(null);
-    const { pharmacies, dateRange, laboratories, categories } = useFilterStore();
+    const [activeDrawer, setActiveDrawer] = useState<'pharmacy' | 'date' | 'laboratories' | 'categories' | 'products' | null>(null);
+    const { pharmacies, dateRange, laboratories, categories, products } = useFilterStore();
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -95,18 +96,34 @@ export const FilterBar: React.FC = () => {
                         </div>
                     </button>
 
-                    {/* Categories Filter (NEW) */}
+                    {/* Categories Filter */}
                     <button
                         onClick={() => setActiveDrawer('categories')}
-                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50/50 transition-all group"
+                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-red-300 hover:bg-red-50/50 transition-all group"
                     >
-                        <div className="p-1.5 bg-green-50 text-green-600 rounded-lg group-hover:scale-110 transition-transform">
+                        <div className="p-1.5 bg-red-50 text-red-600 rounded-lg group-hover:scale-110 transition-transform">
                             <Tag className="w-4 h-4" />
                         </div>
                         <div className="flex flex-col items-start">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Catégories</span>
                             <span className="font-bold text-gray-900">
                                 {categories.length > 0 ? `${categories.length} sélectionnée(s)` : 'Toutes'}
+                            </span>
+                        </div>
+                    </button>
+
+                    {/* Products Filter (NEW) */}
+                    <button
+                        onClick={() => setActiveDrawer('products')}
+                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50/50 transition-all group"
+                    >
+                        <div className="p-1.5 bg-green-50 text-green-600 rounded-lg group-hover:scale-110 transition-transform">
+                            <Package className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Produits</span>
+                            <span className="font-bold text-gray-900">
+                                {products.length > 0 ? `${products.length} sélectionné(s)` : 'Tous'}
                             </span>
                         </div>
                     </button>
@@ -155,6 +172,15 @@ export const FilterBar: React.FC = () => {
                 accentColor="red"
             >
                 <CategoriesFilterPanel onClose={handleClose} />
+            </Drawer>
+
+            <Drawer
+                isOpen={activeDrawer === 'products'}
+                onClose={handleClose}
+                title="Produits"
+                accentColor="green"
+            >
+                <ProductsFilterPanel onClose={handleClose} />
             </Drawer>
         </>
     );

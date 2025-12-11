@@ -6,7 +6,7 @@ interface FilterSearchInputProps {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
-    focusColor?: 'purple' | 'blue' | 'red' | 'orange';
+    focusColor?: 'purple' | 'blue' | 'red' | 'orange' | 'green';
     autoFocus?: boolean;
 }
 
@@ -17,8 +17,8 @@ export const FilterSearchInput: React.FC<FilterSearchInputProps> = ({
     focusColor = 'blue',
     autoFocus = false
 }) => {
-    const focusBorderColor = focusColor === 'purple' ? 'focus:border-purple-500' : focusColor === 'red' ? 'focus:border-red-500' : focusColor === 'orange' ? 'focus:border-orange-500' : 'focus:border-blue-500';
-    const groupFocusColor = focusColor === 'purple' ? 'group-focus-within:text-purple-500' : focusColor === 'red' ? 'group-focus-within:text-red-500' : focusColor === 'orange' ? 'group-focus-within:text-orange-500' : 'group-focus-within:text-blue-500';
+    const focusBorderColor = focusColor === 'purple' ? 'focus:border-purple-500' : focusColor === 'red' ? 'focus:border-red-500' : focusColor === 'orange' ? 'focus:border-orange-500' : focusColor === 'green' ? 'focus:border-green-500' : 'focus:border-blue-500';
+    const groupFocusColor = focusColor === 'purple' ? 'group-focus-within:text-purple-500' : focusColor === 'red' ? 'group-focus-within:text-red-500' : focusColor === 'orange' ? 'group-focus-within:text-orange-500' : focusColor === 'green' ? 'group-focus-within:text-green-500' : 'group-focus-within:text-blue-500';
 
     return (
         <div className="relative group mb-1">
