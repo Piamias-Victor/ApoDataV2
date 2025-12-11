@@ -104,7 +104,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   // 6. SETTINGS: Reimbursement Status
   if (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') {
     const items = [request.reimbursementStatus]; // Treat as 1 item for counting
-    addFilterGroup(items, (idx) => {
+    addFilterGroup(items, (_idx) => {
       if (request.reimbursementStatus === 'REIMBURSED') return `gp.is_reimbursable = true`;
       if (request.reimbursementStatus === 'NOT_REIMBURSED') return `gp.is_reimbursable = false`;
       return '1=1';

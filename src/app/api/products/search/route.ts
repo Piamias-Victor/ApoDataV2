@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Cache the entire result processing
-        const productsWithAllCodes = await withCache(cacheKey, async () => {
+        const productsWithAllCodes = await withCache<Product[]>(cacheKey, async () => {
             const result = await query(queryConfig.text, queryConfig.params);
 
             // For each product, fetch all codes with the same bcb_product_id
