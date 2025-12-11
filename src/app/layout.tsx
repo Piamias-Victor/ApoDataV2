@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { Providers } from "@/providers/Providers";
+import { QueryProvider } from "@/lib/providers/QueryProvider";
 
 export const metadata: Metadata = {
     title: "ApoData - Reprenez la main sur vos données",
@@ -16,7 +17,9 @@ export default function RootLayout({
     return (
         <html lang="fr">
             <body>
-                <Providers>{children}</Providers>
+                <QueryProvider>
+                    <Providers>{children}</Providers>
+                </QueryProvider>
             </body>
         </html>
     );

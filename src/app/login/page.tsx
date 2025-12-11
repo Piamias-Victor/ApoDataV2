@@ -31,7 +31,7 @@ export default function LoginPage() {
             if (res?.error) {
                 setError2FA('Code invalide');
             } else {
-                router.push('/hub');
+                router.push('/dashboard');
             }
         } finally {
             setLoading2FA(false);

@@ -8,15 +8,15 @@ export interface KpiCardProps {
     /** Valeur principale (ex: "125 450 €") */
     primaryValue: string;
     /** Label de la valeur secondaire (ex: "Quantité") - optionnel */
-    secondaryLabel?: string;
+    secondaryLabel?: string | undefined;
     /** Valeur secondaire (ex: "12 345") - optionnel */
-    secondaryValue?: string;
+    secondaryValue?: string | undefined;
     /** Pourcentage d'évolution (ex: 12.5 pour +12.5%) - optionnel */
-    evolutionPercent?: number;
+    evolutionPercent?: number | undefined;
     /** Icône optionnelle pour la KPI */
-    icon?: React.ReactNode;
+    icon?: React.ReactNode | undefined;
     /** Couleur d'accent (correspond aux couleurs de FilterButton) */
-    accentColor?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo';
+    accentColor?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | undefined;
 }
 
 const ACCENT_COLORS = {

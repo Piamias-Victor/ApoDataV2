@@ -1,13 +1,20 @@
 // src/components/organisms/KpiDashboard/KpiDashboard.tsx
+'use client';
+
 import React from 'react';
 import { KpiCard } from '@/components/molecules/KpiCard/KpiCard';
 import { Euro, Package, TrendingUp, TrendingDown, Calendar, Percent } from 'lucide-react';
+import { useAchatsKpi } from '@/hooks/kpi/useAchatsKpi';
+import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
 
 /**
  * KPI Dashboard section with key performance indicators
- * Displays 6 KPI cards in a responsive grid
+ * Displays real data from API with FilterStore integration
  */
 export const KpiDashboard: React.FC = () => {
+    // Fetch Achats KPI with real filters
+    const { data: achatsData, isLoading: achatsLoading, error: achatsError } = useAchatsKpi();
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -22,18 +29,18 @@ export const KpiDashboard: React.FC = () => {
 
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Achats */}
+                {/* Achats - Real Data */}
                 <KpiCard
                     title="Achats HT"
-                    primaryValue="125 450 €"
+                    primaryValue={achatsLoading ? 'Chargement...' : achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
                     secondaryLabel="Quantité"
-                    secondaryValue="12 345"
-                    evolutionPercent={12.5}
+                    secondaryValue={achatsLoading ? '...' : formatNumber(achatsData?.quantite_achetee || 0)}
+                    evolutionPercent={achatsData?.evolution_percent}
                     icon={<Euro className="w-5 h-5" />}
                     accentColor="blue"
                 />
 
-                {/* Ventes */}
+                {/* Ventes - Mock Data (TODO) */}
                 <KpiCard
                     title="Ventes HT"
                     primaryValue="187 890 €"
@@ -44,7 +51,7 @@ export const KpiDashboard: React.FC = () => {
                     accentColor="green"
                 />
 
-                {/* Marge */}
+                {/* Marge - Mock Data (TODO) */}
                 <KpiCard
                     title="Marge €"
                     primaryValue="62 440 €"
@@ -55,7 +62,7 @@ export const KpiDashboard: React.FC = () => {
                     accentColor="purple"
                 />
 
-                {/* Stock */}
+                {/* Stock - Mock Data (TODO) */}
                 <KpiCard
                     title="Stock €"
                     primaryValue="89 450 €"
@@ -66,7 +73,7 @@ export const KpiDashboard: React.FC = () => {
                     accentColor="orange"
                 />
 
-                {/* Jours de stock & Taux de réception */}
+                {/* Jours de stock - Mock Data (TODO) */}
                 <KpiCard
                     title="Jours de stock"
                     primaryValue="45 jours"
@@ -77,7 +84,7 @@ export const KpiDashboard: React.FC = () => {
                     accentColor="indigo"
                 />
 
-                {/* Évolution des prix */}
+                {/* Évolution des prix - Mock Data (TODO) */}
                 <KpiCard
                     title="Évolution prix d'achat"
                     primaryValue="+2.8%"
@@ -87,6 +94,15 @@ export const KpiDashboard: React.FC = () => {
                     accentColor="red"
                 />
             </div>
+
+            {/* Error Display */}
+            {achatsError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-red-800 text-sm">
+                        ⚠️ Erreur lors du chargement des données Achats
+                    </p>
+                </div>
+            )}
         </div>
     );
 };
