@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getAdminCategoryQuery, getUserCategoryQuery } from '@/lib/search/categoryQueries';
+import { queryCache, withCache } from '@/lib/cache/queryCache';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -50,7 +51,15 @@ export async function POST(request: NextRequest) {
         }
 
         const startTime = Date.now();
-        const categories = await db.query<CategoryResult>(sqlQuery, params);
+
+        const cacheKey = queryCache.generateKey('search:categories', {
+            query: trimmedQuery,
+            pharmacyId: session.user.pharmacyId,
+            isAdmin
+        });
+
+        const categories = await withCache(cacheKey, () => db.query<CategoryResult>(sqlQuery, params));
+
         const queryTime = Date.now() - startTime;
 
         return NextResponse.json({

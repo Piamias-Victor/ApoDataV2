@@ -13,10 +13,15 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
   // Generate cache key for current period
   const currentCacheKey = queryCache.generateKey('achats', {
     dateRange: request.dateRange,
+    productCodes: request.productCodes,
     laboratories: request.laboratories,
     categories: request.categories,
     pharmacyIds: request.pharmacyIds,
-    filterOperators: request.filterOperators
+    filterOperators: request.filterOperators,
+    // Settings
+    tvaRates: request.tvaRates,
+    reimbursementStatus: request.reimbursementStatus,
+    isGeneric: request.isGeneric
   });
 
   // Fetch current period data with cache
@@ -35,7 +40,11 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
       laboratories: request.laboratories,
       categories: request.categories,
       pharmacyIds: request.pharmacyIds,
-      filterOperators: request.filterOperators
+      filterOperators: request.filterOperators,
+      // Settings
+      tvaRates: request.tvaRates,
+      reimbursementStatus: request.reimbursementStatus,
+      isGeneric: request.isGeneric
     });
 
     // Fetch comparison period data with cache

@@ -40,7 +40,7 @@ export interface FilterSettings {
     productType: 'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE';
     tvaRates: number[]; // ex: [2.1, 5.5, 20]
     priceRange: { min: number; max: number } | null;
-    isGeneric?: boolean | undefined; // true = Generic only, false = Brand only, undefined = All
+    isGeneric: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS'; // Updated options
     lppCodes: string[];
     refundCodes: string[];
     reimbursementStatus: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED';

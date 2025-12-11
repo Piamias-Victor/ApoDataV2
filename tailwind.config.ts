@@ -143,6 +143,7 @@ const config: Config = {
         'slide-in': 'slideIn 0.3s ease-out forwards',
         'spin-slow': 'spin 2s linear infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        shimmer: 'shimmer 2s infinite',
       },
       animationDelay: {
         '1000': '1000ms',
@@ -156,6 +157,9 @@ const config: Config = {
         slideIn: {
           '0%': { opacity: '0', transform: 'translateX(20px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
         },
       },
       backdropBlur: {

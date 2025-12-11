@@ -53,7 +53,7 @@ export const useProductFilter = (onClose?: () => void) => {
     );
 
     // --- Generic Status Local State ---
-    const [isGeneric, setIsGeneric] = useState<boolean | undefined>(settings.isGeneric);
+    const [isGeneric, setIsGeneric] = useState<'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS'>(settings.isGeneric);
 
     // --- Price Ranges Local State ---
     const [purchasePriceNetRange, setPurchasePriceNetRange] = useState<[number, number]>(

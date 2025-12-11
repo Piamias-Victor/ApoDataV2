@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { queryCache, withCache } from '@/lib/cache/queryCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,10 @@ export async function POST(request: NextRequest) {
 
         sqlQuery += ` ORDER BY name ASC LIMIT 500`;
 
-        const result = await db.query(sqlQuery, queryParams);
+        const result = await withCache(
+            queryCache.generateKey('search:pharmacies', { query, minCa, maxCa, regions }),
+            () => db.query(sqlQuery, queryParams)
+        );
 
         return NextResponse.json({ pharmacies: result.rows });
 

@@ -1,15 +1,18 @@
 import React from 'react';
 import { Pill } from 'lucide-react';
 
+type GenericStatus = 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS';
+
 interface GenericFilterSectionProps {
-    isGeneric: boolean | undefined;
-    onToggle: (status: boolean | undefined) => void;
+    isGeneric: GenericStatus;
+    onToggle: (status: GenericStatus) => void;
 }
 
-const GENERIC_OPTIONS: { value: boolean | undefined; label: string }[] = [
-    { value: undefined, label: 'Tout' },
-    { value: false, label: 'Princeps' },
-    { value: true, label: 'Génériques' }
+const GENERIC_OPTIONS: { value: GenericStatus; label: string }[] = [
+    { value: 'ALL', label: 'Tout' },
+    { value: 'PRINCEPS_GENERIC', label: 'Princeps + Générique' },
+    { value: 'GENERIC', label: 'Générique' },
+    { value: 'PRINCEPS', label: 'Princeps' }
 ];
 
 export const GenericFilterSection: React.FC<GenericFilterSectionProps> = ({
@@ -36,7 +39,7 @@ export const GenericFilterSection: React.FC<GenericFilterSectionProps> = ({
 
                     return (
                         <button
-                            key={String(option.value)}
+                            key={option.value}
                             onClick={() => onToggle(option.value)}
                             className={`
                                 w-full p-4 rounded-xl border-2 transition-all duration-200

@@ -96,7 +96,7 @@ export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, 
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border-2 transition-all group
+                    pointer-events-auto flex items-center gap-2.5 px-3 md:px-4 py-2.5 bg-white rounded-xl border-2 transition-all group whitespace-nowrap min-w-max
                     ${isActive ? `${colors.activeBorder} shadow-lg ${colors.activeGlow}` : `border-gray-200 ${colors.hover}`}
                 `}
             >

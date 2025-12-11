@@ -37,8 +37,17 @@ export const FilterBar: React.FC = () => {
 
     return (
         <>
-            <div className={`sticky top-0 z-40 transition-all duration-300 mx-auto max-w-fit pt-4 ${isScrolled ? 'translate-y-0' : 'translate-y-0'}`}>
-                <div className="flex items-center gap-3 px-3 py-2.5 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 ring-1 ring-black/5">
+            <div className={`sticky top-0 z-40 transition-all duration-300 mx-auto max-w-full md:max-w-fit pt-4 pb-2 md:pb-0 px-4 md:px-0 ${isScrolled ? 'translate-y-0' : 'translate-y-0'}`}>
+                <div className="flex items-center gap-3 px-3 py-2.5 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 ring-1 ring-black/5 overflow-x-auto no-scrollbar max-w-[calc(100vw-32px)] md:max-w-none">
+                    <style jsx global>{`
+                        .no-scrollbar::-webkit-scrollbar {
+                            display: none;
+                        }
+                        .no-scrollbar {
+                            -ms-overflow-style: none;
+                            scrollbar-width: none;
+                        }
+                    `}</style>
                     <FilterButton
                         icon={<Building2 className="w-4 h-4" />}
                         label="Pharmacies"

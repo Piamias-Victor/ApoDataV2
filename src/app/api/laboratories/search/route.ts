@@ -9,6 +9,7 @@ import {
     getAdminProductSearchQuery,
     getUserProductSearchQuery
 } from '@/lib/search/laboratoryQueries';
+import { queryCache, withCache } from '@/lib/cache/queryCache';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -113,7 +114,17 @@ export async function POST(request: NextRequest) {
         }
 
         const startTime = Date.now();
-        const laboratories = await db.query<LaboratoryResult>(sqlQuery, params);
+
+        const cacheKey = queryCache.generateKey('search:laboratories', {
+            query: trimmedQuery,
+            mode,
+            labOrBrandMode,
+            pharmacyId: session.user.pharmacyId, // Important for user-specific results
+            isAdmin
+        });
+
+        const laboratories = await withCache(cacheKey, () => db.query<LaboratoryResult>(sqlQuery, params));
+
         const queryTime = Date.now() - startTime;
 
         return NextResponse.json({

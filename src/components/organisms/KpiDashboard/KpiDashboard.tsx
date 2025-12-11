@@ -32,9 +32,10 @@ export const KpiDashboard: React.FC = () => {
                 {/* Achats - Real Data */}
                 <KpiCard
                     title="Achats HT"
-                    primaryValue={achatsLoading ? 'Chargement...' : achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
+                    isLoading={achatsLoading}
+                    primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
                     secondaryLabel="Quantité"
-                    secondaryValue={achatsLoading ? '...' : formatNumber(achatsData?.quantite_achetee || 0)}
+                    secondaryValue={formatNumber(achatsData?.quantite_achetee || 0)}
                     evolutionPercent={achatsData?.evolution_percent}
                     icon={<Euro className="w-5 h-5" />}
                     accentColor="blue"

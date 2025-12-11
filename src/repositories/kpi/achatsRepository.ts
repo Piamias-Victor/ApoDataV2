@@ -19,7 +19,8 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   // Helper to add a filter group
   const addFilterGroup = (
     items: any[],
-    sqlGenerator: (paramIdx: number) => string
+    sqlGenerator: (paramIdx: number) => string,
+    usesParams: boolean = true // NEW: Option to skip param registration
   ) => {
     if (items.length === 0) return;
 
@@ -37,15 +38,13 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     const sql = sqlGenerator(paramIndex);
     conditions.push(`(${sql})`);
 
-    // Register params for this group
-    // If categories (complex), we push dynamic params inside generator? 
-    // No, let's keep it simple: we push the WHOLE array as one param usually, 
-    // EXCEPT for categories which might need multiple params.
-
-    // For standard arrays (pharma, lab, product)
-    if (Array.isArray(items) && items.length > 0 && typeof items[0] !== 'object') {
-      params.push(items);
-      paramIndex++;
+    // Register params if needed
+    if (usesParams && Array.isArray(items) && items.length > 0) {
+      // Check if it's a flat array of primitives
+      if (typeof items[0] !== 'object' || items[0] === null) {
+        params.push(items);
+        paramIndex++;
+      }
     }
 
     cumulativeItemCount += items.length;
@@ -97,8 +96,69 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   // 4. PRODUCTS
   addFilterGroup(productCodes, (idx) => `ip.code_13_ref_id = ANY($${idx}::text[])`);
 
-  // Need GlobalProduct JOIN if filtering by laboratory or category
-  const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0;
+  // 5. SETTINGS: TVA Rates
+  if (request.tvaRates && request.tvaRates.length > 0) {
+    addFilterGroup(request.tvaRates, (idx) => `gp.tva_percentage = ANY($${idx}::numeric[])`);
+  }
+
+  // 6. SETTINGS: Reimbursement Status
+  if (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') {
+    const items = [request.reimbursementStatus]; // Treat as 1 item for counting
+    addFilterGroup(items, (idx) => {
+      if (request.reimbursementStatus === 'REIMBURSED') return `gp.is_reimbursable = true`;
+      if (request.reimbursementStatus === 'NOT_REIMBURSED') return `gp.is_reimbursable = false`;
+      return '1=1';
+    }, false); // 👈 usesParams = false
+  }
+
+  // 7. SETTINGS: Generic Status
+  if (request.isGeneric && request.isGeneric !== 'ALL') {
+    let values: string[] = [];
+    if (request.isGeneric === 'GENERIC') values = ['GÉNÉRIQUE'];
+    if (request.isGeneric === 'PRINCEPS') values = ['RÉFÉRENT'];
+    if (request.isGeneric === 'PRINCEPS_GENERIC') values = ['GÉNÉRIQUE', 'RÉFÉRENT'];
+
+    // We pass 'values' as the items wrapper.
+    // NOTE: In the store logic, the filter count was incremented by 1 for the whole "Generic" setting.
+    // So we must pass an array of length 1 to addFilterGroup to keep cumulativeItemCount in sync with the frontend operators array.
+    // BUT we want to push the specific values to SQL params.
+
+    // Solution: Pass a dummy array of length 1 as 'items' to addFilterGroup to satisfy operator logic,
+    // but manually push the REAL values to params?
+
+    // ACTUALLY: The 'items' passed to addFilterGroup determines the parameter pushed if usesParams=true.
+    // If we pass `values` (e.g. ['GÉNÉRIQUE', 'RÉFÉRENT']), length is 2.
+    // But the frontend counted this as 1 filter "Generic".
+    // So cumulativeItemCount should increase by 1.
+
+    // Let's pass a wrapper array `[values]` so length is 1? No, then param is `[[...]]`.
+
+    // Alternative: Use usesParams = false, manually handle params inside?
+    // Or simply: pass `[request.isGeneric]` as items (length 1), but inside the generator use a new param for the values.
+
+    // Let's use usesParams=false and handle the parameter push manually/inside generator? No generator can't push.
+
+    // Cleanest:
+    // Pass items = [request.isGeneric] (length 1).
+    // usesParams = false.
+    // Manually push 'values' to params array before calling addFilterGroup? Protocol breach.
+
+    // Let's adjust addFilterGroup logic slightly?
+    // No, let's just cheat. Use string literals for these specific known safe string values.
+
+    addFilterGroup([request.isGeneric], (_idx) => {
+      if (values.length === 0) return '1=1';
+      // Safe because values are hardcoded above
+      const valuesList = values.map(v => `'${v}'`).join(',');
+      return `gp.bcb_generic_status IN (${valuesList})`;
+    }, false);
+  }
+
+  // Need GlobalProduct JOIN if filtering by laboratory, category, or settings
+  const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
+    (request.tvaRates && request.tvaRates.length > 0) ||
+    (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
+    (request.isGeneric && request.isGeneric !== 'ALL');
 
   // Build WHERE clause
   const dynamicWhereClause = conditions.length > 0

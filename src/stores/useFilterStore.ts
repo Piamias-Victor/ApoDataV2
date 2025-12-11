@@ -14,7 +14,7 @@ interface FilterActions {
     setProductType: (type: FilterSettings['productType']) => void;
     setTvaRates: (rates: number[]) => void;
     setPriceRange: (range: { min: number; max: number } | null) => void;
-    setIsGeneric: (isGeneric: boolean | undefined) => void;
+    setIsGeneric: (isGeneric: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS') => void;
     setLppCodes: (codes: string[]) => void;
     setRefundCodes: (codes: string[]) => void;
     setReimbursementStatus: (status: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED') => void;
@@ -62,7 +62,7 @@ const initialState: FilterState = {
         productType: 'ALL',
         tvaRates: [],
         priceRange: null,
-        isGeneric: undefined,
+        isGeneric: 'ALL',
         lppCodes: [],
         refundCodes: [],
         reimbursementStatus: 'ALL',
@@ -99,7 +99,7 @@ export const useFilterStore = create<FilterState & FilterActions>()(
                 filterCount += state.products.length;
                 filterCount += state.settings.tvaRates.length;
                 if (state.settings.reimbursementStatus !== 'ALL') filterCount++;
-                if (state.settings.isGeneric !== undefined) filterCount++;
+                if (state.settings.isGeneric !== 'ALL') filterCount++;
 
                 // Count price ranges (non-default values)
                 if (state.settings.purchasePriceNetRange &&

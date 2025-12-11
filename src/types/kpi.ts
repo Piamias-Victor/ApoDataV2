@@ -13,6 +13,10 @@ export interface AchatsKpiRequest {
     categories?: { code: string; type: string }[]; // Typed categories
     pharmacyIds?: string[];
     filterOperators?: ('AND' | 'OR')[];
+    // New Filters
+    tvaRates?: number[];
+    reimbursementStatus?: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED';
+    isGeneric?: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS';
 }
 
 export interface AchatsKpiResponse {

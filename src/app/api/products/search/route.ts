@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { getAdminProductQuery } from '@/lib/search/productQueries';
+import { queryCache, withCache } from '@/lib/cache/queryCache';
 
 interface SearchRequest {
     query: string;
@@ -43,33 +44,46 @@ export async function POST(request: NextRequest) {
         const queryConfig = getAdminProductQuery(searchQuery, isWildcard, isCodeSearch);
 
         const startTime = Date.now();
-        const result = await query(queryConfig.text, queryConfig.params);
+
+        const cacheKey = queryCache.generateKey('search:products', {
+            query: searchQuery,
+            isWildcard,
+            isCodeSearch,
+            pharmacyId: session.user.pharmacyId,
+            isAdmin: session.user.role === 'admin'
+        });
+
+        // Cache the entire result processing
+        const productsWithAllCodes = await withCache(cacheKey, async () => {
+            const result = await query(queryConfig.text, queryConfig.params);
+
+            // For each product, fetch all codes with the same bcb_product_id
+            return await Promise.all(
+                result.rows.map(async (row: any) => {
+                    const allCodesResult = await query(
+                        `SELECT code_13_ref FROM data_globalproduct WHERE bcb_product_id = $1`,
+                        [row.bcb_product_id]
+                    );
+
+                    return {
+                        code_13_ref: row.code_13_ref,
+                        name: row.name,
+                        brand_lab: row.brand_lab,
+                        universe: row.universe,
+                        bcb_product_id: row.bcb_product_id,
+                        all_codes: allCodesResult.rows.map((r: any) => r.code_13_ref)
+                    };
+                })
+            );
+        });
+
         const duration = Date.now() - startTime;
 
         console.log('Executed query', {
             text: queryConfig.text,
             duration,
-            rows: result.rows.length
+            rows: productsWithAllCodes.length
         });
-
-        // For each product, fetch all codes with the same bcb_product_id
-        const productsWithAllCodes: Product[] = await Promise.all(
-            result.rows.map(async (row: any) => {
-                const allCodesResult = await query(
-                    `SELECT code_13_ref FROM data_globalproduct WHERE bcb_product_id = $1`,
-                    [row.bcb_product_id]
-                );
-
-                return {
-                    code_13_ref: row.code_13_ref,
-                    name: row.name,
-                    brand_lab: row.brand_lab,
-                    universe: row.universe,
-                    bcb_product_id: row.bcb_product_id,
-                    all_codes: allCodesResult.rows.map((r: any) => r.code_13_ref)
-                };
-            })
-        );
 
         return NextResponse.json({
             products: productsWithAllCodes,

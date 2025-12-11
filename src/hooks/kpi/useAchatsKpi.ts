@@ -18,7 +18,12 @@ export function useAchatsKpi() {
             laboratories: filterState.laboratories.map(l => l.id),
             categories: filterState.categories.map(c => ({ code: c.id, type: c.type })),
             pharmacies: filterState.pharmacies.map(p => p.id),
-            filterOperators: filterState.filterOperators
+            filterOperators: filterState.filterOperators,
+            settings: {
+                tvaRates: filterState.settings.tvaRates,
+                reimbursementStatus: filterState.settings.reimbursementStatus,
+                isGeneric: filterState.settings.isGeneric
+            }
         }],
         queryFn: async ({ signal }) => {
             // Build request from FilterStore
@@ -48,6 +53,16 @@ export function useAchatsKpi() {
                 }),
                 ...(filterState.pharmacies.length > 0 && {
                     pharmacyIds: filterState.pharmacies.map(p => p.id)
+                }),
+                // Settings Filters
+                ...(filterState.settings.tvaRates.length > 0 && {
+                    tvaRates: filterState.settings.tvaRates
+                }),
+                ...(filterState.settings.reimbursementStatus !== 'ALL' && {
+                    reimbursementStatus: filterState.settings.reimbursementStatus
+                }),
+                ...(filterState.settings.isGeneric !== 'ALL' && {
+                    isGeneric: filterState.settings.isGeneric
                 }),
                 filterOperators: filterState.filterOperators
             };
