@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
             if (!codesByProductId[row.bcb_product_id]) {
                 codesByProductId[row.bcb_product_id] = [];
             }
-            codesByProductId[row.bcb_product_id].push(row.code_13_ref);
+            codesByProductId[row.bcb_product_id]!.push(row.code_13_ref);
         });
 
         // Build final products array
