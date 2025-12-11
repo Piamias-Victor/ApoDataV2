@@ -3,14 +3,12 @@
 export interface SelectedLaboratory {
     id: string; // group_id ou lab_id
     name: string;
-    productCodes: string[];
 }
 
 export interface SelectedCategory {
     id: string;
     name: string;
-    type: 'universe' | 'category' | 'subcategory';
-    productCodes: string[];
+    type: 'bcb_segment_l0' | 'bcb_segment_l1' | 'bcb_segment_l2' | 'bcb_segment_l3' | 'bcb_segment_l4' | 'bcb_segment_l5' | 'bcb_family';
 }
 
 export interface SelectedPharmacy {
@@ -25,7 +23,6 @@ export interface SelectedPharmacy {
 export interface SelectedGroup { // Clusters
     id: string;
     name: string;
-    productCodes: string[];
 }
 
 export interface SelectedProduct {
@@ -46,7 +43,14 @@ export interface FilterSettings {
     isGeneric?: boolean | undefined; // true = Generic only, false = Brand only, undefined = All
     lppCodes: string[];
     refundCodes: string[];
+    reimbursementStatus: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED';
     marketType: 'ALL' | 'HOSPITAL' | 'OFFICINE';
+    // Product Price Filters
+    purchasePriceNetRange: { min: number; max: number } | null;
+    purchasePriceGrossRange: { min: number; max: number } | null;
+    sellPriceRange: { min: number; max: number } | null;
+    discountRange: { min: number; max: number } | null;
+    marginRange: { min: number; max: number } | null;
 }
 
 export interface FilterState {
@@ -67,4 +71,8 @@ export interface FilterState {
     // 4. Global
     excludedProductCodes: string[]; // Blacklist
     logicOperator: 'AND' | 'OR';
+
+    // 5. View State
+    isFilterOpen: boolean;
+    activeDrawer: 'products' | 'pharmacies' | 'laboratories' | 'categories' | 'groups' | null;
 }

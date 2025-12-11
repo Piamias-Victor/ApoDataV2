@@ -1,7 +1,7 @@
-// src/components/organisms/FilterPanel/components/ProductList.tsx
 import React from 'react';
 import { Package } from 'lucide-react';
 import { ProductCard } from './ProductCard';
+import { FilterLoadingState } from './shared/FilterLoadingState';
 
 interface Product {
     code_13_ref: string;
@@ -12,10 +12,12 @@ interface Product {
     all_codes: string[];
 }
 
+import { ProductSelection } from '../hooks/useProductFilter';
+
 interface ProductListProps {
     products: Product[];
     isLoading: boolean;
-    selectedMap: Map<string, { bcb_product_id: string; name: string; all_codes: string[] }>;
+    selectedMap: Map<string, ProductSelection>;
     onToggle: (product: Product) => void;
 }
 
@@ -26,12 +28,7 @@ export const ProductList: React.FC<ProductListProps> = ({
     onToggle
 }) => {
     if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center pt-8 text-gray-400 space-y-3 min-h-[200px]">
-                <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm font-medium">Recherche en cours...</span>
-            </div>
-        );
+        return <FilterLoadingState message="Recherche en cours..." color="green" />;
     }
 
     if (products.length === 0) {

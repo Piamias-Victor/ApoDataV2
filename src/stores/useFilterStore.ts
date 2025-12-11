@@ -17,6 +17,14 @@ interface FilterActions {
     setIsGeneric: (isGeneric: boolean | undefined) => void;
     setLppCodes: (codes: string[]) => void;
     setRefundCodes: (codes: string[]) => void;
+    setReimbursementStatus: (status: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED') => void;
+
+    // Price Range Setters
+    setPurchasePriceNetRange: (range: { min: number; max: number } | null) => void;
+    setPurchasePriceGrossRange: (range: { min: number; max: number } | null) => void;
+    setSellPriceRange: (range: { min: number; max: number } | null) => void;
+    setDiscountRange: (range: { min: number; max: number } | null) => void;
+    setMarginRange: (range: { min: number; max: number } | null) => void;
 
     // Setters Target
     setPharmacies: (pharmacies: SelectedPharmacy[]) => void;
@@ -44,10 +52,19 @@ const initialState: FilterState = {
         isGeneric: undefined,
         lppCodes: [],
         refundCodes: [],
-        marketType: 'ALL'
+        reimbursementStatus: 'ALL',
+        marketType: 'ALL',
+        purchasePriceNetRange: null,
+        purchasePriceGrossRange: null,
+        sellPriceRange: null,
+        discountRange: null,
+        marginRange: null,
     },
     excludedProductCodes: [],
-    logicOperator: 'AND'
+    logicOperator: 'AND',
+    // View state
+    isFilterOpen: false,
+    activeDrawer: null,
 };
 
 export const useFilterStore = create<FilterState & FilterActions>()(
@@ -67,6 +84,13 @@ export const useFilterStore = create<FilterState & FilterActions>()(
             setIsGeneric: (isGeneric) => set((state) => ({ settings: { ...state.settings, isGeneric } })),
             setLppCodes: (lppCodes) => set((state) => ({ settings: { ...state.settings, lppCodes } })),
             setRefundCodes: (refundCodes) => set((state) => ({ settings: { ...state.settings, refundCodes } })),
+            setReimbursementStatus: (reimbursementStatus) => set((state) => ({ settings: { ...state.settings, reimbursementStatus } })),
+
+            setPurchasePriceNetRange: (range) => set((state) => ({ settings: { ...state.settings, purchasePriceNetRange: range } })),
+            setPurchasePriceGrossRange: (range) => set((state) => ({ settings: { ...state.settings, purchasePriceGrossRange: range } })),
+            setSellPriceRange: (range) => set((state) => ({ settings: { ...state.settings, sellPriceRange: range } })),
+            setDiscountRange: (range) => set((state) => ({ settings: { ...state.settings, discountRange: range } })),
+            setMarginRange: (range) => set((state) => ({ settings: { ...state.settings, marginRange: range } })),
 
             setPharmacies: (pharmacies) => set({ pharmacies }),
             setDateRange: (dateRange) => set({ dateRange }),

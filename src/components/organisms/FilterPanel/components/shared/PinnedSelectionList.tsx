@@ -12,7 +12,7 @@ interface PinnedSelectionListProps {
     items: PinnedItem[];
     onRemove: (id: string) => void;
     icon: LucideIcon;
-    colorTheme?: 'purple' | 'blue' | 'green' | 'red' | 'yellow';
+    colorTheme?: 'purple' | 'blue' | 'green' | 'red' | 'yellow' | 'orange';
     title?: string;
 }
 
@@ -76,6 +76,16 @@ export const PinnedSelectionList: React.FC<PinnedSelectionListProps> = ({
             iconBorder: 'border-amber-100',
             text: 'text-amber-900',
             removeText: 'text-amber-400',
+        },
+        orange: {
+            check: 'text-orange-500',
+            bg: 'bg-orange-50',
+            border: 'border-orange-200',
+            iconBg: 'bg-white',
+            iconText: 'text-orange-600',
+            iconBorder: 'border-orange-100',
+            text: 'text-orange-900',
+            removeText: 'text-orange-400',
         }
     }[colorTheme];
 

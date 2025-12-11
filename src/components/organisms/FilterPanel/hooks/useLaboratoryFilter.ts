@@ -1,5 +1,5 @@
 // src/components/organisms/FilterPanel/hooks/useLaboratoryFilter.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { SelectedLaboratory } from '@/types/filters';
 
@@ -35,7 +35,6 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
 
     const [results, setResults] = useState<Laboratory[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     // Temporary selection state
     const [selectedMap, setSelectedMap] = useState<Map<string, SelectedLaboratory>>(new Map());
@@ -51,10 +50,11 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
 
     // Search Effect - Triggered on Mount (empty query) AND on query change
     useEffect(() => {
+        const controller = new AbortController();
+
         const fetchLaboratories = async () => {
             // No minimum length check anymore for default list
             setIsLoading(true);
-            setError(null);
 
             try {
                 const response = await fetch('/api/laboratories/search', {
@@ -65,6 +65,7 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
                         mode: searchMode,
                         labOrBrandMode: labOrBrandMode
                     }),
+                    signal: controller.signal // 👈 Add AbortSignal
                 });
 
                 if (!response.ok) throw new Error('Erreur réseau');
@@ -72,15 +73,23 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
                 const data: SearchResponse = await response.json();
                 setResults(data.laboratories);
             } catch (err) {
+                // Ignore AbortError - it's expected when query changes
+                if ((err as Error).name === 'AbortError') {
+                    return;
+                }
                 console.error('Error fetching laboratories:', err);
-                setError('Erreur lors de la recherche');
             } finally {
                 setIsLoading(false);
             }
         };
 
         const timeoutId = setTimeout(fetchLaboratories, 300);
-        return () => clearTimeout(timeoutId);
+
+        // Cleanup: cancel timeout and abort ongoing request
+        return () => {
+            clearTimeout(timeoutId);
+            controller.abort();
+        };
     }, [searchQuery, searchMode, labOrBrandMode]);
 
     // Handlers
@@ -92,8 +101,7 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
             } else {
                 next.set(lab.laboratory_name, {
                     id: lab.laboratory_name,
-                    name: lab.laboratory_name,
-                    productCodes: lab.product_codes
+                    name: lab.laboratory_name
                 });
             }
             return next;

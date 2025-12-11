@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFilterStore } from '@/stores/useFilterStore';
 
-interface Product {
+export interface Product {
     code_13_ref: string;
     name: string;
     brand_lab: string | null;
@@ -11,63 +11,110 @@ interface Product {
     all_codes: string[]; // All codes with same bcb_product_id
 }
 
-interface SearchResponse {
+export interface ProductSelection {
+    code: string;
+    name: string;
+    bcb_product_id: number;
+}
+
+export interface SearchResponse {
     products: Product[];
-    count: number;
+    total: number;
 }
 
 export const useProductFilter = (onClose?: () => void) => {
-    const { products: storedProducts, setProducts: setStoredProducts, setTvaRates } = useFilterStore();
+    const {
+        products: storedProducts,
+        setProducts: setStoredProducts,
+        setTvaRates,
+        setReimbursementStatus: setStoredReimbursementStatus,
+        setIsGeneric: setStoredIsGeneric,
+        settings,
+        // Rename store setters to avoid collision with local state setters
+        setPurchasePriceNetRange: setStoredPurchasePriceNetRange,
+        setPurchasePriceGrossRange: setStoredPurchasePriceGrossRange,
+        setSellPriceRange: setStoredSellPriceRange,
+        setDiscountRange: setStoredDiscountRange,
+        setMarginRange: setStoredMarginRange
+    } = useFilterStore();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [results, setResults] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [isTvaLoading, setIsTvaLoading] = useState(false);
     // Store by bcb_product_id to avoid duplicates in pinned list
-    const [selectedMap, setSelectedMap] = useState<Map<string, { bcb_product_id: string; name: string; all_codes: string[] }>>(new Map());
-    // TVA filter state
+    const [selectedMap, setSelectedMap] = useState<Map<string, { code: string; name: string; bcb_product_id: number }>>(new Map());
+
+    // Attribute filters local state
     const [selectedTvaRates, setSelectedTvaRates] = useState<number[]>([]);
 
-    // Initialize with stored products (group by bcb_product_id)
-    useEffect(() => {
-        const initialMap = new Map<string, { bcb_product_id: string; name: string; all_codes: string[] }>();
+    // --- Reimbursement Status Local State ---
+    const [reimbursementStatus, setReimbursementStatus] = useState<'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED'>(
+        settings.reimbursementStatus
+    );
 
-        // Group stored products by bcb_product_id
-        const groupedByBcbId: Record<string, { name: string; codes: string[] }> = {};
+    // --- Generic Status Local State ---
+    const [isGeneric, setIsGeneric] = useState<boolean | undefined>(settings.isGeneric);
+
+    // --- Price Ranges Local State ---
+    const [purchasePriceNetRange, setPurchasePriceNetRange] = useState<[number, number]>(
+        settings.purchasePriceNetRange ? [settings.purchasePriceNetRange.min, settings.purchasePriceNetRange.max] : [0, 100000]
+    );
+    const [purchasePriceGrossRange, setPurchasePriceGrossRange] = useState<[number, number]>(
+        settings.purchasePriceGrossRange ? [settings.purchasePriceGrossRange.min, settings.purchasePriceGrossRange.max] : [0, 100000]
+    );
+    const [sellPriceRange, setSellPriceRange] = useState<[number, number]>(
+        settings.sellPriceRange ? [settings.sellPriceRange.min, settings.sellPriceRange.max] : [0, 100000]
+    );
+    const [discountRange, setDiscountRange] = useState<[number, number]>(
+        settings.discountRange ? [settings.discountRange.min, settings.discountRange.max] : [0, 100]
+    );
+    const [marginRange, setMarginRange] = useState<[number, number]>(
+        settings.marginRange ? [settings.marginRange.min, settings.marginRange.max] : [0, 100]
+    );
+
+    // Initialize logic
+    useEffect(() => {
+        const initialMap = new Map<string, { code: string; name: string; bcb_product_id: number }>();
+        const groupedByBcbId: Record<string, { name: string; code: string; bcb_product_id: number }> = {};
 
         storedProducts.forEach(product => {
-            const bcbId = product.bcb_product_id?.toString() || product.code;
-
-            if (!groupedByBcbId[bcbId]) {
+            const bcbId = product.bcb_product_id?.toString();
+            if (bcbId) {
                 groupedByBcbId[bcbId] = {
                     name: product.name,
-                    codes: []
+                    code: product.code, // Expecting 'code' from ProductSelection
+                    bcb_product_id: parseInt(bcbId)
                 };
             }
-            groupedByBcbId[bcbId].codes.push(product.code);
         });
 
-        // Convert to Map
         Object.entries(groupedByBcbId).forEach(([bcbId, data]) => {
-            initialMap.set(bcbId, {
-                bcb_product_id: bcbId,
-                name: data.name,
-                all_codes: data.codes
-            });
+            initialMap.set(bcbId, data);
         });
 
         setSelectedMap(initialMap);
     }, [storedProducts]);
 
-    // Fetch products on mount (default 50) and on search
     useEffect(() => {
+        if (settings) {
+            setSelectedTvaRates(settings.tvaRates);
+            // Re-sync local state if settings change, e.g. from reset
+            // Note: usually validation logic is simpler, but this works
+        }
+    }, [settings]);
+
+    // Fetch products with AbortController
+    useEffect(() => {
+        const controller = new AbortController();
+
         const fetchProducts = async () => {
             setIsLoading(true);
             try {
                 const response = await fetch('/api/products/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: searchQuery })
+                    body: JSON.stringify({ query: searchQuery }),
+                    signal: controller.signal // 👈 Add AbortSignal
                 });
 
                 if (!response.ok) throw new Error('Failed to fetch products');
@@ -75,6 +122,10 @@ export const useProductFilter = (onClose?: () => void) => {
                 const data: SearchResponse = await response.json();
                 setResults(data.products);
             } catch (error) {
+                // Ignore AbortError - it's expected when query changes
+                if ((error as Error).name === 'AbortError') {
+                    return;
+                }
                 console.error('Error fetching products:', error);
                 setResults([]);
             } finally {
@@ -82,42 +133,34 @@ export const useProductFilter = (onClose?: () => void) => {
             }
         };
 
-        // Debounce search
         const timeoutId = setTimeout(() => {
             fetchProducts();
         }, 300);
 
-        return () => clearTimeout(timeoutId);
+        // Cleanup: cancel timeout and abort ongoing request
+        return () => {
+            clearTimeout(timeoutId);
+            controller.abort();
+        };
     }, [searchQuery]);
 
-    // When selecting a product, add ALL codes with the same bcb_product_id
-    // Store by bcb_product_id to avoid duplicates
+    // Handlers
     const handleToggle = useCallback((product: Product) => {
-        console.log('[Product Toggle] Toggling product:', product.bcb_product_id, product.name);
-
         setSelectedMap(prev => {
             const newMap = new Map(prev);
             const key = product.bcb_product_id;
-
-            // Check if this bcb_product_id is already selected
             if (newMap.has(key)) {
-                console.log('[Product Toggle] Removing product:', key);
-                // Remove this product group
                 newMap.delete(key);
             } else {
-                console.log('[Product Toggle] Adding product:', key, 'with', product.all_codes.length, 'codes');
-                // Add this product group with all its codes
                 newMap.set(key, {
-                    bcb_product_id: product.bcb_product_id,
+                    bcb_product_id: parseInt(product.bcb_product_id),
                     name: product.name,
-                    all_codes: product.all_codes
+                    code: product.code_13_ref
                 });
             }
-
-            console.log('[Product Toggle] New selectedMap size:', newMap.size);
             return newMap;
         });
-    }, []); // Empty deps - we use prev state
+    }, []);
 
     const handleRemoveSelection = useCallback((bcb_product_id: string) => {
         setSelectedMap(prev => {
@@ -127,120 +170,65 @@ export const useProductFilter = (onClose?: () => void) => {
         });
     }, []);
 
-    // Select all displayed products (with all their codes)
     const handleSelectAll = useCallback(() => {
         setSelectedMap(prev => {
             const newMap = new Map(prev);
             results.forEach(product => {
-                newMap.set(product.bcb_product_id, {
-                    bcb_product_id: product.bcb_product_id,
+                const key = product.bcb_product_id;
+                newMap.set(key, {
+                    bcb_product_id: parseInt(product.bcb_product_id),
                     name: product.name,
-                    all_codes: product.all_codes
+                    code: product.code_13_ref
                 });
             });
             return newMap;
         });
     }, [results]);
 
-    const handleApply = useCallback(() => {
-        // Flatten all codes from all selected product groups
-        const allSelectedCodes: { code: string; name: string; bcb_product_id?: number }[] = [];
-        selectedMap.forEach(productGroup => {
-            productGroup.all_codes.forEach(code => {
-                allSelectedCodes.push({
-                    code,
-                    name: productGroup.name,
-                    bcb_product_id: parseInt(productGroup.bcb_product_id)
-                });
-            });
-        });
-        setStoredProducts(allSelectedCodes);
-
-        // Save TVA rates to store
-        if (selectedTvaRates.length > 0) {
-            setTvaRates(selectedTvaRates);
-        }
-
-        if (onClose) onClose();
-    }, [selectedMap, setStoredProducts, selectedTvaRates, setTvaRates, onClose]);
-
     const handleClearAll = useCallback(() => {
         setSelectedMap(new Map());
     }, []);
 
-    // Check if a product is selected by its bcb_product_id
     const isProductSelected = useCallback((bcb_product_id: string) => {
         return selectedMap.has(bcb_product_id);
     }, [selectedMap]);
 
-    // TVA Filter handlers - Auto-apply on toggle
-    const handleToggleTva = useCallback(async (rate: number) => {
-        console.log('[TVA Filter] Toggle TVA rate:', rate);
-        console.log('[TVA Filter] Current selectedTvaRates:', selectedTvaRates);
+    const handleToggleTva = useCallback((rate: number) => {
+        setSelectedTvaRates(prev =>
+            prev.includes(rate) ? prev.filter(r => r !== rate) : [...prev, rate]
+        );
+    }, []);
 
-        const newRates = selectedTvaRates.includes(rate)
-            ? selectedTvaRates.filter(r => r !== rate)
-            : [...selectedTvaRates, rate];
+    const handleToggleReimbursement = useCallback((status: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED') => {
+        setReimbursementStatus(status);
+    }, []);
 
-        console.log('[TVA Filter] New selectedTvaRates:', newRates);
-        setSelectedTvaRates(newRates);
+    const handleApply = useCallback(() => {
+        // Flatten selections
+        const allSelectedCodes: ProductSelection[] = [];
+        selectedMap.forEach(productGroup => {
+            allSelectedCodes.push({
+                code: productGroup.code,
+                name: productGroup.name,
+                bcb_product_id: productGroup.bcb_product_id
+            });
+        });
+        setStoredProducts(allSelectedCodes);
 
-        // If adding a rate, fetch and add products immediately
-        if (!selectedTvaRates.includes(rate)) {
-            console.log('[TVA Filter] Fetching products for TVA:', rate);
-            setIsTvaLoading(true);
-            try {
-                const response = await fetch('/api/products/by-tva', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tvaRates: [rate] })
-                });
+        // Save attribute filters to store
+        setTvaRates(selectedTvaRates);
+        setStoredReimbursementStatus(reimbursementStatus);
+        setStoredIsGeneric(isGeneric);
 
-                if (!response.ok) {
-                    console.error('[TVA Filter] API error:', response.status, response.statusText);
-                    throw new Error('Failed to fetch products by TVA');
-                }
+        // Save Price Ranges to store
+        setStoredPurchasePriceNetRange({ min: purchasePriceNetRange[0], max: purchasePriceNetRange[1] });
+        setStoredPurchasePriceGrossRange({ min: purchasePriceGrossRange[0], max: purchasePriceGrossRange[1] });
+        setStoredSellPriceRange({ min: sellPriceRange[0], max: sellPriceRange[1] });
+        setStoredDiscountRange({ min: discountRange[0], max: discountRange[1] });
+        setStoredMarginRange({ min: marginRange[0], max: marginRange[1] });
 
-                const data: SearchResponse = await response.json();
-                console.log('[TVA Filter] Received products:', data.products.length);
-
-                // Add products to selection (cumulative)
-                setSelectedMap(prev => {
-                    const newMap = new Map(prev);
-                    console.log('[TVA Filter] Current selectedMap size:', prev.size);
-
-                    data.products.forEach(product => {
-                        if (!newMap.has(product.bcb_product_id)) {
-                            console.log('[TVA Filter] Adding product:', product.bcb_product_id, product.name);
-                            newMap.set(product.bcb_product_id, {
-                                bcb_product_id: product.bcb_product_id,
-                                name: product.name,
-                                all_codes: product.all_codes
-                            });
-                        } else {
-                            console.log('[TVA Filter] Product already exists:', product.bcb_product_id);
-                        }
-                    });
-
-                    console.log('[TVA Filter] New selectedMap size:', newMap.size);
-                    return newMap;
-                });
-
-                // Update store with selected TVA rates
-                setTvaRates(newRates);
-                console.log('[TVA Filter] Updated store with TVA rates:', newRates);
-
-            } catch (error) {
-                console.error('[TVA Filter] Error fetching products by TVA:', error);
-            } finally {
-                setIsTvaLoading(false);
-            }
-        } else {
-            console.log('[TVA Filter] Removing TVA rate, just updating store');
-            // If removing a rate, just update the store
-            setTvaRates(newRates);
-        }
-    }, [selectedTvaRates, setTvaRates]);
+        if (onClose) onClose();
+    }, [selectedMap, setStoredProducts, selectedTvaRates, reimbursementStatus, isGeneric, setTvaRates, setStoredReimbursementStatus, setStoredIsGeneric, purchasePriceNetRange, purchasePriceGrossRange, sellPriceRange, discountRange, marginRange, setStoredPurchasePriceNetRange, setStoredPurchasePriceGrossRange, setStoredSellPriceRange, setStoredDiscountRange, setStoredMarginRange, onClose]);
 
     return {
         searchQuery,
@@ -254,9 +242,16 @@ export const useProductFilter = (onClose?: () => void) => {
         handleClearAll,
         handleSelectAll,
         isProductSelected,
-        // TVA filter
         selectedTvaRates,
         handleToggleTva,
-        isTvaLoading
+        reimbursementStatus,
+        handleToggleReimbursement,
+        isGeneric,
+        setIsGeneric,
+        purchasePriceNetRange, setPurchasePriceNetRange,
+        purchasePriceGrossRange, setPurchasePriceGrossRange,
+        sellPriceRange, setSellPriceRange,
+        discountRange, setDiscountRange,
+        marginRange, setMarginRange
     };
 };

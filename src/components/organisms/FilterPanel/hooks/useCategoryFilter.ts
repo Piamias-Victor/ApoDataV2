@@ -23,7 +23,6 @@ export const useCategoryFilter = (onClose?: () => void) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [results, setResults] = useState<CategoryResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     // Temporary selection state
     // We use a Map keyed by "type:name" to ensure uniqueness across hierarchy levels
@@ -41,11 +40,12 @@ export const useCategoryFilter = (onClose?: () => void) => {
         setSelectedMap(initialMap);
     }, [storedCategories]);
 
-    // Search Effect - Triggered on Mount (empty query) AND on query change
+    // Search Effect with AbortController
     useEffect(() => {
+        const controller = new AbortController();
+
         const fetchCategories = async () => {
             setIsLoading(true);
-            setError(null);
 
             try {
                 const response = await fetch('/api/categories/search', {
@@ -54,6 +54,7 @@ export const useCategoryFilter = (onClose?: () => void) => {
                     body: JSON.stringify({
                         query: searchQuery.trim(),
                     }),
+                    signal: controller.signal // 👈 Add AbortSignal
                 });
 
                 if (!response.ok) throw new Error('Erreur réseau');
@@ -61,15 +62,23 @@ export const useCategoryFilter = (onClose?: () => void) => {
                 const data: SearchResponse = await response.json();
                 setResults(data.categories);
             } catch (err) {
+                // Ignore AbortError - it's expected when query changes
+                if ((err as Error).name === 'AbortError') {
+                    return;
+                }
                 console.error('Error fetching categories:', err);
-                setError('Erreur lors de la recherche');
             } finally {
                 setIsLoading(false);
             }
         };
 
         const timeoutId = setTimeout(fetchCategories, 300);
-        return () => clearTimeout(timeoutId);
+
+        // Cleanup: cancel timeout and abort ongoing request
+        return () => {
+            clearTimeout(timeoutId);
+            controller.abort();
+        };
     }, [searchQuery]);
 
     // Handlers
@@ -82,9 +91,9 @@ export const useCategoryFilter = (onClose?: () => void) => {
                 next.delete(key);
             } else {
                 next.set(key, {
+                    id: key,
                     name: cat.category_name,
-                    type: cat.category_type,
-                    productCodes: cat.product_codes
+                    type: cat.category_type
                 });
             }
             return next;

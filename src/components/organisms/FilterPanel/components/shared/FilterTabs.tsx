@@ -19,6 +19,10 @@ export const FilterTabs = <T extends string>({ tabs, activeTab, onTabChange }: F
 
     // Calculate position for the sliding background based on active index
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
+    const tabCount = tabs.length;
+    const tabWidthPercent = 100 / tabCount;
+    const leftPosition = `calc(${activeIndex * tabWidthPercent}% + 4px)`;
+    const widthCalc = `calc(${tabWidthPercent}% - 8px)`;
     // Correction: It's better to let framer motion handle layout animations if possible, 
     // but the 'left' percentage trick is reliable for simple segmented controls.
     // For 2 tabs: 0 -> 4px, 1 -> 50%
@@ -34,8 +38,8 @@ export const FilterTabs = <T extends string>({ tabs, activeTab, onTabChange }: F
             <motion.div
                 className="absolute inset-y-1 bg-white rounded-lg shadow-sm"
                 initial={false}
-                animate={{ left: activeIndex === 0 ? '4px' : '50%' }} // Hardcoded for 2 tabs for now to match exact pixel perfect previous behavior
-                style={{ width: 'calc(50% - 6px)' }}
+                animate={{ left: leftPosition }}
+                style={{ width: widthCalc }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
             />
             {tabs.map((tab) => {

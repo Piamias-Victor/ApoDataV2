@@ -45,7 +45,7 @@ export const usePharmacyFilter = (onClose?: () => void) => {
             try {
                 const payload: any = {};
                 if (activeTab === 'search') {
-                    payload.query = searchQuery;
+                    payload.query = searchQuery.trim();
                 } else {
                     payload.regions = selectedRegions;
                     payload.minCa = caRange[0];
@@ -55,20 +55,32 @@ export const usePharmacyFilter = (onClose?: () => void) => {
                 const response = await fetch('/api/pharmacies/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: controller.signal // 👈 Add AbortSignal
                 });
+
+                if (!response.ok) throw new Error('Erreur réseau');
+
                 const data = await response.json();
-                if (data.pharmacies) {
-                    setPharmaciesList(data.pharmacies);
+                setPharmaciesList(data.pharmacies || []);
+            } catch (err) {
+                // Ignore AbortError - it's expected when query changes
+                if ((err as Error).name === 'AbortError') {
+                    return;
                 }
-            } catch (error) {
-                console.error('Failed to fetch pharmacies', error);
+                console.error('Error fetching pharmacies:', err);
             } finally {
                 setIsLoading(false);
             }
         };
-        const timeoutId = setTimeout(fetchPharmacies, 500);
-        return () => clearTimeout(timeoutId);
+
+        const timeoutId = setTimeout(fetchPharmacies, 300);
+
+        // Cleanup: cancel timeout and abort ongoing request
+        return () => {
+            clearTimeout(timeoutId);
+            controller.abort();
+        };
     }, [activeTab, searchQuery, selectedRegions, caRange]);
 
     // Actions
