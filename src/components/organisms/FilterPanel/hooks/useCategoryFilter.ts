@@ -34,7 +34,7 @@ export const useCategoryFilter = (onClose?: () => void) => {
     // Initialize selectedMap from store
     useEffect(() => {
         const initialMap = new Map<string, SelectedCategory>();
-        storedCategories.forEach(cat => {
+        storedCategories.forEach((cat: SelectedCategory) => {
             initialMap.set(getCategoryKey(cat.type, cat.name), cat);
         });
         setSelectedMap(initialMap);
@@ -117,6 +117,21 @@ export const useCategoryFilter = (onClose?: () => void) => {
         setSelectedMap(new Map());
     };
 
+    const handleSelectAll = () => {
+        setSelectedMap(prev => {
+            const next = new Map(prev);
+            results.forEach(cat => {
+                const key = getCategoryKey(cat.category_type, cat.category_name);
+                next.set(key, {
+                    id: key,
+                    name: cat.category_name,
+                    type: cat.category_type
+                });
+            });
+            return next;
+        });
+    };
+
     return {
         searchQuery, setSearchQuery,
         results,
@@ -126,6 +141,7 @@ export const useCategoryFilter = (onClose?: () => void) => {
         handleRemoveSelection,
         handleApply,
         handleClearAll,
+        handleSelectAll,
         getCategoryKey
     };
 };

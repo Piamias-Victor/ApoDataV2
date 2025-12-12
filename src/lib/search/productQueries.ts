@@ -1,140 +1,57 @@
 // src/lib/search/productQueries.ts
 
 /**
- * Product Search Query Helpers
- * Supports three search modes:
- * 1. Name search (letters): LOWER(name) LIKE LOWER($1)
- * 2. Code search (numbers): code_13_ref LIKE $1% (starts with)
- * 3. Wildcard search (*): code_13_ref LIKE %$1 (ends with)
- * 
- * DEDUPLICATION: Groups by bcb_product_id and keeps the longest code (EAN13 > CIP7)
+ * Helper to build product queries with deduplication logic
  */
+function buildProductQuery(
+    isUserScope: boolean,
+    whereConditions: string[],
+    params: any[]
+) {
+    // Determine table alias and column prefix
+    const prefix = isUserScope ? 'dgp.' : '';
 
-export const getAdminProductQuery = (searchQuery: string, isWildcard: boolean, isCodeSearch: boolean) => {
-    // Default: Return 50 products
-    if (!searchQuery) {
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        code_13_ref,
-                        name,
-                        brand_lab,
-                        bcb_segment_l0 as universe,
-                        bcb_product_id,
-                        LENGTH(code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY bcb_product_id 
-                            ORDER BY LENGTH(code_13_ref) DESC, code_13_ref DESC
-                        ) as rn
-                    FROM data_globalproduct
-                    WHERE code_13_ref IS NOT NULL
-                      AND bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: []
-        };
+    // Base FROM clause
+    const fromClause = isUserScope
+        ? `FROM data_internalproduct dip
+           INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref`
+        : `FROM data_globalproduct`;
+
+    // Add base constraints (ensure product link exists)
+    const constraints = [
+        ...whereConditions,
+        `${prefix}bcb_product_id IS NOT NULL`
+    ];
+
+    // For Admin: ensure code is not null if no specific search
+    if (!isUserScope && whereConditions.length === 0) {
+        constraints.push('code_13_ref IS NOT NULL');
     }
 
-    // Wildcard search: ends with
-    if (isWildcard) {
-        const cleanQuery = searchQuery.replace('*', '');
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        code_13_ref,
-                        name,
-                        brand_lab,
-                        bcb_segment_l0 as universe,
-                        bcb_product_id,
-                        LENGTH(code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY bcb_product_id 
-                            ORDER BY LENGTH(code_13_ref) DESC, code_13_ref DESC
-                        ) as rn
-                    FROM data_globalproduct
-                    WHERE code_13_ref LIKE $1
-                      AND bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: [`%${cleanQuery}`]
-        };
-    }
+    const whereClause = constraints.length > 0 ? `WHERE ${constraints.join(' AND ')}` : '';
 
-    // Code search: starts with
-    if (isCodeSearch) {
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        code_13_ref,
-                        name,
-                        brand_lab,
-                        bcb_segment_l0 as universe,
-                        bcb_product_id,
-                        LENGTH(code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY bcb_product_id 
-                            ORDER BY LENGTH(code_13_ref) DESC, code_13_ref DESC
-                        ) as rn
-                    FROM data_globalproduct
-                    WHERE code_13_ref LIKE $1
-                      AND bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: [`${searchQuery}%`]
-        };
-    }
+    const selectCols = `
+        ${prefix}code_13_ref,
+        ${prefix}name,
+        ${prefix}brand_lab,
+        ${prefix}bcb_segment_l0 as universe,
+        ${prefix}bcb_product_id
+    `;
 
-    // Name search
+    const codeRef = `${prefix}code_13_ref`;
+
     return {
         text: `
             WITH ranked_products AS (
                 SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    bcb_segment_l0 as universe,
-                    bcb_product_id,
-                    LENGTH(code_13_ref) as code_length,
+                    ${selectCols},
+                    LENGTH(${codeRef}) as code_length,
                     ROW_NUMBER() OVER (
-                        PARTITION BY bcb_product_id 
-                        ORDER BY LENGTH(code_13_ref) DESC, code_13_ref DESC
+                        PARTITION BY ${prefix}bcb_product_id 
+                        ORDER BY LENGTH(${codeRef}) DESC, ${codeRef} DESC
                     ) as rn
-                FROM data_globalproduct
-                WHERE LOWER(name) LIKE LOWER($1)
-                  AND bcb_product_id IS NOT NULL
+                ${fromClause}
+                ${whereClause}
             )
             SELECT 
                 code_13_ref,
@@ -147,8 +64,24 @@ export const getAdminProductQuery = (searchQuery: string, isWildcard: boolean, i
             ORDER BY name ASC
             LIMIT 50
         `,
-        params: [`%${searchQuery}%`]
+        params
     };
+}
+
+export const getAdminProductQuery = (searchQuery: string, isWildcard: boolean, isCodeSearch: boolean) => {
+    if (!searchQuery) return buildProductQuery(false, [], []);
+
+    if (isWildcard) {
+        const cleanQuery = searchQuery.replace(/\*/g, '');
+        return buildProductQuery(false, ['code_13_ref LIKE $1'], [`%${cleanQuery}`]);
+    }
+
+    if (isCodeSearch) {
+        return buildProductQuery(false, ['code_13_ref LIKE $1'], [`${searchQuery}%`]);
+    }
+
+    // Name search
+    return buildProductQuery(false, ['LOWER(name) LIKE LOWER($1)'], [`%${searchQuery}%`]);
 };
 
 export const getUserProductQuery = (
@@ -157,149 +90,32 @@ export const getUserProductQuery = (
     isCodeSearch: boolean,
     pharmacyId: string
 ) => {
-    // Default: Return 50 products for this pharmacy
-    if (!searchQuery) {
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        dgp.code_13_ref,
-                        dgp.name,
-                        dgp.brand_lab,
-                        dgp.bcb_segment_l0 as universe,
-                        dgp.bcb_product_id,
-                        LENGTH(dgp.code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY dgp.bcb_product_id 
-                            ORDER BY LENGTH(dgp.code_13_ref) DESC, dgp.code_13_ref DESC
-                        ) as rn
-                    FROM data_internalproduct dip
-                    INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
-                    WHERE dip.pharmacy_id = $1
-                      AND dgp.bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: [pharmacyId]
-        };
-    }
+    // User scope always filters by pharmacy
+    const baseCondition = 'dip.pharmacy_id = $1';
 
-    // Wildcard search: ends with
+    if (!searchQuery) return buildProductQuery(true, [baseCondition], [pharmacyId]);
+
     if (isWildcard) {
-        const cleanQuery = searchQuery.replace('*', '');
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        dgp.code_13_ref,
-                        dgp.name,
-                        dgp.brand_lab,
-                        dgp.bcb_segment_l0 as universe,
-                        dgp.bcb_product_id,
-                        LENGTH(dgp.code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY dgp.bcb_product_id 
-                            ORDER BY LENGTH(dgp.code_13_ref) DESC, dgp.code_13_ref DESC
-                        ) as rn
-                    FROM data_internalproduct dip
-                    INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
-                    WHERE dip.pharmacy_id = $1
-                      AND dgp.code_13_ref LIKE $2
-                      AND dgp.bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: [pharmacyId, `%${cleanQuery}`]
-        };
+        const cleanQuery = searchQuery.replace(/\*/g, '');
+        return buildProductQuery(
+            true,
+            [baseCondition, 'dgp.code_13_ref LIKE $2'],
+            [pharmacyId, `%${cleanQuery}`]
+        );
     }
 
-    // Code search: starts with
     if (isCodeSearch) {
-        return {
-            text: `
-                WITH ranked_products AS (
-                    SELECT 
-                        dgp.code_13_ref,
-                        dgp.name,
-                        dgp.brand_lab,
-                        dgp.bcb_segment_l0 as universe,
-                        dgp.bcb_product_id,
-                        LENGTH(dgp.code_13_ref) as code_length,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY dgp.bcb_product_id 
-                            ORDER BY LENGTH(dgp.code_13_ref) DESC, dgp.code_13_ref DESC
-                        ) as rn
-                    FROM data_internalproduct dip
-                    INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
-                    WHERE dip.pharmacy_id = $1
-                      AND dgp.code_13_ref LIKE $2
-                      AND dgp.bcb_product_id IS NOT NULL
-                )
-                SELECT 
-                    code_13_ref,
-                    name,
-                    brand_lab,
-                    universe,
-                    bcb_product_id
-                FROM ranked_products
-                WHERE rn = 1
-                ORDER BY name ASC
-                LIMIT 50
-            `,
-            params: [pharmacyId, `${searchQuery}%`]
-        };
+        return buildProductQuery(
+            true,
+            [baseCondition, 'dgp.code_13_ref LIKE $2'],
+            [pharmacyId, `${searchQuery}%`]
+        );
     }
 
     // Name search
-    return {
-        text: `
-            WITH ranked_products AS (
-                SELECT 
-                    dgp.code_13_ref,
-                    dgp.name,
-                    dgp.brand_lab,
-                    dgp.bcb_segment_l0 as universe,
-                    dgp.bcb_product_id,
-                    LENGTH(dgp.code_13_ref) as code_length,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY dgp.bcb_product_id 
-                        ORDER BY LENGTH(dgp.code_13_ref) DESC, dgp.code_13_ref DESC
-                    ) as rn
-                FROM data_internalproduct dip
-                INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
-                WHERE dip.pharmacy_id = $1
-                  AND LOWER(dgp.name) LIKE LOWER($2)
-                  AND dgp.bcb_product_id IS NOT NULL
-            )
-            SELECT 
-                code_13_ref,
-                name,
-                brand_lab,
-                universe,
-                bcb_product_id
-            FROM ranked_products
-            WHERE rn = 1
-            ORDER BY name ASC
-            LIMIT 50
-        `,
-        params: [pharmacyId, `%${searchQuery}%`]
-    };
+    return buildProductQuery(
+        true,
+        [baseCondition, 'LOWER(dgp.name) LIKE LOWER($2)'],
+        [pharmacyId, `%${searchQuery}%`]
+    );
 };

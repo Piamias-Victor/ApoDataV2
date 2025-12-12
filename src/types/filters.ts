@@ -93,3 +93,49 @@ export interface FilterState {
     isFilterOpen: boolean;
     activeDrawer: string | null;
 }
+
+export interface FilterActions {
+    // Setters Scope
+    setProducts: (products: SelectedProduct[]) => void;
+    setLaboratories: (laboratories: SelectedLaboratory[]) => void;
+    setCategories: (categories: SelectedCategory[]) => void;
+    setGroups: (groups: SelectedGroup[]) => void;
+
+    // Setters Attributes
+    setProductType: (type: FilterSettings['productType']) => void;
+    setTvaRates: (rates: number[]) => void;
+    setPriceRange: (range: { min: number; max: number } | null) => void;
+    setIsGeneric: (isGeneric: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS') => void;
+    setLppCodes: (codes: string[]) => void;
+    setRefundCodes: (codes: string[]) => void;
+    setReimbursementStatus: (status: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED') => void;
+
+    // Price Range Setters
+    setPurchasePriceNetRange: (range: { min: number; max: number } | null) => void;
+    setPurchasePriceGrossRange: (range: { min: number; max: number } | null) => void;
+    setSellPriceRange: (range: { min: number; max: number } | null) => void;
+    setDiscountRange: (range: { min: number; max: number } | null) => void;
+    setMarginRange: (range: { min: number; max: number } | null) => void;
+
+    // Setters Target
+    setPharmacies: (pharmacies: SelectedPharmacy[]) => void;
+    setDateRange: (range: DateRange) => void;
+    setComparisonDateRange: (range: DateRange) => void;
+
+    // Filter Operators
+    setFilterOperator: (index: number, operator: 'AND' | 'OR') => void;
+    resetFilterOperators: () => void;
+
+    // Exclusions
+    setExcludedProducts: (products: SelectedProduct[]) => void;
+    setExcludedLaboratories: (laboratories: SelectedLaboratory[]) => void;
+    setExcludedCategories: (categories: SelectedCategory[]) => void;
+    setExcludedPharmacies: (pharmacies: SelectedPharmacy[]) => void;
+    resetExclusions: () => void;
+
+    // Save/Load
+    getFilterState: () => Omit<FilterState, 'isFilterOpen' | 'activeDrawer'>;
+    loadFilterState: (state: Omit<FilterState, 'isFilterOpen' | 'activeDrawer'>) => void;
+
+    resetAll: () => void;
+}

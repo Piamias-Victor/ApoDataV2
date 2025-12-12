@@ -15,7 +15,7 @@ export const LaboratoriesFilterPanel: React.FC<LaboratoriesFilterPanelProps> = (
     const {
         searchQuery, setSearchQuery, labOrBrandMode, setLabOrBrandMode,
         results, isLoading, selectedMap,
-        handleToggle, handleRemoveSelection, handleApply, handleClearAll
+        handleToggle, handleRemoveSelection, handleApply, handleClearAll, handleSelectAll
     } = useLaboratoryFilter(onClose);
 
     // Use results directly
@@ -31,6 +31,7 @@ export const LaboratoriesFilterPanel: React.FC<LaboratoriesFilterPanelProps> = (
                 onSearchChange={setSearchQuery}
                 selectionCount={selectedMap.size}
                 onClearAll={handleClearAll}
+                onSelectAll={handleSelectAll}
             />
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">

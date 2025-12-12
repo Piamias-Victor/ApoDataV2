@@ -14,7 +14,7 @@ interface CategoriesFilterPanelProps { onClose?: () => void; }
 export const CategoriesFilterPanel: React.FC<CategoriesFilterPanelProps> = ({ onClose }) => {
     const {
         searchQuery, setSearchQuery, results, isLoading, selectedMap,
-        handleToggle, handleRemoveSelection, handleApply, handleClearAll
+        handleToggle, handleRemoveSelection, handleApply, handleClearAll, handleSelectAll
     } = useCategoryFilter(onClose);
 
     // Use results directly (don't filter filtered items)
@@ -28,6 +28,7 @@ export const CategoriesFilterPanel: React.FC<CategoriesFilterPanelProps> = ({ on
                 onSearchChange={setSearchQuery}
                 selectionCount={selectedMap.size}
                 onClearAll={handleClearAll}
+                onSelectAll={handleSelectAll}
             />
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">

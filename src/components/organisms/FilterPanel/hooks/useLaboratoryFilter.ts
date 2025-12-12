@@ -125,6 +125,19 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
         setSelectedMap(new Map());
     };
 
+    const handleSelectAll = () => {
+        setSelectedMap(prev => {
+            const next = new Map(prev);
+            results.forEach(lab => {
+                next.set(lab.laboratory_name, {
+                    id: lab.laboratory_name,
+                    name: lab.laboratory_name
+                });
+            });
+            return next;
+        });
+    };
+
     return {
         searchQuery, setSearchQuery,
         labOrBrandMode, setLabOrBrandMode,
@@ -134,6 +147,7 @@ export const useLaboratoryFilter = (onClose?: () => void) => {
         handleToggle,
         handleRemoveSelection,
         handleApply,
-        handleClearAll
+        handleClearAll,
+        handleSelectAll
     };
 };
