@@ -21,6 +21,12 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
         reimbursable: 'mv.is_reimbursable',
         genericStatus: 'mv.bcb_generic_status',
         cat_l1: 'mv.category_name',
+        cat_l0: 'mv.category_name',
+        cat_l2: 'mv.category_name',
+        cat_l3: 'mv.category_name',
+        cat_l4: 'mv.category_name',
+        cat_l5: 'mv.category_name',
+        cat_family: 'mv.category_name',
     });
 
     // Apply Filters

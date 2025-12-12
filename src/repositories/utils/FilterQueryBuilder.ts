@@ -72,7 +72,7 @@ export class FilterQueryBuilder {
             }
         }
 
-        this.cumulativeItemCount += items.length;
+        this.cumulativeItemCount += 1;
     }
 
     // --- Specific Filter Implementations ---

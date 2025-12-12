@@ -11,25 +11,29 @@ export const calculateFilterOperators = (state: FilterState, updatedFields: Part
     let filterCount = 0;
 
     // Count all active filters
-    filterCount += nextState.pharmacies.length;
-    filterCount += nextState.laboratories.length;
-    filterCount += nextState.categories.length;
-    filterCount += nextState.products.length;
-    filterCount += nextState.settings.tvaRates.length;
+    // Count active FILTER GROUPS (not individual items) to match LogicalOperatorFilterPanel logic
+    if (nextState.pharmacies.length > 0) filterCount++;
+    if (nextState.laboratories.length > 0) filterCount++;
+    if (nextState.categories.length > 0) filterCount++;
+    if (nextState.products.length > 0) filterCount++;
+    if (nextState.settings.tvaRates.length > 0) filterCount++;
     if (nextState.settings.reimbursementStatus !== 'ALL') filterCount++;
     if (nextState.settings.isGeneric !== 'ALL') filterCount++;
 
-    // Count price ranges (non-default values)
+    // Price Ranges (bundled as one group)
+    let hasPriceRange = false;
     if (nextState.settings.purchasePriceNetRange &&
-        (nextState.settings.purchasePriceNetRange.min !== 0 || nextState.settings.purchasePriceNetRange.max !== 100000)) filterCount++;
-    if (nextState.settings.purchasePriceGrossRange &&
-        (nextState.settings.purchasePriceGrossRange.min !== 0 || nextState.settings.purchasePriceGrossRange.max !== 100000)) filterCount++;
-    if (nextState.settings.sellPriceRange &&
-        (nextState.settings.sellPriceRange.min !== 0 || nextState.settings.sellPriceRange.max !== 100000)) filterCount++;
-    if (nextState.settings.discountRange &&
-        (nextState.settings.discountRange.min !== 0 || nextState.settings.discountRange.max !== 100)) filterCount++;
-    if (nextState.settings.marginRange &&
-        (nextState.settings.marginRange.min !== 0 || nextState.settings.marginRange.max !== 100)) filterCount++;
+        (nextState.settings.purchasePriceNetRange.min !== 0 || nextState.settings.purchasePriceNetRange.max !== 100000)) hasPriceRange = true;
+    else if (nextState.settings.purchasePriceGrossRange &&
+        (nextState.settings.purchasePriceGrossRange.min !== 0 || nextState.settings.purchasePriceGrossRange.max !== 100000)) hasPriceRange = true;
+    else if (nextState.settings.sellPriceRange &&
+        (nextState.settings.sellPriceRange.min !== 0 || nextState.settings.sellPriceRange.max !== 100000)) hasPriceRange = true;
+    else if (nextState.settings.discountRange &&
+        (nextState.settings.discountRange.min !== 0 || nextState.settings.discountRange.max !== 100)) hasPriceRange = true;
+    else if (nextState.settings.marginRange &&
+        (nextState.settings.marginRange.min !== 0 || nextState.settings.marginRange.max !== 100)) hasPriceRange = true;
+
+    if (hasPriceRange) filterCount++;
 
     const requiredOperators = Math.max(0, filterCount - 1);
     const currentOperators = nextState.filterOperators || [];
