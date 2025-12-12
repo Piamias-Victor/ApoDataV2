@@ -27,6 +27,12 @@ export async function fetchMargeData(request: AchatsKpiRequest): Promise<{ monta
     qb.addCategories(categories);
     qb.addProducts(productCodes);
 
+    // Exclusions
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
     // Settings
     if (request.tvaRates) qb.addTvaRates(request.tvaRates);
     qb.addReimbursementStatus(request.reimbursementStatus);

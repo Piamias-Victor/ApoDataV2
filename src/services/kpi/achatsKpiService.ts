@@ -17,6 +17,10 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
     laboratories: request.laboratories,
     categories: request.categories,
     pharmacyIds: request.pharmacyIds,
+    excludedPharmacyIds: request.excludedPharmacyIds,
+    excludedLaboratories: request.excludedLaboratories,
+    excludedCategories: request.excludedCategories,
+    excludedProductCodes: request.excludedProductCodes,
     filterOperators: request.filterOperators,
     // Settings
     tvaRates: request.tvaRates,
@@ -45,6 +49,10 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
       laboratories: request.laboratories,
       categories: request.categories,
       pharmacyIds: request.pharmacyIds,
+      excludedPharmacyIds: request.excludedPharmacyIds,
+      excludedLaboratories: request.excludedLaboratories,
+      excludedCategories: request.excludedCategories,
+      excludedProductCodes: request.excludedProductCodes,
       filterOperators: request.filterOperators,
       // Settings
       tvaRates: request.tvaRates,

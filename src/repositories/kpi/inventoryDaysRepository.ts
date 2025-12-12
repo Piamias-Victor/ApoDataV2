@@ -36,6 +36,12 @@ export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: 
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     if (request.productCodes) qb.addProducts(request.productCodes);
+
+    // Exclusions
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
     qb.addReimbursementStatus(request.reimbursementStatus);
     qb.addGenericStatus(request.isGeneric);
 

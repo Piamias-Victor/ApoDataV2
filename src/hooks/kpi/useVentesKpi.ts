@@ -25,7 +25,11 @@ export const useVentesKpi = () => {
         categories,
         pharmacies,
         filterOperators, // Retrieve operators from store
-        settings
+        settings,
+        excludedPharmacies,
+        excludedLaboratories,
+        excludedCategories,
+        excludedProducts
     } = useFilterStore();
 
     // Prepare request object
@@ -45,6 +49,13 @@ export const useVentesKpi = () => {
         laboratories: laboratories.map(l => l.name),
         categories: categories.map(c => ({ code: c.name, type: c.type })), // Assuming simplified structure for now or mapping correctly
         pharmacyIds: pharmacies.map(p => p.id),
+
+        // Exclusions
+        excludedPharmacyIds: excludedPharmacies.map(p => p.id),
+        excludedLaboratories: excludedLaboratories.map(l => l.name),
+        excludedCategories: excludedCategories.map(c => ({ code: c.name, type: c.type })),
+        excludedProductCodes: excludedProducts.map(p => p.code),
+
         filterOperators: filterOperators, // Pass operators to API
 
         // Add settings filters

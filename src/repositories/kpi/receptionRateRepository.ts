@@ -31,6 +31,12 @@ export async function fetchReceptionRate(request: AchatsKpiRequest): Promise<num
     build.addCategories(categories);
     if (request.productCodes) build.addProducts(request.productCodes);
 
+    // Exclusions
+    if (request.excludedPharmacyIds) build.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) build.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) build.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) build.addExcludedProducts(request.excludedProductCodes);
+
     build.addReimbursementStatus(request.reimbursementStatus);
     build.addGenericStatus(request.isGeneric);
 

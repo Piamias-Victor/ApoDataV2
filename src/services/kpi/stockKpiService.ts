@@ -15,6 +15,10 @@ export async function getStockKpi(request: AchatsKpiRequest): Promise<StockKpiRe
         laboratories: request.laboratories,
         categories: request.categories,
         pharmacyIds: request.pharmacyIds,
+        excludedPharmacyIds: request.excludedPharmacyIds,
+        excludedLaboratories: request.excludedLaboratories,
+        excludedCategories: request.excludedCategories,
+        excludedProductCodes: request.excludedProductCodes,
         filterOperators: request.filterOperators,
         reimbursementStatus: request.reimbursementStatus,
         isGeneric: request.isGeneric
@@ -36,6 +40,10 @@ export async function getStockKpi(request: AchatsKpiRequest): Promise<StockKpiRe
             laboratories: request.laboratories,
             categories: request.categories,
             pharmacyIds: request.pharmacyIds,
+            excludedPharmacyIds: request.excludedPharmacyIds,
+            excludedLaboratories: request.excludedLaboratories,
+            excludedCategories: request.excludedCategories,
+            excludedProductCodes: request.excludedProductCodes,
             filterOperators: request.filterOperators,
             reimbursementStatus: request.reimbursementStatus,
             isGeneric: request.isGeneric

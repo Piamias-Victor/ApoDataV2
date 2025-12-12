@@ -24,6 +24,12 @@ export async function fetchPriceEvolutionData(request: AchatsKpiRequest): Promis
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     if (request.productCodes) qb.addProducts(request.productCodes);
+
+    // Exclusions
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
     if (request.tvaRates) qb.addTvaRates(request.tvaRates);
     qb.addReimbursementStatus(request.reimbursementStatus);
     qb.addGenericStatus(request.isGeneric);

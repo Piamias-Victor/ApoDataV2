@@ -161,6 +161,64 @@ export class FilterQueryBuilder {
         }
     }
 
+    // --- Exclusion Methods ---
+
+    public addExcludedPharmacies(pharmacyIds: string[]) {
+        this.addFilterGroup(pharmacyIds, (idx) => `${this.mapping.pharmacyId} <> ALL($${idx}::uuid[])`);
+    }
+
+    public addExcludedLaboratories(labs: string[]) {
+        this.addFilterGroup(labs, (idx) => `${this.mapping.laboratory} <> ALL($${idx}::text[])`);
+    }
+
+    public addExcludedProducts(productCodes: string[]) {
+        this.addFilterGroup(productCodes, (idx) => `${this.mapping.productCode} <> ALL($${idx}::text[])`);
+    }
+
+    public addExcludedCategories(categories: { code: string; type: string }[]) {
+        if (categories.length === 0) return;
+
+        const codesByType: Record<string, string[]> = {};
+        categories.forEach(cat => {
+            if (!codesByType[cat.type]) codesByType[cat.type] = [];
+            codesByType[cat.type]!.push(cat.code);
+        });
+
+        const categorySqlParts: string[] = [];
+        const mappingKeys: Record<string, string> = {
+            'bcb_segment_l0': this.mapping.cat_l0,
+            'bcb_segment_l1': this.mapping.cat_l1,
+            'bcb_segment_l2': this.mapping.cat_l2,
+            'bcb_segment_l3': this.mapping.cat_l3,
+            'bcb_segment_l4': this.mapping.cat_l4,
+            'bcb_segment_l5': this.mapping.cat_l5,
+            'bcb_family': this.mapping.cat_family,
+        };
+
+        Object.entries(codesByType).forEach(([type, codes]) => {
+            const column = mappingKeys[type];
+            if (!column) return;
+
+            // Exclusion: col <> ALL(...)
+            categorySqlParts.push(`${column} <> ALL($${this.paramIndex}::text[])`);
+            this.params.push(codes);
+            this.paramIndex++;
+        });
+
+        if (categorySqlParts.length > 0) {
+            // Join with AND because we want to exclude if ANY matches.
+            // i.e., Row must NOT be in Group A AND NOT be in Group B.
+            const categorySql = categorySqlParts.join(' AND ');
+
+            if (this.conditions.length > 0) {
+                // Exclusions are always added with AND to the main query logic
+                this.conditions.push('AND');
+            }
+            this.conditions.push(`(${categorySql})`);
+            this.cumulativeItemCount += categories.length; // Count items but operator is fixed AND
+        }
+    }
+
     public addRangeFilter(
         range: { min: number; max: number } | undefined,
         column: string

@@ -19,6 +19,12 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   qb.addCategories(categories);
   qb.addProducts(productCodes);
 
+  // Exclusions
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
   // Settings
   if (request.tvaRates) qb.addTvaRates(request.tvaRates);
   qb.addReimbursementStatus(request.reimbursementStatus);
@@ -33,6 +39,8 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
 
   // Logic for JOINs
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
+    (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
+    (request.excludedCategories && request.excludedCategories.length > 0) ||
     (request.tvaRates && request.tvaRates.length > 0) ||
     (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
     (request.isGeneric && request.isGeneric !== 'ALL') ||

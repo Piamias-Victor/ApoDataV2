@@ -87,6 +87,7 @@ export interface FilterState {
     excludedProducts: SelectedProduct[];
     excludedLaboratories: SelectedLaboratory[];
     excludedCategories: SelectedCategory[];
+    excludedPharmacies: SelectedPharmacy[]; // Added excludedPharmacies
 
     // 6. View State
     isFilterOpen: boolean;

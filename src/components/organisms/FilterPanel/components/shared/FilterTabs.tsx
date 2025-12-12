@@ -44,14 +44,19 @@ export const FilterTabs = <T extends string>({ tabs, activeTab, onTabChange }: F
             />
             {tabs.map((tab) => {
                 const isActive = tab.id === activeTab;
+                const isCompact = tabs.length > 3;
                 return (
                     <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
-                        className={`flex-1 relative z-10 py-2.5 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${isActive ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                        className={`flex-1 relative z-10 py-2.5 transition-colors flex items-center justify-center gap-1.5 
+                            ${isCompact ? 'text-xs' : 'text-sm'} 
+                            font-bold 
+                            ${isActive ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
-                        <tab.icon className="w-4 h-4" /> {tab.label}
+                        <tab.icon className={`${isCompact ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
+                        <span className="truncate">{tab.label}</span>
                     </button>
                 );
             })}

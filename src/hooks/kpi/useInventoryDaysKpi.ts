@@ -25,7 +25,11 @@ export const useInventoryDaysKpi = () => {
         categories,
         pharmacies,
         filterOperators,
-        settings
+        settings,
+        excludedPharmacies,
+        excludedLaboratories,
+        excludedCategories,
+        excludedProducts
     } = useFilterStore();
 
     const request: AchatsKpiRequest = {
@@ -43,6 +47,13 @@ export const useInventoryDaysKpi = () => {
         laboratories: laboratories.map(l => l.name),
         categories: categories.map(c => ({ code: c.name, type: c.type })),
         pharmacyIds: pharmacies.map(p => p.id),
+
+        // Exclusions
+        excludedPharmacyIds: excludedPharmacies.map(p => p.id),
+        excludedLaboratories: excludedLaboratories.map(l => l.name),
+        excludedCategories: excludedCategories.map(c => ({ code: c.name, type: c.type })),
+        excludedProductCodes: excludedProducts.map(p => p.code),
+
         filterOperators: filterOperators,
         reimbursementStatus: settings.reimbursementStatus,
         isGeneric: settings.isGeneric,

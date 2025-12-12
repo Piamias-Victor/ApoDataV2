@@ -18,6 +18,10 @@ export function useAchatsKpi() {
             laboratories: filterState.laboratories.map(l => l.id),
             categories: filterState.categories.map(c => ({ code: c.id, type: c.type })),
             pharmacies: filterState.pharmacies.map(p => p.id),
+            excludedPharmacies: filterState.excludedPharmacies.map(p => p.id),
+            excludedLaboratories: filterState.excludedLaboratories.map(l => l.id),
+            excludedCategories: filterState.excludedCategories.map(c => ({ code: c.id, type: c.type })),
+            excludedProducts: filterState.excludedProducts.map(p => p.code),
             filterOperators: filterState.filterOperators,
             settings: {
                 tvaRates: filterState.settings.tvaRates,
@@ -58,6 +62,22 @@ export function useAchatsKpi() {
                 }),
                 ...(filterState.pharmacies.length > 0 && {
                     pharmacyIds: filterState.pharmacies.map(p => p.id)
+                }),
+                // Exclusions
+                ...(filterState.excludedPharmacies.length > 0 && {
+                    excludedPharmacyIds: filterState.excludedPharmacies.map(p => p.id)
+                }),
+                ...(filterState.excludedLaboratories.length > 0 && {
+                    excludedLaboratories: filterState.excludedLaboratories.map(l => l.id)
+                }),
+                ...(filterState.excludedCategories.length > 0 && {
+                    excludedCategories: filterState.excludedCategories.map(c => ({
+                        code: c.id.includes(':') ? c.id.split(':')[1] : c.id,
+                        type: c.type
+                    }))
+                }),
+                ...(filterState.excludedProducts.length > 0 && {
+                    excludedProductCodes: filterState.excludedProducts.map(p => p.code)
                 }),
                 // Settings Filters
                 ...(filterState.settings.tvaRates.length > 0 && {

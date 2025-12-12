@@ -39,6 +39,7 @@ interface FilterActions {
     setExcludedProducts: (products: SelectedProduct[]) => void;
     setExcludedLaboratories: (laboratories: SelectedLaboratory[]) => void;
     setExcludedCategories: (categories: SelectedCategory[]) => void;
+    setExcludedPharmacies: (pharmacies: SelectedPharmacy[]) => void;
     resetExclusions: () => void;
 
     // Save/Load
@@ -79,6 +80,7 @@ const initialState: FilterState = {
     excludedProducts: [],
     excludedLaboratories: [],
     excludedCategories: [],
+    excludedPharmacies: [],
     // View state
     isFilterOpen: false,
     activeDrawer: null,
@@ -211,10 +213,12 @@ export const useFilterStore = create<FilterState & FilterActions>()(
                 setExcludedProducts: (excludedProducts) => set({ excludedProducts }),
                 setExcludedLaboratories: (excludedLaboratories) => set({ excludedLaboratories }),
                 setExcludedCategories: (excludedCategories) => set({ excludedCategories }),
+                setExcludedPharmacies: (excludedPharmacies) => set({ excludedPharmacies }),
                 resetExclusions: () => set({
                     excludedProducts: [],
                     excludedLaboratories: [],
-                    excludedCategories: []
+                    excludedCategories: [],
+                    excludedPharmacies: []
                 }),
 
                 // Save/Load methods
@@ -234,6 +238,7 @@ export const useFilterStore = create<FilterState & FilterActions>()(
                         excludedProducts: state.excludedProducts,
                         excludedLaboratories: state.excludedLaboratories,
                         excludedCategories: state.excludedCategories,
+                        excludedPharmacies: state.excludedPharmacies,
                     };
                 },
                 loadFilterState: (state) => {
