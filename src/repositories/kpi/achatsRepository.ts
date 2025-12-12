@@ -154,11 +154,79 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     }, false);
   }
 
+  // 8. SETTINGS: Purchase Price Net (from Materialized View)
+  // 8. SETTINGS: Purchase Price Net (from Materialized View)
+  if (request.purchasePriceNetRange) {
+    const { min, max } = request.purchasePriceNetRange;
+    addFilterGroup([request.purchasePriceNetRange], (_idx) => {
+      params.push(min);
+      const minParamIdx = paramIndex++;
+      params.push(max);
+      const maxParamIdx = paramIndex++;
+
+      return `lp.weighted_average_price >= $${minParamIdx} AND lp.weighted_average_price <= $${maxParamIdx}`;
+    }, false);
+  }
+
+  // 9. SETTINGS: Gross Purchase Price (from GlobalProduct)
+  if (request.purchasePriceGrossRange) {
+    const { min, max } = request.purchasePriceGrossRange;
+    addFilterGroup([request.purchasePriceGrossRange], (_idx) => {
+      params.push(min);
+      const minParamIdx = paramIndex++;
+      params.push(max);
+      const maxParamIdx = paramIndex++;
+
+      return `gp.prix_achat_ht_fabricant >= $${minParamIdx} AND gp.prix_achat_ht_fabricant <= $${maxParamIdx}`;
+    }, false);
+  }
+
+  // 10. SETTINGS: Sell Price TTC (from Materialized View)
+  if (request.sellPriceRange) {
+    const { min, max } = request.sellPriceRange;
+    addFilterGroup([request.sellPriceRange], (_idx) => {
+      params.push(min);
+      const minParamIdx = paramIndex++;
+      params.push(max);
+      const maxParamIdx = paramIndex++;
+
+      return `lp.price_with_tax >= $${minParamIdx} AND lp.price_with_tax <= $${maxParamIdx}`;
+    }, false);
+  }
+
+  // 11. SETTINGS: Discount Percentage (from Materialized View)
+  if (request.discountRange) {
+    const { min, max } = request.discountRange;
+    addFilterGroup([request.discountRange], (_idx) => {
+      params.push(min);
+      const minParamIdx = paramIndex++;
+      params.push(max);
+      const maxParamIdx = paramIndex++;
+
+      return `lp.discount_percentage >= $${minParamIdx} AND lp.discount_percentage <= $${maxParamIdx}`;
+    }, false);
+  }
+
+  // 12. SETTINGS: Margin Percentage (from Materialized View)
+  if (request.marginRange) {
+    const { min, max } = request.marginRange;
+    addFilterGroup([request.marginRange], (_idx) => {
+      params.push(min);
+      const minParamIdx = paramIndex++;
+      params.push(max);
+      const maxParamIdx = paramIndex++;
+
+      return `lp.margin_percentage >= $${minParamIdx} AND lp.margin_percentage <= $${maxParamIdx}`;
+    }, false);
+  }
+
   // Need GlobalProduct JOIN if filtering by laboratory, category, or settings
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
     (request.tvaRates && request.tvaRates.length > 0) ||
     (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
-    (request.isGeneric && request.isGeneric !== 'ALL');
+    (request.isGeneric && request.isGeneric !== 'ALL') ||
+    (request.purchasePriceGrossRange !== undefined) ||
+    (request.sellPriceRange !== undefined); // Re-added just in case logic changed
 
   // Build WHERE clause
   const dynamicWhereClause = conditions.length > 0
@@ -189,7 +257,12 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     laboratoriesCount: laboratories.length,
     categoriesCount: categories.length,
     pharmacyIdsCount: pharmacyIds.length,
-    operators: filterOperators // logging operators
+    operators: filterOperators,
+    hasPurchasePrice: !!request.purchasePriceNetRange,
+    hasGrossPrice: !!request.purchasePriceGrossRange,
+    hasSellPrice: !!request.sellPriceRange,
+    hasDiscount: !!request.discountRange,
+    hasMargin: !!request.marginRange
   });
 
   try {

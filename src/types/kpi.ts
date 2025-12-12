@@ -17,6 +17,11 @@ export interface AchatsKpiRequest {
     tvaRates?: number[];
     reimbursementStatus?: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED';
     isGeneric?: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS';
+    purchasePriceNetRange?: { min: number; max: number };
+    purchasePriceGrossRange?: { min: number; max: number };
+    sellPriceRange?: { min: number; max: number };
+    discountRange?: { min: number; max: number };
+    marginRange?: { min: number; max: number };
 }
 
 export interface AchatsKpiResponse {

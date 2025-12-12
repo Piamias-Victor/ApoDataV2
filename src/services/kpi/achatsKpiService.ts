@@ -21,7 +21,12 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
     // Settings
     tvaRates: request.tvaRates,
     reimbursementStatus: request.reimbursementStatus,
-    isGeneric: request.isGeneric
+    isGeneric: request.isGeneric,
+    purchasePriceNetRange: request.purchasePriceNetRange,
+    purchasePriceGrossRange: request.purchasePriceGrossRange,
+    sellPriceRange: request.sellPriceRange,
+    discountRange: request.discountRange,
+    marginRange: request.marginRange
   });
 
   // Fetch current period data with cache
@@ -44,7 +49,12 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
       // Settings
       tvaRates: request.tvaRates,
       reimbursementStatus: request.reimbursementStatus,
-      isGeneric: request.isGeneric
+      isGeneric: request.isGeneric,
+      purchasePriceNetRange: request.purchasePriceNetRange,
+      purchasePriceGrossRange: request.purchasePriceGrossRange,
+      sellPriceRange: request.sellPriceRange,
+      discountRange: request.discountRange,
+      marginRange: request.marginRange
     });
 
     // Fetch comparison period data with cache

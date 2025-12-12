@@ -248,7 +248,7 @@ export const useFilterStore = create<FilterState & FilterActions>()(
             };
         },
         {
-            name: 'apodata-filter-store-v3', // Changed version to clear old data
+            name: 'apodata-filter-store-v4', // Changed version to clear old data
             partialize: (state) => {
                 // Optionnel: ne pas persister certaines clés si besoin
                 return state;

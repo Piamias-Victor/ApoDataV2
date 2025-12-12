@@ -22,7 +22,12 @@ export function useAchatsKpi() {
             settings: {
                 tvaRates: filterState.settings.tvaRates,
                 reimbursementStatus: filterState.settings.reimbursementStatus,
-                isGeneric: filterState.settings.isGeneric
+                isGeneric: filterState.settings.isGeneric,
+                purchasePriceNetRange: filterState.settings.purchasePriceNetRange,
+                purchasePriceGrossRange: filterState.settings.purchasePriceGrossRange,
+                sellPriceRange: filterState.settings.sellPriceRange,
+                discountRange: filterState.settings.discountRange,
+                marginRange: filterState.settings.marginRange
             }
         }],
         queryFn: async ({ signal }) => {
@@ -63,6 +68,26 @@ export function useAchatsKpi() {
                 }),
                 ...(filterState.settings.isGeneric !== 'ALL' && {
                     isGeneric: filterState.settings.isGeneric
+                }),
+                ...(filterState.settings.purchasePriceNetRange &&
+                    (filterState.settings.purchasePriceNetRange.min > 0 || filterState.settings.purchasePriceNetRange.max < 100000) && {
+                    purchasePriceNetRange: filterState.settings.purchasePriceNetRange
+                }),
+                ...(filterState.settings.purchasePriceGrossRange &&
+                    (filterState.settings.purchasePriceGrossRange.min > 0 || filterState.settings.purchasePriceGrossRange.max < 100000) && {
+                    purchasePriceGrossRange: filterState.settings.purchasePriceGrossRange
+                }),
+                ...(filterState.settings.sellPriceRange &&
+                    (filterState.settings.sellPriceRange.min > 0 || filterState.settings.sellPriceRange.max < 100000) && {
+                    sellPriceRange: filterState.settings.sellPriceRange
+                }),
+                ...(filterState.settings.discountRange &&
+                    (filterState.settings.discountRange.min > 0 || filterState.settings.discountRange.max < 100) && {
+                    discountRange: filterState.settings.discountRange
+                }),
+                ...(filterState.settings.marginRange &&
+                    (filterState.settings.marginRange.min > 0 || filterState.settings.marginRange.max < 100) && {
+                    marginRange: filterState.settings.marginRange
                 }),
                 filterOperators: filterState.filterOperators
             };
