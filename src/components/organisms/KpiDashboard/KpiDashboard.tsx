@@ -3,8 +3,14 @@
 
 import React from 'react';
 import { KpiCard } from '@/components/molecules/KpiCard/KpiCard';
-import { Euro, Package, TrendingUp, TrendingDown, Calendar, Percent } from 'lucide-react';
+import { Euro, Package, TrendingUp, TrendingDown, Percent, RotateCcw } from 'lucide-react';
 import { useAchatsKpi } from '@/hooks/kpi/useAchatsKpi';
+import { useVentesKpi } from '@/hooks/kpi/useVentesKpi';
+import { useMargeKpi } from '@/hooks/kpi/useMargeKpi';
+import { useStockKpi } from '@/hooks/kpi/useStockKpi';
+import { useInventoryDaysKpi } from '@/hooks/kpi/useInventoryDaysKpi';
+import { useReceptionRateKpi } from '@/hooks/kpi/useReceptionRateKpi';
+import { usePriceEvolutionKpi } from '@/hooks/kpi/usePriceEvolutionKpi';
 import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
 
 /**
@@ -14,6 +20,12 @@ import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
 export const KpiDashboard: React.FC = () => {
     // Fetch Achats KPI with real filters
     const { data: achatsData, isLoading: achatsLoading, error: achatsError } = useAchatsKpi();
+    const { data: ventesData, isLoading: ventesLoading, error: ventesError } = useVentesKpi();
+    const { data: margeData, isLoading: margeLoading, error: margeError } = useMargeKpi();
+    const { data: stockData, isLoading: stockLoading, error: stockError } = useStockKpi();
+    const { data: inventoryData, isLoading: inventoryLoading, error: inventoryError } = useInventoryDaysKpi();
+    const { data: receptionData, isLoading: receptionLoading, error: receptionError } = useReceptionRateKpi();
+    const { data: priceData, isLoading: priceLoading, error: priceError } = usePriceEvolutionKpi();
 
     return (
         <div className="space-y-6">
@@ -29,68 +41,89 @@ export const KpiDashboard: React.FC = () => {
 
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Achats - Real Data */}
+
+                {/* 1. Achats - Real Data */}
                 <KpiCard
                     title="Achats HT"
                     isLoading={achatsLoading}
                     primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
+                    evolutionPercent={achatsData?.evolution_percent}
+                    evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
                     secondaryValue={formatNumber(achatsData?.quantite_achetee || 0)}
-                    evolutionPercent={achatsData?.evolution_percent}
                     icon={<Euro className="w-5 h-5" />}
                     accentColor="blue"
                 />
 
-                {/* Ventes - Mock Data (TODO) */}
+                {/* 2. Ventes - Real Data */}
                 <KpiCard
                     title="Ventes HT"
-                    primaryValue="187 890 €"
+                    isLoading={ventesLoading}
+                    primaryValue={ventesError ? 'Erreur' : formatCurrency(ventesData?.montant_ht || 0)}
+                    evolutionPercent={ventesData?.evolution_percent}
+                    evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
-                    secondaryValue="15 678"
-                    evolutionPercent={8.3}
+                    secondaryValue={formatNumber(ventesData?.quantite_vendue || 0)}
                     icon={<TrendingUp className="w-5 h-5" />}
                     accentColor="green"
                 />
 
-                {/* Marge - Mock Data (TODO) */}
+                {/* 3. Marge - Real Data */}
                 <KpiCard
                     title="Marge €"
-                    primaryValue="62 440 €"
+                    isLoading={margeLoading}
+                    primaryValue={margeError ? 'Erreur' : formatCurrency(margeData?.montant_marge || 0)}
+                    evolutionPercent={margeData?.evolution_percent}
+                    evolutionLabel="vs N-1"
                     secondaryLabel="Marge %"
-                    secondaryValue="33.2%"
-                    evolutionPercent={-2.1}
+                    secondaryValue={margeData ? `${formatNumber(margeData.marge_percent)}%` : '0%'}
                     icon={<Percent className="w-5 h-5" />}
                     accentColor="purple"
                 />
 
-                {/* Stock - Mock Data (TODO) */}
+                {/* 4. Stock - Real Data */}
                 <KpiCard
                     title="Stock €"
-                    primaryValue="89 450 €"
+                    isLoading={stockLoading}
+                    primaryValue={stockError ? 'Erreur' : formatCurrency(stockData?.stock_value_ht || 0)}
+                    evolutionPercent={stockData?.evolution_percent}
+                    evolutionLabel="Evol. Valeur"
                     secondaryLabel="Quantité"
-                    secondaryValue="45 230"
-                    evolutionPercent={5.7}
+                    secondaryValue={formatNumber(stockData?.stock_quantity || 0)}
                     icon={<Package className="w-5 h-5" />}
                     accentColor="orange"
                 />
 
-                {/* Jours de stock - Mock Data (TODO) */}
+                {/* 5. Jours de Stock & Taux de réception - Combined */}
                 <KpiCard
-                    title="Jours de stock"
-                    primaryValue="45 jours"
+                    title="Jours de Stock"
+                    isLoading={inventoryLoading || receptionLoading}
+                    primaryValue={inventoryError ? 'Erreur' : `${inventoryData?.days || 0} Jours`}
+                    evolutionPercent={inventoryData?.evolution_percent}
+                    evolutionLabel="vs N-1"
+
                     secondaryLabel="Taux de réception"
-                    secondaryValue="94.5%"
-                    evolutionPercent={-3.2}
-                    icon={<Calendar className="w-5 h-5" />}
+                    secondaryValue={receptionError ? 'Erreur' : `${receptionData?.rate ? receptionData.rate.toFixed(1) : 0}%`}
+                    secondaryEvolutionPercent={receptionData?.evolution_percent}
+                    secondaryEvolutionLabel="Evol. Taux"
+
+                    icon={<RotateCcw className="w-5 h-5" />}
                     accentColor="indigo"
                 />
 
-                {/* Évolution des prix - Mock Data (TODO) */}
+                {/* 6. Prix Moyens */}
                 <KpiCard
-                    title="Évolution prix d'achat"
-                    primaryValue="+2.8%"
-                    secondaryLabel="Évolution prix de vente"
-                    secondaryValue="+3.1%"
+                    title="Prix Achat Moyen"
+                    isLoading={priceLoading}
+                    primaryValue={priceError ? 'Erreur' : formatCurrency(priceData?.purchase_price || 0)}
+                    evolutionPercent={priceData?.purchase_evolution_percent}
+                    evolutionLabel="Evol. Achat"
+
+                    secondaryLabel="Prix Vente TTC"
+                    secondaryValue={priceError ? 'Erreur' : formatCurrency(priceData?.sell_price || 0)}
+                    secondaryEvolutionPercent={priceData?.sell_evolution_percent}
+                    secondaryEvolutionLabel="Evol. Vente"
+
                     icon={<TrendingDown className="w-5 h-5" />}
                     accentColor="red"
                 />

@@ -1,61 +1,85 @@
-// src/components/organisms/FilterPanel/hooks/useExcludedProductFilter.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useFilterStore } from '@/stores/useFilterStore';
-import { Product, ProductSelection, SearchResponse } from './useProductSearchFilter';
 
-export const useExcludedProductFilter = (onClose?: () => void) => {
-    const {
-        excludedProducts: storedExcludedProducts,
-        setExcludedProducts: setStoredExcludedProducts
-    } = useFilterStore();
+export interface Product {
+    code_13_ref: string;
+    name: string;
+    brand_lab: string | null;
+    universe: string | null;
+    bcb_product_id: string;
+    all_codes: string[];
+}
 
+export interface ProductSelection {
+    code: string;
+    name: string;
+    bcb_product_id: number;
+}
+
+export interface SearchResponse {
+    products: Product[];
+    total: number;
+}
+
+export const useProductSearchFilter = () => {
+    const { products: storedProducts } = useFilterStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [results, setResults] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedMap, setSelectedMap] = useState<Map<string, ProductSelection>>(new Map());
 
-    // Initialize from store
+    // Initialize map from global store
     useEffect(() => {
         const initialMap = new Map<string, ProductSelection>();
-        storedExcludedProducts.forEach(product => {
+        const groupedByBcbId: Record<string, { name: string; code: string; bcb_product_id: number }> = {};
+
+        storedProducts.forEach(product => {
             const bcbId = product.bcb_product_id?.toString();
             if (bcbId) {
-                initialMap.set(bcbId, {
-                    bcb_product_id: parseInt(bcbId),
+                groupedByBcbId[bcbId] = {
                     name: product.name,
-                    code: product.code
-                });
+                    code: product.code,
+                    bcb_product_id: parseInt(bcbId)
+                };
             }
         });
+
+        Object.entries(groupedByBcbId).forEach(([bcbId, data]) => {
+            initialMap.set(bcbId, data);
+        });
+
         setSelectedMap(initialMap);
-    }, [storedExcludedProducts]);
+    }, [storedProducts]);
 
-    // Search logic (same as useProductFilter)
+    // Search Logic
     useEffect(() => {
-        if (!searchQuery.trim()) {
-            setResults([]);
-            return;
-        }
-
         const controller = new AbortController();
-        const timeoutId = setTimeout(async () => {
+
+        const fetchProducts = async () => {
+            setIsLoading(true);
             try {
-                setIsLoading(true);
                 const response = await fetch('/api/products/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: searchQuery, limit: 50 }),
+                    body: JSON.stringify({ query: searchQuery }),
                     signal: controller.signal
                 });
+
+                if (!response.ok) throw new Error('Failed to fetch products');
+
                 const data: SearchResponse = await response.json();
                 setResults(data.products);
-            } catch (error: any) {
-                if (error.name !== 'AbortError') {
-                    console.error('Search error:', error);
-                }
+            } catch (error) {
+                if ((error as Error).name === 'AbortError') return;
+                console.error('Error fetching products:', error);
+                setResults([]);
             } finally {
                 setIsLoading(false);
             }
+        };
+
+        const timeoutId = setTimeout(() => {
+            fetchProducts();
         }, 300);
 
         return () => {
@@ -64,30 +88,31 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
         };
     }, [searchQuery]);
 
-    const handleToggle = useCallback((product: Product) => {
+    // Actions
+    const handleToggle = (product: Product) => {
+        const bcbId = product.bcb_product_id;
         setSelectedMap(prev => {
             const newMap = new Map(prev);
-            const key = product.bcb_product_id;
-            if (newMap.has(key)) {
-                newMap.delete(key);
+            if (newMap.has(bcbId)) {
+                newMap.delete(bcbId);
             } else {
-                newMap.set(key, {
-                    bcb_product_id: parseInt(product.bcb_product_id),
+                newMap.set(bcbId, {
+                    code: product.code_13_ref,
                     name: product.name,
-                    code: product.code_13_ref
+                    bcb_product_id: parseInt(bcbId)
                 });
             }
             return newMap;
         });
-    }, []);
+    };
 
-    const handleRemoveSelection = useCallback((bcb_product_id: string) => {
+    const handleRemoveSelection = (bcb_product_id: string) => {
         setSelectedMap(prev => {
             const newMap = new Map(prev);
             newMap.delete(bcb_product_id);
             return newMap;
         });
-    }, []);
+    };
 
     const handleSelectAll = useCallback(() => {
         setSelectedMap(prev => {
@@ -108,6 +133,10 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
         setSelectedMap(new Map());
     }, []);
 
+    const isProductSelected = useCallback((bcb_product_id: string) => {
+        return selectedMap.has(bcb_product_id);
+    }, [selectedMap]);
+
     const searchAndSelectByCodes = async (codes: string[]) => {
         if (codes.length === 0) return;
 
@@ -121,7 +150,7 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
                 }).then(res => res.json())
             );
 
-            const responses: SearchResponse[] = await Promise.all(searchPromises);
+            const responses = await Promise.all(searchPromises);
 
             setSelectedMap(prev => {
                 const newMap = new Map(prev);
@@ -146,12 +175,6 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
         }
     };
 
-    const handleApply = useCallback(() => {
-        const allSelected: ProductSelection[] = Array.from(selectedMap.values());
-        setStoredExcludedProducts(allSelected);
-        if (onClose) onClose();
-    }, [selectedMap, setStoredExcludedProducts, onClose]);
-
     return {
         searchQuery,
         setSearchQuery,
@@ -162,7 +185,7 @@ export const useExcludedProductFilter = (onClose?: () => void) => {
         handleRemoveSelection,
         handleSelectAll,
         handleClearAll,
-        handleApply,
+        isProductSelected,
         searchAndSelectByCodes
     };
 };

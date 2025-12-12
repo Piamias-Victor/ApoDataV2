@@ -13,6 +13,12 @@ export interface KpiCardProps {
     secondaryValue?: string | undefined;
     /** Pourcentage d'évolution (ex: 12.5 pour +12.5%) - optionnel */
     evolutionPercent?: number | undefined;
+    /** Libellé optionnel pour l'évolution (ex: "vs N-1") */
+    evolutionLabel?: string | undefined;
+    /** Pourcentage d'évolution secondaire (ex: pour la valeur secondaire) - optionnel */
+    secondaryEvolutionPercent?: number | undefined;
+    /** Libellé optionnel pour l'évolution secondaire */
+    secondaryEvolutionLabel?: string | undefined;
     /** Icône optionnelle pour la KPI */
     icon?: React.ReactNode | undefined;
     /** Couleur d'accent (correspond aux couleurs de FilterButton) */
@@ -70,6 +76,9 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     secondaryLabel,
     secondaryValue,
     evolutionPercent,
+    evolutionLabel,
+    secondaryEvolutionPercent,
+    secondaryEvolutionLabel,
     icon,
     accentColor = 'blue',
     isLoading = false,
@@ -145,6 +154,16 @@ export const KpiCard: React.FC<KpiCardProps> = ({
                             <p className="text-lg font-bold text-gray-700">
                                 {secondaryValue}
                             </p>
+                            {/* Secondary Evolution Badge */}
+                            {secondaryEvolutionPercent !== undefined && (
+                                <div className={`flex items-center gap-1 mt-0.5 ${secondaryEvolutionPercent > 0 ? 'text-green-600' : secondaryEvolutionPercent < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                    {secondaryEvolutionPercent > 0 ? <TrendingUp className="w-3 h-3" /> : secondaryEvolutionPercent < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                                    <span className="text-xs font-bold">
+                                        {Math.abs(secondaryEvolutionPercent).toFixed(1)}%
+                                    </span>
+                                    {secondaryEvolutionLabel && <span className="text-[10px] text-gray-400 ml-1">{secondaryEvolutionLabel}</span>}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div />
@@ -157,6 +176,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
                             <span className={`text-sm font-bold ${evolutionColor}`}>
                                 {isPositive && '+'}{evolutionPercent.toFixed(1)}%
                             </span>
+                            {evolutionLabel && <span className="text-[10px] text-gray-500 ml-1">{evolutionLabel}</span>}
                         </div>
                     )}
                 </div>

@@ -29,3 +29,43 @@ export interface AchatsKpiResponse {
     quantite_achetee: number;
     evolution_percent?: number | undefined;
 }
+
+export interface VentesKpiResponse {
+    montant_ht: number;
+    quantite_vendue: number;
+    evolution_percent?: number | undefined;
+    duration?: string;
+}
+
+export interface MargeKpiResponse {
+    montant_marge: number;
+    marge_percent: number;
+    evolution_percent?: number | undefined;
+    duration?: string;
+}
+
+export interface InventoryDaysResponse {
+    days: number;
+    evolution_percent?: number | undefined;
+    duration?: string;
+}
+
+export interface ReceptionRateResponse {
+    rate: number;
+    evolution_percent?: number | undefined;
+    duration?: string;
+}
+export interface PriceEvolutionResponse {
+    purchase_price: number;
+    purchase_evolution_percent?: number | undefined;
+    sell_price: number;
+    sell_evolution_percent?: number | undefined;
+    duration?: string;
+}
+
+export interface StockKpiResponse {
+    stock_value_ht: number;
+    stock_quantity: number;
+    evolution_percent?: number | undefined;
+    duration?: string;
+}

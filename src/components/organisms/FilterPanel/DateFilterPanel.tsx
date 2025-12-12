@@ -20,7 +20,21 @@ export const DateFilterPanel: React.FC<DateFilterPanelProps> = ({ onClose }) => 
     const [preset, setPreset] = useState<PeriodPreset>('custom');
     const [compStart, setCompStart] = useState<string>(comparisonDateRange.start || '');
     const [compEnd, setCompEnd] = useState<string>(comparisonDateRange.end || '');
-    const [useNMinus1, setUseNMinus1] = useState(true);
+    const [useNMinus1, setUseNMinus1] = useState(() => {
+        // If no dates set, default to true
+        if (!dateRange.start || !dateRange.end || !comparisonDateRange.start || !comparisonDateRange.end) return true;
+
+        // Calculate what N-1 would be
+        try {
+            const expectedStart = format(subYears(parseISO(dateRange.start), 1), 'yyyy-MM-dd');
+            const expectedEnd = format(subYears(parseISO(dateRange.end), 1), 'yyyy-MM-dd');
+
+            // If stored comparison matches N-1, then true. Otherwise false (custom).
+            return comparisonDateRange.start === expectedStart && comparisonDateRange.end === expectedEnd;
+        } catch {
+            return true;
+        }
+    });
 
     useEffect(() => {
         if (!start && !end) setPreset('current_year');

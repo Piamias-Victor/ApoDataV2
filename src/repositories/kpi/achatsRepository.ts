@@ -1,6 +1,6 @@
-// src/repositories/kpi/achatsRepository.ts
 import { db } from '@/lib/db';
 import { AchatsKpiRequest } from '@/types/kpi';
+import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
 
 /**
  * Fetch purchased quantity and amount from database
@@ -9,229 +9,39 @@ import { AchatsKpiRequest } from '@/types/kpi';
 export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quantite_achetee: number; montant_ht: number }> {
   const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
 
-  let paramIndex = 3; // $1 and $2 are dateRange
-  const params: any[] = [dateRange.start, dateRange.end];
-  const conditions: string[] = [];
+  // Initialize Builder
+  const initialParams = [dateRange.start, dateRange.end];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
 
-  // Track cumulative items to find the correct operator between groups
-  let cumulativeItemCount = 0;
+  // Apply Filters
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
 
-  // Helper to add a filter group
-  const addFilterGroup = (
-    items: any[],
-    sqlGenerator: (paramIdx: number) => string,
-    usesParams: boolean = true // NEW: Option to skip param registration
-  ) => {
-    if (items.length === 0) return;
+  // Settings
+  if (request.tvaRates) qb.addTvaRates(request.tvaRates);
+  qb.addReimbursementStatus(request.reimbursementStatus);
+  qb.addGenericStatus(request.isGeneric);
 
-    // Verify if we need an operator (if not the first group)
-    if (conditions.length > 0) {
-      // The operator to use is the one "after" the previous block of items
-      // Index = cumulativeItemCount - 1
-      // Example: [Pharma1] (1 item). Next operator index = 1 - 1 = 0.
-      const operatorIndex = cumulativeItemCount - 1;
-      const op = filterOperators[operatorIndex] || 'AND'; // Default to AND
-      conditions.push(op);
-    }
+  // Ranges
+  qb.addRangeFilter(request.purchasePriceNetRange, 'lp.weighted_average_price');
+  qb.addRangeFilter(request.purchasePriceGrossRange, 'gp.prix_achat_ht_fabricant');
+  qb.addRangeFilter(request.sellPriceRange, 'lp.price_with_tax');
+  qb.addRangeFilter(request.discountRange, 'lp.discount_percentage');
+  qb.addRangeFilter(request.marginRange, 'lp.margin_percentage');
 
-    // Generate SQL for this group (implicitly wrapped in parens by the logic below if needed)
-    const sql = sqlGenerator(paramIndex);
-    conditions.push(`(${sql})`);
-
-    // Register params if needed
-    if (usesParams && Array.isArray(items) && items.length > 0) {
-      // Check if it's a flat array of primitives
-      if (typeof items[0] !== 'object' || items[0] === null) {
-        params.push(items);
-        paramIndex++;
-      }
-    }
-
-    cumulativeItemCount += items.length;
-  };
-
-  // 1. PHARMACIES (First in Store order)
-  addFilterGroup(pharmacyIds, (idx) => `ip.pharmacy_id = ANY($${idx}::uuid[])`);
-
-  // 2. LABORATORIES
-  addFilterGroup(laboratories, (idx) => `gp.bcb_lab = ANY($${idx}::text[])`);
-
-  // 3. CATEGORIES (Complex handling)
-  if (categories.length > 0) {
-    // Group codes by type
-    const codesByType: Record<string, string[]> = {};
-    categories.forEach(cat => {
-      if (!codesByType[cat.type]) codesByType[cat.type] = [];
-      codesByType[cat.type]!.push(cat.code);
-    });
-
-    // We treat the Categories block as ONE group for the "External Operator" logic
-    // But internally it's an OR between types
-
-    // Calculate params needed
-    const categorySqlParts: string[] = [];
-    const validColumns = ['bcb_segment_l0', 'bcb_segment_l1', 'bcb_segment_l2', 'bcb_segment_l3', 'bcb_segment_l4', 'bcb_segment_l5', 'bcb_family'];
-
-    Object.entries(codesByType).forEach(([type, codes]) => {
-      if (!validColumns.includes(type)) return;
-      categorySqlParts.push(`gp.${type} = ANY($${paramIndex}::text[])`);
-      params.push(codes);
-      paramIndex++;
-    });
-
-    if (categorySqlParts.length > 0) {
-      const categorySql = categorySqlParts.join(' OR ');
-
-      // Manually invoke logic similar to addFilterGroup but without pushing params (already done)
-      if (conditions.length > 0) {
-        const operatorIndex = cumulativeItemCount - 1;
-        const op = filterOperators[operatorIndex] || 'AND';
-        conditions.push(op);
-      }
-      conditions.push(`(${categorySql})`);
-      cumulativeItemCount += categories.length;
-    }
-  }
-
-  // 4. PRODUCTS
-  addFilterGroup(productCodes, (idx) => `ip.code_13_ref_id = ANY($${idx}::text[])`);
-
-  // 5. SETTINGS: TVA Rates
-  if (request.tvaRates && request.tvaRates.length > 0) {
-    addFilterGroup(request.tvaRates, (idx) => `gp.tva_percentage = ANY($${idx}::numeric[])`);
-  }
-
-  // 6. SETTINGS: Reimbursement Status
-  if (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') {
-    const items = [request.reimbursementStatus]; // Treat as 1 item for counting
-    addFilterGroup(items, (_idx) => {
-      if (request.reimbursementStatus === 'REIMBURSED') return `gp.is_reimbursable = true`;
-      if (request.reimbursementStatus === 'NOT_REIMBURSED') return `gp.is_reimbursable = false`;
-      return '1=1';
-    }, false); // 👈 usesParams = false
-  }
-
-  // 7. SETTINGS: Generic Status
-  if (request.isGeneric && request.isGeneric !== 'ALL') {
-    let values: string[] = [];
-    if (request.isGeneric === 'GENERIC') values = ['GÉNÉRIQUE'];
-    if (request.isGeneric === 'PRINCEPS') values = ['RÉFÉRENT'];
-    if (request.isGeneric === 'PRINCEPS_GENERIC') values = ['GÉNÉRIQUE', 'RÉFÉRENT'];
-
-    // We pass 'values' as the items wrapper.
-    // NOTE: In the store logic, the filter count was incremented by 1 for the whole "Generic" setting.
-    // So we must pass an array of length 1 to addFilterGroup to keep cumulativeItemCount in sync with the frontend operators array.
-    // BUT we want to push the specific values to SQL params.
-
-    // Solution: Pass a dummy array of length 1 as 'items' to addFilterGroup to satisfy operator logic,
-    // but manually push the REAL values to params?
-
-    // ACTUALLY: The 'items' passed to addFilterGroup determines the parameter pushed if usesParams=true.
-    // If we pass `values` (e.g. ['GÉNÉRIQUE', 'RÉFÉRENT']), length is 2.
-    // But the frontend counted this as 1 filter "Generic".
-    // So cumulativeItemCount should increase by 1.
-
-    // Let's pass a wrapper array `[values]` so length is 1? No, then param is `[[...]]`.
-
-    // Alternative: Use usesParams = false, manually handle params inside?
-    // Or simply: pass `[request.isGeneric]` as items (length 1), but inside the generator use a new param for the values.
-
-    // Let's use usesParams=false and handle the parameter push manually/inside generator? No generator can't push.
-
-    // Cleanest:
-    // Pass items = [request.isGeneric] (length 1).
-    // usesParams = false.
-    // Manually push 'values' to params array before calling addFilterGroup? Protocol breach.
-
-    // Let's adjust addFilterGroup logic slightly?
-    // No, let's just cheat. Use string literals for these specific known safe string values.
-
-    addFilterGroup([request.isGeneric], (_idx) => {
-      if (values.length === 0) return '1=1';
-      // Safe because values are hardcoded above
-      const valuesList = values.map(v => `'${v}'`).join(',');
-      return `gp.bcb_generic_status IN (${valuesList})`;
-    }, false);
-  }
-
-  // 8. SETTINGS: Purchase Price Net (from Materialized View)
-  // 8. SETTINGS: Purchase Price Net (from Materialized View)
-  if (request.purchasePriceNetRange) {
-    const { min, max } = request.purchasePriceNetRange;
-    addFilterGroup([request.purchasePriceNetRange], (_idx) => {
-      params.push(min);
-      const minParamIdx = paramIndex++;
-      params.push(max);
-      const maxParamIdx = paramIndex++;
-
-      return `lp.weighted_average_price >= $${minParamIdx} AND lp.weighted_average_price <= $${maxParamIdx}`;
-    }, false);
-  }
-
-  // 9. SETTINGS: Gross Purchase Price (from GlobalProduct)
-  if (request.purchasePriceGrossRange) {
-    const { min, max } = request.purchasePriceGrossRange;
-    addFilterGroup([request.purchasePriceGrossRange], (_idx) => {
-      params.push(min);
-      const minParamIdx = paramIndex++;
-      params.push(max);
-      const maxParamIdx = paramIndex++;
-
-      return `gp.prix_achat_ht_fabricant >= $${minParamIdx} AND gp.prix_achat_ht_fabricant <= $${maxParamIdx}`;
-    }, false);
-  }
-
-  // 10. SETTINGS: Sell Price TTC (from Materialized View)
-  if (request.sellPriceRange) {
-    const { min, max } = request.sellPriceRange;
-    addFilterGroup([request.sellPriceRange], (_idx) => {
-      params.push(min);
-      const minParamIdx = paramIndex++;
-      params.push(max);
-      const maxParamIdx = paramIndex++;
-
-      return `lp.price_with_tax >= $${minParamIdx} AND lp.price_with_tax <= $${maxParamIdx}`;
-    }, false);
-  }
-
-  // 11. SETTINGS: Discount Percentage (from Materialized View)
-  if (request.discountRange) {
-    const { min, max } = request.discountRange;
-    addFilterGroup([request.discountRange], (_idx) => {
-      params.push(min);
-      const minParamIdx = paramIndex++;
-      params.push(max);
-      const maxParamIdx = paramIndex++;
-
-      return `lp.discount_percentage >= $${minParamIdx} AND lp.discount_percentage <= $${maxParamIdx}`;
-    }, false);
-  }
-
-  // 12. SETTINGS: Margin Percentage (from Materialized View)
-  if (request.marginRange) {
-    const { min, max } = request.marginRange;
-    addFilterGroup([request.marginRange], (_idx) => {
-      params.push(min);
-      const minParamIdx = paramIndex++;
-      params.push(max);
-      const maxParamIdx = paramIndex++;
-
-      return `lp.margin_percentage >= $${minParamIdx} AND lp.margin_percentage <= $${maxParamIdx}`;
-    }, false);
-  }
-
-  // Need GlobalProduct JOIN if filtering by laboratory, category, or settings
+  // Logic for JOINs
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
     (request.tvaRates && request.tvaRates.length > 0) ||
     (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
     (request.isGeneric && request.isGeneric !== 'ALL') ||
     (request.purchasePriceGrossRange !== undefined) ||
-    (request.sellPriceRange !== undefined); // Re-added just in case logic changed
+    (request.sellPriceRange !== undefined); // Included just in case
 
-  // Build WHERE clause
-  const dynamicWhereClause = conditions.length > 0
-    ? `AND (${conditions.join(' ')})`
-    : '';
+  // Get finalized SQL parts
+  const dynamicWhereClause = qb.getConditions();
+  const params = qb.getParams();
 
   // ULTRA-FAST QUERY
   const query = `
