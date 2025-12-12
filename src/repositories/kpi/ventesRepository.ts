@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { AchatsKpiRequest } from '@/types/kpi'; // Reusing the same request interface as filters are identical
+import { AchatsKpiRequest, Grain } from '@/types/kpi'; // Reusing the same request interface as filters are identical
 import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
 
 /**
@@ -109,4 +109,50 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
         console.error('❌ [Repository] Ventes query failed:', error);
         throw error;
     }
+}
+
+/**
+ * Get Sales Evolution Metrics (Vente TTC, Marge)
+ */
+export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; vente_ttc: number; marge_eur: number }[]> {
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const initialParams = [dateRange.start, dateRange.end];
+    const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
+        pharmacyId: 'mv.pharmacy_id',
+        laboratory: 'mv.laboratory_name',
+        productCode: 'mv.code_13_ref',
+        cat_l1: 'mv.category_name',
+    });
+
+    qb.addPharmacies(pharmacyIds);
+    qb.addLaboratories(laboratories);
+    qb.addCategories(categories);
+    qb.addProducts(productCodes);
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+    const conditions = qb.getConditions();
+    const params = qb.getParams();
+    let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
+
+    const query = `
+        SELECT 
+            DATE_TRUNC('${trunc}', mv.sale_date) as date,
+            SUM(mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) as vente_ttc,
+            SUM(mv.montant_marge) as marge_eur
+        FROM mv_sales_enriched mv
+        WHERE mv.sale_date >= $1::date AND mv.sale_date <= $2::date
+        ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+    const result = await db.query(query, params);
+    return result.rows.map(row => ({
+        date: row.date.toISOString(),
+        vente_ttc: Number(row.vente_ttc),
+        marge_eur: Number(row.marge_eur)
+    }));
 }

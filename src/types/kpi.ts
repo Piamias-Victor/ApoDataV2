@@ -1,4 +1,6 @@
 // src/types/kpi.ts
+export type Grain = 'day' | 'week' | 'month';
+
 export interface AchatsKpiRequest {
     dateRange: {
         start: string;

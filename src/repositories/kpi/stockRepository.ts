@@ -90,3 +90,48 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
         throw error;
     }
 }
+
+/**
+ * Get Stock Snapshots (Monthly) for interpolation
+ */
+export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ date: string; stock_qte: number }[]> {
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+    const initialParams = [dateRange.start, dateRange.end];
+    const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
+        pharmacyId: 'mv.pharmacy_id',
+        laboratory: 'mv.laboratory_name',
+        productCode: 'mv.code_13_ref',
+        cat_l1: 'mv.category_name',
+    });
+
+    qb.addPharmacies(pharmacyIds);
+    qb.addLaboratories(laboratories);
+    qb.addCategories(categories);
+    qb.addProducts(productCodes);
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+    const conditions = qb.getConditions();
+    const params = qb.getParams();
+
+    const query = `
+        SELECT 
+            mv.month_end_date as date,
+            SUM(mv.stock) as stock_qte
+        FROM mv_stock_monthly mv
+        WHERE mv.month_end_date >= ($1::date - INTERVAL '1 month') 
+          AND mv.month_end_date <= $2::date
+          ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+    const result = await db.query(query, params);
+    return result.rows.map(row => ({
+        date: row.date.toISOString(),
+        stock_qte: Number(row.stock_qte)
+    }));
+}

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { AchatsKpiRequest } from '@/types/kpi';
+import { AchatsKpiRequest, Grain } from '@/types/kpi';
 import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
 
 /**
@@ -105,4 +105,51 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     console.error('❌ [Repository] Database query failed:', error);
     throw error;
   }
+}
+
+/**
+ * Get Purchases Evolution
+ */
+export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number }[]> {
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+  const initialParams = [dateRange.start, dateRange.end];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
+
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+  const conditions = qb.getConditions();
+  const params = qb.getParams();
+  let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
+
+  const query = `
+        SELECT 
+            DATE_TRUNC('${trunc}', o.delivery_date) as date,
+            COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0)), 0) as achat_ht
+        FROM data_productorder po
+        INNER JOIN data_order o ON po.order_id = o.id
+        INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+        LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
+        LEFT JOIN mv_latest_product_prices lp ON po.product_id = lp.product_id
+        WHERE o.delivery_date >= $1::date 
+          AND o.delivery_date <= $2::date
+          AND o.delivery_date IS NOT NULL
+          AND po.qte_r > 0
+          ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+  const result = await db.query(query, params);
+  return result.rows.map(row => ({
+    date: row.date.toISOString(),
+    achat_ht: Number(row.achat_ht)
+  }));
 }
