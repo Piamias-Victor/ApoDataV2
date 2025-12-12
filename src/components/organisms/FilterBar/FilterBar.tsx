@@ -13,6 +13,7 @@ export const FilterBar: React.FC = () => {
         activeDrawer,
         setActiveDrawer,
         handleClose,
+        clearFilters,
         tooltips,
         storeState,
         computedState
@@ -37,6 +38,7 @@ export const FilterBar: React.FC = () => {
                         count={storeState.pharmacies.length}
                         color="orange"
                         onClick={() => setActiveDrawer('pharmacy')}
+                        onClear={() => clearFilters('pharmacy')}
                         tooltip={tooltips.pharmacyTooltip}
                         isActive={storeState.pharmacies.length > 0}
                     />
@@ -49,6 +51,7 @@ export const FilterBar: React.FC = () => {
                         count={storeState.dateRange.start ? 1 : 0}
                         color="blue"
                         onClick={() => setActiveDrawer('date')}
+                        onClear={() => clearFilters('date')}
                         tooltip={tooltips.dateTooltip}
                         isActive={!!storeState.dateRange.start}
                     />
@@ -61,6 +64,7 @@ export const FilterBar: React.FC = () => {
                         count={storeState.products.length}
                         color="green"
                         onClick={() => setActiveDrawer('products')}
+                        onClear={() => clearFilters('products')}
                         tooltip={tooltips.productTooltip}
                         isActive={computedState.isProductsActive}
                     />
@@ -71,6 +75,7 @@ export const FilterBar: React.FC = () => {
                         count={storeState.laboratories.length}
                         color="purple"
                         onClick={() => setActiveDrawer('laboratories')}
+                        onClear={() => clearFilters('laboratories')}
                         tooltip={tooltips.laboratoryTooltip}
                         isActive={storeState.laboratories.length > 0}
                     />
@@ -81,6 +86,7 @@ export const FilterBar: React.FC = () => {
                         count={storeState.categories.length}
                         color="red"
                         onClick={() => setActiveDrawer('categories')}
+                        onClear={() => clearFilters('categories')}
                         tooltip={tooltips.categoryTooltip}
                         isActive={storeState.categories.length > 0}
                     />
@@ -103,6 +109,7 @@ export const FilterBar: React.FC = () => {
                         count={computedState.exclusionsCount}
                         color="black"
                         onClick={() => setActiveDrawer('exclusions')}
+                        onClear={() => clearFilters('exclusions')}
                         tooltip="Exclure des produits, labos ou catégories"
                         isActive={computedState.exclusionsCount > 0}
                     />

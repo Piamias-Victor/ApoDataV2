@@ -1,6 +1,7 @@
 // src/components/organisms/FilterBar/components/FilterButton.tsx
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 
 export type FilterButtonColor = 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow' | 'black';
 
@@ -10,6 +11,7 @@ interface FilterButtonProps {
     count: number;
     color: FilterButtonColor;
     onClick: () => void;
+    onClear?: () => void;
     tooltip?: string;
     isActive: boolean;
 }
@@ -83,20 +85,20 @@ const COLOR_CLASSES: Record<FilterButtonColor, {
 /**
  * Filter button component with tooltip support
  */
-export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, onClick, tooltip, isActive }) => {
+export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, onClick, onClear, tooltip, isActive }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const colors = COLOR_CLASSES[color];
 
     return (
-        <div className="relative pointer-events-none">
+        <div className="relative pointer-events-none group">
             <button
                 ref={buttonRef}
                 onClick={onClick}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    pointer-events-auto flex items-center gap-2.5 px-3 md:px-4 py-2.5 bg-white rounded-xl border-2 transition-all group whitespace-nowrap min-w-max
+                    pointer-events-auto flex items-center gap-2.5 px-3 md:px-4 py-2.5 bg-white rounded-xl border-2 transition-all whitespace-nowrap min-w-max
                     ${isActive ? `${colors.activeBorder} shadow-lg ${colors.activeGlow}` : `border-gray-200 ${colors.hover}`}
                 `}
             >
@@ -110,6 +112,19 @@ export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, 
                     </span>
                 </div>
             </button>
+
+            {isActive && onClear && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClear();
+                    }}
+                    className="absolute -top-2 -right-2 z-50 pointer-events-auto p-0.5 bg-white rounded-full border border-gray-200 shadow-sm text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transform origin-center"
+                    title="Effacer les filtres"
+                >
+                    <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                </button>
+            )}
 
             {/* Tooltip */}
             {showTooltip && tooltip && createPortal(
