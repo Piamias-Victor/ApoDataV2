@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { query } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const TVA_RATES = [0, 2.1, 5.5, 10, 20];
 
 export async function GET() {
