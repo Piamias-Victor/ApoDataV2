@@ -32,7 +32,15 @@ SELECT
 
     -- Colonnes de filtrage dénormalisées
     gp.bcb_lab AS laboratory_name,
-    gp.bcb_segment_l1 AS category_name,
+    gp.bcb_segment_l1 AS category_name, -- Alias historique pour compatibilité
+    
+    -- Hiérarchie complète pour TreeMap
+    gp.bcb_segment_l0 AS cat_l0,
+    gp.bcb_segment_l1 AS cat_l1,
+    gp.bcb_segment_l2 AS cat_l2,
+    gp.bcb_segment_l3 AS cat_l3,
+    gp.bcb_segment_l4 AS cat_l4,
+    gp.bcb_segment_l5 AS cat_l5,
     COALESCE(gp.tva_percentage, gp.bcb_tva_rate) AS tva_rate,
     gp.is_reimbursable,
     gp.bcb_generic_status
@@ -46,3 +54,9 @@ FROM data_sales s
 -- 3. Créer les indexes
 CREATE INDEX idx_mv_sales_date ON mv_sales_enriched(sale_date);
 CREATE INDEX idx_mv_sales_composite ON mv_sales_enriched(sale_date, pharmacy_id, laboratory_name);
+CREATE INDEX idx_mv_sales_l0 ON mv_sales_enriched(cat_l0);
+CREATE INDEX idx_mv_sales_l1 ON mv_sales_enriched(cat_l1);
+CREATE INDEX idx_mv_sales_l2 ON mv_sales_enriched(cat_l2);
+CREATE INDEX idx_mv_sales_l3 ON mv_sales_enriched(cat_l3);
+CREATE INDEX idx_mv_sales_l4 ON mv_sales_enriched(cat_l4);
+CREATE INDEX idx_mv_sales_l5 ON mv_sales_enriched(cat_l5);

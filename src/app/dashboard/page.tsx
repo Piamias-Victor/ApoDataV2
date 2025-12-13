@@ -5,6 +5,7 @@ import React from 'react';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { TemporalEvolution } from '@/components/organisms/TemporalEvolution/TemporalEvolution';
+import { CategoryTreeMap } from '@/components/organisms/CategoryAnalysis/CategoryTreeMap';
 
 export default function DashboardPage() {
     return (
@@ -36,6 +37,7 @@ export default function DashboardPage() {
                 <div className="max-w-7xl mx-auto space-y-8">
                     <KpiDashboard />
                     <TemporalEvolution />
+                    <CategoryTreeMap />
                 </div>
             </div>
         </div>
