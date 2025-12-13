@@ -7,6 +7,8 @@ import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { TemporalEvolution } from '@/components/organisms/TemporalEvolution/TemporalEvolution';
 import { CategoryTreeMap } from '@/components/organisms/CategoryAnalysis/CategoryTreeMap';
 
+import { LaboratoryAnalysisTable } from '@/components/organisms/LaboratoryAnalysis/LaboratoryAnalysisTable';
+
 export default function DashboardPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -38,6 +40,7 @@ export default function DashboardPage() {
                     <KpiDashboard />
                     <TemporalEvolution />
                     <CategoryTreeMap />
+                    <LaboratoryAnalysisTable />
                 </div>
             </div>
         </div>

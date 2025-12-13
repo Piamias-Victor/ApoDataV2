@@ -57,7 +57,7 @@ export const CategoryTreeMap: React.FC = () => {
 
     return (
         <section className="mt-8 mb-12 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 flex items-center gap-2">
                         <Layers className="w-6 h-6 text-indigo-500" />
@@ -69,7 +69,7 @@ export const CategoryTreeMap: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/60 shadow-xl p-6 min-h-[500px] flex flex-col relative overflow-hidden">
+            <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/60 shadow-xl p-4 md:p-6 min-h-[400px] md:min-h-[500px] flex flex-col relative overflow-hidden">
 
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-transparent pointer-events-none" />
 
@@ -80,7 +80,7 @@ export const CategoryTreeMap: React.FC = () => {
                     onCloseOthers={() => setShowOthers(false)}
                 />
 
-                <div className="relative z-10 w-full h-[600px]">
+                <div className="relative z-10 w-full h-[400px] md:h-[600px]">
                     {isFetching && (
                         <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-sm flex items-center justify-center rounded-xl transition-opacity duration-300">
                             <div className="flex flex-col items-center gap-3">

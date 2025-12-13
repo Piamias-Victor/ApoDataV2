@@ -76,3 +76,41 @@ export interface StockKpiResponse {
     evolution_percent?: number | undefined;
     duration?: string;
 }
+
+export interface LaboratoryAnalysisRow {
+    laboratory_name: string;
+
+    // My Pharmacy Metrics
+    my_rank: number;
+    my_sales_ttc: number;
+    my_sales_qty: number;
+    my_purchases_ht: number;
+    my_purchases_qty: number;
+    my_margin_rate: number;
+    my_pdm_pct: number;
+
+    // Group Metrics
+    group_rank: number;
+    group_avg_sales_ttc: number;
+    group_avg_sales_qty: number;
+    group_avg_purchases_ht: number;
+    group_avg_purchases_qty: number;
+    group_avg_margin_rate: number;
+    group_pdm_pct: number; // Avg PDM in group
+
+    // Evolutions
+    my_sales_evolution: number;
+    group_sales_evolution: number;
+    my_purchases_evolution: number;
+    group_purchases_evolution: number;
+
+    // Detailed Evolutions
+    my_sales_qty_evolution: number;
+    group_sales_qty_evolution: number;
+    my_purchases_qty_evolution: number;
+    group_purchases_qty_evolution: number;
+    my_margin_rate_evolution: number;
+    group_margin_rate_evolution: number;
+    my_pdm_evolution: number;
+    group_pdm_evolution: number;
+}

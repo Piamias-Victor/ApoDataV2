@@ -39,7 +39,7 @@ export const TemporalEvolution: React.FC = () => {
 
     return (
         <section className="mt-8 mb-8 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 flex items-center gap-2">
                         <TrendingUp className="w-6 h-6 text-indigo-500" />

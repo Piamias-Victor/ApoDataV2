@@ -19,9 +19,9 @@ export const ChartControls: React.FC<ChartControlsProps> = ({ grain, setGrain, d
     ];
 
     return (
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
             {/* Grain Selector */}
-            <div className="flex bg-white/50 backdrop-blur-md rounded-lg p-1 border border-white/20 shadow-sm">
+            <div className="flex bg-white/50 backdrop-blur-md rounded-lg p-1 border border-white/20 shadow-sm justify-between sm:justify-start">
                 {grains.map((g) => {
                     const isDisabled = g.id === 'day' && isDayDisabled;
                     return (
@@ -44,7 +44,7 @@ export const ChartControls: React.FC<ChartControlsProps> = ({ grain, setGrain, d
             </div>
 
             {/* Data Type Selector */}
-            <div className="flex bg-white/50 backdrop-blur-md rounded-lg p-1 border border-white/20 shadow-sm">
+            <div className="flex bg-white/50 backdrop-blur-md rounded-lg p-1 border border-white/20 shadow-sm justify-center sm:justify-start">
                 <button
                     onClick={() => setDataType('value')}
                     className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${dataType === 'value'
