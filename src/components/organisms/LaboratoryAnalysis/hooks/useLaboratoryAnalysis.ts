@@ -19,7 +19,7 @@ export const useLaboratoryAnalysis = () => {
             if (!res.ok) throw new Error('Failed to fetch laboratory analysis');
             return res.json() as Promise<LaboratoryAnalysisRow[]>;
         },
-        enabled: !!request.pharmacyIds?.length
+        // enabled: !!request.pharmacyIds?.length
     });
 
 

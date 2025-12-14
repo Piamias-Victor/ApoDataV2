@@ -8,6 +8,7 @@ import { TemporalEvolution } from '@/components/organisms/TemporalEvolution/Temp
 import { CategoryTreeMap } from '@/components/organisms/CategoryAnalysis/CategoryTreeMap';
 
 import { LaboratoryAnalysisTable } from '@/components/organisms/LaboratoryAnalysis/LaboratoryAnalysisTable';
+import { ProductAnalysisTable } from '@/components/organisms/ProductAnalysis/ProductAnalysisTable';
 
 export default function DashboardPage() {
     return (
@@ -41,6 +42,7 @@ export default function DashboardPage() {
                     <TemporalEvolution />
                     <CategoryTreeMap />
                     <LaboratoryAnalysisTable />
+                    <ProductAnalysisTable />
                 </div>
             </div>
         </div>

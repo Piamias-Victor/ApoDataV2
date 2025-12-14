@@ -157,7 +157,7 @@ export class FilterQueryBuilder {
                 this.conditions.push(op);
             }
             this.conditions.push(`(${categorySql})`);
-            this.cumulativeItemCount += categories.length;
+            this.cumulativeItemCount += 1;
         }
     }
 
@@ -215,7 +215,7 @@ export class FilterQueryBuilder {
                 this.conditions.push('AND');
             }
             this.conditions.push(`(${categorySql})`);
-            this.cumulativeItemCount += categories.length; // Count items but operator is fixed AND
+            this.cumulativeItemCount += 1; // Count items but operator is fixed AND
         }
     }
 
