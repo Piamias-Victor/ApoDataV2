@@ -1,16 +1,12 @@
-// src/app/dashboard/page.tsx
 'use client';
 
 import React from 'react';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
-import { TemporalEvolution } from '@/components/organisms/TemporalEvolution/TemporalEvolution';
-import { CategoryTreeMap } from '@/components/organisms/CategoryAnalysis/CategoryTreeMap';
+import { CategoryAnalysisTable } from '@/components/organisms/CategoryAnalysis/CategoryAnalysisTable';
+import { LaboratoryDetailedTable } from '@/components/organisms/LaboratoryAnalysis';
 
-import { LaboratoryAnalysisTable } from '@/components/organisms/LaboratoryAnalysis/LaboratoryAnalysisTable';
-import { ProductAnalysisTable } from '@/components/organisms/ProductAnalysis/ProductAnalysisTable';
-
-export default function DashboardPage() {
+export default function AchatsVentesPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 ml-[68px]">
             {/* Animated Background Pattern */}
@@ -38,17 +34,17 @@ export default function DashboardPage() {
             {/* Main Content */}
             <div className="relative z-10 pt-8 px-8 pb-8">
                 <div className="max-w-7xl mx-auto space-y-8 pt-6">
-                    {/* Page Header */}
                     <div className="flex flex-col gap-2">
-                        <h1 className="text-3xl font-bold text-gray-900">Tableau de Bord Général</h1>
-                        <p className="text-gray-600">Vue synthétique de votre activité et pilotage global</p>
+                        <h1 className="text-3xl font-bold text-gray-900">Analyse Achats & Ventes</h1>
+                        <p className="text-gray-600">Détail des flux commerciaux et indicateurs de performance</p>
                     </div>
 
                     <KpiDashboard />
-                    <TemporalEvolution />
-                    <CategoryTreeMap />
-                    <LaboratoryAnalysisTable />
-                    <ProductAnalysisTable />
+                    {/* Category Analysis Table (Sales, Purchases, Margin, etc.) */}
+                    <CategoryAnalysisTable />
+
+                    {/* Laboratory Detailed Table */}
+                    <LaboratoryDetailedTable />
                 </div>
             </div>
         </div>
