@@ -72,7 +72,7 @@ export const CategoryAnalysisTable: React.FC = () => {
                         Analyse par Catégorie
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Vue d'ensemble des performances par catégorie
+                        Vue d&apos;ensemble des performances par catégorie
                     </p>
                 </div>
 

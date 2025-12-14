@@ -9,8 +9,7 @@ import {
     FlaskConical,
     Search,
     ChevronLeft,
-    ChevronRight,
-    ArrowUpDown
+    ChevronRight
 } from 'lucide-react';
 
 // --- Internal Helper Components to match Dashboard Design ---
@@ -67,7 +66,7 @@ export const LaboratoryDetailedTable: React.FC = () => {
     const { data: rawData, isLoading, isFetching } = useLaboratoryAnalysis();
 
     // Default empty array
-    const safeData = rawData || [];
+    const safeData = useMemo(() => rawData || [], [rawData]);
 
     // Filter Logic
     const filteredData = useMemo(() => {
