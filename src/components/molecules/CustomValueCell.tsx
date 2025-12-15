@@ -7,6 +7,7 @@ interface CustomValueCellProps {
     isCurrency?: boolean;
     suffix?: string;
     decimals?: number;
+    textSize?: string;
 }
 
 export const CustomValueCell: React.FC<CustomValueCellProps> = ({
@@ -14,7 +15,8 @@ export const CustomValueCell: React.FC<CustomValueCellProps> = ({
     evolution,
     isCurrency = false,
     suffix = '',
-    decimals = 0
+    decimals = 0,
+    textSize = 'text-sm'
 }) => {
     if (value === undefined || value === null) return <span className="text-gray-300">-</span>;
 
@@ -31,7 +33,7 @@ export const CustomValueCell: React.FC<CustomValueCellProps> = ({
 
     return (
         <div className="flex flex-col items-end">
-            <span className="font-medium text-gray-900 text-sm">
+            <span className={`font-medium text-gray-900 ${textSize}`}>
                 {formattedValue}
             </span>
             {evolution !== undefined && evolution !== null && <EvolutionBadge value={evolution} />}

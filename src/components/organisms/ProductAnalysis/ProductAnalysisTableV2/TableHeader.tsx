@@ -1,61 +1,35 @@
 import React from 'react';
+import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 
-export const TableHeader: React.FC = () => {
+export const TableHeader = () => {
     return (
         <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
             <tr>
-                <th className="px-2 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider text-xs w-[14%]">
-                    Produit
-                    <div className="flex gap-2 font-normal text-[10px] text-gray-400 normal-case mt-0.5">
-                        <span>EAN</span>
-                        <span>•</span>
-                        <span>Labo</span>
-                    </div>
-                </th>
-                <th className="px-2 py-3 text-center font-semibold text-gray-600 uppercase tracking-wider text-xs w-[4%]">Rang</th>
+                <TableHeaderCell width="14%">Produit</TableHeaderCell>
+                <TableHeaderCell width="4%" align="center">Rang</TableHeaderCell>
 
-                {/* Achats */}
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">Achat HT</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[5%]">Achat Qte</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">
-                    <div className="flex flex-col items-end">
-                        <span>PDM Achat</span>
-                        <span className="text-[10px] text-gray-400 font-normal normal-case">Montant</span>
-                    </div>
-                </th>
+                {/* Achats - Purple */}
+                <TableHeaderCell align="right" variant="purple" width="8%">Achat HT</TableHeaderCell>
+                <TableHeaderCell align="right" variant="purple" width="7%">Achat Qte</TableHeaderCell>
+                <TableHeaderCell align="right" variant="green" width="8%">PDM Achat</TableHeaderCell>
 
-                {/* Ventes */}
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">Vente TTC</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[5%]">Vente Qte</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">
-                    <div className="flex flex-col items-end">
-                        <span>PDM Vente</span>
-                        <span className="text-[10px] text-gray-400 font-normal normal-case">Montant</span>
-                    </div>
-                </th>
+                {/* Ventes - Blue */}
+                <TableHeaderCell align="right" variant="blue" width="8%">Vente TTC</TableHeaderCell>
+                <TableHeaderCell align="right" variant="blue" width="7%">Vente Qte</TableHeaderCell>
+                <TableHeaderCell align="right" variant="green" width="8%">PDM Vente</TableHeaderCell>
 
-                {/* Marge */}
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">Marge €</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[5%]">Marge %</th>
+                {/* Marges - Orange */}
+                <TableHeaderCell align="right" variant="orange" width="8%">Marge €</TableHeaderCell>
+                <TableHeaderCell align="right" variant="orange" width="7%">Marge %</TableHeaderCell>
 
-                {/* Prix Moyens */}
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">
-                    <div className="flex flex-col items-end">
-                        <span>Px Achat</span>
-                        <span className="text-[10px] text-gray-400 font-normal normal-case">Moyen</span>
-                    </div>
-                </th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">
-                    <div className="flex flex-col items-end">
-                        <span>Px Vente</span>
-                        <span className="text-[10px] text-gray-400 font-normal normal-case">Moyen</span>
-                    </div>
-                </th>
+                {/* Prix - Pink */}
+                <TableHeaderCell align="right" variant="pink" width="8%">PA.HT Moy</TableHeaderCell>
+                <TableHeaderCell align="right" variant="pink" width="8%">PV.TTC Moy</TableHeaderCell>
 
-                {/* Stock */}
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">Stock €</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[5%]">Stock Qte</th>
-                <th className="px-2 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[5%]">J.Stock</th>
+                {/* Stock - Red */}
+                <TableHeaderCell align="right" variant="red" width="8%">Stock €</TableHeaderCell>
+                <TableHeaderCell align="right" variant="red" width="7%">Stock Qte</TableHeaderCell>
+                <TableHeaderCell align="right" variant="red" width="6%">J.Stock</TableHeaderCell>
             </tr>
         </thead>
     );

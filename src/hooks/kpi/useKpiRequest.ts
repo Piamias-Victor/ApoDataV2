@@ -15,6 +15,10 @@ export const useKpiRequest = (): AchatsKpiRequest => {
             start: store.dateRange.start || '',
             end: store.dateRange.end || ''
         },
+        comparisonDateRange: {
+            start: store.comparisonDateRange.start || '',
+            end: store.comparisonDateRange.end || ''
+        },
         productCodes: store.products.map(p => p.code),
         laboratories: store.laboratories.map(l => l.name),
         categories: store.categories.map(c => ({ code: c.name, type: c.type })),

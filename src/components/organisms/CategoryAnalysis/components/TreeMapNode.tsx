@@ -54,7 +54,7 @@ export const TreeMapNode = (props: any) => {
                     fill="#fff"
                     style={{ pointerEvents: 'none', textShadow: '0px 1px 2px rgba(0,0,0,0.2)' }}
                 >
-                    <tspan x={x + width / 2} dy={isSmall ? "0.3em" : "-0.6em"} fontSize={isSmall ? 10 : 13} fontWeight={600}>
+                    <tspan x={x + width / 2} dy={isSmall ? "0.3em" : "-0.6em"} fontSize={isSmall ? 10 : 13} fontWeight={400}>
                         {name.length > (isSmall ? 8 : 15) ? name.slice(0, isSmall ? 6 : 12) + '..' : name}
                     </tspan>
                     {!isSmall && (

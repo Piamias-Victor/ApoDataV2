@@ -76,6 +76,8 @@ export const SideNavBar: React.FC = () => {
     const [isExpanded, setIsExpanded] = useState(false);
     const pathname = usePathname();
 
+    if (pathname === '/' || pathname === '/login') return null;
+
     const menuItems = [
         { label: 'Hub', icon: <Network />, href: '/hub', color: 'purple' },
         { label: 'Dashboard', icon: <LayoutDashboard />, href: '/dashboard', color: 'blue' },

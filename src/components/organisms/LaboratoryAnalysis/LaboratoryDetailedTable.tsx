@@ -3,58 +3,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLaboratoryAnalysis } from './hooks/useLaboratoryAnalysis';
 import {
-    ArrowUp,
-    ArrowDown,
     Loader2,
     FlaskConical,
     Search,
     ChevronLeft,
     ChevronRight
 } from 'lucide-react';
-
-// --- Internal Helper Components to match Dashboard Design ---
-
-// Evolution Badge (Replicated from ValueCell.tsx but simplified)
-const EvolutionBadge = ({ value }: { value: number | undefined | null }) => {
-    if (value === undefined || value === null || isNaN(value)) return <span className="text-gray-300 text-[10px]">-</span>;
-    const isPositive = value > 0;
-    const isNegative = value < 0;
-    const color = isPositive ? 'text-green-600 bg-green-50' : isNegative ? 'text-red-600 bg-red-50' : 'text-gray-400 bg-gray-50';
-    const Icon = isPositive ? ArrowUp : isNegative ? ArrowDown : null;
-
-    return (
-        <div className={`flex items-center w-fit px-1.5 py-0.5 rounded text-[10px] font-medium ${color} mt-1`}>
-            {Icon && <Icon className="w-3 h-3 mr-0.5" />}
-            {Math.abs(value).toFixed(1)}%
-        </div>
-    );
-};
-
-// Custom Value Cell to support both Integer (Money/Qty) and Decimal (Pct) with precise control
-const CustomValueCell = ({ value, evolution, isCurrency = false, suffix = '', decimals = 0 }: { value: number | undefined | null, evolution?: number | null, isCurrency?: boolean, suffix?: string, decimals?: number }) => {
-    if (value === undefined || value === null) return <span className="text-gray-300">-</span>;
-
-    // Format value
-    let formattedValue;
-    if (isCurrency) {
-        formattedValue = Math.round(value).toLocaleString('fr-FR') + ' €';
-    } else {
-        formattedValue = value.toLocaleString('fr-FR', {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals
-        }) + suffix;
-    }
-
-    return (
-        <div className="flex flex-col items-end">
-            <span className="font-medium text-gray-900 text-sm">
-                {formattedValue}
-            </span>
-            {evolution !== undefined && evolution !== null && <EvolutionBadge value={evolution} />}
-        </div>
-    );
-};
-
+import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
+import { TableCell } from '@/components/atoms/Table/TableCell';
+import { ValueCell } from '@/components/molecules/Table/ValueCell';
 
 export const LaboratoryDetailedTable: React.FC = () => {
 
@@ -76,9 +33,6 @@ export const LaboratoryDetailedTable: React.FC = () => {
                 row.laboratory_name.toLowerCase().includes(search.toLowerCase())
             );
         }
-        // Ensure sorted by Rank (Sales TTC desc usually) or Rank column if available. 
-        // SQL usually returns sorted by Sales TTC. 
-        // We can enforce sorting by my_rank
         return [...res].sort((a, b) => a.my_rank - b.my_rank);
     }, [safeData, search]);
 
@@ -141,120 +95,152 @@ export const LaboratoryDetailedTable: React.FC = () => {
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
-                                        <th className="px-4 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider text-xs w-[14%]">Laboratoire</th>
-                                        <th className="px-4 py-3 text-center font-semibold text-gray-600 uppercase tracking-wider text-xs w-[4%]">Rang</th>
+                                        {/* LABO */}
+                                        <TableHeaderCell width="14%">Laboratoire</TableHeaderCell>
+                                        <TableHeaderCell width="4%" align="center">Rang</TableHeaderCell>
 
-                                        {/* Groups */}
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">Achat HT</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[7%]">Achat Qte</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">
+                                        {/* ACHAT - Purple */}
+                                        <TableHeaderCell align="right" variant="purple" width="6%">Achat HT</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="5%">Achat Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%">
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Achat</span>
-                                                <span className="text-[10px] text-gray-400 font-normal normal-case">Montant</span>
+                                                <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
                                             </div>
-                                        </th>
+                                        </TableHeaderCell>
 
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">Vente TTC</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[7%]">Vente Qte</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">
+                                        {/* VENTE - Blue */}
+                                        <TableHeaderCell align="right" variant="blue" width="6%">Vente TTC</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="5%">Vente Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%">
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Vente</span>
-                                                <span className="text-[10px] text-gray-400 font-normal normal-case">Montant</span>
+                                                <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
                                             </div>
-                                        </th>
+                                        </TableHeaderCell>
 
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">Marge €</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[7%]">Marge %</th>
+                                        {/* MARGE - Orange */}
+                                        <TableHeaderCell align="right" variant="orange" width="6%">Marge €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="5%">Marge %</TableHeaderCell>
 
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[8%]">Stock €</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[7%]">Stock Qte</th>
-                                        <th className="px-4 py-3 text-right font-semibold text-gray-600 uppercase tracking-wider text-xs w-[6%]">J.Stock</th>
+                                        {/* PRIX - Pink (Added) */}
+                                        <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
+
+                                        {/* STOCK - Red */}
+                                        <TableHeaderCell align="right" variant="red" width="6%">Stock €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%">Stock Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%">J.Stock</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={13} className="p-12 text-center text-gray-500">
+                                            <td colSpan={15} className="p-12 text-center text-gray-500">
                                                 Aucun laboratoire trouvé.
                                             </td>
                                         </tr>
                                     ) : (
-                                        paginatedData.map((row, idx) => (
-                                            <tr key={idx} className="hover:bg-purple-50/30 transition-colors group">
+                                        paginatedData.map((row, idx) => {
+                                            // Compute Prices
+                                            const avgBuyPrice = row.my_purchases_qty ? row.my_purchases_ht / row.my_purchases_qty : 0;
+                                            const avgSellPrice = row.my_sales_qty ? row.my_sales_ttc / row.my_sales_qty : 0;
 
-                                                {/* Name */}
-                                                <td className="px-4 py-3 font-medium text-gray-900">
-                                                    {row.laboratory_name}
-                                                </td>
+                                            return (
+                                                <tr key={idx} className="hover:bg-purple-50/30 transition-colors group">
 
-                                                {/* Rank - Bubble Style */}
-                                                <td className="px-4 py-3 text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {/* Labo Name */}
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium text-gray-900 text-xs truncate max-w-[200px]" title={row.laboratory_name}>
+                                                                {row.laboratory_name}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    {/* Rank - Bubble Style */}
+                                                    <TableCell align="center">
+                                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
                                                             #{row.my_rank}
                                                         </span>
-                                                    </div>
-                                                </td>
+                                                    </TableCell>
 
-                                                {/* Achat HT */}
-                                                <td className="px-4 py-3 text-right bg-purple-50/5 group-hover:bg-purple-50/10">
-                                                    <CustomValueCell value={row.my_purchases_ht} evolution={row.my_purchases_evolution} isCurrency />
-                                                </td>
-                                                {/* Achat Qte */}
-                                                <td className="px-4 py-3 text-right">
-                                                    <CustomValueCell value={row.my_purchases_qty} evolution={row.my_purchases_qty_evolution} />
-                                                </td>
-                                                {/* PDM Achat */}
-                                                <td className="px-4 py-3 text-right bg-purple-50/5 group-hover:bg-purple-50/10">
-                                                    <CustomValueCell value={row.my_pdm_purchases_pct} evolution={row.my_pdm_purchases_evolution} suffix="%" decimals={1} />
-                                                </td>
+                                                    {/* Achat HT */}
+                                                    <TableCell align="right" variant="purple">
+                                                        <ValueCell value={row.my_purchases_ht} evolution={row.my_purchases_evolution} isCurrency textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* Achat Qte */}
+                                                    <TableCell align="right" variant="purple">
+                                                        <ValueCell value={row.my_purchases_qty} evolution={row.my_purchases_qty_evolution} textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* PDM Achat */}
+                                                    <TableCell align="right" variant="green">
+                                                        <ValueCell value={row.my_pdm_purchases_pct} evolution={row.my_pdm_purchases_evolution} suffix="%" decimals={1} textSize="text-xs" />
+                                                    </TableCell>
 
-                                                {/* Vente TTC */}
-                                                <td className="px-4 py-3 text-right bg-blue-50/5 group-hover:bg-blue-50/10">
-                                                    <CustomValueCell value={row.my_sales_ttc} evolution={row.my_sales_evolution} isCurrency />
-                                                </td>
-                                                {/* Vente Qte */}
-                                                <td className="px-4 py-3 text-right">
-                                                    <CustomValueCell value={row.my_sales_qty} evolution={row.my_sales_qty_evolution} />
-                                                </td>
-                                                {/* PDM Vente */}
-                                                <td className="px-4 py-3 text-right bg-blue-50/5 group-hover:bg-blue-50/10">
-                                                    <CustomValueCell value={row.my_pdm_pct} evolution={row.my_pdm_evolution} suffix="%" decimals={1} />
-                                                </td>
+                                                    {/* Vente TTC */}
+                                                    <TableCell align="right" variant="blue">
+                                                        <ValueCell value={row.my_sales_ttc} evolution={row.my_sales_evolution} isCurrency textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* Vente Qte */}
+                                                    <TableCell align="right" variant="blue">
+                                                        <ValueCell value={row.my_sales_qty} evolution={row.my_sales_qty_evolution} textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* PDM Vente */}
+                                                    <TableCell align="right" variant="green">
+                                                        <ValueCell value={row.my_pdm_pct} evolution={row.my_pdm_evolution} suffix="%" decimals={1} textSize="text-xs" />
+                                                    </TableCell>
 
-                                                {/* Marge € */}
-                                                <td className="px-4 py-3 text-right bg-orange-50/5 group-hover:bg-orange-50/10">
-                                                    <CustomValueCell value={row.my_margin_ht} evolution={row.my_margin_ht_evolution} isCurrency />
-                                                </td>
-                                                {/* Marge % */}
-                                                <td className="px-4 py-3 text-right">
-                                                    <CustomValueCell value={row.my_margin_rate} evolution={row.my_margin_rate_evolution} suffix="%" decimals={1} />
-                                                </td>
+                                                    {/* Marge € */}
+                                                    <TableCell align="right" variant="orange">
+                                                        <ValueCell value={row.my_margin_ht} evolution={row.my_margin_ht_evolution} isCurrency textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* Marge % */}
+                                                    <TableCell align="right" variant="orange">
+                                                        <ValueCell value={row.my_margin_rate} evolution={row.my_margin_rate_evolution} suffix="%" decimals={1} textSize="text-xs" />
+                                                    </TableCell>
 
-                                                {/* Stock € */}
-                                                <td className="px-4 py-3 text-right bg-gray-50/30 group-hover:bg-gray-50/50">
-                                                    <CustomValueCell value={row.my_stock_value_ht} evolution={row.my_stock_value_ht_evolution} isCurrency />
-                                                </td>
-                                                {/* Stock Qte */}
-                                                <td className="px-4 py-3 text-right">
-                                                    <CustomValueCell value={row.my_stock_qty} evolution={row.my_stock_qty_evolution} />
-                                                </td>
-                                                {/* J.Stock */}
-                                                <td className="px-4 py-3 text-right">
-                                                    <span className="font-bold text-gray-800">{row.my_days_of_stock?.toFixed(0)}j</span>
-                                                </td>
+                                                    {/* Prix Achat Moy (Calculated) */}
+                                                    <TableCell align="right" variant="pink">
+                                                        <div className="font-medium text-gray-700 text-xs">
+                                                            {avgBuyPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                        </div>
+                                                    </TableCell>
+                                                    {/* Prix Vente Moy (Calculated) */}
+                                                    <TableCell align="right" variant="pink">
+                                                        <div className="font-medium text-gray-700 text-xs">
+                                                            {avgSellPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                        </div>
+                                                    </TableCell>
 
-                                            </tr>
-                                        ))
+                                                    {/* Stock € */}
+                                                    <TableCell align="right" variant="red">
+                                                        <ValueCell value={row.my_stock_value_ht} evolution={row.my_stock_value_ht_evolution} isCurrency textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* Stock Qte */}
+                                                    <TableCell align="right" variant="red">
+                                                        <ValueCell value={row.my_stock_qty} evolution={row.my_stock_qty_evolution} textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* J.Stock */}
+                                                    <TableCell align="right" variant="red">
+                                                        <span className={`font-bold text-xs ${(row.my_days_of_stock || 0) > 90 ? 'text-red-600' :
+                                                            (row.my_days_of_stock || 0) > 60 ? 'text-orange-600' : 'text-gray-800'
+                                                            }`}>
+                                                            {row.my_days_of_stock?.toFixed(0)}j
+                                                        </span>
+                                                    </TableCell>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {/* Pagination - Exact Dashboard Style */}
+                        {/* Pagination */}
                         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50/80 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div className="text-sm text-gray-500">
-                                Affichage de <span className="font-medium">{(page - 1) * pageSize + 1}</span> à <span className="font-medium">{Math.min(page * pageSize, filteredData.length)}</span> sur <span className="font-medium">{filteredData.length}</span>
+                                Affichage de <span className="font-medium">{filteredData.length > 0 ? (page - 1) * pageSize + 1 : 0}</span> à <span className="font-medium">{Math.min(page * pageSize, filteredData.length)}</span> sur <span className="font-medium">{filteredData.length}</span>
                             </div>
                             <div className="flex gap-2">
                                 <button

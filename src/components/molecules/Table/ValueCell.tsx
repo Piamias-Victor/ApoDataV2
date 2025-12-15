@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
-export const EvolutionBadge = ({ value }: { value: number }) => {
+export const EvolutionBadge = ({ value }: { value?: number | null }) => {
     if (!value || isNaN(value)) return <span className="text-gray-300 text-[10px]">-</span>;
     const isPositive = value > 0;
     const isNegative = value < 0;
@@ -16,12 +16,49 @@ export const EvolutionBadge = ({ value }: { value: number }) => {
     );
 };
 
-export const ValueCell = ({ value, evolution, isCurrency = false, suffix = '' }: { value: number, evolution?: number, isCurrency?: boolean, suffix?: string }) => (
-    <div className="flex flex-col">
-        <span className="font-medium text-gray-900 text-sm">
-            {isCurrency ? Math.round(value).toLocaleString() : Math.round(value)}
-            {isCurrency ? '€' : suffix}
-        </span>
-        {evolution !== undefined && <EvolutionBadge value={evolution} />}
-    </div>
-);
+export const ValueCell = ({
+    value,
+    evolution,
+    isCurrency = false,
+    suffix = '',
+    textSize = 'text-sm',
+    decimals = 0
+}: {
+    value?: number | null | undefined,
+    evolution?: number | null | undefined,
+    isCurrency?: boolean | undefined,
+    suffix?: string | undefined,
+    textSize?: string | undefined,
+    decimals?: number | undefined
+}) => {
+    if (value === undefined || value === null) return <span className="text-gray-300">-</span>;
+
+    // Format value
+    let formattedValue;
+    if (isCurrency) {
+        formattedValue = Math.round(value).toLocaleString('fr-FR'); // Currency usually rounded to int in this app based on prev code? Original was Math.round(value).
+        // specific request: "clean code". If currency, usually we want standard formatting.
+        // But original Code: "Math.round(value).toLocaleString()".
+        // Let's stick to simple formatting but allow decimals if provided?
+        // If decimals provided, respect it. If not, round (for retro compatibility).
+        if (decimals > 0) {
+            formattedValue = value.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        } else {
+            formattedValue = Math.round(value).toLocaleString('fr-FR');
+        }
+    } else {
+        formattedValue = value.toLocaleString('fr-FR', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    }
+
+    return (
+        <div className="flex flex-col">
+            <span className={`font-medium text-gray-900 ${textSize}`}>
+                {formattedValue}{isCurrency ? ' €' : suffix}
+            </span>
+            {(evolution !== undefined && evolution !== null) && <EvolutionBadge value={evolution} />}
+        </div>
+    );
+};

@@ -1,33 +1,34 @@
 import React from 'react';
+import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 
-export const LaboratoryTableHeader: React.FC = () => {
+export const LaboratoryTableHeader = () => {
     return (
         <thead>
             <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">Laboratoire</th>
-                <th className="px-2 md:px-4 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Rang</th>
+                <TableHeaderCell width="12rem">Laboratoire</TableHeaderCell>
+                <TableHeaderCell align="center">Rang</TableHeaderCell>
 
                 {/* Grouped Columns with Sub-headers */}
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-l border-gray-200 bg-blue-50/50">
-                    Achat HT <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Achat Qté <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
+                <TableHeaderCell align="left" variant="purple" className="border-l border-gray-200">
+                    Achat HT <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
+                <TableHeaderCell align="left" variant="purple">
+                    Achat Qté <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
 
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-l border-gray-200 bg-green-50/50">
-                    Vente TTC <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Vente Qté <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
+                <TableHeaderCell align="left" variant="blue" className="border-l border-gray-200">
+                    Vente TTC <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
+                <TableHeaderCell align="left" variant="blue">
+                    Vente Qté <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
 
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-l border-gray-200 bg-orange-50/50">
-                    Marge % <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
-                <th className="px-2 md:px-4 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Part de Marché <span className="block text-[10px] text-gray-400 font-normal normal-case">Moi vs Groupe</span>
-                </th>
+                <TableHeaderCell align="left" variant="orange" className="border-l border-gray-200">
+                    Marge % <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
+                <TableHeaderCell align="left" variant="green">
+                    Part de Marché <span className="block text-[9px] opacity-70 font-normal normal-case">Moi vs Groupe</span>
+                </TableHeaderCell>
             </tr>
         </thead>
     );
