@@ -20,6 +20,18 @@ export interface TreeMapNode {
     rank?: number;
 }
 
+interface CategoryApiResponse {
+    name: string;
+    sales_ttc: number;
+    sales_qty: number;
+    purchases_ht: number;
+    purchases_qty: number;
+    margin_ht: number;
+    margin_rate: number;
+    market_share_pct: number;
+    [key: string]: any;
+}
+
 export const useCategoryTree = (path: string[], showOthers: boolean = false) => {
     const request = useKpiRequest();
 
@@ -34,9 +46,9 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
                 signal
             });
             if (!res.ok) throw new Error('Failed to fetch category data');
-            return res.json() as Promise<TreeMapNode[]>;
+            return res.json() as Promise<CategoryApiResponse[]>;
         },
-        placeholderData: (prev) => prev // Keep previous data while drilling to avoid flicker? Or maybe loading state is better? Loading state is better for drill down.
+        placeholderData: (prev) => prev
     });
 
     // Process Data
@@ -83,7 +95,7 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
             const othersValue = others.reduce((sum, item) => sum + item.value, 0);
             const othersCount = others.reduce((sum, item) => sum + item.count, 0);
 
-            const result = top.map((item, idx) => ({
+            const result: TreeMapNode[] = top.map((item, idx) => ({
                 ...item,
                 value: Math.round(item.value),
                 rank: idx + 1,
