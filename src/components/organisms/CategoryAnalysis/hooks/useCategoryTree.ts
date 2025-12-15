@@ -43,9 +43,17 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
     const processedData = useMemo(() => {
         if (!query.data) return [];
 
-        const sorted = [...query.data].sort((a, b) => b.value - a.value);
+        const validData = query.data.map(item => ({
+            ...item,
+            value: Number(item.sales_ttc) || 0,
+            count: Number(item.sales_qty) || 0
+        }));
+
+        const sorted = [...validData].sort((a, b) => b.value - a.value);
         const total = sorted.reduce((sum, item) => sum + item.value, 0);
         const TOP_N = 10;
+
+        const calculatePercentage = (val: number) => (total === 0 ? 0 : (val / total) * 100);
 
         // If simple list or less than Limit
         if (sorted.length <= TOP_N) {
@@ -53,7 +61,7 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
                 ...item,
                 value: Math.round(item.value),
                 rank: idx + 1,
-                percentage: (item.value / total) * 100
+                percentage: calculatePercentage(item.value)
             }));
         }
 
@@ -65,7 +73,7 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
                 ...item,
                 value: Math.round(item.value),
                 rank: TOP_N + 1 + idx,
-                percentage: (item.value / total) * 100
+                percentage: calculatePercentage(item.value)
             }));
         } else {
             // SHOW TOP 10 + Aggregate
@@ -79,16 +87,18 @@ export const useCategoryTree = (path: string[], showOthers: boolean = false) => 
                 ...item,
                 value: Math.round(item.value),
                 rank: idx + 1,
-                percentage: (item.value / total) * 100
+                percentage: calculatePercentage(item.value)
             }));
 
-            result.push({
-                name: `Autres (${others.length})`,
-                value: Math.round(othersValue),
-                count: othersCount,
-                rank: TOP_N + 1,
-                percentage: (othersValue / total) * 100
-            });
+            if (others.length > 0) {
+                result.push({
+                    name: `Autres (${others.length})`,
+                    value: Math.round(othersValue),
+                    count: othersCount,
+                    rank: TOP_N + 1,
+                    percentage: calculatePercentage(othersValue)
+                });
+            }
 
             return result;
         }

@@ -52,7 +52,7 @@ export const CategoryTreeMap: React.FC = () => {
     };
 
     const visibleData = useMemo(() => {
-        return data.filter(item => !hiddenSeries.includes(item.name));
+        return data.filter(item => !hiddenSeries.includes(item.name) && item.name !== 'Non classé');
     }, [data, hiddenSeries]);
 
     return (
