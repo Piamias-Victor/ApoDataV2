@@ -45,7 +45,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 
                     {/* Panel */}
                     <motion.div
-                        className={`fixed top-0 right-0 h-full ${width} z-50 bg-white/90 backdrop-blur-2xl shadow-2xl flex flex-col border-l border-white/50`}
+                        className={`fixed top-0 right-0 h-[100dvh] max-h-[100dvh] ${width} z-50 bg-white/90 backdrop-blur-2xl shadow-2xl flex flex-col border-l border-white/50`}
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
@@ -56,12 +56,12 @@ export const Drawer: React.FC<DrawerProps> = ({
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{title}</h2>
                                 <div className={`h-1 w-12 rounded-full mt-2 ${accentColor === 'orange' ? 'bg-orange-500' :
-                                        accentColor === 'blue' ? 'bg-blue-600' :
-                                            accentColor === 'red' ? 'bg-red-600' :
-                                                accentColor === 'green' ? 'bg-green-600' :
-                                                    accentColor === 'yellow' ? 'bg-yellow-500' :
-                                                        accentColor === 'black' ? 'bg-gray-900' :
-                                                            'bg-purple-600'
+                                    accentColor === 'blue' ? 'bg-blue-600' :
+                                        accentColor === 'red' ? 'bg-red-600' :
+                                            accentColor === 'green' ? 'bg-green-600' :
+                                                accentColor === 'yellow' ? 'bg-yellow-500' :
+                                                    accentColor === 'black' ? 'bg-gray-900' :
+                                                        'bg-purple-600'
                                     }`} />
                             </div>
                             <button

@@ -167,10 +167,10 @@ export const ProductQueries = {
                 ELSE ((CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END) - ((gs.margin_ht_prev / gs.sales_ht_prev) * 100))
             END as group_margin_rate_evolution,
 
-            0 as my_pdm_evolution,
+            ((gs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100) - ((gs.sales_ttc_prev / NULLIF(gt.total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
             0 as group_pdm_evolution,
 
-            0 as my_pdm_purchases_evolution,
+            ((gs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100) - ((gs.purchases_ht_prev / NULLIF(gt.total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
             CASE WHEN gs.margin_ht_prev = 0 THEN 0 ELSE ((gs.margin_ht - gs.margin_ht_prev) / ABS(gs.margin_ht_prev)) * 100 END as my_margin_ht_evolution,
             
              CASE 

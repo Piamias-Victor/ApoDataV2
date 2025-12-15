@@ -15,6 +15,21 @@ interface FilterDrawerListProps {
 }
 
 export const FilterDrawerList: React.FC<FilterDrawerListProps> = ({ activeDrawer, onClose }) => {
+    React.useEffect(() => {
+        if (activeDrawer) {
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        }
+
+        return () => {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
+    }, [activeDrawer]);
+
     return (
         <>
             <Drawer isOpen={activeDrawer === 'pharmacy'} onClose={onClose} title="Sélection Pharmacies" accentColor="orange">

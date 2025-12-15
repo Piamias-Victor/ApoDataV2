@@ -5,6 +5,7 @@ import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { CategoryAnalysisTable } from '@/components/organisms/CategoryAnalysis/CategoryAnalysisTable';
 import { LaboratoryDetailedTable } from '@/components/organisms/LaboratoryAnalysis';
+import { ProductAnalysisTableV2 } from '@/components/organisms/ProductAnalysis/ProductAnalysisTableV2';
 
 export default function AchatsVentesPage() {
     return (
@@ -45,6 +46,9 @@ export default function AchatsVentesPage() {
 
                     {/* Laboratory Detailed Table */}
                     <LaboratoryDetailedTable />
+
+                    {/* Product Analysis Table */}
+                    <ProductAnalysisTableV2 />
                 </div>
             </div>
         </div>
