@@ -15,12 +15,30 @@ export const ProductQueries = {
                 SUM(stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (ms.product_id) 
-                    gp.code_13_ref as ean13,
+                    ms.code_13_ref as ean13,
                     ms.stock,
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
-                LEFT JOIN data_globalproduct gp ON gp.id = ms.product_id
                 WHERE ms.month_end_date <= $2::date 
+                  AND ($5::uuid IS NULL OR ms.pharmacy_id = $5::uuid)
+                ORDER BY ms.product_id, ms.month_end_date DESC
+            ) t
+            WHERE ean13 IS NOT NULL
+            GROUP BY 1
+        ),
+
+        last_stock_prev AS (
+            SELECT 
+                ean13,
+                SUM(stock) as stock_qty,
+                SUM(stock_value_ht) as stock_value_ht
+            FROM (
+                SELECT DISTINCT ON (ms.product_id) 
+                    ms.code_13_ref as ean13,
+                    ms.stock,
+                    ms.stock_value_ht
+                FROM mv_stock_monthly ms
+                WHERE ms.month_end_date <= $4::date 
                   AND ($5::uuid IS NULL OR ms.pharmacy_id = $5::uuid)
                 ORDER BY ms.product_id, ms.month_end_date DESC
             ) t
@@ -137,6 +155,7 @@ export const ProductQueries = {
             CASE WHEN gs.sales_qty_prev = 0 THEN 0 ELSE ((gs.sales_qty - gs.sales_qty_prev) / gs.sales_qty_prev) * 100 END as my_sales_qty_evolution,
             CASE WHEN gs.sales_qty_prev = 0 THEN 0 ELSE ((gs.sales_qty - gs.sales_qty_prev) / gs.sales_qty_prev) * 100 END as group_sales_qty_evolution,
 
+            CASE WHEN gs.purchases_qty_prev = 0 THEN 0 ELSE ((gs.purchases_qty - gs.purchases_qty_prev) / gs.purchases_qty_prev) * 100 END as my_purchases_qty_evolution,
             CASE WHEN gs.purchases_qty_prev = 0 THEN 0 ELSE ((gs.purchases_qty - gs.purchases_qty_prev) / gs.purchases_qty_prev) * 100 END as group_purchases_qty_evolution,
 
             CASE
@@ -152,14 +171,23 @@ export const ProductQueries = {
             0 as group_pdm_evolution,
 
             0 as my_pdm_purchases_evolution,
-            0 as my_margin_ht_evolution,
-            0 as my_stock_qty_evolution,
-            0 as my_stock_value_ht_evolution,
-
+            CASE WHEN gs.margin_ht_prev = 0 THEN 0 ELSE ((gs.margin_ht - gs.margin_ht_prev) / ABS(gs.margin_ht_prev)) * 100 END as my_margin_ht_evolution,
+            
+             CASE 
+                WHEN COALESCE(lstp.stock_qty, 0) = 0 THEN 0 
+                ELSE ((COALESCE(lst.stock_qty, 0) - COALESCE(lstp.stock_qty, 0)) / COALESCE(lstp.stock_qty, 0)) * 100 
+            END as my_stock_qty_evolution,
+            
+            CASE 
+                WHEN COALESCE(lstp.stock_value_ht, 0) = 0 THEN 0 
+                ELSE ((COALESCE(lst.stock_value_ht, 0) - COALESCE(lstp.stock_value_ht, 0)) / COALESCE(lstp.stock_value_ht, 0)) * 100 
+            END as my_stock_value_ht_evolution,
+            
             COUNT(*) OVER() as total_rows
             
         FROM global_stats gs
         LEFT JOIN last_stock lst ON lst.ean13 = gs.ean13
+        LEFT JOIN last_stock_prev lstp ON lstp.ean13 = gs.ean13
         CROSS JOIN global_totals gt
         LEFT JOIN pharmacy_counts pc_current ON pc_current.period = 'CURRENT'
         ORDER BY gs.sales_qty DESC
@@ -194,11 +222,10 @@ export const ProductQueries = {
                 SUM(stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (ms.product_id) 
-                    gp.code_13_ref as ean13,
+                    ms.code_13_ref as ean13,
                     ms.stock,
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
-                LEFT JOIN data_globalproduct gp ON gp.id = ms.product_id
                 WHERE ms.month_end_date <= $2::date 
                   AND ms.pharmacy_id = $5::uuid
                 ORDER BY ms.product_id, ms.month_end_date DESC
@@ -214,11 +241,10 @@ export const ProductQueries = {
                 SUM(stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (ms.product_id) 
-                    gp.code_13_ref as ean13,
+                    ms.code_13_ref as ean13,
                     ms.stock,
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
-                LEFT JOIN data_globalproduct gp ON gp.id = ms.product_id
                 WHERE ms.month_end_date <= $4::date
                   AND ms.pharmacy_id = $5::uuid
                 ORDER BY ms.product_id, ms.month_end_date DESC
