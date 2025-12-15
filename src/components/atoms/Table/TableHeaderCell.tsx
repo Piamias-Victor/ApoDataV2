@@ -20,12 +20,17 @@ const colorStyles: Record<TableHeaderColor, string> = {
     gray: 'text-gray-600',
 };
 
-export const TableHeaderCell: React.FC<TableHeaderCellProps> = ({
+import { ArrowUp, ArrowDown } from 'lucide-react';
+
+export const TableHeaderCell: React.FC<TableHeaderCellProps & { isSortable?: boolean; sortDirection?: 'asc' | 'desc' | null; onSort?: () => void }> = ({
     children,
     align = 'left',
     variant = 'gray',
     className = '',
     width,
+    isSortable = false,
+    sortDirection = null,
+    onSort
 }) => {
     return (
         <th
@@ -36,10 +41,25 @@ export const TableHeaderCell: React.FC<TableHeaderCellProps> = ({
                 text-${align}
                 ${colorStyles[variant]}
                 ${className}
+                ${isSortable ? 'cursor-pointer hover:bg-opacity-50 transition-colors select-none' : ''}
             `}
             style={{ width }}
+            onClick={isSortable ? onSort : undefined}
         >
-            {children}
+            <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                {children}
+                {isSortable && (
+                    <div className="flex flex-col opacity-50">
+                        {sortDirection === 'asc' ? (
+                            <ArrowUp className="w-3 h-3 text-current font-bold" />
+                        ) : sortDirection === 'desc' ? (
+                            <ArrowDown className="w-3 h-3 text-current font-bold" />
+                        ) : (
+                            <div className="h-3 w-3" /> // Placeholder to prevent jump, or maybe just show nothing/greyed arrows
+                        )}
+                    </div>
+                )}
+            </div>
         </th>
     );
 };

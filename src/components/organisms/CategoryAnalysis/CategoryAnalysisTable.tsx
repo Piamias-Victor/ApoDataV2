@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -9,15 +8,25 @@ import {
     ArrowDownRight,
     Minus,
     Loader2,
-    Activity
+    Activity,
+    ArrowDown,
+    ArrowUp
 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
+import { useClientTableSort } from '@/hooks/useClientTableSort';
 
 export const CategoryAnalysisTable: React.FC = () => {
     const [path, setPath] = useState<string[]>([]);
 
     const { data: rawData, isLoading, isFetching } = useCategoryTree(path, false);
     const data = rawData as any[];
+
+    // Define Sorting Logic
+    const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
+        data: data || [],
+        initialSortBy: 'sales_ttc',
+        initialSortOrder: 'desc'
+    });
 
     const handleRowClick = (name: string) => {
         if (path.length >= 5) return;
@@ -47,19 +56,19 @@ export const CategoryAnalysisTable: React.FC = () => {
     };
 
     const headers = [
-        { label: 'Univers / Catégorie', align: 'left', width: 'w-[25%]' },
+        { label: 'Univers / Catégorie', key: 'name', align: 'left', width: 'w-[25%]' },
         // Achat €
-        { label: 'Achat €', align: 'right', subLabel: 'Sell-in HT', width: 'w-[12%]' },
+        { label: 'Achat €', key: 'purchases_ht', align: 'right', subLabel: 'Sell-in HT', width: 'w-[12%]' },
         // Achat Qte
-        { label: 'Achat Qte', align: 'right', width: 'w-[10%]' },
+        { label: 'Achat Qte', key: 'purchases_qty', align: 'right', width: 'w-[10%]' },
         // Vente €
-        { label: 'Vente €', align: 'right', subLabel: 'Sell-out TTC', width: 'w-[12%]' },
+        { label: 'Vente €', key: 'sales_ttc', align: 'right', subLabel: 'Sell-out TTC', width: 'w-[12%]' },
         // Vente Qte
-        { label: 'Vente Qte', align: 'right', width: 'w-[10%]' },
+        { label: 'Vente Qte', key: 'sales_qty', align: 'right', width: 'w-[10%]' },
         // Marge %
-        { label: 'Marge %', align: 'right', width: 'w-[10%]' },
+        { label: 'Marge %', key: 'margin_rate', align: 'right', width: 'w-[10%]' },
         // PDM %
-        { label: 'PDM %', align: 'right', subLabel: 'Global', width: 'w-[10%]' },
+        { label: 'PDM %', key: 'market_share_pct', align: 'right', subLabel: 'Global', width: 'w-[10%]' },
     ];
 
     return (
@@ -131,31 +140,40 @@ export const CategoryAnalysisTable: React.FC = () => {
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                 <tr>
-                                    {headers.map((header, idx) => (
-                                        <th
-                                            key={idx}
-                                            className={`
-                                                px-4 py-3 text-${header.align} font-semibold text-gray-600 uppercase tracking-wider text-xs
-                                                ${header.width}
-                                            `}
-                                        >
-                                            <div className="flex flex-col gap-0.5">
-                                                <span>{header.label}</span>
-                                                {header.subLabel && <span className="text-[10px] text-gray-400 font-normal normal-case">{header.subLabel}</span>}
-                                            </div>
-                                        </th>
-                                    ))}
+                                    {headers.map((header, idx) => {
+                                        const isSorted = sortBy === header.key;
+                                        return (
+                                            <th
+                                                key={idx}
+                                                onClick={() => handleSort(header.key)}
+                                                className={`
+                                                    px-4 py-3 text-${header.align} font-semibold text-gray-600 uppercase tracking-wider text-xs
+                                                    ${header.width} cursor-pointer hover:bg-gray-100 transition-colors select-none group
+                                                `}
+                                            >
+                                                <div className={`flex items-center gap-1 ${header.align === 'right' ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className={isSorted ? 'text-purple-600' : ''}>{header.label}</span>
+                                                        {header.subLabel && <span className="text-[10px] text-gray-400 font-normal normal-case">{header.subLabel}</span>}
+                                                    </div>
+                                                    <div className="flex flex-col opacity-0 group-hover:opacity-50 data-[sorted=true]:opacity-100 transition-opacity" data-sorted={isSorted}>
+                                                        {isSorted && sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-purple-600" /> : <ArrowDown className={`w-3 h-3 ${isSorted ? 'text-purple-600' : 'text-gray-400'}`} />}
+                                                    </div>
+                                                </div>
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100/50">
-                                {data?.filter(r => r.name !== 'AUTRES').length === 0 ? (
+                                {sortedData?.filter(r => r.name !== 'AUTRES').length === 0 ? (
                                     <tr>
                                         <td colSpan={headers.length} className="p-16 text-center text-gray-400 font-medium">
                                             Aucune donnée disponible pour cette sélection.
                                         </td>
                                     </tr>
                                 ) : (
-                                    data?.filter(row => row.name !== 'AUTRES' && row.name !== 'Non classé').map((row, idx) => {
+                                    sortedData?.filter((row: any) => row.name !== 'AUTRES' && row.name !== 'Non classé').map((row: any, idx: number) => {
                                         const rankColor = ['bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-pink-500'][idx % 5] || 'bg-gray-300';
 
                                         return (

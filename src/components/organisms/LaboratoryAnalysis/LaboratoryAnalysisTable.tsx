@@ -3,8 +3,7 @@ import { useLaboratoryAnalysis } from './hooks/useLaboratoryAnalysis';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { LaboratoryTableHeader } from './LaboratoryTableHeader';
 import { LaboratoryTableRow } from './LaboratoryTableRow';
-
-
+import { useClientTableSort } from '@/hooks/useClientTableSort';
 
 export const LaboratoryAnalysisTable = () => {
     const { data, isLoading } = useLaboratoryAnalysis();
@@ -19,8 +18,14 @@ export const LaboratoryAnalysisTable = () => {
         );
     }, [data, searchTerm]);
 
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-    const paginatedData = filteredData.slice(
+    const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
+        data: filteredData,
+        initialSortBy: 'my_rank',
+        initialSortOrder: 'asc'
+    });
+
+    const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+    const paginatedData = sortedData.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
     );
@@ -67,7 +72,11 @@ export const LaboratoryAnalysisTable = () => {
                     <>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <LaboratoryTableHeader />
+                                <LaboratoryTableHeader
+                                    sortBy={sortBy}
+                                    sortOrder={sortOrder}
+                                    onSort={handleSort}
+                                />
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.map((row) => (
                                         <LaboratoryTableRow key={row.laboratory_name} row={row} />

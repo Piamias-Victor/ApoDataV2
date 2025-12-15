@@ -7,7 +7,7 @@ import { ProductQueries } from '@/queries/kpi/ProductQueries';
 
 export class ProductAnalysisRepository extends BaseKpiRepository {
 
-    async execute(request: AchatsKpiRequest, page = 1, pageSize = 20, search = ''): Promise<{ data: ProductAnalysisRow[], total: number }> {
+    async execute(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc'): Promise<{ data: ProductAnalysisRow[], total: number }> {
         const context = KpiRequestMapper.toContext(request, page, pageSize);
         const myPharmacyId = request.pharmacyIds?.[0] || null;
 
@@ -35,21 +35,74 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             params.push(`%${search}%`);
         }
 
-        // 5. Finalize SQL Parts
+        // 5. Build Sort Clauses
+        // Map frontend sort keys to DB Columns.
+        // CTE Columns: 'sales_qty', 'sales_ttc', 'product_name' (Global/My matches for simple ones)
+        // Final Columns: 'gs.sales_qty', 'gs.sales_ttc' OR 'ms.my_sales_qty' etc.
+
+        const direction = sortOrder === 'asc' ? 'ASC' : 'DESC';
+        const nulls = sortOrder === 'asc' ? 'NULLS FIRST' : 'NULLS LAST';
+
+        // Column mappings
+        // If sorting by 'my_sales_qty' -> CTE: 'sales_qty' (Global), 'my_sales_qty' (Comparative). Final: 'gs.sales_qty' (Global), 'ms.my_sales_qty' (Comp).
+        // Actually, for Global Query, CTE stats are 'sales_qty', 'sales_ttc' etc.
+        // For Comparative, CTE stats are 'my_sales_qty', 'my_sales_ttc'.
+
+        let cteSortColumn = 'sales_qty'; // Default
+        let finalSortColumn = 'sales_qty';
+
+        if (myPharmacyId) {
+            // Comparative
+            if (sortBy === 'product_name') cteSortColumn = 'product_name'; // alias from product_label
+            else if (sortBy === 'laboratory_name') cteSortColumn = 'laboratory_name';
+            // Else use as is (e.g. 'my_sales_ttc')
+            else cteSortColumn = sortBy;
+
+            // Final sort uses 'ms.' prefix + sortBy usually works as column names match alias
+            finalSortColumn = `ms.${cteSortColumn}`;
+        } else {
+            // Global
+            if (sortBy === 'product_name') {
+                cteSortColumn = 'product_name';
+                finalSortColumn = 'gs.product_name';
+            }
+            else if (sortBy === 'laboratory_name') {
+                cteSortColumn = 'laboratory_name';
+                finalSortColumn = 'gs.laboratory_name';
+            }
+            else {
+                // Remove 'my_' prefix for Global CTE columns (sales_qty vs my_sales_qty)
+                const baseCol = sortBy.replace(/^my_/, '');
+                cteSortColumn = baseCol;
+                finalSortColumn = `gs.${baseCol}`;
+            }
+        }
+
+        // Prevent SQL Injection by whitelisting (basic check or rely on query strictness, but here we construct string)
+        // Simple regex validation
+        if (!/^[a-zA-Z0-9_.]+$/.test(cteSortColumn)) cteSortColumn = 'sales_qty';
+        if (!/^[a-zA-Z0-9_.]+$/.test(finalSortColumn)) finalSortColumn = 'gs.sales_qty';
+
+        const orderByClause = `ORDER BY ${cteSortColumn} ${direction} ${nulls}`;
+        const finalOrderByClause = `ORDER BY ${finalSortColumn} ${direction} ${nulls}`;
+
+
+        // 6. Finalize SQL Parts
         const isFiltered = search || qb.getConditions().length > 0;
-        const limitClause = isFiltered ? '' : 'LIMIT 1000';
+        // If we are custom sorting, disable the optimization LIMIT in CTE to ensure we sort the WHOLE set before picking top N.
+        const defaultSort = sortBy === 'my_sales_qty' && sortOrder === 'desc';
+        const limitClause = (isFiltered || !defaultSort) ? '' : 'LIMIT 1000';
 
         const limitIdx = params.length + 1;
         const offsetIdx = params.length + 2;
         params.push(pageSize, context.pagination!.offset);
 
-        // 6. Select Strategy & SQL
+        // 7. Select Strategy & SQL
         const querySql = (!myPharmacyId)
-            ? ProductQueries.getGlobalQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx)
-            : ProductQueries.getComparativeQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx);
+            ? ProductQueries.getGlobalQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause)
+            : ProductQueries.getComparativeQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause);
 
-        // 7. Execute
-        // 7. Execute
+        // 8. Execute
         const result = await db.query(querySql, params);
         const total = result.rows.length > 0 ? Number(result.rows[0].total_rows) : 0;
 
@@ -109,6 +162,6 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
 export const productAnalysisRepository = new ProductAnalysisRepository();
 
-export async function getProductAnalysis(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '') {
-    return productAnalysisRepository.execute(request, page, pageSize, search);
+export async function getProductAnalysis(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc') {
+    return productAnalysisRepository.execute(request, page, pageSize, search, sortBy, sortOrder);
 }

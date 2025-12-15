@@ -7,7 +7,17 @@ import { TableHeader } from './TableHeader';
 import { TableRow } from './TableRow';
 
 export const ProductAnalysisTableV2: React.FC = () => {
-    const { data: result, isLoading: isLoadingData, page, setPage, search, setSearch } = useProductAnalysis();
+    const {
+        data: result,
+        isLoading: isLoadingData,
+        page,
+        setPage,
+        search,
+        setSearch,
+        sortBy,
+        sortOrder,
+        handleSort
+    } = useProductAnalysis();
 
     // We treat 'undefined' data as loading state if we want strict skeleton, 
     // but hook usually returns previous data while fetching.
@@ -66,7 +76,11 @@ export const ProductAnalysisTableV2: React.FC = () => {
                     <>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <TableHeader />
+                                <TableHeader
+                                    sortBy={sortBy}
+                                    sortOrder={sortOrder}
+                                    onSort={handleSort}
+                                />
                                 <tbody className="divide-y divide-gray-100/50">
                                     {resultData.length === 0 ? (
                                         <tr>

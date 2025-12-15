@@ -5,7 +5,9 @@ export const ProductQueries = {
         searchCondition: string,
         limitClause: string,
         limitIdx: number,
-        offsetIdx: number
+        offsetIdx: number,
+        orderByClause: string = 'ORDER BY sales_qty DESC',
+        finalOrderByClause: string = 'ORDER BY sales_qty DESC'
     ) => `
         WITH 
         last_stock AS (
@@ -80,7 +82,7 @@ export const ProductQueries = {
             ${conditions}
             ${searchCondition}
             GROUP BY mv.ean13
-            ORDER BY sales_qty DESC
+            ${orderByClause}
             ${limitClause}
         ),
         
@@ -170,7 +172,7 @@ export const ProductQueries = {
             ((gs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100) - ((gs.sales_ttc_prev / NULLIF(gt.total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
             0 as group_pdm_evolution,
 
-            ((gs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100) - ((gs.purchases_ht_prev / NULLIF(gt.total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
+            ((gs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100) - ((gt.total_purchases_market_prev / NULLIF(gt.total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
             CASE WHEN gs.margin_ht_prev = 0 THEN 0 ELSE ((gs.margin_ht - gs.margin_ht_prev) / ABS(gs.margin_ht_prev)) * 100 END as my_margin_ht_evolution,
             
              CASE 
@@ -190,7 +192,7 @@ export const ProductQueries = {
         LEFT JOIN last_stock_prev lstp ON lstp.ean13 = gs.ean13
         CROSS JOIN global_totals gt
         LEFT JOIN pharmacy_counts pc_current ON pc_current.period = 'CURRENT'
-        ORDER BY gs.sales_qty DESC
+        ${finalOrderByClause}
         LIMIT $${limitIdx}::int OFFSET $${offsetIdx}::int
     `,
 
@@ -199,7 +201,9 @@ export const ProductQueries = {
         searchCondition: string,
         limitClause: string,
         limitIdx: number,
-        offsetIdx: number
+        offsetIdx: number,
+        orderByClause: string = 'ORDER BY my_sales_qty DESC',
+        finalOrderByClause: string = 'ORDER BY my_sales_qty DESC'
     ) => `
         WITH 
         pharmacy_counts AS (
@@ -279,7 +283,7 @@ export const ProductQueries = {
               ${conditions}
               ${searchCondition}
             GROUP BY mv.ean13
-            ORDER BY my_sales_qty DESC 
+            ${orderByClause}
             ${limitClause}
         ),
 
@@ -401,7 +405,7 @@ export const ProductQueries = {
         LEFT JOIN last_stock_prev lstp ON lstp.ean13 = ms.ean13
         CROSS JOIN global_totals gt
         LEFT JOIN pharmacy_counts pc_current ON pc_current.period = 'CURRENT'
-        ORDER BY ms.my_sales_qty DESC
+        ${finalOrderByClause}
         LIMIT $${limitIdx}::int OFFSET $${offsetIdx}::int
     `
 };

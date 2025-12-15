@@ -61,19 +61,36 @@ const CustomValueCell = ({ value, evolution, isCurrency = false, suffix = '', de
 export const ProductAnalysisTable: React.FC = () => {
 
     // Using the existing hook which handles server-side state
-    const { data: result, isLoading, page, setPage, search, setSearch } = useProductAnalysis();
+    const {
+        data: result,
+        isLoading,
+        page,
+        setPage,
+        search,
+        setSearch,
+        sortBy,
+        sortOrder,
+        handleSort
+    } = useProductAnalysis();
 
     const resultData = result?.data || [];
     const totalItems = result?.total || 0;
     const itemsPerPage = 20;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-    // Reset page on search change is already handled in the hook or parent component, 
+    // Reset page on search change is already handled in the hook or parent component,
     // but just to be safe if useProductAnalysis doesn't do it automatically on external state change
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
         setPage(1);
     };
+
+    // Helper to keep JSX clean
+    const getSortProps = (column: string) => ({
+        isSortable: true,
+        sortDirection: (sortBy === column ? sortOrder : null) || null,
+        onSort: () => handleSort(column)
+    });
 
     return (
         <div className="mt-8 space-y-4">
@@ -118,16 +135,15 @@ export const ProductAnalysisTable: React.FC = () => {
                     <>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
+                                <thead>
                                     <tr>
-                                        {/* PRODUIT */}
-                                        <TableHeaderCell width="20%">Produit</TableHeaderCell>
-                                        <TableHeaderCell width="4%" align="center">Rang</TableHeaderCell>
+                                        <TableHeaderCell width="20%" {...getSortProps('product_name')}>Produit</TableHeaderCell>
+                                        <TableHeaderCell width="5%" align="center" {...getSortProps('my_rank')}>Rank</TableHeaderCell>
 
                                         {/* ACHAT - Purple */}
-                                        <TableHeaderCell align="right" variant="purple" width="6%">Achat HT</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" width="5%">Achat Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%">
+                                        <TableHeaderCell align="right" variant="purple" width="6%" {...getSortProps('my_purchases_ht')}>Achat HT</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="5%" {...getSortProps('my_purchases_qty')}>Achat Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_purchases_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Achat</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -135,9 +151,9 @@ export const ProductAnalysisTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* VENTE - Blue */}
-                                        <TableHeaderCell align="right" variant="blue" width="6%">Vente TTC</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="blue" width="5%">Vente Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%">
+                                        <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('my_sales_ttc')}>Vente TTC</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="5%" {...getSortProps('my_sales_qty')}>Vente Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Qte</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -145,17 +161,17 @@ export const ProductAnalysisTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* MARGE - Orange */}
-                                        <TableHeaderCell align="right" variant="orange" width="6%">Marge €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="orange" width="5%">Marge %</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="6%" {...getSortProps('my_margin_ht')}>Marge €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('my_margin_rate')}>Marge %</TableHeaderCell>
 
                                         {/* PRIX - Pink */}
                                         <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
 
                                         {/* STOCK - Red */}
-                                        <TableHeaderCell align="right" variant="red" width="6%">Stock €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%">Stock Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%">J.Stock</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_stock_qty')}>Stock Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_days_of_stock')}>J.Stock</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
@@ -288,9 +304,10 @@ export const ProductAnalysisTable: React.FC = () => {
                             </div>
                         </div>
                     </>
-                )}
-            </div>
-        </div>
+                )
+                }
+            </div >
+        </div >
     );
 };
 

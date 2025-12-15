@@ -5,7 +5,17 @@ import { ProductTableHeader } from './ProductTableHeader';
 import { ProductTableRow } from './ProductTableRow';
 
 export const ProductAnalysisTable = () => {
-    const { data, isLoading, page, setPage, search, setSearch } = useProductAnalysis();
+    const {
+        data,
+        isLoading,
+        page,
+        setPage,
+        search,
+        setSearch,
+        sortBy,
+        sortOrder,
+        handleSort
+    } = useProductAnalysis();
 
     // Server-side pagination
     const itemsPerPage = 20;
@@ -55,7 +65,11 @@ export const ProductAnalysisTable = () => {
                     <>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <ProductTableHeader />
+                                <ProductTableHeader
+                                    sortBy={sortBy}
+                                    sortOrder={sortOrder}
+                                    onSort={handleSort}
+                                />
                                 <tbody className="divide-y divide-gray-100/50">
                                     {data?.data.map((row) => (
                                         <ProductTableRow key={row.ean13} row={row} />

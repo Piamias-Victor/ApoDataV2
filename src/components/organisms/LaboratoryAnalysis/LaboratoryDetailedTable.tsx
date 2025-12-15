@@ -13,6 +13,8 @@ import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 
+import { useClientTableSort } from '@/hooks/useClientTableSort';
+
 export const LaboratoryDetailedTable: React.FC = () => {
 
     // State
@@ -25,20 +27,24 @@ export const LaboratoryDetailedTable: React.FC = () => {
     // Default empty array
     const safeData = useMemo(() => rawData || [], [rawData]);
 
-    // Filter Logic
+    // Filter Logic Only
     const filteredData = useMemo(() => {
-        let res = safeData;
-        if (search) {
-            res = res.filter(row =>
-                row.laboratory_name.toLowerCase().includes(search.toLowerCase())
-            );
-        }
-        return [...res].sort((a, b) => a.my_rank - b.my_rank);
+        if (!search) return safeData;
+        return safeData.filter(row =>
+            row.laboratory_name.toLowerCase().includes(search.toLowerCase())
+        );
     }, [safeData, search]);
 
+    // Sorting Logic
+    const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
+        data: filteredData,
+        initialSortBy: 'my_rank',
+        initialSortOrder: 'asc'
+    });
+
     // Pagination Logic
-    const totalPages = Math.ceil(filteredData.length / pageSize);
-    const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+    const totalPages = Math.ceil(sortedData.length / pageSize);
+    const paginatedData = sortedData.slice((page - 1) * pageSize, page * pageSize);
 
     // Reset page on search change
     useEffect(() => {
@@ -49,6 +55,13 @@ export const LaboratoryDetailedTable: React.FC = () => {
         setSearch(e.target.value);
         setPage(1);
     };
+
+    // Helper for Headers
+    const getSortProps = (column: string) => ({
+        isSortable: true,
+        sortDirection: (sortBy === column ? sortOrder : null) || null,
+        onSort: () => handleSort(column)
+    });
 
     return (
         <div className="mt-8 space-y-4">
@@ -96,13 +109,13 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
                                         {/* LABO */}
-                                        <TableHeaderCell width="14%">Laboratoire</TableHeaderCell>
-                                        <TableHeaderCell width="4%" align="center">Rang</TableHeaderCell>
+                                        <TableHeaderCell width="14%" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
+                                        <TableHeaderCell width="4%" align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
 
                                         {/* ACHAT - Purple */}
-                                        <TableHeaderCell align="right" variant="purple" width="6%">Achat HT</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" width="5%">Achat Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%">
+                                        <TableHeaderCell align="right" variant="purple" width="6%" {...getSortProps('my_purchases_ht')}>Achat HT</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="5%" {...getSortProps('my_purchases_qty')}>Achat Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_purchases_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Achat</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -110,9 +123,9 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* VENTE - Blue */}
-                                        <TableHeaderCell align="right" variant="blue" width="6%">Vente TTC</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="blue" width="5%">Vente Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%">
+                                        <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('my_sales_ttc')}>Vente TTC</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="5%" {...getSortProps('my_sales_qty')}>Vente Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Vente</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -120,17 +133,17 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* MARGE - Orange */}
-                                        <TableHeaderCell align="right" variant="orange" width="6%">Marge €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="orange" width="5%">Marge %</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="6%" {...getSortProps('my_margin_ht')}>Marge €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('my_margin_rate')}>Marge %</TableHeaderCell>
 
                                         {/* PRIX - Pink (Added) */}
                                         <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
 
                                         {/* STOCK - Red */}
-                                        <TableHeaderCell align="right" variant="red" width="6%">Stock €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%">Stock Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%">J.Stock</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_stock_qty')}>Stock Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_days_of_stock')}>J.Stock</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
