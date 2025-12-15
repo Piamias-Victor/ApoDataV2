@@ -51,7 +51,7 @@ export const ProductQueries = {
         global_stats AS (
             SELECT 
                 mv.ean13,
-                MAX(mv.product_label) as product_name,
+                MAX(COALESCE(gp.name, mv.product_label)) as product_name,
                 MAX(mv.laboratory_name) as laboratory_name,
                 MAX(mv.product_id::text)::uuid as product_id,
 
@@ -260,7 +260,7 @@ export const ProductQueries = {
         my_stats AS (
             SELECT 
                 mv.ean13,
-                MAX(mv.product_label) as product_name,
+                MAX(COALESCE(gp.name, mv.product_label)) as product_name,
                 MAX(mv.laboratory_name) as laboratory_name,
                 MAX(mv.product_id::text)::uuid as product_id,
                 SUM(CASE WHEN mv.month >= $1::date AND mv.month <= $2::date THEN mv.ttc_sold ELSE 0 END) as my_sales_ttc,

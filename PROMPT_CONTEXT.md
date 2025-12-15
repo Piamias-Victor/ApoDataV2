@@ -31,9 +31,7 @@ Tout nouveau tableau ou affichage de données analytiques doit **systématiqueme
 - **Styling** : TailwindCSS (Utiliser les variants de couleurs : `variant="purple"`, `variant="blue"`, etc.).
 - **État** : Gestion d'url pour les filtres (shoppable url), Hooks pour l'état local.
 
-## 4. Checklist de Validation "Agent"
-Avant de proposer du code, vérifie :
-1. [ ] Le fichier est-il sous les 100 lignes ?
-2. [ ] Le design est-il "Premium" et cohérent avec l'existant ?
-3. [ ] Les tris et filtres sont-ils fonctionnels ?
-4. [ ] Ai-je utilisé les composants partagés ?
+## 5. Communication & Validation (Crucial)
+- **🚫 Pas de Déductions hasardeuses** : Ne jamais deviner des noms de colonnes, des règles métier ou des sources de données.
+- **❓ Poser des Questions** : Si une information manque (ex: nom de colonne en BDD, règle de calcul), **demander explicitement** au lieu de tenter une solution hypothétique.
+- **🛑 Validation** : Avant de coder, s'assurer que tout est clair. Si un doute persiste, lever le drapeau immédiatement.

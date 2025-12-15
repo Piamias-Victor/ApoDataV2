@@ -90,32 +90,91 @@ export const getUserProductQuery = (
     isCodeSearch: boolean,
     pharmacyId: string
 ) => {
-    // User scope always filters by pharmacy
-    const baseCondition = 'dip.pharmacy_id = $1';
+    // User scope: Join Internal Product to get local name
+    const constraint = 'dip.pharmacy_id = $1';
 
-    if (!searchQuery) return buildProductQuery(true, [baseCondition], [pharmacyId]);
+    // We want to prioritize the local pharmacy name (dip.name) if available, 
+    // effectively matching what is displayed in the tables (mv.product_label).
+    const nameSelection = `COALESCE(dip.name, dgp.name)`;
+
+    if (!searchQuery) {
+        return {
+            text: `
+                SELECT 
+                    dgp.code_13_ref,
+                    ${nameSelection} as name,
+                    dgp.brand_lab,
+                    dgp.bcb_segment_l0 as universe,
+                    dgp.bcb_product_id
+                FROM data_internalproduct dip
+                INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
+                WHERE ${constraint}
+                ORDER BY name ASC
+                LIMIT 50
+            `,
+            params: [pharmacyId]
+        };
+    }
 
     if (isWildcard) {
         const cleanQuery = searchQuery.replace(/\*/g, '');
-        return buildProductQuery(
-            true,
-            [baseCondition, 'dgp.code_13_ref LIKE $2'],
-            [pharmacyId, `%${cleanQuery}`]
-        );
+        return {
+            text: `
+                SELECT 
+                    dgp.code_13_ref,
+                    ${nameSelection} as name,
+                    dgp.brand_lab,
+                    dgp.bcb_segment_l0 as universe,
+                    dgp.bcb_product_id
+                FROM data_internalproduct dip
+                INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
+                WHERE ${constraint}
+                  AND (dgp.code_13_ref LIKE $2 OR LOWER(${nameSelection}) LIKE LOWER($2))
+                ORDER BY name ASC
+                LIMIT 50
+            `,
+            params: [pharmacyId, `%${cleanQuery}%`]
+        };
     }
 
     if (isCodeSearch) {
-        return buildProductQuery(
-            true,
-            [baseCondition, 'dgp.code_13_ref LIKE $2'],
-            [pharmacyId, `${searchQuery}%`]
-        );
+        return {
+            text: `
+                SELECT 
+                    dgp.code_13_ref,
+                    ${nameSelection} as name,
+                    dgp.brand_lab,
+                    dgp.bcb_segment_l0 as universe,
+                    dgp.bcb_product_id
+                FROM data_internalproduct dip
+                INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
+                WHERE ${constraint}
+                  AND dgp.code_13_ref LIKE $2
+                ORDER BY name ASC
+                LIMIT 50
+            `,
+            params: [pharmacyId, `${searchQuery}%`]
+        };
     }
 
     // Name search
-    return buildProductQuery(
-        true,
-        [baseCondition, 'LOWER(dgp.name) LIKE LOWER($2)'],
-        [pharmacyId, `%${searchQuery}%`]
-    );
+    return {
+        text: `
+            SELECT 
+                dgp.code_13_ref,
+                ${nameSelection} as name,
+                dgp.brand_lab,
+                dgp.bcb_segment_l0 as universe,
+                dgp.bcb_product_id
+            FROM data_internalproduct dip
+            INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
+            WHERE ${constraint}
+              AND (
+                  LOWER(dgp.name) LIKE LOWER($2) 
+                  OR LOWER(dip.name) LIKE LOWER($2)
+              )
+            ORDER BY name ASC
+            LIMIT 50
+        `,
+    };
 };
