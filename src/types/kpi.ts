@@ -139,7 +139,13 @@ export interface ProductAnalysisRow {
     my_purchases_ht: number;
     my_purchases_qty: number;
     my_margin_rate: number;
+    my_margin_ht: number; // Added
     my_pdm_pct: number;
+    my_pdm_purchases_pct: number; // Added
+
+    my_stock_qty: number; // Added
+    my_stock_value_ht: number; // Added
+    my_days_of_stock: number; // Added
 
     // Group Metrics
     group_rank: number;
@@ -165,4 +171,12 @@ export interface ProductAnalysisRow {
     group_margin_rate_evolution: number;
     my_pdm_evolution: number;
     group_pdm_evolution: number;
+
+    my_pdm_purchases_evolution: number; // Added
+    my_margin_ht_evolution: number; // Added
+    my_stock_qty_evolution: number; // Added
+    my_stock_value_ht_evolution: number; // Added
+
+    avg_purchase_price: number; // Added
+    avg_sell_price: number; // Added
 }

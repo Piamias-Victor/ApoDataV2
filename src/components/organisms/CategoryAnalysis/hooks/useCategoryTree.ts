@@ -18,6 +18,7 @@ export interface TreeMapNode {
     count: number;
     percentage?: number;
     rank?: number;
+    [key: string]: any;
 }
 
 interface CategoryApiResponse {
