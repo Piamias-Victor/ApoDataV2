@@ -14,11 +14,22 @@ export class LaboratoryAnalysisRepository extends BaseKpiRepository {
         const { current, previous } = context.periods;
         const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyId];
 
-        // 2. Operators Tuning
-        const operators = (myPharmacyId) ? (request.filterOperators || []).slice(1) : request.filterOperators;
+        // 2. Operators Tuning: Remove the first operator if we have a pharmacy filter (since we manually remove the filter below)
+        const operators = (myPharmacyId && request.filterOperators) ? request.filterOperators.slice(1) : request.filterOperators;
+
+        // CRITICAL: BaseKpiRepository automatically adds pharmacyIds filters from the request.
+        // We MUST prevent this for Laboratory Analysis because we need the full Group dataset.
+        // We create a modified context where pharmacyIds is empty, so createBuilder doesn't add the WHERE constraint.
+        const modifiedContext = {
+            ...context,
+            request: {
+                ...context.request,
+                pharmacyIds: [] // Force empty to prevent auto-filtering
+            }
+        };
 
         // 3. Build Query
-        const qb = this.createBuilder(context, baseParams, {
+        const qb = this.createBuilder(modifiedContext, baseParams, {
             laboratory: 'mv.laboratory_name',
             productCode: 'mv.ean13',
             pharmacyId: 'mv.pharmacy_id' // Explicit mapping to avoid 'ip' error
