@@ -8,7 +8,7 @@ export interface SeriesConfig {
     name: string;
     color: string;
     type: 'area' | 'bar' | 'line';
-    yAxisId?: 'left' | 'right';
+    yAxisId?: 'left' | 'right' | 'volume' | 'amount';
 }
 
 interface EvolutionChartProps {
@@ -57,6 +57,8 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType, 
                     <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis yAxisId="left" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
                     <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}`} />
+                    <YAxis yAxisId="volume" orientation="right" hide />
+                    <YAxis yAxisId="amount" orientation="left" hide />
 
                     <Tooltip
                         contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(8px)', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}

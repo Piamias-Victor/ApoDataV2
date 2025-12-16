@@ -20,15 +20,15 @@ export const TableRow: React.FC<TableRowProps> = ({ row }) => {
         >
             {/* Product Info */}
             <TableCell>
-                <div className="flex flex-col">
-                    <span className="font-medium text-gray-900 line-clamp-1 text-xs" title={row.product_name}>
+                <div className="flex flex-col max-w-[180px]">
+                    <span className="font-medium text-gray-900 truncate text-xs block" title={row.product_name}>
                         {row.product_name}
                     </span>
                     <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-mono">
                             {row.ean13}
                         </span>
-                        <span className="text-[10px] text-blue-600 truncate max-w-[150px]">
+                        <span className="text-[10px] text-blue-600 truncate flex-1 block">
                             {row.laboratory_name}
                         </span>
                     </div>

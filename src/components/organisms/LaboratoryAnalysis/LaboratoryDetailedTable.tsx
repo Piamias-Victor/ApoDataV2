@@ -117,7 +117,7 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
                                         {/* LABO */}
-                                        <TableHeaderCell width="14%" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
+                                        <TableHeaderCell width="18%" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
                                         <TableHeaderCell width="4%" align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
 
                                         {/* ACHAT - Purple */}
@@ -151,7 +151,7 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         {/* STOCK - Red */}
                                         <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_stock_qty')}>Stock Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_days_of_stock')}>J.Stock</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="4%" {...getSortProps('my_days_of_stock')}>J.Stock</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
@@ -175,8 +175,8 @@ export const LaboratoryDetailedTable: React.FC = () => {
 
                                                     {/* Labo Name */}
                                                     <TableCell>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-medium text-gray-900 text-xs truncate max-w-[200px]" title={row.laboratory_name}>
+                                                        <div className="flex flex-col max-w-[180px]">
+                                                            <span className="font-medium text-gray-900 text-xs truncate block" title={row.laboratory_name}>
                                                                 {row.laboratory_name}
                                                             </span>
                                                         </div>
