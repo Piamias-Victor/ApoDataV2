@@ -45,6 +45,9 @@ export const LaboratoryAnalysisTable = () => {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Comparaison détaillée de vos performances vs la moyenne du groupement.
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
 

@@ -7,9 +7,22 @@ interface ProductTableRowProps {
     row: ProductAnalysisRow;
 }
 
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
+
 export const ProductTableRow: React.FC<ProductTableRowProps> = ({ row }) => {
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'product'
+    });
+
+    const handleClick = (e: React.MouseEvent) => {
+        handleInteraction({ id: row.ean13, name: row.product_name }, e);
+    };
+
     return (
-        <tr className="hover:bg-gray-50/50 transition-colors group">
+        <tr
+            onClick={handleClick}
+            className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+        >
             <TableCell>
                 <div className="flex flex-col">
                     <span className="truncate w-full max-w-[200px] text-xs font-medium text-gray-900" title={row.product_name}>{row.product_name}</span>

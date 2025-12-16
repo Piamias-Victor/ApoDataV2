@@ -30,12 +30,6 @@ export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: 
         reimbursable: 'mv.is_reimbursable',
         genericStatus: 'mv.bcb_generic_status',
         cat_l1: 'mv.category_name',
-        cat_l0: 'mv.category_name',
-        cat_l2: 'mv.category_name',
-        cat_l3: 'mv.category_name',
-        cat_l4: 'mv.category_name',
-        cat_l5: 'mv.category_name',
-        cat_family: 'mv.category_name',
     });
 
     qb.addPharmacies(pharmacyIds);
@@ -54,9 +48,13 @@ export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: 
     const dynamicWhereClause = qb.getConditions();
     const params = qb.getParams();
 
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.length > 0);
+
     const query = `
         SELECT COALESCE(SUM(mv.quantity), 0) as total_sold_12m
         FROM mv_sales_enriched mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
         WHERE mv.sale_date >= $1::date AND mv.sale_date <= $2::date
         ${dynamicWhereClause}
     `;

@@ -15,6 +15,8 @@ import {
 import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
+
 export const CategoryAnalysisTable: React.FC = () => {
     const [path, setPath] = useState<string[]>([]);
 
@@ -32,6 +34,12 @@ export const CategoryAnalysisTable: React.FC = () => {
         if (path.length >= 5) return;
         setPath([...path, name]);
     };
+
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'category',
+        currentDepth: path.length,
+        onDefaultClick: (data) => handleRowClick(data.name)
+    });
 
     const handleBreadcrumbClick = (index: number) => {
         setPath(prev => prev.slice(0, index + 1));
@@ -82,6 +90,9 @@ export const CategoryAnalysisTable: React.FC = () => {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Vue d&apos;ensemble des performances par catégorie
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
 
@@ -179,7 +190,7 @@ export const CategoryAnalysisTable: React.FC = () => {
                                         return (
                                             <tr
                                                 key={idx}
-                                                onClick={() => handleRowClick(row.name)}
+                                                onClick={(e) => handleInteraction({ name: row.name, id: row.name }, e)}
                                                 className="group hover:bg-blue-50/40 transition-all duration-200 cursor-pointer"
                                             >
                                                 {/* Name */}

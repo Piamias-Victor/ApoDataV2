@@ -13,7 +13,7 @@ export const getCategoryColor = (index: number, isOther: boolean) => {
 };
 
 export const TreeMapNode = (props: any) => {
-    const { x, y, width, height, index, rank } = props;
+    const { x, y, width, height, index, rank, onNodeClick } = props;
 
     // Safely extract data
     const payload = props.payload || {};
@@ -31,6 +31,13 @@ export const TreeMapNode = (props: any) => {
     const isTiny = width < 40 || height < 25;
     const isSmall = width < 80 || height < 40;
 
+    const handleClick = (e: React.MouseEvent) => {
+        if (onNodeClick) {
+            // Pass the original props (which contain name, payload, etc.) as the 'node'
+            onNodeClick(props, index, e);
+        }
+    };
+
     return (
         <g>
             <rect
@@ -45,6 +52,7 @@ export const TreeMapNode = (props: any) => {
                 strokeWidth={3}
                 className="transition-all duration-200 hover:opacity-90 cursor-pointer hover:stroke-white/80"
                 style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.05))' }}
+                onClick={handleClick}
             />
             {!isTiny && (
                 <text

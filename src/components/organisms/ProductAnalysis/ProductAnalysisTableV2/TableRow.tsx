@@ -2,14 +2,22 @@ import React from 'react';
 import { ProductAnalysisRow } from '@/types/kpi';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
 interface TableRowProps {
     row: ProductAnalysisRow;
 }
 
 export const TableRow: React.FC<TableRowProps> = ({ row }) => {
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'product'
+    });
+
     return (
-        <tr className="hover:bg-purple-50/30 transition-colors group border-b border-gray-50 last:border-0">
+        <tr
+            onClick={(e) => handleInteraction({ id: row.ean13, name: row.product_name }, e)}
+            className="hover:bg-purple-50/30 transition-colors group border-b border-gray-50 last:border-0 cursor-pointer"
+        >
             {/* Product Info */}
             <TableCell>
                 <div className="flex flex-col">

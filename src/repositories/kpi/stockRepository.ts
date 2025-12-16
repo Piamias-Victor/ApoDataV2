@@ -12,51 +12,52 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
     // Initialize Builder
     // NOTE: For Stock, we filter by 'mv.month_end_date <= targetDate' manually in the query structure,
     // so we pass an empty range to builder initially or handle it custom.
+    // Initialize Builder
     const initialParams = [targetDate];
     const qb = new FilterQueryBuilder(initialParams, 2, filterOperators, {
         pharmacyId: 'mv.pharmacy_id',
         laboratory: 'mv.laboratory_name',
         productCode: 'mv.code_13_ref',
-        tva: 'mv.tva_rate', // Not in MV but not critical for Stock Value
+        tva: 'mv.tva_rate',
         reimbursable: 'mv.is_reimbursable',
         genericStatus: 'mv.bcb_generic_status',
         cat_l1: 'mv.category_name',
-        cat_l0: 'mv.category_name',
-        cat_l2: 'mv.category_name',
-        cat_l3: 'mv.category_name',
-        cat_l4: 'mv.category_name',
-        cat_l5: 'mv.category_name',
-        cat_family: 'mv.category_name',
+        // Removed explicit mappings for other levels to allow FilterQueryBuilder 
+        // to use default 'gp.bcb_segment_lX' which we will support via JOIN.
     });
 
-    // Apply Filters
+    // ... Filters ...
     qb.addPharmacies(pharmacyIds);
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     if (request.productCodes) qb.addProducts(request.productCodes);
 
-    // Exclusions
+    // ... Exclusions ...
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
     if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
 
-    // Settings
+    // ... Settings ...
     qb.addReimbursementStatus(request.reimbursementStatus);
     qb.addGenericStatus(request.isGeneric);
 
-    // Get finalized SQL parts
     const dynamicWhereClause = qb.getConditions();
     const params = qb.getParams();
 
-    // "Last Known Value" Query:
-    // For each product, get the row with the LATEST month_end_date that is <= targetDate.
+    // Logic for JOIN
+    // If we have category filters OTHER than L1 (which is in MV), we must join GP.
+    // Also if we have exclusions on categories.
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.length > 0);
+
     const query = `
     WITH LatestSnapshots AS (
         SELECT DISTINCT ON (mv.product_id)
             mv.stock,
             mv.stock_value_ht
         FROM mv_stock_monthly mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
         WHERE mv.month_end_date <= $1::date
           ${dynamicWhereClause}
         ORDER BY mv.product_id, mv.month_end_date DESC
@@ -117,11 +118,15 @@ export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ da
     const conditions = qb.getConditions();
     const params = qb.getParams();
 
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.length > 0);
+
     const query = `
         SELECT 
             mv.month_end_date as date,
             SUM(mv.stock) as stock_qte
         FROM mv_stock_monthly mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
         WHERE mv.month_end_date >= ($1::date - INTERVAL '1 month') 
           AND mv.month_end_date <= $2::date
           ${conditions}

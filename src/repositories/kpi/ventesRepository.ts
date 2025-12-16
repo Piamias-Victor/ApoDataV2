@@ -137,12 +137,16 @@ export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain:
     const params = qb.getParams();
     let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
 
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.some(c => c.type !== 'bcb_segment_l1'));
+
     const query = `
         SELECT 
             DATE_TRUNC('${trunc}', mv.sale_date) as date,
             SUM(mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) as vente_ttc,
             SUM(mv.montant_marge) as marge_eur
         FROM mv_sales_enriched mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
         WHERE mv.sale_date >= $1::date AND mv.sale_date <= $2::date
         ${conditions}
         GROUP BY 1

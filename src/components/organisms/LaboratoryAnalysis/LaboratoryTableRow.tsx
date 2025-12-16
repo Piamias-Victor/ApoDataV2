@@ -7,9 +7,22 @@ interface LaboratoryTableRowProps {
     row: LaboratoryAnalysisRow;
 }
 
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
+
 export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({ row }) => {
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'laboratory'
+    });
+
+    const handleClick = (e: React.MouseEvent) => {
+        handleInteraction({ name: row.laboratory_name, id: row.laboratory_name }, e);
+    };
+
     return (
-        <tr className="hover:bg-gray-50/50 transition-colors group">
+        <tr
+            onClick={handleClick}
+            className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
+        >
             <TableCell>
                 <span className="font-medium text-gray-900 text-xs truncate block max-w-[200px]" title={row.laboratory_name}>
                     {row.laboratory_name}

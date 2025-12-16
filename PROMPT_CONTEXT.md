@@ -10,7 +10,10 @@ Tout nouveau tableau ou affichage de données analytiques doit **systématiqueme
   - Tous les en-têtes de colonnes doivent être triables.
   - Implémentation cohérente (Server-side pour les gros volumes, Client-side pour les petits).
   - Indicateurs visuels clairs (Flèches, couleurs actives).
-- **📈 Évolutions & Comparaisons** :
+- **�️ Smart Interface** :
+  - Implémenter le standard **"Ctrl/Cmd + Clic"** pour filtrer rapidement (ajout au filtre global) sur tous les éléments graphiques intéractifs (Charts, Treemaps, Lignes de tableau).
+  - Toujours afficher une indication visuelle ("Astuce : Ctrl + Clic").
+- **�📈 Évolutions & Comparaisons** :
   - Affichage des variations (N vs N-1) avec badges de couleur (Vert/Rouge/Gris).
   - Toujours inclure le contexte comparatif ("Moi vs Groupe", "Moi vs Objectif").
 

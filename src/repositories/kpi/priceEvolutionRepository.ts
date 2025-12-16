@@ -18,12 +18,6 @@ export async function fetchPriceEvolutionData(request: AchatsKpiRequest): Promis
         reimbursable: 'mv.is_reimbursable',
         genericStatus: 'mv.bcb_generic_status',
         cat_l1: 'mv.category_name',
-        cat_l0: 'mv.category_name',
-        cat_l2: 'mv.category_name',
-        cat_l3: 'mv.category_name',
-        cat_l4: 'mv.category_name',
-        cat_l5: 'mv.category_name',
-        cat_family: 'mv.category_name',
     });
 
     qb.addPharmacies(pharmacyIds);
@@ -43,6 +37,9 @@ export async function fetchPriceEvolutionData(request: AchatsKpiRequest): Promis
     const dynamicWhereClause = qb.getConditions();
     const params = qb.getParams();
 
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.length > 0);
+
     // Logic:
     // Avg Purchase Price = Sum(Total HT - Margin) / Sum(Quantity)
     // Avg Sell Price TTC = Sum(Total HT * (1 + TVA/100)) / Sum(Quantity)
@@ -53,6 +50,7 @@ export async function fetchPriceEvolutionData(request: AchatsKpiRequest): Promis
             COALESCE(SUM(mv.montant_ht - mv.montant_marge), 0) as total_cost,
             COALESCE(SUM(mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)), 0) as total_sell_ttc
         FROM mv_sales_enriched mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
         WHERE mv.sale_date >= $1::date AND mv.sale_date <= $2::date
         ${dynamicWhereClause}
     `;

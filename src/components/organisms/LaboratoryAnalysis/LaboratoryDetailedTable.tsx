@@ -14,6 +14,7 @@ import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 
 import { useClientTableSort } from '@/hooks/useClientTableSort';
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
 export const LaboratoryDetailedTable: React.FC = () => {
 
@@ -56,6 +57,10 @@ export const LaboratoryDetailedTable: React.FC = () => {
         setPage(1);
     };
 
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'laboratory'
+    });
+
     // Helper for Headers
     const getSortProps = (column: string) => ({
         isSortable: true,
@@ -74,6 +79,9 @@ export const LaboratoryDetailedTable: React.FC = () => {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Détail des performances par laboratoire (Achats, Ventes, Marge, Stock)
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
 
@@ -160,7 +168,10 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                             const avgSellPrice = row.my_sales_qty ? row.my_sales_ttc / row.my_sales_qty : 0;
 
                                             return (
-                                                <tr key={idx} className="hover:bg-purple-50/30 transition-colors group">
+                                                <tr key={idx}
+                                                    onClick={(e) => handleInteraction({ id: row.laboratory_name, name: row.laboratory_name }, e)}
+                                                    className="hover:bg-purple-50/30 transition-colors group cursor-pointer"
+                                                >
 
                                                     {/* Labo Name */}
                                                     <TableCell>

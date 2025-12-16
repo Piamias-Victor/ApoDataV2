@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useCategoryTree } from './hooks/useCategoryTree';
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 import { ResponsiveContainer, Treemap, Tooltip } from 'recharts';
 import { ArrowRight, Box, Layers, Loader2 } from 'lucide-react';
 import { TreeMapBreadcrumbs } from './components/TreeMapBreadcrumbs';
@@ -15,21 +16,36 @@ export const CategoryTreeMap: React.FC = () => {
 
     const { data, isFetching } = useCategoryTree(path, showOthers);
 
-    // Handlers
-    const handleNodeClick = (node: any) => {
-        if (!node) return;
-        const name = node.name;
+    // Hooks
+    const { handleInteraction } = useChartFilterInteraction({
+        filterType: 'category',
+        currentDepth: path.length,
+        onDefaultClick: (node) => {
+            if (!node) return;
+            const name = node.name;
 
-        if (name && name.startsWith('Autres')) {
-            setShowOthers(true);
-            return;
+            if (name && name.startsWith('Autres')) {
+                setShowOthers(true);
+                return;
+            }
+
+            if (path.length >= 5) return;
+
+            setPath((prev) => [...prev, name]);
+            setShowOthers(false);
+            setHiddenSeries([]);
         }
+    });
 
-        if (path.length >= 5) return;
-
-        setPath((prev) => [...prev, name]);
-        setShowOthers(false);
-        setHiddenSeries([]);
+    // Handlers wrapper for Recharts
+    // Recharts Treemap passes (node, index) but checking types/docs, event might be missing in some versions.
+    // However, for standard SVG elements in custom content, we might need to attach handler there if Treemap doesn't pass event.
+    // But let's try standard Treemap onClick first.
+    // Recharts 2.x usually: onClick(data, index, event)
+    const onNodeClick = (node: any, index: number | undefined, event: any) => {
+        // If event is not 3rd arg, try 2nd. Accommodate variations.
+        const e = event || (index && (index as any).nativeEvent ? index : undefined);
+        handleInteraction(node, e);
     };
 
     const handleBreadcrumbClick = (index: number) => {
@@ -65,6 +81,9 @@ export const CategoryTreeMap: React.FC = () => {
                     </h2>
                     <p className="text-slate-500 mt-1">
                         Exploration hiérarchique de votre Chiffre d&apos;Affaires par segment.
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
             </div>
@@ -105,8 +124,8 @@ export const CategoryTreeMap: React.FC = () => {
                                 stroke="#fff"
                                 isAnimationActive={true}
                                 animationDuration={500}
-                                content={<TreeMapNode />}
-                                onClick={handleNodeClick}
+                                content={<TreeMapNode onNodeClick={onNodeClick} />}
+                            // onClick={onNodeClick as any} // Handled in TreeMapNode to capture event
                             >
                                 <Tooltip
                                     cursor={false}
@@ -148,7 +167,7 @@ export const CategoryTreeMap: React.FC = () => {
                 {!showOthers && data.length > 0 && path.length < 5 && (
                     <div className="relative z-10 mt-4 text-xs text-center text-slate-400 flex items-center justify-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
                         <ArrowRight className="w-3 h-3" />
-                        <span>Cliquez sur une case pour explorer ou filtrer via la légende</span>
+                        <span>Cliquez pour explorer • Ctrl/Cmd + Clic pour filtrer</span>
                     </div>
                 )}
             </div>

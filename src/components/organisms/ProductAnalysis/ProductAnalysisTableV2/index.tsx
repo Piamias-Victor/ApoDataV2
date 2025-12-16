@@ -44,6 +44,9 @@ export const ProductAnalysisTableV2: React.FC = () => {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Détail des performances par produit (Achats, Ventes, Marge, Prix, Stock)
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
 
