@@ -8,14 +8,7 @@ import {
     LayoutDashboard,
     Network,
     ArrowRightLeft,
-    Package,
     Tag,
-    Building2,
-    BarChart2,
-    Calculator,
-    FileText,
-    ShieldCheck,
-    User
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -82,14 +75,14 @@ export const SideNavBar: React.FC = () => {
         { label: 'Hub', icon: <Network />, href: '/hub', color: 'purple' },
         { label: 'Dashboard', icon: <LayoutDashboard />, href: '/dashboard', color: 'blue' },
         { label: 'Achat / Vente', icon: <ArrowRightLeft />, href: '/achats-ventes', color: 'green' },
-        { label: 'Stock / Rupture', icon: <Package />, href: '/stock', color: 'red' },
         { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
-        { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
-        { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
-        { label: 'Simulation', icon: <Calculator />, href: '/simulation', color: 'yellow' },
-        { label: 'BRI', icon: <FileText />, href: '/bri', color: 'gray' },
-        { label: 'Admin', icon: <ShieldCheck />, href: '/admin', color: 'red' },
-        { label: 'Mon compte', icon: <User />, href: '/account', color: 'blue' },
+        // { label: 'Stock / Rupture', icon: <Package />, href: '/stock', color: 'red' },
+        // { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
+        // { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
+        // { label: 'Simulation', icon: <Calculator />, href: '/simulation', color: 'yellow' },
+        // { label: 'BRI', icon: <FileText />, href: '/bri', color: 'gray' },
+        // { label: 'Admin', icon: <ShieldCheck />, href: '/admin', color: 'red' },
+        // { label: 'Mon compte', icon: <User />, href: '/account', color: 'blue' },
     ];
 
     return (
