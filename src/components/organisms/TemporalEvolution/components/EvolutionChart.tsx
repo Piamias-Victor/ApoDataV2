@@ -1,13 +1,23 @@
 import React, { useState } from 'react';
 import { ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { EvolutionDataPoint, DataType } from '../hooks/useEvolutionData';
+import { DataType } from '../hooks/useEvolutionData';
 
-interface EvolutionChartProps {
-    data: EvolutionDataPoint[];
-    dataType: DataType;
+// Series Configuration Interface
+export interface SeriesConfig {
+    key: string;
+    name: string;
+    color: string;
+    type: 'area' | 'bar' | 'line';
+    yAxisId?: 'left' | 'right';
 }
 
-export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType }) => {
+interface EvolutionChartProps {
+    data: any[]; // Made generic for reuse
+    dataType?: DataType; // Now optional
+    seriesConfig?: SeriesConfig[]; // Custom series
+}
+
+export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType, seriesConfig }) => {
     // Visibility State
     const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
 
@@ -19,13 +29,15 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType }
         );
     };
 
-    // Series Definitions
-    const series = [
-        { key: dataType === 'value' ? 'achat_ht' : 'achat_ht_cumul', name: 'Achat HT', color: '#6366f1', type: 'area' }, // Indigo
-        { key: dataType === 'value' ? 'vente_ttc' : 'vente_ttc_cumul', name: 'Vente TTC', color: '#10b981', type: 'area' }, // Emerald
-        { key: 'stock_qte', name: 'Stock Qte', color: '#f59e0b', type: 'line' }, // Amber (Stock always distinct)
-        { key: dataType === 'value' ? 'marge_eur' : 'marge_eur_cumul', name: 'Marge €', color: '#ec4899', type: 'bar' }, // Pink
+    // Default Series (If no config provided)
+    const defaultSeries: SeriesConfig[] = [
+        { key: dataType === 'value' ? 'achat_ht' : 'achat_ht_cumul', name: 'Achat HT', color: '#6366f1', type: 'area', yAxisId: 'left' }, // Indigo
+        { key: dataType === 'value' ? 'vente_ttc' : 'vente_ttc_cumul', name: 'Vente TTC', color: '#10b981', type: 'area', yAxisId: 'left' }, // Emerald
+        { key: 'stock_qte', name: 'Stock Qte', color: '#f59e0b', type: 'line', yAxisId: 'right' }, // Amber
+        { key: dataType === 'value' ? 'marge_eur' : 'marge_eur_cumul', name: 'Marge €', color: '#ec4899', type: 'bar', yAxisId: 'left' }, // Pink
     ];
+
+    const series = seriesConfig || defaultSeries;
 
     return (
         <div className="h-[400px] w-full bg-white/40 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl p-4">
@@ -68,13 +80,13 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType }
                             return (
                                 <Area
                                     key={s.key}
-                                    yAxisId="left"
+                                    yAxisId={s.yAxisId || 'left'}
                                     type="monotone"
                                     dataKey={s.key}
                                     name={s.name}
                                     stroke={s.color}
                                     fillOpacity={1}
-                                    fill={s.key.includes('achat') ? "url(#colorAchat)" : "url(#colorVente)"}
+                                    fill={s.key.includes('achat') ? "url(#colorAchat)" : s.key.includes('vente') ? "url(#colorVente)" : s.color}
                                     hide={isHidden}
                                 />
                             );
@@ -83,7 +95,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType }
                             return (
                                 <Bar
                                     key={s.key}
-                                    yAxisId="left"
+                                    yAxisId={s.yAxisId || 'left'}
                                     dataKey={s.key}
                                     name={s.name}
                                     fill={s.color}
@@ -98,7 +110,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType }
                             return (
                                 <Line
                                     key={s.key}
-                                    yAxisId="right"
+                                    yAxisId={s.yAxisId || 'right'}
                                     type="monotone"
                                     dataKey={s.key}
                                     name={s.name}

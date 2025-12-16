@@ -6,6 +6,7 @@ import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { CategoryAnalysisTable } from '@/components/organisms/CategoryAnalysis/CategoryAnalysisTable';
 import { LaboratoryDetailedTable } from '@/components/organisms/LaboratoryAnalysis';
 import { ProductAnalysisTableV2 } from '@/components/organisms/ProductAnalysis/ProductAnalysisTableV2';
+import { PreorderEvolutionChart } from '@/components/organisms/PreorderAnalysis/PreorderEvolutionChart';
 
 export default function AchatsVentesPage() {
     return (
@@ -49,6 +50,9 @@ export default function AchatsVentesPage() {
 
                     {/* Product Analysis Table */}
                     <ProductAnalysisTableV2 />
+
+                    {/* Pre-order Temporal Evolution */}
+                    <PreorderEvolutionChart />
                 </div>
             </div>
         </div>

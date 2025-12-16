@@ -153,3 +153,56 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
     achat_ht: Number(row.achat_ht)
   }));
 }
+
+/**
+ * Get Pre-order Evolution (Based on sent_date)
+ */
+export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number }[]> {
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+  const initialParams = [dateRange.start, dateRange.end];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
+
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+  const conditions = qb.getConditions();
+  const params = qb.getParams();
+  let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
+
+  // Logic for JOINs (same as other functions)
+  const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
+    (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
+    (request.excludedCategories && request.excludedCategories.length > 0);
+
+  const query = `
+        SELECT 
+            DATE_TRUNC('${trunc}', o.sent_date) as date,
+            COALESCE(SUM(po.qte), 0) as achat_qty,
+            COALESCE(SUM(po.qte * COALESCE(lp.weighted_average_price, 0)), 0) as achat_ht
+        FROM data_productorder po
+        INNER JOIN data_order o ON po.order_id = o.id
+        INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref' : ''}
+        LEFT JOIN mv_latest_product_prices lp ON po.product_id = lp.product_id
+        WHERE o.sent_date >= $1::date 
+          AND o.sent_date <= $2::date
+          AND o.sent_date IS NOT NULL
+          ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+  const result = await db.query(query, params);
+  return result.rows.map(row => ({
+    date: row.date.toISOString(),
+    achat_ht: Number(row.achat_ht),
+    achat_qty: Number(row.achat_qty)
+  }));
+}
