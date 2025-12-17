@@ -103,6 +103,7 @@ export const useChartFilterInteraction = ({
     }, [
         categories, setCategories,
         laboratories, setLaboratories,
+        products, setProducts, // Added dependency
         filterType, currentDepth, onDefaultClick
     ]);
 

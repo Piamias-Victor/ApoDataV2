@@ -182,3 +182,35 @@ export interface ProductAnalysisRow {
     avg_purchase_price: number; // Added
     avg_sell_price: number; // Added
 }
+
+// --- Stock Dashboard Specifics ---
+
+export interface StockReceptionKpiResponse {
+    qte_commandee: number;
+    qte_receptionnee: number;
+    taux_reception: number;
+    evolution_percent?: number;
+
+    montant_commande_ht: number;
+    montant_receptionne_ht: number;
+    montant_evolution_percent?: number;
+}
+
+export interface StockCurrentKpiResponse {
+    stock_qte: number;
+    stock_value_ht: number;
+    nb_references: number;
+    evolution_percent?: number; // Value evolution
+}
+
+export interface StockInventoryKpiResponse {
+    days_of_stock: number;
+    avg_stock_value_12m: number;
+    evolution_percent?: number;
+}
+
+export interface StockDiscrepancyKpiResponse {
+    nb_references_with_discrepancy: number; // Products with qte_r < qte
+    percent_references_with_discrepancy: number;
+    discrepancy_product_codes: { code: string; label: string }[]; // For Ctrl+click action
+}

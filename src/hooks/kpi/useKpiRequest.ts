@@ -38,6 +38,8 @@ export const useKpiRequest = (): AchatsKpiRequest => {
         // customFilter: store.customFilter...
     }), [
         store.dateRange,
+        store.comparisonDateRange.start, // Added dependency
+        store.comparisonDateRange.end,   // Added dependency
         store.products,
         store.laboratories,
         store.categories,

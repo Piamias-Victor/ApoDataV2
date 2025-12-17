@@ -162,3 +162,51 @@ export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain:
         marge_eur: Number(row.marge_eur)
     }));
 }
+
+/**
+ * Get Sales Quantity Evolution (for Stock Forecast)
+ */
+export async function getSalesQuantityEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; quantite_vendue: number }[]> {
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const initialParams = [dateRange.start, dateRange.end];
+    const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
+        pharmacyId: 'mv.pharmacy_id',
+        laboratory: 'mv.laboratory_name',
+        productCode: 'mv.code_13_ref',
+        cat_l1: 'mv.category_name',
+    });
+
+    qb.addPharmacies(pharmacyIds);
+    qb.addLaboratories(laboratories);
+    qb.addCategories(categories);
+    qb.addProducts(productCodes);
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+    const conditions = qb.getConditions();
+    const params = qb.getParams();
+    let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
+
+    const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (request.excludedCategories && request.excludedCategories.some(c => c.type !== 'bcb_segment_l1'));
+
+    const query = `
+        SELECT 
+            DATE_TRUNC('${trunc}', mv.sale_date) as date,
+            COALESCE(SUM(mv.quantity), 0) as quantite_vendue
+        FROM mv_sales_enriched mv
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
+        WHERE mv.sale_date >= $1::date AND mv.sale_date <= $2::date
+        ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+    const result = await db.query(query, params);
+    return result.rows.map(row => ({
+        date: row.date.toISOString(),
+        quantite_vendue: Number(row.quantite_vendue)
+    }));
+}

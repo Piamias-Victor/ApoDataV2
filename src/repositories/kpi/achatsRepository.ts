@@ -210,3 +210,167 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
     achat_qty: Number(row.achat_qty)
   }));
 }
+
+/**
+ * Get Reception Quantity Evolution (Based on delivery_date)
+ */
+export async function getReceptionQuantityEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; qte_receptionnee: number }[]> {
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+  const initialParams = [dateRange.start, dateRange.end];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
+
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+  const conditions = qb.getConditions();
+  const params = qb.getParams();
+  let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
+
+  const query = `
+        SELECT 
+            DATE_TRUNC('${trunc}', o.delivery_date) as date,
+            COALESCE(SUM(po.qte_r), 0) as qte_receptionnee
+        FROM data_productorder po
+        INNER JOIN data_order o ON po.order_id = o.id
+        INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+        LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
+        WHERE o.delivery_date >= $1::date 
+          AND o.delivery_date <= $2::date
+          AND o.delivery_date IS NOT NULL
+          AND po.qte_r > 0
+          ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+  const result = await db.query(query, params);
+  return result.rows.map(row => ({
+    date: row.date.toISOString(),
+    qte_receptionnee: Number(row.qte_receptionnee)
+  }));
+}
+
+/**
+ * Get Future Scheduled Deliveries (quantity)
+ */
+export async function getFutureDeliveries(request: AchatsKpiRequest): Promise<{ date: string; qte_a_recevoir: number }[]> {
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+  // Use CURRENT DATE as Start, and End of forecast as End
+  // Wait, the Service will pass the FORECAST range.
+  // So we just use the dateRange passed in request (which will be Today -> Future).
+
+  const initialParams = [dateRange.start, dateRange.end];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
+
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
+  // ... exclusions ...
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+  const conditions = qb.getConditions();
+  const params = qb.getParams();
+
+  // Group by Day for calculation accuracy, even if displayed weekly
+  const query = `
+        SELECT 
+            DATE_TRUNC('day', o.delivery_date) as date,
+            COALESCE(SUM(po.qte), 0) as qte_a_recevoir
+        FROM data_productorder po
+        INNER JOIN data_order o ON po.order_id = o.id
+        INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+        LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
+        WHERE o.delivery_date >= $1::date
+          AND o.delivery_date <= $2::date
+          AND o.delivery_date IS NOT NULL
+          -- o.status != 'CANCELLED' ? Assuming standard filtering
+          ${conditions}
+        GROUP BY 1
+        ORDER BY 1 ASC
+    `;
+
+  const result = await db.query(query, params);
+  return result.rows.map(row => ({
+    date: row.date.toISOString(),
+    qte_a_recevoir: Number(row.qte_a_recevoir)
+  }));
+}
+
+/**
+ * Calculate Reception Velocity (Average Quantity Received per Day) over the last N days.
+ */
+export async function fetchReceptionVelocity(request: AchatsKpiRequest, days: number): Promise<number> {
+  const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+
+  // Range: [NOW - days, NOW]
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+
+  const initialParams = [startDate.toISOString(), endDate.toISOString()];
+  const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
+    pharmacyId: 'ip.pharmacy_id', // Adjust mapping if needed, matched with fetchAchatsData
+    laboratory: 'gp.bcb_lab',
+    productCode: 'ip.code_13_ref_id',
+    tva: 'gp.tva_percentage',
+    reimbursable: 'gp.is_reimbursable',
+    genericStatus: 'gp.bcb_generic_status',
+    cat_l1: 'gp.bcb_segment_l1',
+  });
+
+  qb.addPharmacies(pharmacyIds);
+  qb.addLaboratories(laboratories);
+  qb.addCategories(categories);
+  qb.addProducts(productCodes);
+  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+
+  // Settings
+  qb.addReimbursementStatus(request.reimbursementStatus);
+  qb.addGenericStatus(request.isGeneric);
+
+  const conditions = qb.getConditions();
+  const params = qb.getParams();
+
+  const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
+    (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
+    (request.excludedCategories && request.excludedCategories.length > 0) ||
+    (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
+    (request.isGeneric && request.isGeneric !== 'ALL');
+
+  const query = `
+        SELECT 
+            COALESCE(SUM(po.qte_r), 0) as total_received
+        FROM data_productorder po
+        INNER JOIN data_order o ON po.order_id = o.id
+        INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref' : ''}
+        WHERE o.delivery_date >= $1::date 
+          AND o.delivery_date <= $2::date
+          AND po.qte_r > 0
+          ${conditions}
+    `;
+
+  try {
+    const result = await db.query(query, params);
+    const total = Number(result.rows[0]?.total_received) || 0;
+    return days > 0 ? total / days : 0;
+  } catch (error) {
+    console.error('❌ [Repository] Reception Velocity query failed:', error);
+    throw error;
+  }
+}
