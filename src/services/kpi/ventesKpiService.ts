@@ -8,9 +8,10 @@ export async function getVentesKpi(request: AchatsKpiRequest): Promise<VentesKpi
     return getKpiDataWithEvolution(request, {
         key: 'ventes',
         fetchData: fetchVentesData,
-        calculateEvolutionValue: (data) => data.montant_ht,
+        calculateEvolutionValue: (data) => data.montant_ttc,
         formatResponse: (data, evolution_percent) => ({
             montant_ht: data.montant_ht,
+            montant_ttc: data.montant_ttc,
             quantite_vendue: data.quantite_vendue,
             evolution_percent
         })

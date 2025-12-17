@@ -33,12 +33,14 @@ export interface AchatsKpiRequest {
 
 export interface AchatsKpiResponse {
     montant_ht: number;
+    montant_ttc: number;
     quantite_achetee: number;
     evolution_percent?: number | undefined;
 }
 
 export interface VentesKpiResponse {
     montant_ht: number;
+    montant_ttc: number;
     quantite_vendue: number;
     evolution_percent?: number | undefined;
     duration?: string;

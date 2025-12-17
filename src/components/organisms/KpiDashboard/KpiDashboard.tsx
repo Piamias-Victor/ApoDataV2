@@ -43,10 +43,11 @@ export const KpiDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
                 {/* 1. Achats - Real Data */}
+                {/* 1. Achats - Real Data */}
                 <KpiCard
-                    title="Achats HT"
+                    title="Achats TTC"
                     isLoading={achatsLoading}
-                    primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
+                    primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ttc || 0)}
                     evolutionPercent={achatsData?.evolution_percent}
                     evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
@@ -57,9 +58,9 @@ export const KpiDashboard: React.FC = () => {
 
                 {/* 2. Ventes - Real Data */}
                 <KpiCard
-                    title="Ventes HT"
+                    title="Ventes TTC"
                     isLoading={ventesLoading}
-                    primaryValue={ventesError ? 'Erreur' : formatCurrency(ventesData?.montant_ht || 0)}
+                    primaryValue={ventesError ? 'Erreur' : formatCurrency(ventesData?.montant_ttc || 0)}
                     evolutionPercent={ventesData?.evolution_percent}
                     evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"

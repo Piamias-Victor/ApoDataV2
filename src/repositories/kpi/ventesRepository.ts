@@ -6,7 +6,7 @@ import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
  * Fetch sales quantity and amount (HT) from database
  * Joins: mv_sales_enriched (with optional joins to mv_latest_product_prices and data_globalproduct for specific filters)
  */
-export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quantite_vendue: number; montant_ht: number }> {
+export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quantite_vendue: number; montant_ht: number; montant_ttc: number }> {
     const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
 
     // Initialize Builder with MV Custom Mapping
@@ -71,7 +71,8 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
     const query = `
     SELECT 
       COALESCE(SUM(mv.quantity), 0) as quantite_vendue,
-      COALESCE(SUM(mv.montant_ht), 0) as montant_ht
+      COALESCE(SUM(mv.montant_ht), 0) as montant_ht,
+      COALESCE(SUM(mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)), 0) as montant_ttc
     FROM mv_sales_enriched mv
     ${needsLatestPriceJoin ? 'LEFT JOIN mv_latest_product_prices lp ON mv.internal_product_id = lp.product_id' : ''}
     ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
@@ -92,11 +93,12 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
         const duration = Date.now() - startTime;
 
         if (result.rows.length === 0) {
-            return { quantite_vendue: 0, montant_ht: 0 };
+            return { quantite_vendue: 0, montant_ht: 0, montant_ttc: 0 };
         }
 
         const quantite_vendue = Number(result.rows[0].quantite_vendue) || 0;
         const montant_ht = Number(result.rows[0].montant_ht) || 0;
+        const montant_ttc = Number(result.rows[0].montant_ttc) || 0;
 
         console.log('✅ [Repository] Ventes Query completed:', {
             quantite_vendue,
@@ -104,7 +106,7 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
             duration: `${duration}ms`
         });
 
-        return { quantite_vendue, montant_ht };
+        return { quantite_vendue, montant_ht, montant_ttc };
     } catch (error) {
         console.error('❌ [Repository] Ventes query failed:', error);
         throw error;
