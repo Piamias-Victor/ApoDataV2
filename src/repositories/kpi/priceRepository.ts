@@ -333,8 +333,25 @@ export async function fetchPriceProducts(
     params.push(offset);
 
     // Generate Query
+    // OPTIMIZATION: If no specific filters (Lab, Cat, Product, Search),
+    // restrict base_data to Top 1000 Best Sellers (by Quantity) globally.
+    const hasPositiveFilters = laboratories.length > 0 || categories.length > 0 || productCodes.length > 0 || !!search;
+
+    let finalConditions = conditions;
+    if (!hasPositiveFilters) {
+        // We use $1 (Start) and $2 (End) which are already in params [0] and [1]
+        finalConditions += ` AND mv.ean13 IN (
+            SELECT sub_mv.ean13 
+            FROM mv_product_stats_monthly sub_mv 
+            WHERE sub_mv.month >= $1 AND sub_mv.month <= $2
+            GROUP BY sub_mv.ean13
+            ORDER BY SUM(sub_mv.qty_sold) DESC
+            LIMIT 1000
+        )`;
+    }
+
     let query = PriceProductQueries.getProductAnalysis(
-        conditions,
+        finalConditions,
         searchCondition,
         limitParamIdx,
         offsetParamIdx,
