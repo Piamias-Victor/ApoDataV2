@@ -21,38 +21,50 @@ export const LaboratoryQueries = {
         last_stock AS (
             -- Current Stock (at $2)
             SELECT 
-                laboratory_name,
-                SUM(stock) as stock_qty,
-                SUM(stock_value_ht) as stock_value_ht
+                mv.laboratory_name,
+                SUM(mv.stock) as stock_qty,
+                SUM(mv.stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (product_id) 
                     laboratory_name,
                     stock,
-                    stock_value_ht
+                    stock_value_ht,
+                    -- Filter Columns
+                    code_13_ref as ean13,
+                    category_name,
+                    pharmacy_id
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $2::date 
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
-            ) t
+            ) mv
+            WHERE 1=1
+            ${conditions}
             GROUP BY 1
         ),
 
         last_stock_prev AS (
             -- Previous Stock (at $4)
             SELECT 
-                laboratory_name,
-                SUM(stock) as stock_qty,
-                SUM(stock_value_ht) as stock_value_ht
+                mv.laboratory_name,
+                SUM(mv.stock) as stock_qty,
+                SUM(mv.stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (product_id) 
                     laboratory_name,
                     stock,
-                    stock_value_ht
+                    stock_value_ht,
+                    -- Filter Columns
+                    code_13_ref as ean13,
+                    category_name,
+                    pharmacy_id
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $4::date
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
-            ) t
+            ) mv
+            WHERE 1=1
+            ${conditions}
             GROUP BY 1
         ),
 

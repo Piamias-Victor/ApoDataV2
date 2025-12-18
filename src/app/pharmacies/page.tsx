@@ -5,8 +5,13 @@ import { Building2 } from 'lucide-react';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { PharmaciesKpiGrid } from '@/components/organisms/Pharmacies/PharmaciesKpiGrid';
 import { CategoryTreeMap } from '@/components/organisms/CategoryAnalysis/CategoryTreeMap';
-import { PharmaciesGeoAnalysis } from '@/components/organisms/Pharmacies/PharmaciesGeoAnalysis';
+
 import { PharmaciesDetailedTable } from '@/components/organisms/Pharmacies/PharmaciesDetailedTable';
+import { PharmaciesLaboratoryTable } from '@/components/organisms/Pharmacies/PharmaciesLaboratoryTable';
+import { PharmaciesProductTable } from '@/components/organisms/Pharmacies/PharmaciesProductTable';
+import { PharmaciesGeoAnalysis } from '@/components/organisms/Pharmacies/PharmaciesGeoAnalysis';
+import { SimulationDashboard } from '@/components/organisms/Simulation/SimulationDashboard';
+import { PreorderEvolutionChart } from '@/components/organisms/PreorderAnalysis/PreorderEvolutionChart';
 
 export default function PharmaciesPage() {
     return (
@@ -54,10 +59,27 @@ export default function PharmaciesPage() {
                     <CategoryTreeMap />
 
                     {/* Map Analysis */}
-                    <PharmaciesGeoAnalysis />
+                    <div className="mt-8 space-y-8">
+                        {/* Regional Map */}
+                        <PharmaciesGeoAnalysis />
 
-                    {/* Detailed Analysis Table */}
-                    <PharmaciesDetailedTable />
+
+
+                        {/* Main Analysis Tables */}
+                        <PharmaciesDetailedTable />
+
+                        {/* Laboratory Analysis Table */}
+                        <PharmaciesLaboratoryTable />
+                    </div>
+
+                    {/* Product Analysis Table */}
+                    <PharmaciesProductTable />
+
+                    {/* Simulation */}
+                    <SimulationDashboard />
+
+                    {/* Pre-order Temporal Evolution */}
+                    <PreorderEvolutionChart />
                 </div>
             </div>
         </div>
