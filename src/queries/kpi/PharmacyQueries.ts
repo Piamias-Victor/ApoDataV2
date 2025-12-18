@@ -66,39 +66,50 @@ export const PharmacyQueries = {
         -- 3. Stock Snapshot (Current Period End)
         current_stock AS (
             SELECT 
-                pharmacy_id,
-                SUM(stock) as stock_qty,
-                SUM(stock_value_ht) as stock_value_ht
+                mv.pharmacy_id,
+                SUM(mv.stock) as stock_qty,
+                SUM(mv.stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (product_id, pharmacy_id) 
                     pharmacy_id,
                     stock,
-                    stock_value_ht
+                    stock_value_ht,
+                    month_end_date,
+                    -- Filter Columns (must match aliases expected by conditions)
+                    laboratory_name,
+                    code_13_ref as ean13,
+                    category_name
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $2::date
-                -- Note: Conditions are tricky here if they involve product properties, 
-                -- usually we filter by pharmacy_id directly if needed.
-                -- For global table, we want all stocks.
                 ORDER BY product_id, pharmacy_id, month_end_date DESC
-            ) t
+            ) mv
+            WHERE 1=1
+            ${conditions} -- Filter the snapshot by global conditions (Lab, Product, etc)
             GROUP BY 1
         ),
         
-        -- 4. Stock Snapshot (Previous Period End) - Optional for Evolution
+        -- 4. Stock Snapshot (Previous Period End)
         prev_stock AS (
              SELECT 
-                pharmacy_id,
-                SUM(stock) as stock_qty,
-                SUM(stock_value_ht) as stock_value_ht
+                mv.pharmacy_id,
+                SUM(mv.stock) as stock_qty,
+                SUM(mv.stock_value_ht) as stock_value_ht
             FROM (
                 SELECT DISTINCT ON (product_id, pharmacy_id) 
                     pharmacy_id,
                     stock,
-                    stock_value_ht
+                    stock_value_ht,
+                    month_end_date,
+                    -- Filter Columns
+                    laboratory_name,
+                    code_13_ref as ean13,
+                    category_name
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $4::date
                 ORDER BY product_id, pharmacy_id, month_end_date DESC
-            ) t
+            ) mv
+            WHERE 1=1
+            ${conditions}
             GROUP BY 1
         )
 
