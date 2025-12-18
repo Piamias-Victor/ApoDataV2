@@ -20,7 +20,6 @@ export const ProductTableHeader: React.FC<ProductTableHeaderProps> = ({ sortBy, 
         <thead>
             <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
                 <TableHeaderCell width="12rem" {...getSortProps('product_name')}>Produit</TableHeaderCell>
-                <TableHeaderCell width="8rem" className="hidden md:table-cell" {...getSortProps('laboratory_name')}>Labo</TableHeaderCell>
                 <TableHeaderCell align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
 
                 {/* Grouped Columns */}

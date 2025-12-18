@@ -17,6 +17,26 @@ export const useFilterStore = create<FilterState & FilterActions>()(
             ...createUiSlice(...a),
 
             // Shared Actions
+            setRegion: async (region: string) => {
+                try {
+                    const response = await fetch('/api/pharmacies/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ regions: [region] })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to fetch pharmacists by region');
+
+                    const data = await response.json();
+                    const pharmacies = data.pharmacies || data; // Handle potential wrapper
+
+                    if (Array.isArray(pharmacies)) {
+                        a[0]({ pharmacies });
+                    }
+                } catch (error) {
+                    console.error("Failed to set region:", error);
+                }
+            },
             getFilterState: () => {
                 const state = a[1](); // get()
                 return {

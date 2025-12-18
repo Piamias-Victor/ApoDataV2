@@ -6,11 +6,15 @@ export interface KpiCardProps {
     /** Titre de la KPI (ex: "Achats HT") */
     title: string;
     /** Valeur principale (ex: "125 450 €") */
-    primaryValue: string;
+    primaryValue: string | React.ReactNode;
     /** Label de la valeur secondaire (ex: "Quantité") - optionnel */
     secondaryLabel?: string | undefined;
     /** Valeur secondaire (ex: "12 345") - optionnel */
-    secondaryValue?: string | undefined;
+    secondaryValue?: string | React.ReactNode | undefined;
+    /** Indication d'interaction (ex: "Astuce : Ctrl + Clic") - s'affiche sous le titre */
+    hint?: React.ReactNode | undefined;
+    /** Gestionnaire de clic sur la carte */
+    onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
     /** Pourcentage d'évolution (ex: 12.5 pour +12.5%) - optionnel */
     evolutionPercent?: number | undefined;
     /** Libellé optionnel pour l'évolution (ex: "vs N-1") */
@@ -22,7 +26,7 @@ export interface KpiCardProps {
     /** Icône optionnelle pour la KPI */
     icon?: React.ReactNode | undefined;
     /** Couleur d'accent (correspond aux couleurs de FilterButton) */
-    accentColor?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | undefined;
+    accentColor?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'indigo' | 'pink' | 'gray' | undefined;
     /** État de chargement */
     isLoading?: boolean;
 }
@@ -64,6 +68,18 @@ const ACCENT_COLORS = {
         border: 'border-indigo-200',
         glow: 'shadow-indigo-200',
     },
+    pink: {
+        bg: 'bg-pink-50',
+        text: 'text-pink-600',
+        border: 'border-pink-200',
+        glow: 'shadow-pink-200',
+    },
+    gray: {
+        bg: 'bg-gray-50',
+        text: 'text-gray-600',
+        border: 'border-gray-200',
+        glow: 'shadow-gray-200',
+    },
 };
 
 /**
@@ -82,6 +98,8 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     icon,
     accentColor = 'blue',
     isLoading = false,
+    hint,
+    onClick,
 }) => {
     const colors = ACCENT_COLORS[accentColor];
 
@@ -90,7 +108,10 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     }
 
     return (
-        <div className="group relative">
+        <div
+            className={`group relative ${onClick ? 'cursor-pointer' : ''}`}
+            onClick={onClick}
+        >
             {/* Glassmorphism Card */}
             <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 p-6 h-full">
                 {/* Header with Icon and Title */}
@@ -99,6 +120,11 @@ export const KpiCard: React.FC<KpiCardProps> = ({
                         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">
                             {title}
                         </h3>
+                        {hint && (
+                            <div className="mt-1">
+                                {hint}
+                            </div>
+                        )}
                     </div>
                     {icon && (
                         <div className={`p-2.5 ${colors.bg} ${colors.text} rounded-xl transition-transform group-hover:scale-110`}>

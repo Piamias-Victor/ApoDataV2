@@ -12,12 +12,13 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { page = 1, search = '', sortBy, sortOrder, ...kpiRequest } = body;
+        const { page = 1, limit = 10, search = '', sortBy, sortOrder, ...kpiRequest } = body;
 
         // Default to page 1 if not provided or invalid
         const pageNumber = Math.max(1, Number(page) || 1);
+        const pageSize = Math.max(1, Number(limit) || 10);
 
-        const result = await getProductAnalysis(kpiRequest, pageNumber, 20, search, sortBy, sortOrder); // Hardcoded pageSize 20 for now
+        const result = await getProductAnalysis(kpiRequest, pageNumber, pageSize, search, sortBy, sortOrder);
 
         return NextResponse.json(result);
     } catch (error) {

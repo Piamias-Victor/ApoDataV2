@@ -5,7 +5,8 @@ import React, { useState } from 'react';
 import { usePriceProducts } from '@/hooks/kpi/usePriceProducts';
 import { PriceProductRow } from './components/PriceProductRow';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 export const PriceProductTable = () => {
     const [page, setPage] = useState(1);
@@ -13,7 +14,7 @@ export const PriceProductTable = () => {
     const [orderBy, setOrderBy] = useState('my_avg_sell_price');
     const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc');
 
-    const itemsPerPage = 20;
+    const itemsPerPage = 10;
 
     const { data, isLoading } = usePriceProducts({
         page,
@@ -121,30 +122,14 @@ export const PriceProductTable = () => {
                         </div>
 
                         {/* Pagination */}
-                        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                            <span className="text-sm text-gray-500">
-                                Total: {totalItems} produits
-                            </span>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="p-1 rounded hover:bg-white disabled:opacity-50"
-                                >
-                                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                                </button>
-                                <span className="text-sm font-medium text-gray-700 self-center">
-                                    Page {page} / {totalPages || 1}
-                                </span>
-                                <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page >= totalPages}
-                                    className="p-1 rounded hover:bg-white disabled:opacity-50"
-                                >
-                                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                                </button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            className="bg-gray-50 border-t border-gray-200"
+                        />
                     </>
                 )}
             </div>

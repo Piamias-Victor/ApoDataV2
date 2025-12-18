@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLaboratoryAnalysis } from './hooks/useLaboratoryAnalysis';
+import { usePharmaciesAnalysis } from './hooks/usePharmaciesAnalysis';
 import {
     Loader2,
-    FlaskConical,
+    Building2,
     Search
 } from 'lucide-react';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
@@ -15,31 +15,31 @@ import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
-export const LaboratoryDetailedTable: React.FC = () => {
+export const PharmaciesDetailedTable: React.FC = () => {
 
     // State
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const pageSize = 10;
 
-    const { data: rawData, isLoading, isFetching } = useLaboratoryAnalysis();
+    const { data: rawData, isLoading, isFetching } = usePharmaciesAnalysis();
 
     // Default empty array
     const safeData = useMemo(() => rawData || [], [rawData]);
 
-    // Filter Logic Only
+    // Filter Logic Only (Search client-side as well for responsiveness)
     const filteredData = useMemo(() => {
         if (!search) return safeData;
         return safeData.filter(row =>
-            row.laboratory_name.toLowerCase().includes(search.toLowerCase())
+            row.pharmacy_name.toLowerCase().includes(search.toLowerCase())
         );
     }, [safeData, search]);
 
     // Sorting Logic
     const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
         data: filteredData,
-        initialSortBy: 'my_rank',
-        initialSortOrder: 'asc'
+        initialSortBy: 'sales_ttc',
+        initialSortOrder: 'desc'
     });
 
     // Pagination Logic
@@ -56,8 +56,10 @@ export const LaboratoryDetailedTable: React.FC = () => {
         setPage(1);
     };
 
+    // We can use chart interaction filter if we want to filter OTHER charts by clicking a pharmacy
+    // But since this is the Pharmacies page, usually clicking a pharmacy might select it as a global filter.
     const { handleInteraction } = useChartFilterInteraction({
-        filterType: 'laboratory'
+        filterType: 'pharmacy'
     });
 
     // Helper for Headers
@@ -73,11 +75,11 @@ export const LaboratoryDetailedTable: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <FlaskConical className="w-6 h-6 text-purple-600" />
-                        Analyse par Laboratoire
+                        <Building2 className="w-6 h-6 text-indigo-600" />
+                        Analyse Détaillée par Pharmacie
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Détail des performances par laboratoire (Achats, Ventes, Marge, Stock)
+                        Détail des performances par pharmacie (Achats, Ventes, Marge, Stock)
                         <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
                             Astuce : Ctrl/Cmd + Clic pour filtrer
                         </span>
@@ -88,14 +90,14 @@ export const LaboratoryDetailedTable: React.FC = () => {
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Rechercher un laboratoire..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
+                        placeholder="Rechercher une pharmacie..."
+                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
                         value={search}
                         onChange={handleSearch}
                     />
                     {isFetching && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                            <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />
                         </div>
                     )}
                 </div>
@@ -115,14 +117,14 @@ export const LaboratoryDetailedTable: React.FC = () => {
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
-                                        {/* LABO */}
-                                        <TableHeaderCell width="18%" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
-                                        <TableHeaderCell width="4%" align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
+                                        {/* PHARMACIE */}
+                                        <TableHeaderCell width="18%" {...getSortProps('pharmacy_name')}>Pharmacie</TableHeaderCell>
+                                        <TableHeaderCell width="4%" align="center" {...getSortProps('rank')}>Rang</TableHeaderCell>
 
                                         {/* ACHAT - Purple */}
-                                        <TableHeaderCell align="right" variant="purple" width="6%" {...getSortProps('my_purchases_ht')}>Achat HT</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" width="5%" {...getSortProps('my_purchases_qty')}>Achat Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_purchases_pct')}>
+                                        <TableHeaderCell align="right" variant="purple" width="6%" {...getSortProps('purchases_ht')}>Achat HT</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="5%" {...getSortProps('purchases_qty')}>Achat Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('pdm_purchases_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Achat</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -130,9 +132,9 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* VENTE - Blue */}
-                                        <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('my_sales_ttc')}>Vente TTC</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="blue" width="5%" {...getSortProps('my_sales_qty')}>Vente Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('my_pdm_pct')}>
+                                        <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('sales_ttc')}>Vente TTC</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="5%" {...getSortProps('sales_qty')}>Vente Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('pdm_sales_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Vente</span>
                                                 <span className="text-[9px] opacity-70 font-normal normal-case">Montant</span>
@@ -140,116 +142,97 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         </TableHeaderCell>
 
                                         {/* MARGE - Orange */}
-                                        <TableHeaderCell align="right" variant="orange" width="6%" {...getSortProps('my_margin_ht')}>Marge €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('my_margin_rate')}>Marge %</TableHeaderCell>
-
-                                        {/* PRIX - Pink (Added) */}
-                                        <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="6%" {...getSortProps('margin_ht')}>Marge €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('margin_rate')}>Marge %</TableHeaderCell>
 
                                         {/* STOCK - Red */}
-                                        <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="5%" {...getSortProps('my_stock_qty')}>Stock Qte</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="red" width="4%" {...getSortProps('my_days_of_stock')}>J.Stock</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('stock_value_ht')}>Stock €</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="red" width="4%" {...getSortProps('days_of_stock')}>J.Stock</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.length === 0 ? (
                                         <tr>
                                             <td colSpan={15} className="p-12 text-center text-gray-500">
-                                                Aucun laboratoire trouvé.
+                                                Aucune pharmacie trouvée.
                                             </td>
                                         </tr>
                                     ) : (
                                         paginatedData.map((row, idx) => {
-                                            // Compute Prices
-                                            const avgBuyPrice = row.my_purchases_qty ? row.my_purchases_ht / row.my_purchases_qty : 0;
-                                            const avgSellPrice = row.my_sales_qty ? row.my_sales_ttc / row.my_sales_qty : 0;
+
+                                            // Handle Interaction (Ctrl+Click)
+                                            // Since interaction hook expects { id, name }, we pass pharmacyId
+                                            const onRowClick = (e: React.MouseEvent) => {
+                                                handleInteraction({ id: row.pharmacy_id, name: row.pharmacy_name }, e);
+                                            };
 
                                             return (
                                                 <tr key={idx}
-                                                    onClick={(e) => handleInteraction({ id: row.laboratory_name, name: row.laboratory_name }, e)}
-                                                    className="hover:bg-purple-50/30 transition-colors group cursor-pointer"
+                                                    onClick={onRowClick}
+                                                    className="hover:bg-indigo-50/30 transition-colors group cursor-pointer"
                                                 >
 
-                                                    {/* Labo Name */}
+                                                    {/* Pharmacy Name */}
                                                     <TableCell>
                                                         <div className="flex flex-col max-w-[180px]">
-                                                            <span className="font-medium text-gray-900 text-xs truncate block" title={row.laboratory_name}>
-                                                                {row.laboratory_name}
+                                                            <span className="font-medium text-gray-900 text-xs truncate block" title={row.pharmacy_name}>
+                                                                {row.pharmacy_name}
                                                             </span>
                                                         </div>
                                                     </TableCell>
 
                                                     {/* Rank - Bubble Style */}
                                                     <TableCell align="center">
-                                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
-                                                            #{row.my_rank}
+                                                        <span className={`inline-flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-full text-[11px] font-bold ${row.rank <= 3 ? 'bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm' : 'bg-gray-100 text-gray-600 border border-gray-100'}`}>
+                                                            #{row.rank}
                                                         </span>
                                                     </TableCell>
 
                                                     {/* Achat HT */}
                                                     <TableCell align="right" variant="purple">
-                                                        <ValueCell value={row.my_purchases_ht} evolution={row.my_purchases_evolution} isCurrency textSize="text-xs" />
+                                                        <ValueCell value={row.purchases_ht} evolution={row.purchases_evolution} isCurrency textSize="text-xs" />
                                                     </TableCell>
                                                     {/* Achat Qte */}
                                                     <TableCell align="right" variant="purple">
-                                                        <ValueCell value={row.my_purchases_qty} evolution={row.my_purchases_qty_evolution} textSize="text-xs" />
+                                                        <ValueCell value={row.purchases_qty} evolution={row.purchases_qty_evolution} textSize="text-xs" />
                                                     </TableCell>
                                                     {/* PDM Achat */}
                                                     <TableCell align="right" variant="green">
-                                                        <ValueCell value={row.my_pdm_purchases_pct} evolution={row.my_pdm_purchases_evolution} suffix="%" decimals={1} textSize="text-xs" />
+                                                        <ValueCell value={row.pdm_purchases_pct} evolution={0} suffix="%" decimals={1} textSize="text-xs" />
                                                     </TableCell>
 
                                                     {/* Vente TTC */}
                                                     <TableCell align="right" variant="blue">
-                                                        <ValueCell value={row.my_sales_ttc} evolution={row.my_sales_evolution} isCurrency textSize="text-xs" />
+                                                        <ValueCell value={row.sales_ttc} evolution={row.sales_evolution} isCurrency textSize="text-xs" />
                                                     </TableCell>
                                                     {/* Vente Qte */}
                                                     <TableCell align="right" variant="blue">
-                                                        <ValueCell value={row.my_sales_qty} evolution={row.my_sales_qty_evolution} textSize="text-xs" />
+                                                        <ValueCell value={row.sales_qty} evolution={row.sales_qty_evolution} textSize="text-xs" />
                                                     </TableCell>
                                                     {/* PDM Vente */}
                                                     <TableCell align="right" variant="green">
-                                                        <ValueCell value={row.my_pdm_pct} evolution={row.my_pdm_evolution} suffix="%" decimals={1} textSize="text-xs" />
+                                                        <ValueCell value={row.pdm_sales_pct} evolution={row.pdm_sales_evolution} suffix="%" decimals={1} textSize="text-xs" />
                                                     </TableCell>
 
                                                     {/* Marge € */}
                                                     <TableCell align="right" variant="orange">
-                                                        <ValueCell value={row.my_margin_ht} evolution={row.my_margin_ht_evolution} isCurrency textSize="text-xs" />
+                                                        <ValueCell value={row.margin_ht} evolution={row.margin_ht_evolution} isCurrency textSize="text-xs" />
                                                     </TableCell>
                                                     {/* Marge % */}
                                                     <TableCell align="right" variant="orange">
-                                                        <ValueCell value={row.my_margin_rate} evolution={row.my_margin_rate_evolution} suffix="%" decimals={1} textSize="text-xs" />
-                                                    </TableCell>
-
-                                                    {/* Prix Achat Moy (Calculated) */}
-                                                    <TableCell align="right" variant="pink">
-                                                        <div className="font-medium text-gray-700 text-xs">
-                                                            {avgBuyPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                                                        </div>
-                                                    </TableCell>
-                                                    {/* Prix Vente Moy (Calculated) */}
-                                                    <TableCell align="right" variant="pink">
-                                                        <div className="font-medium text-gray-700 text-xs">
-                                                            {avgSellPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                                                        </div>
+                                                        <ValueCell value={row.margin_rate} evolution={row.margin_rate_evolution} suffix="%" decimals={1} textSize="text-xs" />
                                                     </TableCell>
 
                                                     {/* Stock € */}
                                                     <TableCell align="right" variant="red">
-                                                        <ValueCell value={row.my_stock_value_ht} evolution={row.my_stock_value_ht_evolution} isCurrency textSize="text-xs" />
-                                                    </TableCell>
-                                                    {/* Stock Qte */}
-                                                    <TableCell align="right" variant="red">
-                                                        <ValueCell value={row.my_stock_qty} evolution={row.my_stock_qty_evolution} textSize="text-xs" />
+                                                        <ValueCell value={row.stock_value_ht} evolution={row.stock_value_evolution} isCurrency textSize="text-xs" />
                                                     </TableCell>
                                                     {/* J.Stock */}
                                                     <TableCell align="right" variant="red">
-                                                        <span className={`font-bold text-xs ${(row.my_days_of_stock || 0) > 90 ? 'text-red-600' :
-                                                            (row.my_days_of_stock || 0) > 60 ? 'text-orange-600' : 'text-gray-800'
+                                                        <span className={`font-bold text-xs ${(row.days_of_stock || 0) > 90 ? 'text-red-600' :
+                                                            (row.days_of_stock || 0) > 60 ? 'text-orange-600' : 'text-gray-800'
                                                             }`}>
-                                                            {row.my_days_of_stock?.toFixed(0)}j
+                                                            {row.days_of_stock?.toFixed(0)}j
                                                         </span>
                                                     </TableCell>
                                                 </tr>

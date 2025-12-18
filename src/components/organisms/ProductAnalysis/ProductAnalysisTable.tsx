@@ -1,10 +1,14 @@
 import React from 'react';
 import { useProductAnalysis } from './hooks/useProductAnalysis';
-import { ChevronLeft, ChevronRight, Search, Package } from 'lucide-react'; // Changed icon to Package
+import { Search, Package } from 'lucide-react'; // Changed icon to Package
 import { ProductTableHeader } from './ProductTableHeader';
 import { ProductTableRow } from './ProductTableRow';
+import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 export const ProductAnalysisTable = () => {
+    // Server-side pagination
+    const itemsPerPage = 10;
+
     const {
         data,
         isLoading,
@@ -15,10 +19,8 @@ export const ProductAnalysisTable = () => {
         sortBy,
         sortOrder,
         handleSort
-    } = useProductAnalysis();
+    } = useProductAnalysis(itemsPerPage);
 
-    // Server-side pagination
-    const itemsPerPage = 20;
     const totalItems = data?.total || 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -87,27 +89,14 @@ export const ProductAnalysisTable = () => {
                         </div>
 
                         {/* Pagination */}
-                        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50/80 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="text-sm text-gray-500">
-                                Affichage de <span className="font-medium">{(page - 1) * itemsPerPage + 1}</span> à <span className="font-medium">{Math.min(page * itemsPerPage, totalItems)}</span> sur <span className="font-medium">{totalItems}</span>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                >
-                                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                                </button>
-                                <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                >
-                                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                                </button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            className="bg-gray-50/80 backdrop-blur-sm rounded-b-xl"
+                        />
                     </>
                 )}
             </div>

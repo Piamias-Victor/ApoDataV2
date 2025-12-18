@@ -10,6 +10,7 @@ import {
     ArrowRightLeft,
     Tag,
     Package,
+    Building2,
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -78,7 +79,7 @@ export const SideNavBar: React.FC = () => {
         { label: 'Achat / Vente', icon: <ArrowRightLeft />, href: '/achats-ventes', color: 'green' },
         { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
         { label: 'Stock / Rupture', icon: <Package />, href: '/stock-rupture', color: 'red' },
-        // { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
+        { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
         // { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
         // { label: 'Simulation', icon: <Calculator />, href: '/simulation', color: 'yellow' },
         // { label: 'BRI', icon: <FileText />, href: '/bri', color: 'gray' },

@@ -7,12 +7,11 @@ import {
     ArrowDown,
     Loader2,
     Package,
-    Search,
-    ChevronLeft,
-    ChevronRight,
+    Search
 } from 'lucide-react';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
+import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 // --- Internal Helper Components to match Dashboard Design ---
 
@@ -60,6 +59,8 @@ const CustomValueCell = ({ value, evolution, isCurrency = false, suffix = '', de
 
 export const ProductAnalysisTable: React.FC = () => {
 
+    const itemsPerPage = 10;
+
     // Using the existing hook which handles server-side state
     const {
         data: result,
@@ -71,11 +72,10 @@ export const ProductAnalysisTable: React.FC = () => {
         sortBy,
         sortOrder,
         handleSort
-    } = useProductAnalysis();
+    } = useProductAnalysis(itemsPerPage);
 
     const resultData = result?.data || [];
     const totalItems = result?.total || 0;
-    const itemsPerPage = 20;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
     // Reset page on search change is already handled in the hook or parent component,
@@ -282,32 +282,17 @@ export const ProductAnalysisTable: React.FC = () => {
                         </div>
 
                         {/* Pagination */}
-                        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50/80 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="text-sm text-gray-500">
-                                Affichage de <span className="font-medium">{totalItems > 0 ? (page - 1) * itemsPerPage + 1 : 0}</span> à <span className="font-medium">{Math.min(page * itemsPerPage, totalItems)}</span> sur <span className="font-medium">{totalItems}</span>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                >
-                                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                                </button>
-                                <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages || totalPages === 0}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                >
-                                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                                </button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            className="bg-gray-50/80 backdrop-blur-sm rounded-b-xl"
+                        />
                     </>
-                )
-                }
-            </div >
-        </div >
+                )}
+            </div>
+        </div>
     );
 };
-

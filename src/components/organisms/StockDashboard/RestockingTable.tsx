@@ -4,8 +4,6 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Search,
-    ChevronLeft,
-    ChevronRight,
     Calculator,
     ShoppingCart
 } from 'lucide-react';
@@ -13,6 +11,7 @@ import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { useFilterStore } from '@/stores/useFilterStore'; // For Ctrl+Click
+import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 // Type for the data returned by our API
 interface RestockingItem {
@@ -35,7 +34,7 @@ export const RestockingTable: React.FC = () => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
 
-    const itemsPerPage = 20;
+    const itemsPerPage = 10;
 
     // 2. Data Fetching
     const { data: allData = [], isLoading } = useQuery({
@@ -153,11 +152,11 @@ export const RestockingTable: React.FC = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr>
+                                    <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
                                         <TableHeaderCell width="30%">Produit</TableHeaderCell>
-                                        <TableHeaderCell align="right" width="10%">Stock Actuel</TableHeaderCell>
-                                        <TableHeaderCell align="right" width="10%">Stock Moyen</TableHeaderCell>
-                                        <TableHeaderCell align="right" width="10%">Ventes / Mois</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="10%">Stock Actuel</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="10%">Stock Moyen</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="10%">Ventes / Mois</TableHeaderCell>
 
                                         {/* Dynamic Column */}
                                         <TableHeaderCell align="right" variant="purple" width="15%">
@@ -167,8 +166,8 @@ export const RestockingTable: React.FC = () => {
                                             </div>
                                         </TableHeaderCell>
 
-                                        <TableHeaderCell align="right" width="10%">Prix Achat</TableHeaderCell>
-                                        <TableHeaderCell align="right" width="10%">% Marge</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="10%">Prix Achat</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="10%">% Marge</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
@@ -195,7 +194,7 @@ export const RestockingTable: React.FC = () => {
                                                 >
                                                     {/* Product */}
                                                     <TableCell>
-                                                        <div className="flex flex-col max-w-[250px]">
+                                                        <div className="flex flex-col max-w-[350px]">
                                                             <span className="font-medium text-gray-900 truncate text-xs" title={row.name}>
                                                                 {row.name}
                                                             </span>
@@ -211,35 +210,35 @@ export const RestockingTable: React.FC = () => {
                                                     </TableCell>
 
                                                     {/* Stock Actuel */}
-                                                    <TableCell align="right">
-                                                        <span className="font-bold text-gray-700">{row.stock_actuel}</span>
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className="font-bold text-gray-700 text-xs">{row.stock_actuel}</span>
                                                     </TableCell>
 
                                                     {/* Stock Moyen (Now Real Data) */}
-                                                    <TableCell align="right">
-                                                        <span className="text-gray-500">{Math.round(row.stock_moyen)}</span>
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className="text-gray-500 text-xs">{Math.round(row.stock_moyen)}</span>
                                                     </TableCell>
 
                                                     {/* Ventes / Mois */}
-                                                    <TableCell align="right">
-                                                        <span className="font-medium text-gray-900">{row.sales_velocity.toFixed(1)}</span>
+                                                    <TableCell align="right" variant="blue">
+                                                        <span className="font-bold text-gray-900 text-xs">{row.sales_velocity.toFixed(1)}</span>
                                                     </TableCell>
 
                                                     {/* Qté à Commander - Dynamic Highlight */}
-                                                    <TableCell align="right" {...urgentProps} className={isUrgent ? 'bg-purple-50/50' : ''}>
-                                                        <span className={`font-bold ${isUrgent ? 'text-purple-700 text-base' : 'text-gray-300'}`}>
+                                                    <TableCell align="right" variant="purple" {...urgentProps} className={isUrgent ? 'bg-purple-50/50' : ''}>
+                                                        <span className={`font-bold ${isUrgent ? 'text-purple-700 text-sm' : 'text-gray-300 text-xs'}`}>
                                                             {qtyToOrder}
                                                         </span>
                                                     </TableCell>
 
                                                     {/* Prix Achat */}
-                                                    <TableCell align="right">
-                                                        <span className="text-gray-600">{row.prix_achat.toFixed(2)}€</span>
+                                                    <TableCell align="right" variant="green">
+                                                        <span className="text-gray-600 text-xs">{row.prix_achat.toFixed(2)}€</span>
                                                     </TableCell>
 
                                                     {/* Marge */}
-                                                    <TableCell align="right">
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${row.marge_pct > 25 ? 'bg-green-100 text-green-700' :
+                                                    <TableCell align="right" variant="green">
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.marge_pct > 25 ? 'bg-green-100 text-green-700' :
                                                             row.marge_pct > 10 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
                                                             }`}>
                                                             {row.marge_pct.toFixed(0)}%
@@ -254,27 +253,14 @@ export const RestockingTable: React.FC = () => {
                         </div>
 
                         {/* Pagination */}
-                        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50/80 backdrop-blur-sm flex items-center justify-between">
-                            <div className="text-sm text-gray-500">
-                                Affichage de <span className="font-medium">{totalItems > 0 ? (page - 1) * itemsPerPage + 1 : 0}</span> à <span className="font-medium">{Math.min(page * itemsPerPage, totalItems)}</span> sur <span className="font-medium">{totalItems}</span>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 transition-all"
-                                >
-                                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                                </button>
-                                <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages || totalPages === 0}
-                                    className="p-1 rounded hover:bg-white hover:shadow-sm disabled:opacity-50 transition-all"
-                                >
-                                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                                </button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            className="bg-gray-50/80 backdrop-blur-sm rounded-b-xl"
+                        />
                     </>
                 )}
             </div>

@@ -89,20 +89,20 @@ export const LaboratoryDiscrepancyTable = () => {
     };
 
     const headers = [
-        { label: 'Laboratoire', key: 'laboratory_name', align: 'left', width: 'w-[15%]' },
-        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]' },
-        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]' },
-        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]' },
-        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]' },
-        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[8%]' },
-        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]' },
-        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]' },
-        { label: 'Jours de Stock', key: 'jours_de_stock', align: 'right', width: 'w-[5%]' },
-        { label: `A Commander`, key: 'qte_a_commander', align: 'right', width: 'w-[8%]' },
-        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]' },
-        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[8%]' },
-        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]' },
-    ];
+        { label: 'Laboratoire', key: 'laboratory_name', align: 'left', width: 'w-[15%]', variant: undefined },
+        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'Jours de Stock', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
+        { label: `A Commander`, key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[8%]', variant: 'blue' },
+        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
+    ] as const;
 
     return (
         <div className="space-y-4">
@@ -154,10 +154,10 @@ export const LaboratoryDiscrepancyTable = () => {
                                         key={header.key}
                                         isSortable
                                         sortDirection={sortBy === header.key ? sortOrder : null}
-                                        onSort={() => handleSort(header.key)}
+                                        onSort={() => handleSort(header.key as any)}
                                         align={header.align as 'left' | 'right'}
                                         className={header.width}
-                                        {...(header.key === 'qte_a_commander' ? { variant: 'purple' as const } : {})}
+                                        {...(header.variant ? { variant: header.variant } : {})}
                                     >
                                         {header.key === 'qte_a_commander' ? (
                                             <div className="flex flex-col items-end">
@@ -198,39 +198,39 @@ export const LaboratoryDiscrepancyTable = () => {
                                             onClick={(e) => handleRowClick(row, e)}
                                             className="group hover:bg-indigo-50/30 transition-colors cursor-pointer"
                                         >
-                                            <TableCell className="font-medium text-gray-900 truncate">
+                                            <TableCell className="font-medium text-gray-900 truncate text-xs">
                                                 {row.laboratory_name}
                                             </TableCell>
-                                            <TableCell align="right">{formatNumber(row.qte_commandee)}</TableCell>
-                                            <TableCell align="right">{formatNumber(row.qte_receptionnee)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatNumber(row.qte_commandee)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatNumber(row.qte_receptionnee)}</TableCell>
 
                                             {/* Ecart Highlight */}
-                                            <TableCell align="right" className={row.ecart_qte < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}>
+                                            <TableCell align="right" className={`text-xs ${row.ecart_qte < 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
                                                 {formatNumber(row.ecart_qte)}
                                             </TableCell>
 
-                                            <TableCell align="right" className={row.taux_reception < 80 ? 'text-orange-600' : 'text-green-600'}>
+                                            <TableCell align="right" className={`text-xs ${row.taux_reception < 80 ? 'text-orange-600' : 'text-green-600'}`}>
                                                 {row.taux_reception?.toFixed(1)}%
                                             </TableCell>
 
-                                            <TableCell align="right">{formatCurrency(row.prix_achat)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatCurrency(row.prix_achat)}</TableCell>
 
-                                            <TableCell align="right">{formatNumber(row.stock_actuel)}</TableCell>
-                                            <TableCell align="right">{formatNumber(row.stock_moyen)}</TableCell>
-                                            <TableCell align="right">{Math.round(row.jours_de_stock)}j</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatNumber(row.stock_actuel)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatNumber(row.stock_moyen)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{Math.round(row.jours_de_stock)}j</TableCell>
 
                                             {/* A Commander Dynamic */}
-                                            <TableCell align="right" className={isUrgent ? 'bg-indigo-50/50' : ''}>
+                                            <TableCell align="right" className={`text-xs ${isUrgent ? 'bg-indigo-50/50' : ''}`}>
                                                 <span className={`font-bold ${isUrgent ? 'text-indigo-700' : 'text-gray-300'}`}>
                                                     {qtyToOrder > 0 ? formatNumber(qtyToOrder) : '-'}
                                                 </span>
                                             </TableCell>
 
-                                            <TableCell align="right">{formatNumber(row.qte_vendue)}</TableCell>
-                                            <TableCell align="right">{formatCurrency(row.prix_vente_moyen)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatNumber(row.qte_vendue)}</TableCell>
+                                            <TableCell align="right" className="text-xs">{formatCurrency(row.prix_vente_moyen)}</TableCell>
 
                                             <TableCell align="right">
-                                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${row.marge_moyen_pct < 20 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${row.marge_moyen_pct < 20 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
                                                     {row.marge_moyen_pct?.toFixed(1)}%
                                                 </span>
                                             </TableCell>

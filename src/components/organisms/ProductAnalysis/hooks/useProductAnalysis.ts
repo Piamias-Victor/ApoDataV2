@@ -3,7 +3,7 @@ import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { ProductAnalysisRow } from '@/types/kpi';
 import { useState } from 'react';
 
-export const useProductAnalysis = () => {
+export const useProductAnalysis = (itemsPerPage: number = 10) => {
     const request = useKpiRequest();
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
@@ -20,12 +20,12 @@ export const useProductAnalysis = () => {
     };
 
     const query = useQuery({
-        queryKey: ['product-analysis', request, page, search, sortBy, sortOrder],
+        queryKey: ['product-analysis', request, page, search, sortBy, sortOrder, itemsPerPage],
         queryFn: async () => {
             const res = await fetch('/api/stats/products', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...request, page, search, sortBy, sortOrder })
+                body: JSON.stringify({ ...request, page, limit: itemsPerPage, search, sortBy, sortOrder })
             });
             if (!res.ok) throw new Error('Failed to fetch product analysis');
             return res.json() as Promise<{ data: ProductAnalysisRow[], total: number }>;

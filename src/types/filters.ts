@@ -119,6 +119,7 @@ export interface FilterActions {
 
     // Setters Target
     setPharmacies: (pharmacies: SelectedPharmacy[]) => void;
+    setRegion: (region: string) => Promise<void>; // ASYNC action to fetch pharmacies
     setDateRange: (range: DateRange) => void;
     setComparisonDateRange: (range: DateRange) => void;
 

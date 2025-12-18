@@ -62,3 +62,5 @@ export const useStockDashboard = () => {
         evolution
     };
 };
+
+export type StockDashboardData = ReturnType<typeof useStockDashboard>;

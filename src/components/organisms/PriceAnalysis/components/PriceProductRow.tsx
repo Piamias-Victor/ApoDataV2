@@ -38,33 +38,33 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
             >
                 <TableCell>
                     <div className="flex flex-col">
-                        <span className="font-medium text-gray-900 truncate max-w-[200px]" title={row.product_name}>{row.product_name}</span>
+                        <span className="font-medium text-gray-900 truncate max-w-[200px] text-xs" title={row.product_name}>{row.product_name}</span>
                     </div>
                 </TableCell>
                 <TableCell>
-                    <span className="text-gray-500 font-mono text-xs">{row.ean13}</span>
+                    <span className="text-gray-500 font-mono text-[10px]">{row.ean13}</span>
                 </TableCell>
                 <TableCell>
-                    <span className="text-gray-500 truncate max-w-[150px] block" title={row.laboratory_name}>{row.laboratory_name}</span>
+                    <span className="text-gray-500 truncate max-w-[150px] block text-[10px]" title={row.laboratory_name}>{row.laboratory_name}</span>
                 </TableCell>
 
                 {/* Purchase Prices (Purple Variant) */}
-                <TableCell align="right" variant="purple" className="border-l border-purple-100"><ValueCell value={row.group_min_purchase_price} isCurrency decimals={2} /></TableCell>
-                <TableCell align="right" variant="purple"><ValueCell value={row.group_max_purchase_price} isCurrency decimals={2} /></TableCell>
-                <TableCell align="right" variant="purple" className="bg-purple-100/50"><ValueCell value={row.my_avg_purchase_price} evolution={row.my_avg_purchase_price_evolution} isCurrency decimals={2} className="font-semibold text-purple-700" /></TableCell>
-                <TableCell align="right" variant="purple"><ValueCell value={row.group_avg_purchase_price} isCurrency decimals={2} /></TableCell>
+                <TableCell align="right" variant="purple" className="border-l border-purple-100"><ValueCell value={row.group_min_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
+                <TableCell align="right" variant="purple"><ValueCell value={row.group_max_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
+                <TableCell align="right" variant="purple" className="bg-purple-100/50"><ValueCell value={row.my_avg_purchase_price} evolution={row.my_avg_purchase_price_evolution} isCurrency decimals={2} className="font-semibold text-purple-700 text-xs" /></TableCell>
+                <TableCell align="right" variant="purple"><ValueCell value={row.group_avg_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
 
                 {/* Sell Prices (Blue Variant) */}
-                <TableCell align="right" variant="blue" className="border-l border-blue-100"><ValueCell value={row.group_min_sell_price} isCurrency decimals={2} /></TableCell>
-                <TableCell align="right" variant="blue"><ValueCell value={row.group_max_sell_price} isCurrency decimals={2} /></TableCell>
-                <TableCell align="right" variant="blue" className="bg-blue-100/50"><ValueCell value={row.my_avg_sell_price} evolution={row.my_avg_sell_price_evolution} isCurrency decimals={2} className="font-semibold text-blue-700" /></TableCell>
-                <TableCell align="right" variant="blue"><ValueCell value={row.group_avg_sell_price} isCurrency decimals={2} /></TableCell>
+                <TableCell align="right" variant="blue" className="border-l border-blue-100"><ValueCell value={row.group_min_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
+                <TableCell align="right" variant="blue"><ValueCell value={row.group_max_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
+                <TableCell align="right" variant="blue" className="bg-blue-100/50"><ValueCell value={row.my_avg_sell_price} evolution={row.my_avg_sell_price_evolution} isCurrency decimals={2} className="font-semibold text-blue-700 text-xs" /></TableCell>
+                <TableCell align="right" variant="blue"><ValueCell value={row.group_avg_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
 
                 {/* Current Sell Price */}
-                <TableCell align="right" className="border-l border-gray-200 bg-gray-50/50"><ValueCell value={row.my_current_sell_price} isCurrency decimals={2} className="font-bold text-gray-900" /></TableCell>
+                <TableCell align="right" className="border-l border-gray-200 bg-gray-50/50"><ValueCell value={row.my_current_sell_price} isCurrency decimals={2} className="font-bold text-gray-900 text-xs" /></TableCell>
 
                 {/* Margin (Orange) */}
-                <TableCell align="right" variant="orange" className="border-l border-orange-100"><ValueCell value={row.my_margin_rate} evolution={row.my_margin_rate_evolution} suffix="%" className={`font-bold ${row.my_margin_rate > 25 ? "text-green-600" : "text-amber-600"}`} /></TableCell>
+                <TableCell align="right" variant="orange" className="border-l border-orange-100"><ValueCell value={row.my_margin_rate} evolution={row.my_margin_rate_evolution} suffix="%" className={`font-bold text-xs ${row.my_margin_rate > 25 ? "text-green-600" : "text-amber-600"}`} /></TableCell>
             </tr>
 
             {/* Simulation Row */}

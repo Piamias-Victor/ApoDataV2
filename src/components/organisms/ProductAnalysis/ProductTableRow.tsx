@@ -26,12 +26,11 @@ export const ProductTableRow: React.FC<ProductTableRowProps> = ({ row }) => {
             <TableCell>
                 <div className="flex flex-col">
                     <span className="truncate w-full max-w-[200px] text-xs font-medium text-gray-900" title={row.product_name}>{row.product_name}</span>
-                    <span className="text-[10px] text-gray-400">{row.ean13}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-gray-400">{row.ean13}</span>
+                        <span className="text-[10px] text-blue-600 truncate max-w-[150px]">{row.laboratory_name}</span>
+                    </div>
                 </div>
-            </TableCell>
-
-            <TableCell className="hidden md:table-cell">
-                <span className="truncate block max-w-[120px] text-gray-500 text-xs" title={row.laboratory_name}>{row.laboratory_name}</span>
             </TableCell>
 
             {/* Rank */}

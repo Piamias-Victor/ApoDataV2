@@ -64,20 +64,20 @@ export const ProductDiscrepancyTable = () => {
     };
 
     const headers = [
-        { label: 'Produit', key: 'product_name', align: 'left', width: 'w-[20%]' },
-        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]' },
-        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]' },
-        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]' },
-        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]' },
-        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[7%]' },
-        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]' },
-        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]' },
-        { label: 'Jours', key: 'jours_de_stock', align: 'right', width: 'w-[5%]' },
-        { label: 'A Commander', key: 'qte_a_commander', align: 'right', width: 'w-[8%]' },
-        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]' },
-        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[7%]' },
-        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]' },
-    ];
+        { label: 'Produit', key: 'product_name', align: 'left', width: 'w-[20%]', variant: undefined },
+        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[7%]', variant: 'purple' },
+        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'Jours', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
+        { label: 'A Commander', key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[7%]', variant: 'blue' },
+        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
+    ] as const;
 
     return (
         <div className="space-y-4">
@@ -119,10 +119,10 @@ export const ProductDiscrepancyTable = () => {
                                         key={header.key}
                                         isSortable
                                         sortDirection={sortBy === header.key ? sortOrder : null}
-                                        onSort={() => handleSort(header.key)}
+                                        onSort={() => handleSort(header.key as any)}
                                         align={header.align as 'left' | 'right'}
                                         className={header.width}
-                                        {...(header.key === 'qte_a_commander' ? { variant: 'purple' as const } : {})}
+                                        {...(header.variant ? { variant: header.variant } : {})}
                                     >
                                         {header.key === 'qte_a_commander' ? (
                                             <div className="flex flex-col items-end">

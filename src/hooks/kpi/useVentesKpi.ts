@@ -1,8 +1,15 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
+import { AchatsKpiRequest } from '@/types/kpi';
 
-export const useVentesKpi = () => {
-    const request = useKpiRequest();
+export const useVentesKpi = (overrides?: Partial<AchatsKpiRequest>) => {
+    const defaultRequest = useKpiRequest();
+
+    const request = useMemo(() => ({
+        ...defaultRequest,
+        ...overrides
+    }), [defaultRequest, overrides]);
 
     const query = useQuery({
         queryKey: ['ventes-kpi', request],
