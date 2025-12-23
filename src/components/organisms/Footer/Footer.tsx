@@ -19,7 +19,7 @@ export const Footer: React.FC = () => {
                 <div className="py-4">
                     <div className="flex items-center justify-center space-x-4">
                         <Badge variant="gradient-blue" size="xs">
-                            v2.0.0-beta
+                            v2.0.0
                         </Badge>
                         <span className="text-xs text-gray-400">
                             © {currentYear} Phardev

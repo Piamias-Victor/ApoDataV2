@@ -7,7 +7,7 @@ import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
  * ULTRA-FAST: Uses materialized view for prices
  */
 export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quantite_achetee: number; montant_ht: number; montant_ttc: number }> {
-  const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
+  const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
 
   // Initialize Builder
   const initialParams = [dateRange.start, dateRange.end];
@@ -18,6 +18,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
 
   // Exclusions
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
@@ -41,6 +42,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
     (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
     (request.excludedCategories && request.excludedCategories.length > 0) ||
+    (groups && groups.length > 0) ||
     (request.tvaRates && request.tvaRates.length > 0) ||
     (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
     (request.isGeneric && request.isGeneric !== 'ALL') ||
@@ -115,7 +117,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
  * Get Purchases Evolution
  */
 export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number }[]> {
-  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   const initialParams = [dateRange.start, dateRange.end];
   const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
@@ -124,6 +126,7 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
   if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
   if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -162,7 +165,7 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
  * Get Pre-order Evolution (Based on sent_date)
  */
 export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number }[]> {
-  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   const initialParams = [dateRange.start, dateRange.end];
   const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
@@ -171,6 +174,7 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
   if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
   if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -183,7 +187,8 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
   // Logic for JOINs (same as other functions)
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
     (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
-    (request.excludedCategories && request.excludedCategories.length > 0);
+    (request.excludedCategories && request.excludedCategories.length > 0) ||
+    (groups && groups.length > 0);
 
   const query = `
         SELECT 
@@ -215,7 +220,7 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
  * Get Reception Quantity Evolution (Based on delivery_date)
  */
 export async function getReceptionQuantityEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; qte_receptionnee: number }[]> {
-  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   const initialParams = [dateRange.start, dateRange.end];
   const qb = new FilterQueryBuilder(initialParams, 3, filterOperators);
@@ -224,6 +229,7 @@ export async function getReceptionQuantityEvolution(request: AchatsKpiRequest, g
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
   if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
   if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -261,7 +267,7 @@ export async function getReceptionQuantityEvolution(request: AchatsKpiRequest, g
  * Get Future Scheduled Deliveries (quantity)
  */
 export async function getFutureDeliveries(request: AchatsKpiRequest): Promise<{ date: string; qte_a_recevoir: number }[]> {
-  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+  const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   // Use CURRENT DATE as Start, and End of forecast as End
   // Wait, the Service will pass the FORECAST range.
@@ -274,6 +280,7 @@ export async function getFutureDeliveries(request: AchatsKpiRequest): Promise<{ 
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
   // ... exclusions ...
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
   if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
@@ -312,7 +319,7 @@ export async function getFutureDeliveries(request: AchatsKpiRequest): Promise<{ 
  * Calculate Reception Velocity (Average Quantity Received per Day) over the last N days.
  */
 export async function fetchReceptionVelocity(request: AchatsKpiRequest, days: number): Promise<number> {
-  const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+  const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   // Range: [NOW - days, NOW]
   const endDate = new Date();
@@ -334,6 +341,7 @@ export async function fetchReceptionVelocity(request: AchatsKpiRequest, days: nu
   qb.addLaboratories(laboratories);
   qb.addCategories(categories);
   qb.addProducts(productCodes);
+  qb.addGroups(groups);
   if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
   if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
   if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -347,8 +355,8 @@ export async function fetchReceptionVelocity(request: AchatsKpiRequest, days: nu
   const params = qb.getParams();
 
   const needsGlobalProductJoin = laboratories.length > 0 || categories.length > 0 ||
-    (request.excludedLaboratories && request.excludedLaboratories.length > 0) ||
     (request.excludedCategories && request.excludedCategories.length > 0) ||
+    (groups && groups.length > 0) ||
     (request.reimbursementStatus && request.reimbursementStatus !== 'ALL') ||
     (request.isGeneric && request.isGeneric !== 'ALL');
 

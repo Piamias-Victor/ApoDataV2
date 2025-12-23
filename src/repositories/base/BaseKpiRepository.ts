@@ -39,6 +39,7 @@ export abstract class BaseKpiRepository {
         qb.addLaboratories(req.laboratories || []);
         qb.addCategories(req.categories || []);
         qb.addProducts(req.productCodes || []);
+        qb.addGroups(req.groups || []);
 
         // Exclusions
         if (req.excludedPharmacyIds) qb.addExcludedPharmacies(req.excludedPharmacyIds);

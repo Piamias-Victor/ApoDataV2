@@ -7,7 +7,7 @@ import { FilterQueryBuilder } from '../utils/FilterQueryBuilder';
  * Uses `mv_stock_monthly` and "Last Known Value" logic (DISTINCT ON).
  */
 export async function fetchStockData(request: AchatsKpiRequest, targetDate: string): Promise<{ stock_value_ht: number; stock_quantity: number; nb_references: number }> {
-    const { laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
+    const { laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
 
     // Initialize Builder
     // NOTE: For Stock, we filter by 'mv.month_end_date <= targetDate' manually in the query structure,
@@ -31,6 +31,7 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     if (request.productCodes) qb.addProducts(request.productCodes);
+    qb.addGroups(groups);
 
     // ... Exclusions ...
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
@@ -49,6 +50,7 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
     // If we have category filters OTHER than L1 (which is in MV), we must join GP.
     // Also if we have exclusions on categories.
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     const query = `
@@ -98,7 +100,7 @@ export async function fetchStockData(request: AchatsKpiRequest, targetDate: stri
  * Get Stock Snapshots (Monthly) for interpolation
  */
 export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ date: string; stock_qte: number }[]> {
-    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
     const initialParams = [dateRange.start, dateRange.end];
     const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
@@ -112,6 +114,7 @@ export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ da
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -121,6 +124,7 @@ export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ da
     const params = qb.getParams();
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     const query = `
@@ -148,7 +152,7 @@ export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ da
  * Get Average Stock Value over the last 12 months (inclusive of target month).
  */
 export async function fetchAvgStock12Months(request: AchatsKpiRequest, targetDate: string): Promise<number> {
-    const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
     // Range: [targetDate - 11 months, targetDate] -> Total 12 points usually
     const dateEnd = targetDate;
@@ -168,6 +172,7 @@ export async function fetchAvgStock12Months(request: AchatsKpiRequest, targetDat
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -177,6 +182,7 @@ export async function fetchAvgStock12Months(request: AchatsKpiRequest, targetDat
     const params = qb.getParams();
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     // SQL: Average of SUM(stock_value_ht) per month
@@ -211,7 +217,7 @@ export async function fetchAvgStock12Months(request: AchatsKpiRequest, targetDat
  * - Joins Stock (Latest) and Prices.
  */
 export async function fetchRestockingData(request: AchatsKpiRequest): Promise<any[]> {
-    const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
     // Range for Sales Velocity: Last 6 Months
     const today = new Date();
@@ -233,6 +239,7 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -246,6 +253,7 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
     const params = qb.getParams();
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     // If a product filter is active, we might not want to limit to 1000? 

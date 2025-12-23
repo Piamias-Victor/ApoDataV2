@@ -33,6 +33,8 @@ export const useKpiRequest = (): AchatsKpiRequest => {
         reimbursementStatus: store.settings.reimbursementStatus,
         isGeneric: store.settings.isGeneric,
         tvaRates: store.settings.tvaRates,
+        groups: store.groups.map(g => g.name),
+
 
         // Potential future extensions:
         // customFilter: store.customFilter...
@@ -49,6 +51,8 @@ export const useKpiRequest = (): AchatsKpiRequest => {
         store.excludedCategories,
         store.excludedProducts,
         store.filterOperators,
-        store.settings
+        store.filterOperators,
+        store.settings,
+        store.groups
     ]);
 };

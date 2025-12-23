@@ -33,6 +33,7 @@ class MargeRepository extends BaseKpiRepository {
             request.discountRange || request.marginRange);
 
         const needsGlobalProductJoin = !!(request.purchasePriceGrossRange ||
+            (request.groups && request.groups.length > 0) ||
             request.categories?.some(c => c.type !== 'bcb_segment_l1'));
 
         // 5. Assemble SQL

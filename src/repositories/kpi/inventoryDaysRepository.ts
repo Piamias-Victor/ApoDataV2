@@ -9,7 +9,7 @@ import { subMonths, format } from 'date-fns';
  * Formula: Current Stock Qty / (Sold Qty Last 12 Months / 365)
  */
 export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: string): Promise<number> {
-    const { laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
+    const { laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
 
     // 1. Get Current Stock at targetDate
     const stockData = await fetchStockData(request, targetDate);
@@ -36,6 +36,7 @@ export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: 
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     if (request.productCodes) qb.addProducts(request.productCodes);
+    qb.addGroups(groups);
 
     // Exclusions
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
@@ -49,6 +50,7 @@ export async function fetchInventoryDays(request: AchatsKpiRequest, targetDate: 
     const params = qb.getParams();
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     const query = `

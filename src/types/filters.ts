@@ -23,6 +23,7 @@ export interface SelectedPharmacy {
 export interface SelectedGroup { // Clusters
     id: string;
     name: string;
+    count?: number;
 }
 
 export interface SelectedProduct {

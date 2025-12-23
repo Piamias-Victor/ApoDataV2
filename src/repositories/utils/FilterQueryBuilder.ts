@@ -16,6 +16,7 @@ const DEFAULT_MAPPING = {
     cat_l4: 'gp.bcb_segment_l4',
     cat_l5: 'gp.bcb_segment_l5',
     cat_family: 'gp.bcb_family',
+    group: 'gp.bcb_generic_group',
 };
 
 export class FilterQueryBuilder {
@@ -87,6 +88,10 @@ export class FilterQueryBuilder {
 
     public addProducts(productCodes: string[]) {
         this.addFilterGroup(productCodes, (idx) => `${this.mapping.productCode} = ANY($${idx}::text[])`);
+    }
+
+    public addGroups(groups: string[]) {
+        this.addFilterGroup(groups, (idx) => `${this.mapping.group} = ANY($${idx}::text[])`);
     }
 
     public addTvaRates(rates: number[]) {

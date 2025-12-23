@@ -29,6 +29,12 @@ export interface AchatsKpiRequest {
     sellPriceRange?: { min: number; max: number };
     discountRange?: { min: number; max: number };
     marginRange?: { min: number; max: number };
+    groups?: string[]; // Generic groups (bcb_generic_group)
+}
+
+export interface GenericLaboratoryRow extends LaboratoryAnalysisRow {
+    product_count: number;
+    product_count_evolution: number;
 }
 
 export interface AchatsKpiResponse {

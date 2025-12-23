@@ -7,7 +7,7 @@ import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
  * Joins: mv_sales_enriched (with optional joins to mv_latest_product_prices and data_globalproduct for specific filters)
  */
 export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quantite_vendue: number; montant_ht: number; montant_ttc: number }> {
-    const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], filterOperators = [] } = request;
+    const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
 
     // Initialize Builder with MV Custom Mapping
     const initialParams = [dateRange.start, dateRange.end];
@@ -37,6 +37,7 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
 
     // Exclusions
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
@@ -62,6 +63,7 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
         (request.marginRange !== undefined);
 
     const needsGlobalProductJoin = (request.purchasePriceGrossRange !== undefined) ||
+        (groups && groups.length > 0) ||
         categories.some(c => c.type !== 'bcb_segment_l1'); // If filtering by other cat levels, we need GP
 
     // Get finalized SQL parts
@@ -117,7 +119,7 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
  * Get Sales Evolution Metrics (Vente TTC, Marge)
  */
 export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; vente_ttc: number; marge_eur: number }[]> {
-    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
     const initialParams = [dateRange.start, dateRange.end];
     const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
         pharmacyId: 'mv.pharmacy_id',
@@ -130,6 +132,7 @@ export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain:
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -140,6 +143,7 @@ export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain:
     let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.some(c => c.type !== 'bcb_segment_l1'));
 
     const query = `
@@ -167,7 +171,7 @@ export async function getSalesEvolutionMetrics(request: AchatsKpiRequest, grain:
  * Get Sales Quantity Evolution (for Stock Forecast)
  */
 export async function getSalesQuantityEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; quantite_vendue: number }[]> {
-    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
     const initialParams = [dateRange.start, dateRange.end];
     const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
         pharmacyId: 'mv.pharmacy_id',
@@ -180,6 +184,7 @@ export async function getSalesQuantityEvolution(request: AchatsKpiRequest, grain
     qb.addLaboratories(laboratories);
     qb.addCategories(categories);
     qb.addProducts(productCodes);
+    qb.addGroups(groups);
     if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
     if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
     if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
@@ -190,6 +195,7 @@ export async function getSalesQuantityEvolution(request: AchatsKpiRequest, grain
     let trunc = grain === 'week' ? 'week' : (grain === 'month' ? 'month' : 'day');
 
     const needsGlobalProductJoin = categories.some(c => c.type !== 'bcb_segment_l1') ||
+        (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.some(c => c.type !== 'bcb_segment_l1'));
 
     const query = `

@@ -11,6 +11,7 @@ import {
     Tag,
     Package,
     Building2,
+    PieChart,
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -77,6 +78,7 @@ export const SideNavBar: React.FC = () => {
         { label: 'Hub', icon: <Network />, href: '/hub', color: 'purple' },
         { label: 'Dashboard', icon: <LayoutDashboard />, href: '/dashboard', color: 'blue' },
         { label: 'Achat / Vente', icon: <ArrowRightLeft />, href: '/achats-ventes', color: 'green' },
+        { label: 'Analyse Générique', icon: <PieChart />, href: '/analyse-generique', color: 'pink' },
         { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
         { label: 'Stock / Rupture', icon: <Package />, href: '/stock-rupture', color: 'red' },
         { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
