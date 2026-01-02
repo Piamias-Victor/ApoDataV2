@@ -7,7 +7,11 @@ import { FilterButton } from './components/FilterButton';
 import { useFilterBarLogic } from './hooks/useFilterBarLogic';
 import { FilterDrawerList } from './components/FilterDrawerList';
 
-export const FilterBar: React.FC = () => {
+interface FilterBarProps {
+    hiddenFilters?: ('products' | 'laboratories' | 'categories')[];
+}
+
+export const FilterBar: React.FC<FilterBarProps> = ({ hiddenFilters = [] }) => {
     const {
         isScrolled,
         activeDrawer,
@@ -58,40 +62,53 @@ export const FilterBar: React.FC = () => {
 
                     <div className="w-px h-10 bg-gray-200" />
 
-                    <FilterButton
-                        icon={<Package className="w-4 h-4" />}
-                        label="Produits"
-                        count={storeState.products.length}
-                        color="green"
-                        onClick={() => setActiveDrawer('products')}
-                        onClear={() => clearFilters('products')}
-                        tooltip={tooltips.productTooltip}
-                        isActive={computedState.isProductsActive}
-                    />
+                    {!hiddenFilters.includes('products') && (
+                        <>
+                            <FilterButton
+                                icon={<Package className="w-4 h-4" />}
+                                label="Produits"
+                                count={storeState.products.length}
+                                color="green"
+                                onClick={() => setActiveDrawer('products')}
+                                onClear={() => clearFilters('products')}
+                                tooltip={tooltips.productTooltip}
+                                isActive={computedState.isProductsActive}
+                            />
+                            <div className="w-px h-10 bg-gray-200" />
+                        </>
+                    )}
 
-                    <FilterButton
-                        icon={<TestTube className="w-4 h-4" />}
-                        label="Laboratoires"
-                        count={storeState.laboratories.length}
-                        color="purple"
-                        onClick={() => setActiveDrawer('laboratories')}
-                        onClear={() => clearFilters('laboratories')}
-                        tooltip={tooltips.laboratoryTooltip}
-                        isActive={storeState.laboratories.length > 0}
-                    />
+                    {!hiddenFilters.includes('laboratories') && (
+                        <>
+                            <FilterButton
+                                icon={<TestTube className="w-4 h-4" />}
+                                label="Laboratoires"
+                                count={storeState.laboratories.length}
+                                color="purple"
+                                onClick={() => setActiveDrawer('laboratories')}
+                                onClear={() => clearFilters('laboratories')}
+                                tooltip={tooltips.laboratoryTooltip}
+                                isActive={storeState.laboratories.length > 0}
+                            />
+                            <div className="w-px h-10 bg-gray-200" />
+                        </>
+                    )}
 
-                    <FilterButton
-                        icon={<Tag className="w-4 h-4" />}
-                        label="Catégories"
-                        count={storeState.categories.length}
-                        color="red"
-                        onClick={() => setActiveDrawer('categories')}
-                        onClear={() => clearFilters('categories')}
-                        tooltip={tooltips.categoryTooltip}
-                        isActive={storeState.categories.length > 0}
-                    />
-
-                    <div className="w-px h-10 bg-gray-200" />
+                    {!hiddenFilters.includes('categories') && (
+                        <>
+                            <FilterButton
+                                icon={<Tag className="w-4 h-4" />}
+                                label="Catégories"
+                                count={storeState.categories.length}
+                                color="red"
+                                onClick={() => setActiveDrawer('categories')}
+                                onClear={() => clearFilters('categories')}
+                                tooltip={tooltips.categoryTooltip}
+                                isActive={storeState.categories.length > 0}
+                            />
+                            <div className="w-px h-10 bg-gray-200" />
+                        </>
+                    )}
 
                     <FilterButton
                         icon={<Settings className="w-4 h-4" />}

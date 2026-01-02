@@ -55,26 +55,57 @@ export async function POST(request: NextRequest) {
 
         // Cache the entire result processing
         const productsWithAllCodes = await withCache<Product[]>(cacheKey, async () => {
+            // Updated query to fetch all codes in one go
+            // We need to modify the base query or do a second query for ALL ids at once, 
+            // but the cleanest is to aggregate in the main query if possible, 
+            // OR fetch main results -> get IDs -> fetch all codes for these IDs in one IN query.
+
+            // Let's use the IN approach as it's safer with existing complex queries
             const result = await query(queryConfig.text, queryConfig.params);
 
-            // For each product, fetch all codes with the same bcb_product_id
-            return await Promise.all(
-                result.rows.map(async (row: any) => {
-                    const allCodesResult = await query(
-                        `SELECT code_13_ref FROM data_globalproduct WHERE bcb_product_id = $1`,
-                        [row.bcb_product_id]
-                    );
+            if (result.rows.length === 0) return [];
 
-                    return {
-                        code_13_ref: row.code_13_ref,
-                        name: row.name,
-                        brand_lab: row.brand_lab,
-                        universe: row.universe,
-                        bcb_product_id: row.bcb_product_id,
-                        all_codes: allCodesResult.rows.map((r: any) => r.code_13_ref)
-                    };
-                })
+            const bcbIds = result.rows
+                .map((row: any) => row.bcb_product_id)
+                .filter((id: any) => id !== null); // Ensure no nulls
+
+            if (bcbIds.length === 0) {
+                return result.rows.map((row: any) => ({
+                    code_13_ref: row.code_13_ref,
+                    name: row.name,
+                    brand_lab: row.brand_lab,
+                    universe: row.universe,
+                    bcb_product_id: row.bcb_product_id,
+                    all_codes: [row.code_13_ref]
+                }));
+            }
+
+            // Fetch all codes for these BCB IDs in ONE query
+            const codesResult = await query(
+                `SELECT bcb_product_id, code_13_ref 
+                 FROM data_globalproduct 
+                 WHERE bcb_product_id = ANY($1::int[])`,
+                [bcbIds]
             );
+
+            const codesMap = new Map<number, string[]>();
+            codesResult.rows.forEach((row: any) => {
+                const id = row.bcb_product_id;
+                if (!codesMap.has(id)) {
+                    codesMap.set(id, []);
+                }
+                codesMap.get(id)?.push(row.code_13_ref);
+            });
+
+            return result.rows.map((row: any) => ({
+                code_13_ref: row.code_13_ref,
+                name: row.name,
+                brand_lab: row.brand_lab,
+                universe: row.universe,
+                bcb_product_id: row.bcb_product_id,
+                // Fallback to current code if no mapping found (shouldn't happen)
+                all_codes: codesMap.get(row.bcb_product_id) || [row.code_13_ref]
+            }));
         });
 
         const duration = Date.now() - startTime;

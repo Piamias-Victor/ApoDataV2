@@ -19,6 +19,8 @@ export const EvolutionBadge = ({ value }: { value?: number | null }) => {
 export const ValueCell = ({
     value,
     evolution,
+    comparisonDiff,
+    comparisonLabel,
     isCurrency = false,
     suffix = '',
     textSize = 'text-sm',
@@ -27,6 +29,8 @@ export const ValueCell = ({
 }: {
     value?: number | null | undefined,
     evolution?: number | null | undefined,
+    comparisonDiff?: number | null | undefined,
+    comparisonLabel?: string | undefined, // e.g. "vs Base"
     isCurrency?: boolean | undefined,
     suffix?: string | undefined,
     textSize?: string | undefined,
@@ -52,11 +56,22 @@ export const ValueCell = ({
     }
 
     return (
-        <div className="flex flex-col items-end gap-0.5">
-            <span className={`font-medium ${textSize} truncate ${className} ${!className.includes('text-') ? 'text-gray-900' : ''}`}>
-                {formattedValue}{isCurrency ? ' €' : suffix}
-            </span>
-            {(evolution !== undefined && evolution !== null) && <EvolutionBadge value={evolution} />}
+        <div className="flex flex-row items-center justify-end gap-3 w-full">
+            {/* Left: Comparison vs Base (Cross-Entity) - Placed "between" columns visually */}
+            {(comparisonDiff !== undefined && comparisonDiff !== null) && (
+                <div className="flex flex-col items-end justify-center">
+                    {comparisonLabel && <span className="text-[9px] text-gray-400 font-medium uppercase tracking-tight mb-0.5">{comparisonLabel}</span>}
+                    <EvolutionBadge value={comparisonDiff} />
+                </div>
+            )}
+
+            {/* Right: Main Value & Vertical Evolution */}
+            <div className="flex flex-col items-end gap-0.5 min-w-[80px]">
+                <span className={`font-medium ${textSize} truncate ${className} ${!className.includes('text-') ? 'text-gray-900' : ''}`}>
+                    {formattedValue}{isCurrency ? ' €' : suffix}
+                </span>
+                {(evolution !== undefined && evolution !== null) && <EvolutionBadge value={evolution} />}
+            </div>
         </div>
     );
 };
