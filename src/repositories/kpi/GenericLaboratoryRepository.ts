@@ -24,6 +24,10 @@ export class GenericLaboratoryRepository extends BaseKpiRepository {
             group: 'gp.bcb_generic_group'
         });
 
+        // Apply store filters
+        qb.addReimbursementStatus(request.reimbursementStatus);
+        qb.addGenericStatus(request.isGeneric);
+
         const search = (request as any).search || '';
         let searchCondition = '';
         const params = qb.getParams();

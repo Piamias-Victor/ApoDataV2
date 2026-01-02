@@ -7,7 +7,8 @@ export const ProductQueries = {
         limitIdx: number,
         offsetIdx: number,
         orderByClause: string = 'ORDER BY sales_qty DESC',
-        finalOrderByClause: string = 'ORDER BY sales_qty DESC'
+        finalOrderByClause: string = 'ORDER BY sales_qty DESC',
+        genericStatusFilter?: string
     ) => `
         WITH 
         last_stock AS (
@@ -54,6 +55,10 @@ export const ProductQueries = {
                 MAX(COALESCE(gp.name, mv.product_label)) as product_name,
                 MAX(mv.laboratory_name) as laboratory_name,
                 MAX(mv.product_id::text)::uuid as product_id,
+                
+                -- Price Info (NEW)
+                MAX(gp.prix_achat_ht_fabricant) as prix_brut,
+                AVG(lp.discount_percentage) as discount_pct,
 
                 -- Metrics (Current)
                 SUM(CASE WHEN mv.month >= $1::date AND mv.month <= $2::date THEN mv.ttc_sold ELSE 0 END) as sales_ttc,
@@ -73,12 +78,14 @@ export const ProductQueries = {
 
             FROM mv_product_stats_monthly mv
             LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
+            LEFT JOIN mv_latest_product_prices lp ON lp.product_id = mv.product_id
             WHERE (
                 (mv.month >= $1::date AND mv.month <= $2::date) 
                 OR (mv.month >= $3::date AND mv.month <= $4::date)
             )
             AND ($5::uuid IS NULL OR true)
             AND mv.ean13 != 'NO-EAN'
+            ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}
             ${conditions}
             ${searchCondition}
             GROUP BY mv.ean13
@@ -112,6 +119,10 @@ export const ProductQueries = {
             gs.product_name,
             gs.ean13,
             gs.laboratory_name,
+            
+            -- Price Info (NEW)
+            COALESCE(gs.prix_brut, 0) as prix_brut,
+            COALESCE(gs.discount_pct, 0) as discount_pct,
 
             -- "Me" = "Group" (Global)
             gs.sales_ttc as my_sales_ttc,
@@ -203,7 +214,8 @@ export const ProductQueries = {
         limitIdx: number,
         offsetIdx: number,
         orderByClause: string = 'ORDER BY my_sales_qty DESC',
-        finalOrderByClause: string = 'ORDER BY my_sales_qty DESC'
+        finalOrderByClause: string = 'ORDER BY my_sales_qty DESC',
+        genericStatusFilter?: string
     ) => `
         WITH 
         pharmacy_counts AS (
@@ -263,6 +275,11 @@ export const ProductQueries = {
                 MAX(COALESCE(gp.name, mv.product_label)) as product_name,
                 MAX(mv.laboratory_name) as laboratory_name,
                 MAX(mv.product_id::text)::uuid as product_id,
+                
+                -- Price Info (NEW)
+                MAX(gp.prix_achat_ht_fabricant) as prix_brut,
+                AVG(lp.discount_percentage) as discount_pct,
+                
                 SUM(CASE WHEN mv.month >= $1::date AND mv.month <= $2::date THEN mv.ttc_sold ELSE 0 END) as my_sales_ttc,
                 SUM(CASE WHEN mv.month >= $1::date AND mv.month <= $2::date THEN mv.qty_sold ELSE 0 END) as my_sales_qty,
                 SUM(CASE WHEN mv.month >= $1::date AND mv.month <= $2::date THEN mv.margin_sold ELSE 0 END) as my_margin_ht,
@@ -277,9 +294,11 @@ export const ProductQueries = {
                 SUM(CASE WHEN mv.month >= $3::date AND mv.month <= $4::date THEN mv.qty_purchased ELSE 0 END) as my_purchases_qty_prev
             FROM mv_product_stats_monthly mv
             LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
+            LEFT JOIN mv_latest_product_prices lp ON lp.product_id = mv.product_id
             WHERE mv.pharmacy_id = $5::uuid 
               AND ((mv.month >= $1::date AND mv.month <= $2::date) OR (mv.month >= $3::date AND mv.month <= $4::date))
               AND mv.ean13 != 'NO-EAN'
+              ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}
               ${conditions}
               ${searchCondition}
             GROUP BY mv.ean13
@@ -326,6 +345,11 @@ export const ProductQueries = {
             ms.product_name,
             ms.ean13,
             ms.laboratory_name,
+            
+            -- Price Info (NEW)
+            COALESCE(ms.prix_brut, 0) as prix_brut,
+            COALESCE(ms.discount_pct, 0) as discount_pct,
+            
             ms.my_sales_ttc,
             ms.my_sales_qty,
             ms.my_purchases_ht,

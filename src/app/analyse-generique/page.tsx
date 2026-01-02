@@ -6,6 +6,7 @@ import { GenericLaboratoryTable } from '@/components/organisms/GenericAnalysis/G
 import { GroupSelector } from '@/components/molecules/GroupSelector/GroupSelector';
 import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { SupplierAnalysisTable } from '@/components/organisms/GenericAnalysis/SupplierAnalysisTable';
+import { GenericProductTable } from '@/components/organisms/GenericAnalysis/GenericProductTable';
 
 export default function GenericAnalysisPage() {
     return (
@@ -65,6 +66,9 @@ export default function GenericAnalysisPage() {
 
                     {/* Supplier Analysis Table */}
                     <SupplierAnalysisTable />
+
+                    {/* Product Analysis Table */}
+                    <GenericProductTable />
                 </div>
             </div>
         </div>

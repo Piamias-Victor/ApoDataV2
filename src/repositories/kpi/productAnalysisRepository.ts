@@ -7,7 +7,7 @@ import { ProductQueries } from '@/queries/kpi/ProductQueries';
 
 export class ProductAnalysisRepository extends BaseKpiRepository {
 
-    async execute(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc'): Promise<{ data: ProductAnalysisRow[], total: number }> {
+    async execute(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc', genericStatusFilter?: string): Promise<{ data: ProductAnalysisRow[], total: number }> {
         const context = KpiRequestMapper.toContext(request, page, pageSize);
         const myPharmacyId = request.pharmacyIds?.[0] || null;
 
@@ -99,8 +99,8 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
         // 7. Select Strategy & SQL
         const querySql = (!myPharmacyId)
-            ? ProductQueries.getGlobalQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause)
-            : ProductQueries.getComparativeQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause);
+            ? ProductQueries.getGlobalQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause, genericStatusFilter)
+            : ProductQueries.getComparativeQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause, genericStatusFilter);
 
         // 8. Execute
         const result = await db.query(querySql, params);
@@ -110,6 +110,10 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             product_name: row.product_name,
             ean13: row.ean13,
             laboratory_name: row.laboratory_name,
+
+            // Price Info (NEW)
+            prix_brut: Number(row.prix_brut),
+            discount_pct: Number(row.discount_pct),
 
             my_rank: Number(row.my_rank),
             my_sales_ttc: Number(row.my_sales_ttc),
@@ -162,6 +166,6 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
 export const productAnalysisRepository = new ProductAnalysisRepository();
 
-export async function getProductAnalysis(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc') {
-    return productAnalysisRepository.execute(request, page, pageSize, search, sortBy, sortOrder);
+export async function getProductAnalysis(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc', genericStatusFilter?: string) {
+    return productAnalysisRepository.execute(request, page, pageSize, search, sortBy, sortOrder, genericStatusFilter);
 }

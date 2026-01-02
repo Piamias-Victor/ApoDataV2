@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { GenericLaboratoryRow } from '@/types/kpi';
+import { LaboratoryAnalysisRow } from '@/types/kpi';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 
 import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
 interface Props {
-    row: GenericLaboratoryRow;
+    row: LaboratoryAnalysisRow;
 }
 
 export const GenericLaboratoryTableRow: React.FC<Props> = ({ row }) => {
@@ -28,14 +28,6 @@ export const GenericLaboratoryTableRow: React.FC<Props> = ({ row }) => {
                 <div className="flex items-center">
                     <span className="font-medium text-gray-900">{row.laboratory_name}</span>
                 </div>
-            </TableCell>
-
-            <TableCell align="center">
-                <ValueCell
-                    value={row.product_count}
-                    evolution={row.product_count_evolution}
-                    decimals={0}
-                />
             </TableCell>
 
             {/* Achats (Purple) */}

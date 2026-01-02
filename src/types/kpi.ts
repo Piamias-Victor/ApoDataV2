@@ -140,6 +140,10 @@ export interface ProductAnalysisRow {
     ean13: string;
     laboratory_name: string;
 
+    // Price Info (NEW)
+    prix_brut: number;
+    discount_pct: number;
+
     // My Pharmacy Metrics
     my_rank: number;
     my_sales_ttc: number;
