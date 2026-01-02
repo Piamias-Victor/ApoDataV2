@@ -10,14 +10,6 @@ interface ComparisonTypeSelectionModalProps {
 }
 
 export const ComparisonTypeSelectionModal: React.FC<ComparisonTypeSelectionModalProps> = ({ isOpen, onClose, onSelect }) => {
-    if (!isOpen) return null;
-
-    const options = [
-        { type: 'PRODUCT' as const, label: 'Produits', icon: Package, color: 'text-green-600', bg: 'bg-green-50', hover: 'hover:bg-green-100' },
-        { type: 'LABORATORY' as const, label: 'Laboratoires', icon: TestTube, color: 'text-purple-600', bg: 'bg-purple-50', hover: 'hover:bg-purple-100' },
-        { type: 'CATEGORY' as const, label: 'Catégories', icon: Tag, color: 'text-red-600', bg: 'bg-red-50', hover: 'hover:bg-red-100' },
-    ];
-
     const [mounted, setMounted] = React.useState(false);
 
     React.useEffect(() => {
@@ -26,6 +18,12 @@ export const ComparisonTypeSelectionModal: React.FC<ComparisonTypeSelectionModal
     }, []);
 
     if (!isOpen || !mounted) return null;
+
+    const options = [
+        { type: 'PRODUCT' as const, label: 'Produits', icon: Package, color: 'text-green-600', bg: 'bg-green-50', hover: 'hover:bg-green-100' },
+        { type: 'LABORATORY' as const, label: 'Laboratoires', icon: TestTube, color: 'text-purple-600', bg: 'bg-purple-50', hover: 'hover:bg-purple-100' },
+        { type: 'CATEGORY' as const, label: 'Catégories', icon: Tag, color: 'text-red-600', bg: 'bg-red-50', hover: 'hover:bg-red-100' },
+    ];
 
     const modalContent = (
         <div className="fixed inset-0 top-0 left-0 z-[9999] flex flex-col items-center justify-start pt-20 p-4 sm:p-6 isolate">
