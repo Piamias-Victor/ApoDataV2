@@ -1,210 +1,168 @@
-
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
+import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import {
     LayoutDashboard,
     ArrowRightLeft,
     Package,
     Tag,
+    PieChart,
     Building2,
     BarChart2,
-    Calculator,
-    FileText,
-    LogOut,
-    ShieldCheck,
-    User
+    ArrowRight
 } from 'lucide-react';
-import { Button } from '@/components/atoms/Button/Button';
 
-// Hub Navigation Items Configuration
-const HUB_ITEMS = [
+const HUB_MODULES = [
     {
         title: 'Dashboard',
-        description: 'Vue d\'ensemble de vos performances et indicateurs clés.',
-        icon: <LayoutDashboard />,
+        description: 'Vue d\'ensemble, rapport global et comparaison avec la moyenne du groupement.',
+        icon: LayoutDashboard,
         href: '/dashboard',
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
-        hoverBg: 'group-hover:bg-blue-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-blue-500'
+        gradient: 'from-blue-500 to-blue-600',
+        lightGradient: 'from-blue-50 to-blue-100/50',
+        textColor: 'text-blue-600',
+        borderColor: 'group-hover:border-blue-200'
     },
     {
         title: 'Achat / Vente',
-        description: 'Analysez vos flux d\'achats et de ventes en détail.',
-        icon: <ArrowRightLeft />,
+        description: 'Analyse détaillée du découpage de vos ventes, par catégories et laboratoires.',
+        icon: ArrowRightLeft,
         href: '/achats-ventes',
-        color: 'text-green-600',
-        bg: 'bg-green-50',
-        hoverBg: 'group-hover:bg-green-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-green-500'
+        gradient: 'from-emerald-500 to-teal-600',
+        lightGradient: 'from-emerald-50 to-teal-100/50',
+        textColor: 'text-emerald-600',
+        borderColor: 'group-hover:border-emerald-200'
     },
     {
         title: 'Stock / Rupture',
-        description: 'Suivi des stocks et gestion des ruptures produits.',
-        icon: <Package />,
-        href: '/stock',
-        color: 'text-red-600',
-        bg: 'bg-red-50',
-        hoverBg: 'group-hover:bg-red-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-red-500'
+        description: 'Analyse des ruptures, prévention des stocks dormants et analyse des surstocks.',
+        icon: Package,
+        href: '/stock-rupture',
+        gradient: 'from-red-500 to-rose-600',
+        lightGradient: 'from-red-50 to-rose-100/50',
+        textColor: 'text-red-600',
+        borderColor: 'group-hover:border-red-200'
     },
     {
         title: 'Prix',
-        description: 'Gestion et optimisation de votre stratégie tarifaire.',
-        icon: <Tag />,
+        description: 'Revoyez votre positionnement prix et optimisez vos marges.',
+        icon: Tag,
         href: '/prix',
-        color: 'text-orange-600',
-        bg: 'bg-orange-50',
-        hoverBg: 'group-hover:bg-orange-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-orange-500'
+        gradient: 'from-orange-500 to-amber-600',
+        lightGradient: 'from-orange-50 to-amber-100/50',
+        textColor: 'text-orange-600',
+        borderColor: 'group-hover:border-orange-200'
+    },
+    {
+        title: 'Analyse Générique',
+        description: 'Analyse détaillée sur les génériques, les couvertures et les remises.',
+        icon: PieChart,
+        href: '/analyse-generique',
+        gradient: 'from-pink-500 to-fuchsia-600',
+        lightGradient: 'from-pink-50 to-fuchsia-100/50',
+        textColor: 'text-pink-600',
+        borderColor: 'group-hover:border-pink-200'
     },
     {
         title: 'Pharmacies',
-        description: 'Liste et détails de toutes les pharmacies du réseau.',
-        icon: <Building2 />,
+        description: 'Analyser l\'ensemble des pharmacies du groupement.',
+        icon: Building2,
         href: '/pharmacies',
-        color: 'text-cyan-600',
-        bg: 'bg-cyan-50',
-        hoverBg: 'group-hover:bg-cyan-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-cyan-500'
+        gradient: 'from-cyan-500 to-sky-600',
+        lightGradient: 'from-cyan-50 to-sky-100/50',
+        textColor: 'text-cyan-600',
+        borderColor: 'group-hover:border-cyan-200'
     },
     {
         title: 'Comparaison',
-        description: 'Comparez les performances entre différentes périodes ou entités.',
-        icon: <BarChart2 />,
+        description: 'Comparer plusieurs éléments entre eux pour analyser les performances.',
+        icon: BarChart2,
         href: '/comparaison',
-        color: 'text-pink-600',
-        bg: 'bg-pink-50',
-        hoverBg: 'group-hover:bg-pink-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-pink-500'
-    },
-    {
-        title: 'Simulation',
-        description: 'Simulez l\'impact de changements de prix ou de remises.',
-        icon: <Calculator />,
-        href: '/simulation',
-        color: 'text-yellow-600',
-        bg: 'bg-yellow-50',
-        hoverBg: 'group-hover:bg-yellow-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-yellow-500'
-    },
-    {
-        title: 'BRI',
-        description: 'Accédez aux documents et rapports d\'intelligence d\'affaires.',
-        icon: <FileText />,
-        href: '/bri',
-        color: 'text-gray-600',
-        bg: 'bg-gray-50',
-        hoverBg: 'group-hover:bg-gray-600',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-gray-500'
-    },
-    {
-        title: 'Admin',
-        description: 'Paramètres globaux et administration du système.',
-        icon: <ShieldCheck />,
-        href: '/admin',
-        color: 'text-red-700',
-        bg: 'bg-red-50',
-        hoverBg: 'group-hover:bg-red-700',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-red-600'
-    },
-    {
-        title: 'Mon Compte',
-        description: 'Votre profil utilisateur et préférences personnelles.',
-        icon: <User />,
-        href: '/account',
-        color: 'text-blue-800',
-        bg: 'bg-blue-50',
-        hoverBg: 'group-hover:bg-blue-800',
-        hoverText: 'group-hover:text-white',
-        border: 'group-hover:border-blue-700'
+        gradient: 'from-violet-500 to-purple-600',
+        lightGradient: 'from-violet-50 to-purple-100/50',
+        textColor: 'text-violet-600',
+        borderColor: 'group-hover:border-violet-200'
     }
 ];
 
 export default function HubPage() {
     const { data: session } = useSession();
+    const firstName = session?.user?.name?.split(' ')[0] || 'Utilisateur';
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8 ml-[68px]"> {/* Added margin-left for SideBar */}
+        <div className="min-h-screen bg-[#F8FAFC]">
+            {/* New Design Header */}
+            <div className="relative bg-white pt-10 pb-20 px-8 rounded-b-[3rem] shadow-sm border-b border-gray-100 overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none" />
 
-            <div className="max-w-7xl mx-auto space-y-10">
-
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/60 backdrop-blur-xl p-6 rounded-3xl shadow-sm border border-white/50">
-                    <div>
-                        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
-                            Hub Central
+                <div className="relative max-w-[1400px] mx-auto flex flex-col items-center text-center space-y-8">
+                    <div className="space-y-4">
+                        <h1 className="text-5xl font-bold text-gray-900 tracking-tight">
+                            Bonjour, <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500">{firstName}</span>
                         </h1>
-                        <p className="text-gray-500 mt-2 text-lg">
-                            Bienvenue, <span className="font-semibold text-gray-800">{session?.user?.name || 'Utilisateur'}</span>. Accédez à tous vos outils en un clic.
+                        <p className="text-gray-500 text-lg max-w-2xl mx-auto">
+                            Accédez à vos outils d&apos;analyse et pilotez la performance de vos officines en un coup d&apos;œil.
                         </p>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => signOut({ callbackUrl: '/login' })}
-                        className="bg-white hover:bg-red-50 hover:text-red-600 text-gray-600 border-gray-200"
-                        iconLeft={<LogOut className="w-4 h-4" />}
-                    >
-                        Déconnexion
-                    </Button>
-                </div>
 
-                {/* Grid Navigation */}
+                    <div className="w-full pointer-events-auto flex justify-center transform translate-y-2">
+                        <FilterBar />
+                    </div>
+                </div>
+            </div>
+
+            {/* Modules Grid */}
+            <main className="max-w-[1400px] mx-auto px-8 -mt-10 relative z-10 pb-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {HUB_ITEMS.map((item) => (
+                    {HUB_MODULES.map((module) => (
                         <Link
-                            key={item.title}
-                            href={item.href}
+                            key={module.title}
+                            href={module.href}
                             className={`
-                                group relative p-6 rounded-3xl 
-                                bg-white/70 backdrop-blur-md 
-                                border border-white/60 shadow-lg hover:shadow-2xl 
-                                transition-all duration-300 ease-out hover:-translate-y-1
-                                ${item.border} hover:border-opacity-50
+                                group relative flex flex-col p-8 rounded-[2rem]
+                                bg-white border border-gray-100/80
+                                bg-gradient-to-br ${module.lightGradient}
+                                shadow-xl shadow-gray-200/40
+                                transition-all duration-300 ease-out
+                                hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-900/5
+                                ${module.borderColor} hover:border-transparent
                             `}
                         >
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={`
-                                    p-3 rounded-2xl transition-colors duration-300
-                                    ${item.bg} ${item.color}
-                                    ${item.hoverBg} ${item.hoverText}
-                                `}>
-                                    {React.cloneElement(item.icon as React.ReactElement, { size: 28 })}
-                                </div>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-gray-400">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                                </div>
+                            {/* Icon Container */}
+                            <div className={`
+                                w-14 h-14 rounded-2xl flex items-center justify-center mb-6
+                                bg-gradient-to-br ${module.gradient}
+                                shadow-lg shadow-gray-200
+                                transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3
+                            `}>
+                                <module.icon className="w-7 h-7 text-white" strokeWidth={2} />
                             </div>
 
-                            <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-gray-800">
-                                {item.title}
-                            </h3>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium">
-                                {item.description}
-                            </p>
+                            {/* Content */}
+                            <div className="flex-1">
+                                <h3 className={`text-xl font-bold mb-3 ${module.textColor} tracking-tight`}>
+                                    {module.title}
+                                </h3>
+                                <p className="text-gray-600 leading-relaxed text-[15px] font-medium opacity-80 group-hover:opacity-100 transition-opacity">
+                                    {module.description}
+                                </p>
+                            </div>
 
-                            {/* Decorative background glow */}
-                            <div className={`
-                                absolute -inset-0.5 rounded-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-xl
-                                ${item.bg.replace('bg-', 'bg-gradient-to-br from-').replace('50', '400')} to-transparent -z-10
-                            `} />
+                            {/* Action Arrow */}
+                            <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-gray-400 group-hover:text-gray-900 transition-colors">
+                                <span>Explorer</span>
+                                <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                            </div>
+
+                            {/* Decorative Shine Effect */}
+                            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-white/0 via-white/40 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
                         </Link>
                     ))}
                 </div>
-            </div>
+            </main>
         </div>
     );
 }

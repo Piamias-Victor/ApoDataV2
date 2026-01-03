@@ -73,15 +73,15 @@ export const SideNavBar: React.FC = () => {
     const [isExpanded, setIsExpanded] = useState(false);
     const pathname = usePathname();
 
-    if (pathname === '/' || pathname === '/login') return null;
+    if (pathname === '/' || pathname === '/login' || pathname === '/hub') return null;
 
     const menuItems = [
         { label: 'Hub', icon: <Network />, href: '/hub', color: 'purple' },
         { label: 'Dashboard', icon: <LayoutDashboard />, href: '/dashboard', color: 'blue' },
         { label: 'Achat / Vente', icon: <ArrowRightLeft />, href: '/achats-ventes', color: 'green' },
-        { label: 'Analyse Générique', icon: <PieChart />, href: '/analyse-generique', color: 'pink' },
-        { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
         { label: 'Stock / Rupture', icon: <Package />, href: '/stock-rupture', color: 'red' },
+        { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
+        { label: 'Analyse Générique', icon: <PieChart />, href: '/analyse-generique', color: 'pink' },
         { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
         { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
         // { label: 'Simulation', icon: <Calculator />, href: '/simulation', color: 'yellow' },
