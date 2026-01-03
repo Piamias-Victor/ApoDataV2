@@ -115,7 +115,7 @@ export default function HubPage() {
             </div>
 
             {/* Modules Grid */}
-            <main className="max-w-[1400px] mx-auto px-8 -mt-10 relative z-10 pb-20">
+            <main className="max-w-[1400px] mx-auto px-12 -mt-5 relative z-10 pb-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {HUB_MODULES.map((module) => (
                         <Link
