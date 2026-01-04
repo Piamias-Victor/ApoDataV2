@@ -13,7 +13,9 @@ import {
     Building2,
     PieChart,
     BarChart2,
+    ShieldCheck
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 
 interface NavItemProps {
     href: string;
@@ -70,10 +72,11 @@ const NavItem: React.FC<NavItemProps> = ({ href, icon, label, color, isActive, i
 };
 
 export const SideNavBar: React.FC = () => {
+    const { data: session } = useSession();
     const [isExpanded, setIsExpanded] = useState(false);
     const pathname = usePathname();
 
-    if (pathname === '/' || pathname === '/login' || pathname === '/hub') return null;
+    if (pathname === '/' || pathname === '/login' || pathname === '/hub' || pathname === '/admin' || pathname?.startsWith('/auth/')) return null;
 
     const menuItems = [
         { label: 'Hub', icon: <Network />, href: '/hub', color: 'purple' },
@@ -84,11 +87,11 @@ export const SideNavBar: React.FC = () => {
         { label: 'Analyse Générique', icon: <PieChart />, href: '/analyse-generique', color: 'pink' },
         { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
         { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
-        // { label: 'Simulation', icon: <Calculator />, href: '/simulation', color: 'yellow' },
-        // { label: 'BRI', icon: <FileText />, href: '/bri', color: 'gray' },
-        // { label: 'Admin', icon: <ShieldCheck />, href: '/admin', color: 'red' },
-        // { label: 'Mon compte', icon: <User />, href: '/account', color: 'blue' },
     ];
+
+    if (session?.user?.role === 'admin') {
+        menuItems.push({ label: 'Admin', icon: <ShieldCheck />, href: '/admin', color: 'red' });
+    }
 
     return (
         <div

@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 
 export type FilterButtonColor = 'orange' | 'blue' | 'purple' | 'red' | 'green' | 'yellow' | 'black';
 
-interface FilterButtonProps {
+export interface FilterButtonProps {
     icon: React.ReactNode;
     label: string;
     count: number;
@@ -14,6 +14,7 @@ interface FilterButtonProps {
     onClear?: () => void;
     tooltip?: string;
     isActive: boolean;
+    disabled?: boolean;
 }
 
 const COLOR_CLASSES: Record<FilterButtonColor, {
@@ -85,16 +86,47 @@ const COLOR_CLASSES: Record<FilterButtonColor, {
 /**
  * Filter button component with tooltip support
  */
-export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, onClick, onClear, tooltip, isActive }) => {
+export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, color, onClick, onClear, tooltip, isActive, disabled }) => {
     const [showTooltip, setShowTooltip] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const colors = COLOR_CLASSES[color];
+
+    const handleClick = () => {
+        if (!disabled) onClick();
+    };
+
+    const handleClear = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onClear && !disabled) onClear();
+    };
+
+    if (disabled) {
+        return (
+            <div className="relative pointer-events-none opacity-50 grayscale cursor-not-allowed">
+                <button
+                    ref={buttonRef}
+                    disabled
+                    className="flex items-center gap-2.5 px-3 md:px-4 py-2.5 bg-gray-50 rounded-xl border-2 border-gray-100 transition-all whitespace-nowrap min-w-max"
+                >
+                    <div className="p-1.5 bg-gray-100 text-gray-400 rounded-lg">
+                        {icon}
+                    </div>
+                    <div className="flex flex-col items-start leading-tight">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
+                        <span className="text-sm font-bold text-gray-500">
+                            {count > 0 ? `${count} sélectionné${count > 1 ? 's' : ''}` : 'Tous'}
+                        </span>
+                    </div>
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="relative pointer-events-none group">
             <button
                 ref={buttonRef}
-                onClick={onClick}
+                onClick={handleClick}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
@@ -115,10 +147,7 @@ export const FilterButton: React.FC<FilterButtonProps> = ({ icon, label, count, 
 
             {isActive && onClear && (
                 <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onClear();
-                    }}
+                    onClick={handleClear}
                     className="absolute -top-2 -right-2 z-50 pointer-events-auto p-0.5 bg-white rounded-full border border-gray-200 shadow-sm text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transform origin-center"
                     title="Effacer les filtres"
                 >

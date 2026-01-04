@@ -8,6 +8,8 @@ import { PharmacyQueries } from '@/queries/kpi/PharmacyQueries';
 export interface PharmacyAnalysisRow {
     pharmacy_name: string;
     pharmacy_id: string;
+    pharmacy_city: string;
+    pharmacy_region: string;
 
     sales_ttc: number;
     sales_qty: number;
@@ -76,6 +78,8 @@ export class PharmacyAnalysisRepository extends BaseKpiRepository {
             return result.rows.map(row => ({
                 pharmacy_name: row.pharmacy_name,
                 pharmacy_id: row.pharmacy_id,
+                pharmacy_city: row.pharmacy_city,
+                pharmacy_region: row.pharmacy_region,
 
                 sales_ttc: Number(row.sales_ttc),
                 sales_qty: Number(row.sales_qty),

@@ -116,6 +116,8 @@ export const PharmacyQueries = {
     SELECT 
         p.name as pharmacy_name,
         p.id as pharmacy_id,
+        p.address as pharmacy_city,
+        p.area as pharmacy_region,
 
         -- METRICS CURRENT
         ps.sales_ttc,

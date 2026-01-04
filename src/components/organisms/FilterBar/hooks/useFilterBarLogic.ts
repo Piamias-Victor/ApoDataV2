@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { useFilterTooltips } from './useFilterTooltips';
 
@@ -20,6 +21,10 @@ export const useFilterBarLogic = () => {
         resetExclusions, resetFilterOperators
     } = useFilterStore();
 
+    const { data: session } = useSession();
+    const isAdmin = session?.user?.role === 'admin' || session?.user?.role === 'ADMIN';
+    const canEditPharmacies = isAdmin;
+
     const tooltips = useFilterTooltips({ pharmacies, laboratories, categories, products, dateRange });
 
     useEffect(() => {
@@ -27,6 +32,23 @@ export const useFilterBarLogic = () => {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Enforce pharmacy filter for non-admins
+    useEffect(() => {
+        if (session?.user && !isAdmin && session.user.pharmacyId) {
+            const userPharmacyId = session.user.pharmacyId;
+            // Check if we need to update the store (avoid infinite loop)
+            const currentIds = pharmacies.map(p => p.id);
+            const isPharmacyCorrectlySet = currentIds.length === 1 && currentIds[0] === userPharmacyId;
+
+            if (!isPharmacyCorrectlySet) {
+                setPharmacies([{
+                    id: userPharmacyId,
+                    name: session.user.pharmacyName || 'Ma Pharmacie'
+                }]);
+            }
+        }
+    }, [session, isAdmin, pharmacies, setPharmacies]);
 
     const handleClose = () => setActiveDrawer(null);
 
@@ -47,7 +69,7 @@ export const useFilterBarLogic = () => {
         const currentYear = new Date().getFullYear();
         switch (type) {
             case 'pharmacy':
-                setPharmacies([]);
+                if (canEditPharmacies) setPharmacies([]);
                 break;
             case 'laboratories':
                 setLaboratories([]);
@@ -99,6 +121,7 @@ export const useFilterBarLogic = () => {
         computedState: {
             exclusionsCount,
             isProductsActive
-        }
+        },
+        canEditPharmacies
     };
 };

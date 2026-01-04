@@ -20,7 +20,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({ hiddenFilters = [] }) => {
         clearFilters,
         tooltips,
         storeState,
-        computedState
+        computedState,
+        canEditPharmacies
     } = useFilterBarLogic();
 
     return (
@@ -41,10 +42,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({ hiddenFilters = [] }) => {
                         label="Pharmacies"
                         count={storeState.pharmacies.length}
                         color="orange"
-                        onClick={() => setActiveDrawer('pharmacy')}
+                        onClick={() => canEditPharmacies && setActiveDrawer('pharmacy')}
                         onClear={() => clearFilters('pharmacy')}
-                        tooltip={tooltips.pharmacyTooltip}
+                        tooltip={canEditPharmacies ? tooltips.pharmacyTooltip : 'Filtre verrouillé pour votre compte'}
                         isActive={storeState.pharmacies.length > 0}
+                        disabled={!canEditPharmacies}
                     />
 
                     <div className="w-px h-10 bg-gray-200" />

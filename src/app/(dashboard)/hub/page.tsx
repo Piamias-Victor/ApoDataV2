@@ -12,7 +12,8 @@ import {
     PieChart,
     Building2,
     BarChart2,
-    ArrowRight
+    ArrowRight,
+    ShieldCheck
 } from 'lucide-react';
 
 const HUB_MODULES = [
@@ -92,6 +93,20 @@ export default function HubPage() {
     const { data: session } = useSession();
     const firstName = session?.user?.name?.split(' ')[0] || 'Utilisateur';
 
+    const visibleModules = [...HUB_MODULES];
+    if (session?.user?.role === 'admin') {
+        visibleModules.push({
+            title: "Admin",
+            description: "Gestion des utilisateurs et des pharmacies.",
+            icon: ShieldCheck,
+            href: "/admin",
+            gradient: "from-red-500 to-red-600",
+            lightGradient: "from-red-50 to-red-100/50",
+            textColor: "text-red-600",
+            borderColor: "group-hover:border-red-200"
+        });
+    }
+
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             {/* New Design Header */}
@@ -117,7 +132,7 @@ export default function HubPage() {
             {/* Modules Grid */}
             <main className="max-w-[1400px] mx-auto px-12 -mt-5 relative z-10 pb-20">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {HUB_MODULES.map((module) => (
+                    {visibleModules.map((module) => (
                         <Link
                             key={module.title}
                             href={module.href}

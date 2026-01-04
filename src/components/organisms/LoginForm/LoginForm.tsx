@@ -78,6 +78,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequires2FA }) => {
                     required
                 />
 
+                <div className="flex justify-end">
+                    <a href="/auth/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors">
+                        Mot de passe oublié ?
+                    </a>
+                </div>
+
                 {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg text-center">{error}</div>}
 
                 <Button type="submit" iconLeft={<LogIn className="w-4 h-4" />} variant="primary" fullWidth loading={loading} size="lg">
