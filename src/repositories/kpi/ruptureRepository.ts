@@ -16,7 +16,8 @@ export interface DiscrepancyProduct {
 export async function fetchDiscrepancyData(request: AchatsKpiRequest): Promise<{
     nb_discrepancy: number;
     total_refs_ordered: number;
-    discrepancy_codes: DiscrepancyProduct[]
+    discrepancy_codes: DiscrepancyProduct[];
+    avg_discrepancy_rate: number;
 }> {
     const { dateRange, pharmacyIds = [], laboratories = [], categories = [], filterOperators = [] } = request;
 
@@ -86,6 +87,7 @@ export async function fetchDiscrepancyData(request: AchatsKpiRequest): Promise<{
 
     let totalRefs = 0;
     let discrepancyCount = 0;
+    let sumDiscrepancyRate = 0;
     const codes: DiscrepancyProduct[] = [];
 
     result.rows.forEach(row => {
@@ -93,8 +95,10 @@ export async function fetchDiscrepancyData(request: AchatsKpiRequest): Promise<{
         const ord = Number(row.total_ordered);
         const rec = Number(row.total_received);
 
-        if (rec < ord) {
+        if (rec < ord && ord > 0) {
             discrepancyCount++;
+            const rate = (rec / ord) * 100;
+            sumDiscrepancyRate += rate;
             codes.push({
                 code: row.code_13_ref_id,
                 label: row.product_label || 'Unknown Product'
@@ -102,9 +106,12 @@ export async function fetchDiscrepancyData(request: AchatsKpiRequest): Promise<{
         }
     });
 
+    const avgDiscrepancyRate = discrepancyCount > 0 ? sumDiscrepancyRate / discrepancyCount : 0;
+
     return {
         nb_discrepancy: discrepancyCount,
         total_refs_ordered: totalRefs,
-        discrepancy_codes: codes
+        discrepancy_codes: codes,
+        avg_discrepancy_rate: avgDiscrepancyRate
     };
 }

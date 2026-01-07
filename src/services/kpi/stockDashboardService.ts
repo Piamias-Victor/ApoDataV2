@@ -76,7 +76,8 @@ export async function getDiscrepancyKpi(request: AchatsKpiRequest): Promise<Stoc
     return {
         nb_references_with_discrepancy: data.nb_discrepancy,
         percent_references_with_discrepancy: pct,
-        discrepancy_product_codes: data.discrepancy_codes
+        discrepancy_product_codes: data.discrepancy_codes,
+        avg_reception_rate_of_discrepancies: data.avg_discrepancy_rate
     };
 }
 

@@ -34,23 +34,23 @@ export const StockKpiGrid: React.FC<StockKpiGridProps> = ({
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <KpiCard
-                title="Volume Commandes vs Réception"
+                title="VOLUME COMMANDES"
                 icon={<Package className="w-5 h-5" />}
                 accentColor="blue"
                 isLoading={reception.isLoading}
                 primaryValue={formatNumber(reception.data?.qte_commandee || 0)}
-                secondaryLabel="Reçu / Taux"
+                secondaryLabel="VOLUME REçU / TAUX DE RECEPTION"
                 secondaryValue={`${formatNumber(reception.data?.qte_receptionnee || 0)} (${(reception.data?.taux_reception || 0).toFixed(1)}%)`}
                 evolutionPercent={reception.data?.evolution_percent || undefined}
             />
 
             <KpiCard
-                title="Montants Commandes vs Réception"
+                title="MONTANTS COMMANDES"
                 icon={<Truck className="w-5 h-5" />}
                 accentColor="green"
                 isLoading={reception.isLoading}
                 primaryValue={formatCurrency(reception.data?.montant_commande_ht || 0)}
-                secondaryLabel="Reçu"
+                secondaryLabel="MONTANTS REçU"
                 secondaryValue={formatCurrency(reception.data?.montant_receptionne_ht || 0)}
             />
 
@@ -65,23 +65,23 @@ export const StockKpiGrid: React.FC<StockKpiGridProps> = ({
             />
 
             <KpiCard
-                title="Rotation & Historique"
+                title="NOMBRE DE JOURS DE STOCK"
                 icon={<Clock className="w-5 h-5" />}
                 accentColor="indigo"
                 isLoading={inventory.isLoading}
                 primaryValue={`${Math.round(inventory.data?.days_of_stock || 0)}j`}
-                secondaryLabel="Moyen 12 Mois"
+                secondaryLabel="STOCK MOYEN 12 mois"
                 secondaryValue={formatCurrency(inventory.data?.avg_stock_value_12m || 0)}
             />
 
             <KpiCard
-                title="Ruptures & Écarts"
+                title="NOMBRE DE REF EN RUPTURE"
                 icon={<AlertTriangle className="w-5 h-5" />}
                 accentColor="red"
                 isLoading={discrepancy.isLoading}
                 primaryValue={formatNumber(discrepancy.data?.nb_references_with_discrepancy || 0)}
-                secondaryLabel="% Écart"
-                secondaryValue={`${(discrepancy.data?.percent_references_with_discrepancy || 0).toFixed(1)}%`}
+                secondaryLabel="TAUX DE RECEPTION MOYEN DES RUPTURES"
+                secondaryValue={`${(discrepancy.data?.avg_reception_rate_of_discrepancies || 0).toFixed(1)}%`}
                 hint={
                     <span className="inline-flex items-center text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full border border-indigo-100 whitespace-nowrap">
                         Astuce : Ctrl + Clic

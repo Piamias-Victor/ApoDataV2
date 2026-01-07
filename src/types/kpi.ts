@@ -226,4 +226,5 @@ export interface StockDiscrepancyKpiResponse {
     nb_references_with_discrepancy: number; // Products with qte_r < qte
     percent_references_with_discrepancy: number;
     discrepancy_product_codes: { code: string; label: string }[]; // For Ctrl+click action
+    avg_reception_rate_of_discrepancies: number;
 }
