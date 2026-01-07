@@ -24,6 +24,8 @@ interface RestockingItem {
     stock_moyen: number; // Added
     prix_achat: number;
     marge_pct: number;
+    qte_commandee: number;
+    qte_receptionnee: number;
 }
 
 export const RestockingTable: React.FC = () => {
@@ -37,7 +39,7 @@ export const RestockingTable: React.FC = () => {
     const itemsPerPage = 10;
 
     // 2. Data Fetching
-    const { data: allData = [], isLoading } = useQuery({
+    const { data: allData = [], isLoading, error } = useQuery({
         queryKey: ['restocking-data', request],
         queryFn: async () => {
             const res = await fetch('/api/stock-dashboard/restocking', {
@@ -63,6 +65,8 @@ export const RestockingTable: React.FC = () => {
             item.labo?.toLowerCase().includes(s)
         );
     }, [allData, search]);
+
+
 
     const totalItems = filteredData.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -91,6 +95,8 @@ export const RestockingTable: React.FC = () => {
         }
     };
 
+    if (error) return <div className="text-red-500">Erreur de chargement: {(error as Error).message}</div>;
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -98,10 +104,10 @@ export const RestockingTable: React.FC = () => {
                 <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <ShoppingCart className="w-6 h-6 text-purple-600" />
-                        Tableau de Réapprovisionnement
+                        ANALYSE DÉTAILLÉE PAR PRODUIT (STOCK & RUPTURES)
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Vue d&apos;ensemble des performances par catégorie
+                        Vue consolidée : Suivi des Ruptures, Stocks et Prévision de Commande.
                         <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
                             Astuce : Ctrl/Cmd + Clic pour filtrer
                         </span>
@@ -120,9 +126,9 @@ export const RestockingTable: React.FC = () => {
                             max="365"
                             value={targetDays}
                             onChange={(e) => setTargetDays(Number(e.target.value))}
-                            className="w-16 text-center text-sm font-bold text-purple-700 bg-white border border-purple-200 rounded focus:ring-2 focus:ring-purple-500 outline-none px-1 py-0.5"
+                            className="w-12 text-center text-sm font-bold text-purple-700 bg-white border border-purple-200 rounded focus:ring-2 focus:ring-purple-500 outline-none px-1 py-0.5"
                         />
-                        <span className="text-sm text-purple-700">j</span>
+                        <span className="text-sm text-purple-700">jours</span>
                     </div>
 
                     {/* Search */}
@@ -144,7 +150,7 @@ export const RestockingTable: React.FC = () => {
                 {isLoading ? (
                     <div className="p-8 space-y-4">
                         {[...Array(5)].map((_, i) => (
-                            <div key={i} className="h-12 w-full bg-gray-50 rounded-lg animate-pulse" />
+                            <div key={i} className="h-12 bg-gray-100/50 rounded animate-pulse" />
                         ))}
                     </div>
                 ) : (
@@ -153,27 +159,28 @@ export const RestockingTable: React.FC = () => {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
-                                        <TableHeaderCell width="30%">Produit</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" width="10%">Stock Actuel</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" width="10%">Stock Moyen</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="blue" width="10%">Ventes / Mois</TableHeaderCell>
-
-                                        {/* Dynamic Column */}
-                                        <TableHeaderCell align="right" variant="purple" width="15%">
+                                        <TableHeaderCell width="25%">Produit / EAN / Labo</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="7%">Qte Cdm</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="7%">Qte Reçu</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="6%">Ecart</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="6%">Taux</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="7%">Stock Act</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="7%">Stock Moy</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="8%">Vente/M</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" width="9%">
                                             <div className="flex flex-col items-end">
-                                                <span>Qté à Commander</span>
-                                                <span className="text-[9px] opacity-70 font-normal">Pour {targetDays}j de stock</span>
+                                                <span>A CMD</span>
+                                                <span className="text-[8px] opacity-70 font-normal">Obj {targetDays}j</span>
                                             </div>
                                         </TableHeaderCell>
-
-                                        <TableHeaderCell align="right" variant="green" width="10%">Prix Achat</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="green" width="10%">% Marge</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="8%">Prix</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="green" width="8%">Marge</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="p-12 text-center text-gray-500">
+                                            <td colSpan={11} className="p-12 text-center text-gray-500">
                                                 Aucun produit à réapprovisionner dans cette sélection.
                                             </td>
                                         </tr>
@@ -181,7 +188,11 @@ export const RestockingTable: React.FC = () => {
                                         paginatedData.map((row) => {
                                             const qtyToOrder = getQtyToOrder(row.sales_velocity, row.stock_actuel);
                                             const isUrgent = qtyToOrder > 0;
-
+                                            
+                                            // Rupture metrics logic
+                                            const ecart = row.qte_receptionnee - row.qte_commandee;
+                                            const taux = row.qte_commandee > 0 ? (row.qte_receptionnee / row.qte_commandee) * 100 : 100;
+                                            
                                             // Handle exactOptionalPropertyTypes for variant
                                             const urgentProps = isUrgent ? { variant: 'purple' as const } : {};
 
@@ -194,7 +205,7 @@ export const RestockingTable: React.FC = () => {
                                                 >
                                                     {/* Product */}
                                                     <TableCell>
-                                                        <div className="flex flex-col max-w-[350px]">
+                                                        <div className="flex flex-col max-w-[300px]">
                                                             <span className="font-medium text-gray-900 truncate text-xs" title={row.name}>
                                                                 {row.name}
                                                             </span>
@@ -209,12 +220,30 @@ export const RestockingTable: React.FC = () => {
                                                         </div>
                                                     </TableCell>
 
+                                                    {/* Rupture Metrics */}
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className="text-gray-600 text-xs">{row.qte_commandee || '-'}</span>
+                                                    </TableCell>
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className="text-gray-600 text-xs">{row.qte_receptionnee || '-'}</span>
+                                                    </TableCell>
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className={`text-xs font-bold ${ecart < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                                            {ecart !== 0 ? ecart : '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell align="right" variant="purple">
+                                                        <span className={`text-xs ${taux < 100 ? 'text-orange-600' : 'text-green-600'}`}>
+                                                            {row.qte_commandee > 0 ? `${taux.toFixed(0)}%` : '-'}
+                                                        </span>
+                                                    </TableCell>
+
                                                     {/* Stock Actuel */}
                                                     <TableCell align="right" variant="purple">
                                                         <span className="font-bold text-gray-700 text-xs">{row.stock_actuel}</span>
                                                     </TableCell>
 
-                                                    {/* Stock Moyen (Now Real Data) */}
+                                                    {/* Stock Moyen */}
                                                     <TableCell align="right" variant="purple">
                                                         <span className="text-gray-500 text-xs">{Math.round(row.stock_moyen)}</span>
                                                     </TableCell>

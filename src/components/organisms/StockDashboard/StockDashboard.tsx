@@ -6,7 +6,6 @@ import { StockKpiGrid } from './StockKpiGrid';
 import { StockEvolutionChart } from './StockEvolutionChart';
 import { RestockingTable } from './RestockingTable';
 import { LaboratoryDiscrepancyTable } from './LaboratoryDiscrepancyTable';
-import { ProductDiscrepancyTable } from './ProductDiscrepancyTable';
 
 export const StockDashboard = () => {
     const { reception, current, inventory, discrepancy, evolution } = useStockDashboard();
@@ -29,20 +28,14 @@ export const StockDashboard = () => {
                 />
             </div>
 
-            {/* Restocking Table */}
-            <div className="mt-6">
-                <RestockingTable />
-            </div>
-
-
-            {/* Laboratory Discrepancy Table */}
+            {/* Laboratory Analysis Table (Aggregated) */}
             <div className="mt-6">
                 <LaboratoryDiscrepancyTable />
             </div>
 
-            {/* Product Discrepancy Table */}
+            {/* Product Analysis Table (Restocking + Ruptures) */}
             <div className="mt-6">
-                <ProductDiscrepancyTable />
+                <RestockingTable />
             </div>
         </div>
     );

@@ -89,19 +89,20 @@ export const LaboratoryDiscrepancyTable = () => {
     };
 
     const headers = [
-        { label: 'Laboratoire', key: 'laboratory_name', align: 'left', width: 'w-[15%]', variant: undefined },
-        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[8%]', variant: 'purple' },
-        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
-        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
-        { label: 'Jours de Stock', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
-        { label: `A Commander`, key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
-        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
-        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[8%]', variant: 'blue' },
-        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
+        { label: 'LABO', key: 'laboratory_name', align: 'left', width: 'w-[15%]', variant: undefined },
+        { label: 'QTE CDM', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'QTE RECU', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'ECART', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'TAUX REC.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'ACHAT HT', key: 'prix_achat', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'STOCK ACTUEL', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'STOCK MOYEN', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'JOURS STOCK', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
+        { label: `A COMMANDER`, key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'VENDU', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'VENTES/MOIS', key: 'ventes_par_mois', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'PV MOYEN', key: 'prix_vente_moyen', align: 'right', width: 'w-[8%]', variant: 'blue' },
+        { label: '% MARGE', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
     ] as const;
 
     return (
@@ -111,7 +112,7 @@ export const LaboratoryDiscrepancyTable = () => {
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-indigo-600" />
-                        Rupture par Labo
+                        TABLEAU DE SUIVI DES STOCKS (PAR LABO)
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Vue consolidée des écarts de livraison et de la performance stock par laboratoire.
@@ -227,6 +228,11 @@ export const LaboratoryDiscrepancyTable = () => {
                                             </TableCell>
 
                                             <TableCell align="right" className="text-xs">{formatNumber(row.qte_vendue)}</TableCell>
+                                            {/* Ventes / Mois (Calculated: Qty / PeriodDays * 30) */}
+                                            <TableCell align="right" className="text-xs text-blue-600 font-medium">
+                                                {formatNumber((row.qte_vendue / daysInPeriod) * 30)}
+                                            </TableCell>
+                                            
                                             <TableCell align="right" className="text-xs">{formatCurrency(row.prix_vente_moyen)}</TableCell>
 
                                             <TableCell align="right">

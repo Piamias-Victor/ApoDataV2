@@ -224,11 +224,15 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(today.getMonth() - 6);
 
-    // We use the Sales MV as the primary driver to rank by volume
-    const initialParams = [sixMonthsAgo.toISOString(), today.toISOString()];
+    // Range for Orders / Ruptures: User Selected Period
+    const orderStart = request.dateRange.start;
+    const orderEnd = request.dateRange.end;
 
-    // Builder for Sales Filters
-    const qb = new FilterQueryBuilder(initialParams, 3, filterOperators, {
+    // Params: $1=SalesStart, $2=SalesEnd(Today), $3=OrderStart, $4=OrderEnd
+    const initialParams = [sixMonthsAgo.toISOString(), today.toISOString(), orderStart, orderEnd];
+
+    // Builder for Filters (Offset 5 because we use $1..$4)
+    const qb = new FilterQueryBuilder(initialParams, 5, filterOperators, {
         pharmacyId: 'mv.pharmacy_id',
         laboratory: 'mv.laboratory_name',
         productCode: 'mv.code_13_ref',
@@ -256,8 +260,24 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
         (groups && groups.length > 0) ||
         (request.excludedCategories && request.excludedCategories.length > 0);
 
-    // If a product filter is active, we might not want to limit to 1000? 
-    // The user said "if product filter, show all; if not, show Top 1000".
+    // Filter Logic for Orders (needs slightly different alias if not MV)
+    // Actually, FilterQueryBuilder uses specific aliases passed in constructor.
+    // 'mv.pharmacy_id' works for Sales/Stock MVs.
+    // For Orders ('data_productorder' joined with internalproduct), we need 'ip.pharmacy_id'.
+    // This is tricky with a single builder.
+    // However, since we are writing raw SQL CTEs, we can replace aliases in the condition string if needed, 
+    // OR we can alias the join in OrdersAgg to match 'mv'.
+    // Let's alias `data_internalproduct` as `mv` (conceptual) inside OrdersAgg? No that's confusing.
+    // Better strategy: Create a SECOND conditions string with swapped aliases?
+    // Or just ensure we join `data_internalproduct ip` and Map `mv.` to `ip.` in the string.
+    const orderConditions = conditions
+        .replace(/mv\.pharmacy_id/g, 'ip.pharmacy_id')
+        .replace(/mv\.laboratory_name/g, "COALESCE(gp.bcb_lab, 'AUTRES')") // GP join needed for Lab
+        .replace(/mv\.code_13_ref/g, 'ip.code_13_ref_id')
+        .replace(/mv\.category_name/g, "COALESCE(gp.bcb_segment_l1, 'AUTRES')"); 
+        // Note: GP join is needed in OrdersAgg if we filter by Lab/Cat.
+
+    // Limit clause
     const hasProductFilter = productCodes.length > 0 || laboratories.length > 0 || categories.length > 0;
     const limitClause = hasProductFilter ? '' : 'LIMIT 1000';
 
@@ -275,9 +295,21 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
               ${conditions}
             GROUP BY 1, 2, 3
         ),
+        OrdersAgg AS (
+            SELECT
+                po.product_id,
+                SUM(po.qte) as qte_commandee,
+                SUM(po.qte_r) as qte_receptionnee
+            FROM data_productorder po
+            INNER JOIN data_order o ON po.order_id = o.id
+            INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
+            WHERE o.sent_date >= $3::date 
+              AND o.sent_date <= $4::date
+              ${orderConditions}
+            GROUP BY 1
+        ),
         LatestStock AS (
-            -- Stock Actuel: Last known stock from the latest snapshot for each pharmacy-product pair
-            -- We sum the latest stock of all valid pharmacies
             SELECT 
                 product_id,
                 SUM(stock) as stock
@@ -292,7 +324,6 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
             GROUP BY product_id
         ),
         AvgStock AS (
-            -- Stock Moyen: Average of the Sum of Stocks at the end of each month in the period
             SELECT 
                 product_id,
                 AVG(monthly_stock_sum) as avg_stock_6m
@@ -310,34 +341,38 @@ export async function fetchRestockingData(request: AchatsKpiRequest): Promise<an
             GROUP BY product_id
         )
         SELECT 
-            s.internal_product_id as id,
+            COALESCE(s.internal_product_id, o.product_id) as id,
             COALESCE(gp.name, ip.name) as name,
-            s.code_13_ref as code,
-            s.laboratory_name as labo,
-            s.total_sales_6m,
+            COALESCE(s.code_13_ref, ip.code_13_ref_id) as code,
+            COALESCE(s.laboratory_name, gp.bcb_lab) as labo,
+            COALESCE(s.total_sales_6m, 0) as total_sales_6m,
+            COALESCE(o.qte_commandee, 0) as qte_commandee,
+            COALESCE(o.qte_receptionnee, 0) as qte_receptionnee,
             COALESCE(st.stock, 0) as stock_actuel,
             COALESCE(av.avg_stock_6m, 0) as stock_moyen,
             COALESCE(lp.weighted_average_price, 0) as prix_achat,
             COALESCE(lp.margin_percentage, 0) as marge_pct
         FROM SalesAgg s
-        INNER JOIN data_internalproduct ip ON s.internal_product_id = ip.id
-        LEFT JOIN data_globalproduct gp ON s.code_13_ref = gp.code_13_ref
-        LEFT JOIN LatestStock st ON s.internal_product_id = st.product_id
-        LEFT JOIN AvgStock av ON s.internal_product_id = av.product_id
-        LEFT JOIN mv_latest_product_prices lp ON s.internal_product_id = lp.product_id
-        ORDER BY s.total_sales_6m DESC
+        FULL OUTER JOIN OrdersAgg o ON s.internal_product_id = o.product_id
+        LEFT JOIN data_internalproduct ip ON COALESCE(s.internal_product_id, o.product_id) = ip.id
+        LEFT JOIN data_globalproduct gp ON COALESCE(s.code_13_ref, ip.code_13_ref_id) = gp.code_13_ref
+        LEFT JOIN LatestStock st ON COALESCE(s.internal_product_id, o.product_id) = st.product_id
+        LEFT JOIN AvgStock av ON COALESCE(s.internal_product_id, o.product_id) = av.product_id
+        LEFT JOIN mv_latest_product_prices lp ON COALESCE(s.internal_product_id, o.product_id) = lp.product_id
+        ORDER BY COALESCE(s.total_sales_6m, 0) DESC
         ${limitClause}
     `;
     try {
         const result = await db.query(query, params);
 
-        // Transform for frontend
         return result.rows.map(row => ({
             id: row.id,
             name: row.name,
             code: row.code,
             labo: row.labo,
-            sales_velocity: Number(row.total_sales_6m) / 6, // Av. Monthly Sales
+            sales_velocity: Number(row.total_sales_6m) / 6,
+            qte_commandee: Number(row.qte_commandee),
+            qte_receptionnee: Number(row.qte_receptionnee),
             stock_actuel: Number(row.stock_actuel),
             stock_moyen: Number(row.stock_moyen),
             prix_achat: Number(row.prix_achat),
