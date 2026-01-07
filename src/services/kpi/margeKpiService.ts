@@ -27,8 +27,8 @@ export async function getMargeKpi(request: AchatsKpiRequest): Promise<MargeKpiRe
             return {
                 montant_marge: data.montant_marge,
                 marge_percent,
-                marge_percent_evolution,
-                evolution_percent
+                ...(marge_percent_evolution !== undefined && { marge_percent_evolution }),
+                ...(evolution_percent !== undefined && { evolution_percent })
             };
         }
     });

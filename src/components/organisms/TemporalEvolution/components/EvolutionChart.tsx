@@ -42,7 +42,7 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType, 
     return (
         <div className="h-[400px] w-full bg-white/40 backdrop-blur-xl rounded-2xl border border-white/50 shadow-xl p-4">
             <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={data} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                <ComposedChart data={data} margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
                     <defs>
                         <linearGradient id="colorAchat" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -55,8 +55,8 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({ data, dataType, 
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" stroke="#64748b" fontSize={12} width={80} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={12} width={60} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}`} />
+                    <YAxis yAxisId="left" stroke="#64748b" fontSize={12} width={95} tickLine={false} axisLine={false} tickFormatter={(val) => `€${val}`} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={12} width={70} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}`} />
                     <YAxis yAxisId="volume" orientation="right" hide />
                     <YAxis yAxisId="amount" orientation="left" hide />
 

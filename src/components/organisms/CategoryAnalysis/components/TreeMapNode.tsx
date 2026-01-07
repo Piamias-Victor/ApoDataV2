@@ -28,18 +28,18 @@ export const TreeMapNode = (props: any) => {
     if (!width || !height || width < 5 || height < 5) return null;
 
     // Visibility Logic
-    const isTiny = width < 40 || height < 25;
-    const isSmall = width < 80 || height < 40;
+    const isTiny = width < 40 || height < 30;
+    const isSmall = width < 100 || height < 50;
 
     const handleClick = (e: React.MouseEvent) => {
         if (onNodeClick) {
-            // Pass the original props (which contain name, payload, etc.) as the 'node'
             onNodeClick(props, index, e);
         }
     };
 
     return (
-        <g>
+        <g className="treemap-node-root">
+            {/* 1. Base SVG Rect for Color (Best for performance/chart logic) */}
             <rect
                 x={x}
                 y={y}
@@ -49,28 +49,80 @@ export const TreeMapNode = (props: any) => {
                 ry={6}
                 fill={color}
                 stroke="#fff"
-                strokeWidth={3}
-                className="transition-all duration-200 hover:opacity-90 cursor-pointer hover:stroke-white/80"
-                style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.05))' }}
+                strokeWidth={2}
+                style={{ cursor: 'pointer' }}
                 onClick={handleClick}
             />
+            
+            {/* 2. HTML Overlay for Perfect Text Rendering */}
             {!isTiny && (
-                <text
-                    x={x + width / 2}
-                    y={y + height / 2}
-                    textAnchor="middle"
-                    fill="#fff"
-                    style={{ pointerEvents: 'none', textShadow: '0px 1px 2px rgba(0,0,0,0.2)' }}
+                <foreignObject 
+                    x={x} 
+                    y={y} 
+                    width={width} 
+                    height={height}
+                    style={{ overflow: 'visible', pointerEvents: 'none' }}
                 >
-                    <tspan x={x + width / 2} dy={isSmall ? "0.3em" : "-0.6em"} fontSize={isSmall ? 10 : 13} fontWeight={400}>
-                        {name.length > (isSmall ? 8 : 15) ? name.slice(0, isSmall ? 6 : 12) + '..' : name}
-                    </tspan>
-                    {!isSmall && (
-                        <tspan x={x + width / 2} dy="1.4em" fontSize={11} fill="rgba(255,255,255,0.95)" fontWeight={400}>
-                            {Number(percentage).toFixed(1)}%
-                        </tspan>
-                    )}
-                </text>
+                    <div 
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <div 
+                            style={{
+                                backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                                padding: isSmall ? '2px 6px' : '4px 10px',
+                                borderRadius: '6px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0px',
+                                maxWidth: `${width - 8}px`, // Prevent overflow
+                                minWidth: isSmall ? '50px' : '80px',
+                                textAlign: 'center'
+                            }}
+                        >
+                            {/* Category Name */}
+                            <span 
+                                style={{
+                                    color: '#0f172a', // Slate-900 (High Contrast)
+                                    fontSize: isSmall ? '11px' : '15px',
+                                    fontWeight: 800, // Extra Bold
+                                    lineHeight: 1.2,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    maxWidth: '100%',
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    // Fix for "half written" - force GPU rasterization if needed, usually HTML is fine
+                                    WebkitFontSmoothing: 'antialiased',
+                                }}
+                            >
+                                {name}
+                            </span>
+
+                            {/* Percentage */}
+                            {!isSmall && (
+                                <span 
+                                    style={{
+                                        color: '#475569', // Slate-600
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        marginTop: '1px'
+                                    }}
+                                >
+                                    {Number(percentage).toFixed(1)}%
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </foreignObject>
             )}
         </g>
     );

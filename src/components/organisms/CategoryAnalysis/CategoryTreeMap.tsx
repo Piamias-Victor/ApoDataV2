@@ -119,11 +119,10 @@ export const CategoryTreeMap: React.FC = () => {
                             <Treemap
                                 data={visibleData}
                                 dataKey="value"
-                                nameKey="name"
                                 aspectRatio={4 / 3}
                                 stroke="#fff"
-                                isAnimationActive={true}
-                                animationDuration={500}
+                                isAnimationActive={false}
+                                animationDuration={0}
                                 content={<TreeMapNode onNodeClick={onNodeClick} />}
                             // onClick={onNodeClick as any} // Handled in TreeMapNode to capture event
                             >
