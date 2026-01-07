@@ -130,6 +130,10 @@ export const ProductQueries = {
             gs.purchases_ht as my_purchases_ht,
             gs.purchases_qty as my_purchases_qty,
             gs.margin_ht as my_margin_ht,
+            
+            -- Calculated Prices for Sorting
+            CASE WHEN gs.purchases_qty = 0 THEN 0 ELSE gs.purchases_ht / gs.purchases_qty END as avg_purchase_price,
+            CASE WHEN gs.sales_qty = 0 THEN 0 ELSE gs.sales_ttc / gs.sales_qty END as avg_sell_price,
 
             -- Stock
             COALESCE(lst.stock_qty, 0) as my_stock_qty,
@@ -355,6 +359,10 @@ export const ProductQueries = {
             ms.my_purchases_ht,
             ms.my_purchases_qty,
             ms.my_margin_ht,
+
+            -- Calculated Prices for Sorting
+            CASE WHEN ms.my_purchases_qty = 0 THEN 0 ELSE ms.my_purchases_ht / ms.my_purchases_qty END as avg_purchase_price,
+            CASE WHEN ms.my_sales_qty = 0 THEN 0 ELSE ms.my_sales_ttc / ms.my_sales_qty END as avg_sell_price,
 
             -- Stock
             COALESCE(lst.stock_qty, 0) as my_stock_qty,

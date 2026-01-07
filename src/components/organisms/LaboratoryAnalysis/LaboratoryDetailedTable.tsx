@@ -24,8 +24,15 @@ export const LaboratoryDetailedTable: React.FC = () => {
 
     const { data: rawData, isLoading, isFetching } = useLaboratoryAnalysis();
 
-    // Default empty array
-    const safeData = useMemo(() => rawData || [], [rawData]);
+    // Default empty array with pre-calculations
+    const safeData = useMemo(() => {
+        if (!rawData) return [];
+        return rawData.map(row => ({
+            ...row,
+            avg_buy_price: row.my_purchases_qty ? row.my_purchases_ht / row.my_purchases_qty : 0,
+            avg_sell_price: row.my_sales_qty ? row.my_sales_ttc / row.my_sales_qty : 0
+        }));
+    }, [rawData]);
 
     // Filter Logic Only
     const filteredData = useMemo(() => {
@@ -144,8 +151,8 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('my_margin_rate')}>Marge %</TableHeaderCell>
 
                                         {/* PRIX - Pink (Added) */}
-                                        <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="pink" width="6%" {...getSortProps('avg_buy_price')}>PA.HT Moy</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="pink" width="6%" {...getSortProps('avg_sell_price')}>PV.TTC Moy</TableHeaderCell>
 
                                         {/* STOCK - Red */}
                                         <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>
@@ -162,11 +169,7 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                         </tr>
                                     ) : (
                                         paginatedData.map((row, idx) => {
-                                            // Compute Prices
-                                            const avgBuyPrice = row.my_purchases_qty ? row.my_purchases_ht / row.my_purchases_qty : 0;
-                                            const avgSellPrice = row.my_sales_qty ? row.my_sales_ttc / row.my_sales_qty : 0;
-
-                                            return (
+                                           return (
                                                 <tr key={idx}
                                                     onClick={(e) => handleInteraction({ id: row.laboratory_name, name: row.laboratory_name }, e)}
                                                     className="hover:bg-purple-50/30 transition-colors group cursor-pointer"
@@ -226,13 +229,15 @@ export const LaboratoryDetailedTable: React.FC = () => {
                                                     {/* Prix Achat Moy (Calculated) */}
                                                     <TableCell align="right" variant="pink">
                                                         <div className="font-medium text-gray-700 text-xs">
-                                                            {avgBuyPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                            {/* @ts-ignore - computed property */}
+                                                            {row.avg_buy_price?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                                                         </div>
                                                     </TableCell>
                                                     {/* Prix Vente Moy (Calculated) */}
                                                     <TableCell align="right" variant="pink">
                                                         <div className="font-medium text-gray-700 text-xs">
-                                                            {avgSellPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                            {/* @ts-ignore - computed property */}
+                                                            {row.avg_sell_price?.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                                                         </div>
                                                     </TableCell>
 

@@ -36,8 +36,8 @@ export const TableHeader: React.FC<TableHeaderProps> = ({ sortBy, sortOrder, onS
                 <TableHeaderCell align="right" variant="orange" width="5%" {...getSortProps('my_margin_rate')}>Marge %</TableHeaderCell>
 
                 {/* Prix - Pink */}
-                <TableHeaderCell align="right" variant="pink" width="6%">PA.HT Moy</TableHeaderCell>
-                <TableHeaderCell align="right" variant="pink" width="6%">PV.TTC Moy</TableHeaderCell>
+                <TableHeaderCell align="right" variant="pink" width="6%" {...getSortProps('avg_purchase_price')}>PA.HT Moy</TableHeaderCell>
+                <TableHeaderCell align="right" variant="pink" width="6%" {...getSortProps('avg_sell_price')}>PV.TTC Moy</TableHeaderCell>
 
                 {/* Stock - Red */}
                 <TableHeaderCell align="right" variant="red" width="6%" {...getSortProps('my_stock_value_ht')}>Stock €</TableHeaderCell>

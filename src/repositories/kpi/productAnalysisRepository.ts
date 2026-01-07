@@ -53,13 +53,21 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
         if (myPharmacyId) {
             // Comparative
-            if (sortBy === 'product_name') cteSortColumn = 'product_name'; // alias from product_label
-            else if (sortBy === 'laboratory_name') cteSortColumn = 'laboratory_name';
-            // Else use as is (e.g. 'my_sales_ttc')
-            else cteSortColumn = sortBy;
-
-            // Final sort uses 'ms.' prefix + sortBy usually works as column names match alias
-            finalSortColumn = `ms.${cteSortColumn}`;
+            if (sortBy === 'product_name') {
+                cteSortColumn = 'product_name';
+                finalSortColumn = 'ms.product_name';
+            } else if (sortBy === 'laboratory_name') {
+                cteSortColumn = 'laboratory_name';
+                finalSortColumn = 'ms.laboratory_name';
+            } else if (['avg_purchase_price', 'avg_sell_price'].includes(sortBy)) {
+                // Calculated columns in outer query, no prefix needed in final sort
+                // However, they don't exist in CTE, so CTE sort is irrelevant/fallback
+                cteSortColumn = 'my_sales_qty'; 
+                finalSortColumn = sortBy;
+            } else {
+                cteSortColumn = sortBy;
+                finalSortColumn = `ms.${cteSortColumn}`;
+            }
         } else {
             // Global
             if (sortBy === 'product_name') {
@@ -69,6 +77,11 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             else if (sortBy === 'laboratory_name') {
                 cteSortColumn = 'laboratory_name';
                 finalSortColumn = 'gs.laboratory_name';
+            }
+            else if (['avg_purchase_price', 'avg_sell_price'].includes(sortBy)) {
+                // Calculated columns in outer query
+                cteSortColumn = 'sales_qty';
+                finalSortColumn = sortBy;
             }
             else {
                 // Remove 'my_' prefix for Global CTE columns (sales_qty vs my_sales_qty)
@@ -156,8 +169,8 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             my_stock_qty_evolution: Number(row.my_stock_qty_evolution), // Added
             my_stock_value_ht_evolution: Number(row.my_stock_value_ht_evolution), // Added
 
-            avg_purchase_price: Number(row.my_purchases_qty) ? Number(row.my_purchases_ht) / Number(row.my_purchases_qty) : 0,
-            avg_sell_price: Number(row.my_sales_qty) ? Number(row.my_sales_ht) / Number(row.my_sales_qty) : 0,
+            avg_purchase_price: Number(row.avg_purchase_price) || 0,
+            avg_sell_price: Number(row.avg_sell_price) || 0,
         }));
 
         return { data, total };
