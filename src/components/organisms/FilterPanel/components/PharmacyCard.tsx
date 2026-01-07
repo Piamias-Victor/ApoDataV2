@@ -13,6 +13,7 @@ interface Pharmacy {
     ca: number;
     region: string;
     id_nat: string;
+    cip: string;
 }
 
 interface PharmacyCardProps {
@@ -75,6 +76,14 @@ export const PharmacyCard: React.FC<PharmacyCardProps> = ({ pharmacy, isSelected
                             <Hash className="w-3.5 h-3.5 text-gray-400" />
                             <span className="font-mono text-xs">{pharmacy.id_nat}</span>
                         </div>
+                        {pharmacy.cip && (
+                            <>
+                                <div className="w-1 h-1 bg-gray-300 rounded-full" />
+                                <div className="flex items-center gap-1.5" title="Code CIP">
+                                    <span className="font-mono text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">CIP: {pharmacy.cip}</span>
+                                </div>
+                            </>
+                        )}
                         <div className="w-1 h-1 bg-gray-300 rounded-full" />
                         <div className="flex items-center gap-1.5">
                             <MapPin className="w-3.5 h-3.5 text-gray-400" />

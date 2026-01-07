@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
         const { query, minCa, maxCa, regions } = body;
 
         let sqlQuery = `
-            SELECT id, name, address, ca, area as region, id_nat
+            SELECT id, name, address, ca, area as region, id_nat, cip
             FROM data_pharmacy
             WHERE 1=1
         `;
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         // Text Search
         if (query && query.trim().length > 0) {
             const searchTerm = `%${query.trim().toLowerCase()}%`;
-            sqlQuery += ` AND (LOWER(name) LIKE $${paramIndex} OR id_nat LIKE $${paramIndex})`;
+            sqlQuery += ` AND (LOWER(name) LIKE $${paramIndex} OR id_nat LIKE $${paramIndex} OR cip LIKE $${paramIndex})`;
             queryParams.push(searchTerm);
             paramIndex++;
         }

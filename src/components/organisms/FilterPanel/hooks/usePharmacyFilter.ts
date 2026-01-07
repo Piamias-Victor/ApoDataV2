@@ -10,6 +10,7 @@ export interface Pharmacy {
     ca: number;
     region: string;
     id_nat: string;
+    cip: string;
 }
 
 export type Tab = 'search' | 'cluster';
