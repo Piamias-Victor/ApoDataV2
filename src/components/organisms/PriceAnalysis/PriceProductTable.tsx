@@ -86,22 +86,20 @@ export const PriceProductTable = () => {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr>
-                                        <TableHeaderCell width="25%" align="left" {...getSortProps('product_name')}>PRODUIT</TableHeaderCell>
-                                        <TableHeaderCell width="10%" align="left" {...getSortProps('ean13')}>CODE EAN</TableHeaderCell>
-                                        <TableHeaderCell width="10%" align="left" {...getSortProps('laboratory_name')}>LABO</TableHeaderCell>
+                                        <TableHeaderCell width="35%" align="left" {...getSortProps('product_name')}>PRODUIT / EAN / LABO</TableHeaderCell>
                                         <TableHeaderCell align="right" className="bg-gray-50 text-gray-900 border-l border-gray-200">PRIX FAB</TableHeaderCell>
 
                                         {/* Achat (Violet) */}
                                         <TableHeaderCell align="right" variant="purple" {...getSortProps('group_min_purchase_price')}>PA MIN GRP</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="purple" {...getSortProps('group_max_purchase_price')}>PA MAX GRP</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="purple" {...getSortProps('my_avg_purchase_price')}>PA MOY MOI</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="purple" {...getSortProps('group_avg_purchase_price')}>PA MOY GRP</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="purple" {...getSortProps('my_avg_purchase_price')}>PA MOY MOI</TableHeaderCell>
 
                                         {/* Vente (Blue) */}
                                         <TableHeaderCell align="right" variant="blue" {...getSortProps('group_min_sell_price')}>PV MIN GRP</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="blue" {...getSortProps('group_max_sell_price')}>PV MAX GRP</TableHeaderCell>
-                                        <TableHeaderCell align="right" variant="blue" {...getSortProps('my_avg_sell_price')}>PV MOY MOI</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="blue" {...getSortProps('group_avg_sell_price')}>PV MOY GRP</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" {...getSortProps('my_avg_sell_price')}>PV MOY MOI</TableHeaderCell>
 
                                         {/* Current & Margin */}
                                         <TableHeaderCell align="right" className="bg-gray-50 text-gray-900 border-l border-gray-200" {...getSortProps('my_current_sell_price')}>PV ACTUEL</TableHeaderCell>
