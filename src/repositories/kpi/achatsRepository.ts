@@ -164,7 +164,7 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
 /**
  * Get Pre-order Evolution (Based on sent_date)
  */
-export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number }[]> {
+export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number; achat_rec_qty: number; achat_rec_ht: number }[]> {
   const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   const initialParams = [dateRange.start, dateRange.end];
@@ -194,7 +194,9 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
         SELECT 
             DATE_TRUNC('${trunc}', o.sent_date) as date,
             COALESCE(SUM(po.qte), 0) as achat_qty,
-            COALESCE(SUM(po.qte * COALESCE(lp.weighted_average_price, 0)), 0) as achat_ht
+            COALESCE(SUM(po.qte_r), 0) as achat_rec_qty,
+            COALESCE(SUM(po.qte * COALESCE(lp.weighted_average_price, 0)), 0) as achat_ht,
+            COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0)), 0) as achat_rec_ht
         FROM data_productorder po
         INNER JOIN data_order o ON po.order_id = o.id
         INNER JOIN data_internalproduct ip ON po.product_id = ip.id
@@ -212,7 +214,9 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
   return result.rows.map(row => ({
     date: row.date.toISOString(),
     achat_ht: Number(row.achat_ht),
-    achat_qty: Number(row.achat_qty)
+    achat_qty: Number(row.achat_qty),
+    achat_rec_qty: Number(row.achat_rec_qty),
+    achat_rec_ht: Number(row.achat_rec_ht)
   }));
 }
 

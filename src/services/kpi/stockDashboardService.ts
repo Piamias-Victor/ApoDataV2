@@ -1,5 +1,5 @@
 import { AchatsKpiRequest, StockReceptionKpiResponse, StockCurrentKpiResponse, StockInventoryKpiResponse, StockDiscrepancyKpiResponse } from '@/types/kpi';
-import { fetchReceptionRate } from '@/repositories/kpi/receptionRateRepository';
+
 import { fetchPreorderEvolution } from '@/repositories/kpi/achatsRepository';
 import { fetchStockData, fetchAvgStock12Months, getStockSnapshots, fetchRestockingData } from '@/repositories/kpi/stockRepository';
 import { fetchInventoryDays } from '@/repositories/kpi/inventoryDaysRepository';
@@ -13,20 +13,17 @@ import { format, subMonths, addDays, addMonths, subDays } from 'date-fns';
  */
 export async function getStockReceptionKpi(request: AchatsKpiRequest): Promise<StockReceptionKpiResponse> {
     // Qty Ordered & Amount Ordered
-    // fetchPreorderEvolution gives daily breakdown of 'ordered'.
+    // fetchPreorderEvolution gives daily breakdown of 'ordered' AND 'received' (based on sent_date).
     const orderedStats = await fetchPreorderEvolution(request, 'day');
 
-    // Sum totals
+    // Sum totals based on actual database values (no estimation)
     const totalOrderedQty = orderedStats.reduce((acc, curr) => acc + curr.achat_qty, 0);
+    const totalReceivedQty = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_qty, 0);
     const totalOrderedAmount = orderedStats.reduce((acc, curr) => acc + curr.achat_ht, 0);
+    const totalReceivedAmount = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_ht, 0);
 
-    // Reception Rate
-    const rate = await fetchReceptionRate(request);
-
-    // Derive Received Stats (Approximation based on rate)
-    // Note: Ideally we would fetch exact received totals if available.
-    const totalReceivedQty = totalOrderedQty * (rate / 100);
-    const totalReceivedAmount = totalOrderedAmount * (rate / 100);
+    // Calculate Rate
+    const rate = totalOrderedQty > 0 ? (totalReceivedQty / totalOrderedQty) * 100 : 0;
 
     return {
         qte_commandee: Math.round(totalOrderedQty),
