@@ -153,6 +153,7 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
         GROUP BY 1
         ORDER BY 1 ASC
     `;
+    
 
   const result = await db.query(query, params);
   return result.rows.map(row => ({
