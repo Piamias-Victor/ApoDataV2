@@ -47,6 +47,8 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
                 <TableCell>
                     <span className="text-gray-500 truncate max-w-[150px] block text-[10px]" title={row.laboratory_name}>{row.laboratory_name}</span>
                 </TableCell>
+                <TableCell align="right" className="bg-gray-50 text-gray-900 border-l border-gray-200"><ValueCell value={row.manufacturer_price || 0} isCurrency decimals={2} className="text-xs font-medium text-gray-700" /></TableCell>
+
 
                 {/* Purchase Prices (Purple Variant) */}
                 <TableCell align="right" variant="purple" className="border-l border-purple-100"><ValueCell value={row.group_min_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
@@ -70,7 +72,7 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
             {/* Simulation Row */}
             {isExpanded && (
                 <tr className="bg-gray-50/50 animate-in fade-in zoom-in-95 duration-200">
-                    <td colSpan={13} className="p-4 border-b border-gray-200">
+                    <td colSpan={14} className="p-4 border-b border-gray-200">
                         <PriceSimulator
                             initialPurchasePrice={row.my_avg_purchase_price}
                             initialSellPrice={row.my_current_sell_price > 0 ? row.my_current_sell_price : row.my_avg_sell_price}

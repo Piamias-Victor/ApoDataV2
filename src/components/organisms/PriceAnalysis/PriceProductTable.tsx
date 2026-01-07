@@ -89,6 +89,7 @@ export const PriceProductTable = () => {
                                         <TableHeaderCell width="25%" align="left" {...getSortProps('product_name')}>PRODUIT</TableHeaderCell>
                                         <TableHeaderCell width="10%" align="left" {...getSortProps('ean13')}>CODE EAN</TableHeaderCell>
                                         <TableHeaderCell width="10%" align="left" {...getSortProps('laboratory_name')}>LABO</TableHeaderCell>
+                                        <TableHeaderCell align="right" className="bg-gray-50 text-gray-900 border-l border-gray-200">PRIX FAB</TableHeaderCell>
 
                                         {/* Achat (Violet) */}
                                         <TableHeaderCell align="right" variant="purple" {...getSortProps('group_min_purchase_price')}>PA MIN GRP</TableHeaderCell>

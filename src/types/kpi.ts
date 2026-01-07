@@ -41,6 +41,7 @@ export interface AchatsKpiResponse {
     montant_ht: number;
     montant_ttc: number;
     quantite_achetee: number;
+    quantite_achetee_evolution?: number;
     evolution_percent?: number | undefined;
 }
 
@@ -48,6 +49,7 @@ export interface VentesKpiResponse {
     montant_ht: number;
     montant_ttc: number;
     quantite_vendue: number;
+    quantite_vendue_evolution?: number;
     evolution_percent?: number | undefined;
     duration?: string;
 }
@@ -55,6 +57,7 @@ export interface VentesKpiResponse {
 export interface MargeKpiResponse {
     montant_marge: number;
     marge_percent: number;
+    marge_percent_evolution?: number;
     evolution_percent?: number | undefined;
     duration?: string;
 }

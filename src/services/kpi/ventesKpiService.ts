@@ -9,11 +9,20 @@ export async function getVentesKpi(request: AchatsKpiRequest): Promise<VentesKpi
         key: 'ventes',
         fetchData: fetchVentesData,
         calculateEvolutionValue: (data) => data.montant_ttc,
-        formatResponse: (data, evolution_percent) => ({
-            montant_ht: data.montant_ht,
-            montant_ttc: data.montant_ttc,
-            quantite_vendue: data.quantite_vendue,
-            evolution_percent
-        })
+        formatResponse: (data, evolution_percent, comparisonData) => {
+            let quantite_vendue_evolution: number | undefined;
+
+            if (comparisonData && comparisonData.quantite_vendue > 0) {
+                quantite_vendue_evolution = ((data.quantite_vendue - comparisonData.quantite_vendue) / comparisonData.quantite_vendue) * 100;
+            }
+
+            return {
+                montant_ht: data.montant_ht,
+                montant_ttc: data.montant_ttc,
+                quantite_vendue: data.quantite_vendue,
+                quantite_vendue_evolution,
+                evolution_percent
+            };
+        }
     });
 }

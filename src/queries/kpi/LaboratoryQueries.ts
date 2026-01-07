@@ -38,6 +38,7 @@ export const LaboratoryQueries = {
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
             ) mv
+            LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
             ${conditions}
             GROUP BY 1
@@ -63,6 +64,7 @@ export const LaboratoryQueries = {
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
             ) mv
+            LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
             ${conditions}
             GROUP BY 1

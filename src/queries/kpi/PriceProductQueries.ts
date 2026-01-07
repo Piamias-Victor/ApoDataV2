@@ -22,7 +22,8 @@ WITH
     mv.margin_sold,
     mv.ht_sold,
     mv.month,
-    gp.bcb_tva_rate as vat_rate
+    gp.bcb_tva_rate as vat_rate,
+    gp.prix_achat_ht_fabricant as manufacturer_price
             FROM mv_product_stats_monthly mv
             -- Inner Join for Global Products required for filters (Laboratory, Category, etc.)
             INNER JOIN data_internalproduct ip ON mv.product_id = ip.id
@@ -67,6 +68,7 @@ WITH
                 MAX(bd.product_label) as product_name,
                 MAX(bd.laboratory_name) as laboratory_name,
                 MAX(bd.vat_rate) as vat_rate,
+                MAX(bd.manufacturer_price) as manufacturer_price,
 
                 -- Current Period Stats ($1 - $2)
                 SUM(CASE WHEN(bd.month >= $1::date AND ($${pharmacyParamIdx}:: uuid[] IS NULL OR bd.pharmacy_id = ANY($${pharmacyParamIdx}))) THEN bd.ht_purchased ELSE 0 END) as my_purchases_ht,
@@ -140,7 +142,8 @@ ms.product_name,
 
         --Count for pagination
             COUNT(*) OVER() as total_rows,
-            ms.vat_rate
+            ms.vat_rate,
+            ms.manufacturer_price
 
         FROM my_stats ms
         JOIN group_aggregates ga ON ms.ean13 = ga.ean13

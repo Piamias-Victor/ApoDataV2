@@ -52,6 +52,8 @@ export const KpiDashboard: React.FC = () => {
                     evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
                     secondaryValue={formatNumber(achatsData?.quantite_achetee || 0)}
+                    secondaryEvolutionPercent={achatsData?.quantite_achetee_evolution}
+                    secondaryEvolutionLabel="Evol. Qte"
                     icon={<Euro className="w-5 h-5" />}
                     accentColor="blue"
                 />
@@ -65,6 +67,8 @@ export const KpiDashboard: React.FC = () => {
                     evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
                     secondaryValue={formatNumber(ventesData?.quantite_vendue || 0)}
+                    secondaryEvolutionPercent={ventesData?.quantite_vendue_evolution}
+                    secondaryEvolutionLabel="Evol. Qte"
                     icon={<TrendingUp className="w-5 h-5" />}
                     accentColor="green"
                 />
@@ -78,6 +82,8 @@ export const KpiDashboard: React.FC = () => {
                     evolutionLabel="vs N-1"
                     secondaryLabel="Marge %"
                     secondaryValue={margeData ? `${formatNumber(margeData.marge_percent)}%` : '0%'}
+                    secondaryEvolutionPercent={margeData?.marge_percent_evolution}
+                    secondaryEvolutionLabel="Evol. %"
                     icon={<Percent className="w-5 h-5" />}
                     accentColor="purple"
                 />

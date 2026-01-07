@@ -13,11 +13,20 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
     key: 'achats',
     fetchData: fetchAchatsData,
     calculateEvolutionValue: (data) => data.montant_ttc,
-    formatResponse: (data, evolution_percent) => ({
-      montant_ht: data.montant_ht,
-      montant_ttc: data.montant_ttc,
-      quantite_achetee: data.quantite_achetee,
-      evolution_percent
-    })
+    formatResponse: (data, evolution_percent, comparisonData) => {
+      let quantite_achetee_evolution: number | undefined;
+      
+      if (comparisonData && comparisonData.quantite_achetee > 0) {
+        quantite_achetee_evolution = ((data.quantite_achetee - comparisonData.quantite_achetee) / comparisonData.quantite_achetee) * 100;
+      }
+
+      return {
+        montant_ht: data.montant_ht,
+        montant_ttc: data.montant_ttc,
+        quantite_achetee: data.quantite_achetee,
+        quantite_achetee_evolution,
+        evolution_percent
+      };
+    }
   });
 }

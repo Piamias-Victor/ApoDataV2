@@ -247,6 +247,9 @@ export interface PriceProductAnalysis {
 
     vat_rate: number;
 
+    vat_rate: number;
+    manufacturer_price: number | null;
+
     total_rows: number;
 }
 
@@ -402,6 +405,9 @@ export async function fetchPriceProducts(
             my_margin_rate_evolution: calcEvolution(myMargin, prevMargin),
 
             vat_rate: Number(row.vat_rate) || 5.5, // Default to 5.5 if missing (standard med rate)
+
+            vat_rate: Number(row.vat_rate) || 5.5, // Default to 5.5 if missing (standard med rate)
+            manufacturer_price: row.manufacturer_price ? Number(row.manufacturer_price) : null,
 
             total_rows: Number(row.total_rows) || 0
         };
