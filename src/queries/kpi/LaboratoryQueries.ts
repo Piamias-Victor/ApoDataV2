@@ -159,7 +159,7 @@ export const LaboratoryQueries = {
         -- PDM Purchases
         (ls.my_purchases_ht / NULLIF(gt.my_total_purchases_market, 0)) * 100 as my_pdm_purchases_pct,
 
-        RANK() OVER(ORDER BY ls.my_sales_qty DESC) as my_rank,
+        RANK() OVER(ORDER BY ls.my_sales_ttc DESC) as my_rank,
 
         -- Group Averages
         ls.group_total_sales_ttc / NULLIF(pc_current.count, 0) as group_avg_sales_ttc,
