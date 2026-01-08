@@ -13,7 +13,8 @@ import {
     Building2,
     BarChart2,
     ArrowRight,
-    ShieldCheck
+    ShieldCheck,
+    Handshake
 } from 'lucide-react';
 
 const HUB_MODULES = [
@@ -76,6 +77,16 @@ const HUB_MODULES = [
         lightGradient: 'from-cyan-50 to-sky-100/50',
         textColor: 'text-cyan-600',
         borderColor: 'group-hover:border-cyan-200'
+    },
+    {
+        title: 'Négociation',
+        description: 'Suivi et gestion de vos négociations commerciales.',
+        icon: Handshake,
+        href: '/negociation',
+        gradient: 'from-yellow-500 to-amber-600',
+        lightGradient: 'from-yellow-50 to-amber-100/50',
+        textColor: 'text-yellow-600',
+        borderColor: 'group-hover:border-yellow-200'
     },
     {
         title: 'Comparaison',

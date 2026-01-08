@@ -13,7 +13,8 @@ import {
     Building2,
     PieChart,
     BarChart2,
-    ShieldCheck
+    ShieldCheck,
+    Handshake
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
@@ -86,6 +87,7 @@ export const SideNavBar: React.FC = () => {
         { label: 'Prix', icon: <Tag />, href: '/prix', color: 'orange' },
         { label: 'Analyse Générique', icon: <PieChart />, href: '/analyse-generique', color: 'pink' },
         { label: 'Pharmacies', icon: <Building2 />, href: '/pharmacies', color: 'cyan' },
+        { label: 'Négociation', icon: <Handshake />, href: '/negociation', color: 'yellow' },
         { label: 'Comparaison', icon: <BarChart2 />, href: '/comparaison', color: 'pink' },
     ];
 
