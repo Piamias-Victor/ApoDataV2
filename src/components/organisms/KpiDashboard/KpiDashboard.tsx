@@ -45,9 +45,9 @@ export const KpiDashboard: React.FC = () => {
                 {/* 1. Achats - Real Data */}
                 {/* 1. Achats - Real Data */}
                 <KpiCard
-                    title="Achats TTC"
+                    title="Achats HT"
                     isLoading={achatsLoading}
-                    primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ttc || 0)}
+                    primaryValue={achatsError ? 'Erreur' : formatCurrency(achatsData?.montant_ht || 0)}
                     evolutionPercent={achatsData?.evolution_percent}
                     evolutionLabel="vs N-1"
                     secondaryLabel="Quantité"
