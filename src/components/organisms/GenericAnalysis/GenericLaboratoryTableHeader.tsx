@@ -19,7 +19,7 @@ export const GenericLaboratoryTableHeader: React.FC<Props> = ({ sortBy, sortOrde
     return (
         <thead>
             <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
-                <TableHeaderCell width="250px" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
+                <TableHeaderCell isSticky width="250px" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
 
                 {/* Achats (Purple) */}
                 <TableHeaderCell align="right" variant="purple" className="border-l border-gray-200" {...getSortProps('my_purchases_qty')}>

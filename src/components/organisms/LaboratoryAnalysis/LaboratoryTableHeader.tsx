@@ -18,7 +18,7 @@ export const LaboratoryTableHeader: React.FC<LaboratoryTableHeaderProps> = ({ so
     return (
         <thead>
             <tr className="border-b border-gray-200 bg-gray-50/80 backdrop-blur-sm">
-                <TableHeaderCell width="12rem" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
+                <TableHeaderCell isSticky width="12rem" {...getSortProps('laboratory_name')}>Laboratoire</TableHeaderCell>
                 <TableHeaderCell align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
 
                 {/* Grouped Columns with Sub-headers */}

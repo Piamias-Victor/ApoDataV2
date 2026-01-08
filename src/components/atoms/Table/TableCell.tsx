@@ -32,12 +32,13 @@ const groupHoverStyles: Record<TableCellColor, string> = {
     none: '',
 };
 
-export const TableCell: React.FC<TableCellProps> = ({
+export const TableCell: React.FC<TableCellProps & { isSticky?: boolean }> = ({
     children,
     align = 'left',
     variant = 'none',
     className = '',
     isGroupHover = true,
+    isSticky = false,
 }) => {
     return (
         <td
@@ -48,6 +49,7 @@ export const TableCell: React.FC<TableCellProps> = ({
                 ${colorStyles[variant]}
                 ${isGroupHover ? groupHoverStyles[variant] : ''}
                 ${className}
+                ${isSticky ? 'sticky left-0 z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}
             `}
         >
             {children}

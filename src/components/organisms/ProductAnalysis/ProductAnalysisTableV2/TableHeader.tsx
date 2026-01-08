@@ -18,7 +18,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({ sortBy, sortOrder, onS
     return (
         <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
             <tr>
-                <TableHeaderCell width="18%" {...getSortProps('product_name')}>Produit</TableHeaderCell>
+                <TableHeaderCell isSticky width="18%" {...getSortProps('product_name')}>Produit</TableHeaderCell>
                 <TableHeaderCell width="4%" align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
 
                 {/* Achats - Purple */}

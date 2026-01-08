@@ -23,7 +23,7 @@ export const ProductTableRow: React.FC<ProductTableRowProps> = ({ row }) => {
             onClick={handleClick}
             className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
         >
-            <TableCell>
+            <TableCell isSticky>
                 <div className="flex flex-col">
                     <span className="truncate w-full max-w-[200px] text-xs font-medium text-gray-900" title={row.product_name}>{row.product_name}</span>
                     <div className="flex items-center gap-2 mt-0.5">

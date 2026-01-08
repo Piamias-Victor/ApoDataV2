@@ -19,7 +19,7 @@ export const GenericProductTableRow: React.FC<TableRowProps> = ({ row }) => {
             className="hover:bg-purple-50/30 transition-colors group border-b border-gray-50 last:border-0 cursor-pointer"
         >
             {/* Product Info (Merged: Labo + Produit + EAN) */}
-            <TableCell>
+            <TableCell isSticky>
                 <div className="flex flex-col max-w-[220px]">
                     <span className="font-medium text-gray-900 truncate text-xs block" title={row.product_name}>
                         {row.product_name}

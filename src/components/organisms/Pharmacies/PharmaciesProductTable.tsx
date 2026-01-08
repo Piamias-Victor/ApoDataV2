@@ -103,7 +103,7 @@ export const PharmaciesProductTable: React.FC = () => {
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
                                         {/* PRODUIT (Combined: Name, EAN, Labo) */}
-                                        <TableHeaderCell width="30%" {...getSortProps('product_name')}>Produit</TableHeaderCell>
+                                        <TableHeaderCell isSticky width="30%" {...getSortProps('product_name')}>Produit</TableHeaderCell>
 
                                         {/* RANG */}
                                         <TableHeaderCell width="4%" align="center" {...getSortProps('my_rank')}>Rang</TableHeaderCell>
@@ -153,7 +153,7 @@ export const PharmaciesProductTable: React.FC = () => {
                                                 >
 
                                                     {/* Produit Info (Combined) */}
-                                                    <TableCell>
+                                                    <TableCell isSticky>
                                                         <div className="flex flex-col max-w-[280px]">
                                                             <span className="font-medium text-gray-900 text-xs truncate block" title={row.product_name}>
                                                                 {row.product_name}

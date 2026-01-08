@@ -24,7 +24,7 @@ export const GenericLaboratoryTableRow: React.FC<Props> = ({ row }) => {
             className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
             onClick={handleClick}
         >
-            <TableCell>
+            <TableCell isSticky>
                 <div className="flex items-center">
                     <span className="font-medium text-gray-900">{row.laboratory_name}</span>
                 </div>

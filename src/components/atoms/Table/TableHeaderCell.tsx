@@ -22,7 +22,7 @@ const colorStyles: Record<TableHeaderColor, string> = {
 
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
-export const TableHeaderCell: React.FC<TableHeaderCellProps & { isSortable?: boolean; sortDirection?: 'asc' | 'desc' | null; onSort?: () => void }> = ({
+export const TableHeaderCell: React.FC<TableHeaderCellProps & { isSortable?: boolean; sortDirection?: 'asc' | 'desc' | null; onSort?: () => void; isSticky?: boolean }> = ({
     children,
     align = 'left',
     variant = 'gray',
@@ -30,7 +30,8 @@ export const TableHeaderCell: React.FC<TableHeaderCellProps & { isSortable?: boo
     width,
     isSortable = false,
     sortDirection = null,
-    onSort
+    onSort,
+    isSticky = false
 }) => {
     return (
         <th
@@ -42,8 +43,9 @@ export const TableHeaderCell: React.FC<TableHeaderCellProps & { isSortable?: boo
                 ${colorStyles[variant]}
                 ${className}
                 ${isSortable ? 'cursor-pointer hover:bg-opacity-50 transition-colors select-none' : ''}
+                ${isSticky ? 'sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}
             `}
-            style={{ width }}
+            style={{ width, backgroundColor: isSticky ? '#f9fafb' : undefined }} // bg-gray-50 hex equivalent
             onClick={isSortable ? onSort : undefined}
         >
             <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>

@@ -23,7 +23,7 @@ export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({ row }) =
             onClick={handleClick}
             className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
         >
-            <TableCell>
+            <TableCell isSticky>
                 <span className="font-medium text-gray-900 text-xs truncate block max-w-[200px]" title={row.laboratory_name}>
                     {row.laboratory_name}
                 </span>
