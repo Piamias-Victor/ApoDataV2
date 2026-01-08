@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest) {
                 u.name,
                 u.role,
                 u.created_at,
+                u.pharmacy_id,
                 p.name as pharmacy_name
             FROM data_user u
             LEFT JOIN data_pharmacy p ON u.pharmacy_id = p.id
