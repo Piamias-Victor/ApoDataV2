@@ -7,6 +7,7 @@ import { GroupSelector } from '@/components/molecules/GroupSelector/GroupSelecto
 import { KpiDashboard } from '@/components/organisms/KpiDashboard/KpiDashboard';
 import { SupplierAnalysisTable } from '@/components/organisms/GenericAnalysis/SupplierAnalysisTable';
 import { GenericProductTable } from '@/components/organisms/GenericAnalysis/GenericProductTable';
+import { AlertTriangle } from 'lucide-react';
 
 export default function GenericAnalysisPage() {
     return (
@@ -44,6 +45,21 @@ export default function GenericAnalysisPage() {
                         <p className="text-gray-600">
                             Analysez la performance de vos lancements génériques.
                         </p>
+                    </div>
+
+                    {/* Warning Message */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                             <AlertTriangle size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-amber-900 text-sm">Précision importante</h3>
+                            <p className="text-amber-700 text-sm mt-1">
+                                Pour obtenir des résultats pertinents sur cette page, assurez-vous que les filtres sélectionnés correspondent bien à des génériques :<br/>
+                                • Filtre <strong>Laboratoire</strong> ou <strong>Produit</strong><br/>
+                                • Ou Filtre <strong>Produit {'>'} Par Type {'>'} Générique / Princeps</strong>
+                            </p>
+                        </div>
                     </div>
 
                     {/* Group Selector Section */}
