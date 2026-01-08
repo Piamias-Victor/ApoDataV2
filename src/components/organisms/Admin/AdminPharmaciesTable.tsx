@@ -24,9 +24,22 @@ export const AdminPharmaciesTable: React.FC = () => {
 
     // State for Editing
     const [editingPharmacy, setEditingPharmacy] = useState<any | null>(null);
+    const [usersMap, setUsersMap] = useState<Record<string, string[]>>({});
 
     // Use existing hook as it now provides City/Region
     const { data: rawData, isLoading, isFetching } = usePharmaciesAnalysis();
+
+    useEffect(() => {
+        // Fetch users map
+        fetch('/api/admin/pharmacies/users-map')
+            .then(res => res.json())
+            .then(data => {
+                if (data.usersByPharmacy) {
+                    setUsersMap(data.usersByPharmacy);
+                }
+            })
+            .catch(err => console.error('Error loading users map', err));
+    }, []);
 
     const safeData = useMemo(() => rawData || [], [rawData]);
 
@@ -104,17 +117,18 @@ export const AdminPharmaciesTable: React.FC = () => {
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50 border-b border-gray-100">
                                     <tr>
-                                        <TableHeaderCell width="25%" {...getSortProps('pharmacy_name')}>Pharmacie</TableHeaderCell>
-                                        <TableHeaderCell width="20%" {...getSortProps('pharmacy_city')}>Ville</TableHeaderCell>
-                                        <TableHeaderCell width="20%" {...getSortProps('pharmacy_region')}>Région</TableHeaderCell>
+                                        <TableHeaderCell width="20%" {...getSortProps('pharmacy_name')}>Pharmacie</TableHeaderCell>
+                                        <TableHeaderCell width="15%" {...getSortProps('pharmacy_city')}>Ville</TableHeaderCell>
+                                        <TableHeaderCell width="15%" {...getSortProps('pharmacy_region')}>Région</TableHeaderCell>
+                                        <TableHeaderCell width="20%">Utilisateurs</TableHeaderCell>
                                         <TableHeaderCell align="right" width="15%" {...getSortProps('sales_ttc')}>CA Total (TTC)</TableHeaderCell>
-                                        <TableHeaderCell align="center" width="20%">Actions</TableHeaderCell>
+                                        <TableHeaderCell align="center" width="15%">Actions</TableHeaderCell>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {paginatedData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="p-12 text-center text-gray-500">
+                                            <td colSpan={6} className="p-12 text-center text-gray-500">
                                                 Aucune pharmacie trouvée.
                                             </td>
                                         </tr>
@@ -129,6 +143,19 @@ export const AdminPharmaciesTable: React.FC = () => {
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className="text-gray-600">{row.pharmacy_region || '-'}</span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {(usersMap[row.pharmacy_id] || []).length > 0 ? (
+                                                            (usersMap[row.pharmacy_id] || []).map((user, i) => (
+                                                                <span key={i} className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                                    {user}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400 italic">Aucun</span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell align="right">
                                                     <ValueCell value={row.sales_ttc} isCurrency textSize="text-sm" />

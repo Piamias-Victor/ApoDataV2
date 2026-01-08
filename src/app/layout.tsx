@@ -3,6 +3,7 @@ import "./globals.css";
 
 import { Providers } from "@/providers/Providers";
 import { QueryProvider } from "@/lib/providers/QueryProvider";
+import { Toaster } from "sonner";
 
 import { SideNavBar } from "@/components/organisms/SideNavBar/SideNavBar";
 
@@ -23,6 +24,7 @@ export default function RootLayout({
                     <Providers>
                         <SideNavBar />
                         {children}
+                        <Toaster richColors position="bottom-right" />
                     </Providers>
                 </QueryProvider>
             </body>

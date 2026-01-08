@@ -1,18 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, Plus, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Plus, ArrowLeft, Building2, Users } from 'lucide-react';
 import { AdminPharmaciesTable } from '@/components/organisms/Admin/AdminPharmaciesTable';
+import { AdminUsersTable } from '@/components/organisms/Admin/AdminUsersTable';
 import { FilterBar } from '@/components/organisms/FilterBar/FilterBar';
 import { RegisterUserModal } from '@/components/organisms/Admin/RegisterUserModal';
+
+type Tab = 'pharmacies' | 'users';
 
 export default function AdminPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const [isModalOpen, setIsModalOpen] = React.useState(false);
+    const [activeTab, setActiveTab] = useState<Tab>('pharmacies');
 
     const firstName = session?.user?.name?.split(' ')[0] || 'Utilisateur';
 
@@ -30,11 +34,11 @@ export default function AdminPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
-            {/* Header Section like Hub */}
+            {/* Header Section */}
             <div className="relative bg-white pt-10 pb-20 px-8 rounded-b-[3rem] shadow-sm border-b border-gray-100 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-b from-red-50/50 to-transparent pointer-events-none" />
 
-                {/* Back Button - Absolute Positioned */}
+                {/* Back Button */}
                 <div className="absolute top-8 left-8 z-20">
                     <Link
                         href="/hub"
@@ -65,10 +69,36 @@ export default function AdminPage() {
             </div>
 
             <main className="max-w-[1400px] mx-auto px-12 -mt-5 relative z-10 pb-20 space-y-8">
+                {/* Tabs */}
+                <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-200">
+                    <button
+                        onClick={() => setActiveTab('pharmacies')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${
+                            activeTab === 'pharmacies'
+                                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg'
+                                : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        <Building2 className="w-4 h-4" />
+                        Pharmacies
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('users')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all ${
+                            activeTab === 'users'
+                                ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg'
+                                : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        <Users className="w-4 h-4" />
+                        Utilisateurs
+                    </button>
+                </div>
+
                 {/* Action Bar */}
                 <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        Liste des Pharmacies
+                        {activeTab === 'pharmacies' ? 'Liste des Pharmacies' : 'Liste des Utilisateurs'}
                         <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">Admin</span>
                     </h2>
                     <button
@@ -82,8 +112,12 @@ export default function AdminPage() {
                     </button>
                 </div>
 
-                {/* Pharmacies Management */}
-                <AdminPharmaciesTable />
+                {/* Content */}
+                {activeTab === 'pharmacies' ? (
+                    <AdminPharmaciesTable />
+                ) : (
+                    <AdminUsersTable />
+                )}
             </main>
 
             {/* Modals */}
