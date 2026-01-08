@@ -2,17 +2,19 @@ import React from 'react';
 import { LaboratoryAnalysisRow } from '@/types/kpi';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ComparisonCell } from '@/components/molecules/Table/ComparisonCell';
+import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
 interface LaboratoryTableRowProps {
     row: LaboratoryAnalysisRow;
+    customRank?: number | undefined; 
 }
 
-import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
-
-export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({ row }) => {
+export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({ row, customRank }) => {
     const { handleInteraction } = useChartFilterInteraction({
         filterType: 'laboratory'
     });
+
+    const displayRank = customRank ?? row.my_rank;
 
     const handleClick = (e: React.MouseEvent) => {
         handleInteraction({ name: row.laboratory_name, id: row.laboratory_name }, e);
@@ -32,8 +34,8 @@ export const LaboratoryTableRow: React.FC<LaboratoryTableRowProps> = ({ row }) =
             {/* Rank */}
             <TableCell align="center">
                 <div className="flex flex-col items-center">
-                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
-                        #{row.my_rank}
+                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-[11px] font-bold ${displayRank <= 10 ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
+                        #{displayRank}
                     </span>
                     <span className="text-[10px] text-gray-400 mt-1">Grp: #{row.group_rank}</span>
                 </div>

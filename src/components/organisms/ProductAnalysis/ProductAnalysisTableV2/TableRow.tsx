@@ -6,12 +6,15 @@ import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 
 interface TableRowProps {
     row: ProductAnalysisRow;
+    customRank?: number | undefined;
 }
 
-export const TableRow: React.FC<TableRowProps> = ({ row }) => {
+export const TableRow: React.FC<TableRowProps> = ({ row, customRank }) => {
     const { handleInteraction } = useChartFilterInteraction({
         filterType: 'product'
     });
+
+    const displayRank = customRank ?? row.my_rank;
 
     return (
         <tr
@@ -37,8 +40,8 @@ export const TableRow: React.FC<TableRowProps> = ({ row }) => {
 
             {/* Rank */}
             <TableCell align="center">
-                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
-                    #{row.my_rank}
+                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${displayRank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-500'}`}>
+                    #{displayRank}
                 </span>
             </TableCell>
 

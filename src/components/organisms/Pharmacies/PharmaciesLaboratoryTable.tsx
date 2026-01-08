@@ -14,12 +14,15 @@ import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
+import { useCalculatedRank } from '@/hooks/useCalculatedRank';
+import { RankSelector } from '@/components/molecules/Table/RankSelector';
 
 export const PharmaciesLaboratoryTable: React.FC = () => {
 
     // State
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
+    const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
     const pageSize = 10;
 
     const { data: rawData, isLoading, isFetching } = useLaboratoryAnalysis();
@@ -34,6 +37,9 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
             row.laboratory_name.toLowerCase().includes(search.toLowerCase())
         );
     }, [safeData, search]);
+
+    // Calculate dynamic ranks
+    const rankMap = useCalculatedRank(filteredData, rankBasis as any, (item: any) => item.laboratory_name);
 
     // Sorting Logic
     const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
@@ -84,20 +90,36 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un laboratoire..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
-                        value={search}
-                        onChange={handleSearch}
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Rank Selector */}
+                    {/* Rank Selector */}
+                    <RankSelector
+                        value={rankBasis}
+                        onChange={setRankBasis}
+                        options={[
+                            { value: 'my_sales_ttc', label: 'CA Vente TTC' },
+                            { value: 'my_sales_qty', label: 'Vol. Vente' },
+                            { value: 'my_margin_rate', label: 'Marge %' },
+                            { value: 'my_pdm_pct', label: 'Part de Marché' },
+                            { value: 'my_purchases_ht', label: 'Vol. Achat €' },
+                        ]}
                     />
-                    {isFetching && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-                        </div>
-                    )}
+
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un laboratoire..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                        {isFetching && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -157,6 +179,7 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
                                         </tr>
                                     ) : (
                                         paginatedData.map((row, idx) => {
+                                            const displayRank = rankMap.get(row.laboratory_name) ?? row.my_rank;
                                             return (
                                                 <tr key={idx}
                                                     onClick={(e) => handleInteraction({ id: row.laboratory_name, name: row.laboratory_name }, e)}
@@ -174,8 +197,8 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
 
                                                     {/* Rank - Bubble Style */}
                                                     <TableCell align="center">
-                                                        <span className={`inline-flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-full text-[11px] font-bold ${row.my_rank <= 3 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600 border border-gray-100'}`}>
-                                                            #{row.my_rank}
+                                                        <span className={`inline-flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-full text-[11px] font-bold ${displayRank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600 border border-gray-100'}`}>
+                                                            #{displayRank}
                                                         </span>
                                                     </TableCell>
 

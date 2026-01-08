@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { useProductAnalysis } from './hooks/useProductAnalysis';
 import {
     ArrowUp,
@@ -12,6 +13,7 @@ import {
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { RankSelector } from '@/components/molecules/Table/RankSelector';
 
 // --- Internal Helper Components to match Dashboard Design ---
 
@@ -74,9 +76,15 @@ export const ProductAnalysisTable: React.FC = () => {
         handleSort
     } = useProductAnalysis(itemsPerPage);
 
+    // Default rank basis: Sales
+    const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
+
     const resultData = result?.data || [];
     const totalItems = result?.total || 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Calculate dynamic ranks on current page data
+    const rankMap = useCalculatedRank(resultData, rankBasis as any, (item: any) => item.ean13);
 
     // Reset page on search change is already handled in the hook or parent component,
     // but just to be safe if useProductAnalysis doesn't do it automatically on external state change
@@ -92,6 +100,14 @@ export const ProductAnalysisTable: React.FC = () => {
         onSort: () => handleSort(column)
     });
 
+    const rankOptions = [
+        { value: 'my_sales_ttc', label: 'CA Vente TTC' },
+        { value: 'my_sales_qty', label: 'Vol. Vente' },
+        { value: 'my_margin_rate', label: 'Marge %' },
+        { value: 'my_margin_ht', label: 'Marge €' },
+        { value: 'my_stock_value_ht', label: 'Stock €' },
+    ];
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -106,20 +122,29 @@ export const ProductAnalysisTable: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un produit ou EAN..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
-                        value={search}
-                        onChange={handleSearch}
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Rank Selector */}
+                    <RankSelector
+                        value={rankBasis}
+                        onChange={setRankBasis}
+                        options={rankOptions}
                     />
-                    {isLoading && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-                        </div>
-                    )}
+
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un produit ou EAN..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                        {isLoading && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -182,7 +207,9 @@ export const ProductAnalysisTable: React.FC = () => {
                                             </td>
                                         </tr>
                                     ) : (
-                                        resultData.map((row) => (
+                                        resultData.map((row) => {
+                                            const displayRank = rankMap.get(row.ean13) ?? row.my_rank;
+                                            return (
                                             <tr key={row.ean13} className="hover:bg-purple-50/30 transition-colors group">
                                                 {/* Product Info */}
                                                 <TableCell>
@@ -204,8 +231,8 @@ export const ProductAnalysisTable: React.FC = () => {
                                                 {/* Rank */}
                                                 <TableCell align="center">
                                                     <div className="flex flex-col items-center">
-                                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
-                                                            #{row.my_rank}
+                                                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-bold ${displayRank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
+                                                            #{displayRank}
                                                         </span>
                                                     </div>
                                                 </TableCell>
@@ -275,7 +302,8 @@ export const ProductAnalysisTable: React.FC = () => {
                                                     </span>
                                                 </TableCell>
                                             </tr>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>

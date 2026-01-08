@@ -5,11 +5,15 @@ import { LaboratoryTableHeader } from './LaboratoryTableHeader';
 import { LaboratoryTableRow } from './LaboratoryTableRow';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { useCalculatedRank } from '@/hooks/useCalculatedRank';
+import { LaboratoryAnalysisRow } from '@/types/kpi';
+import { RankSelector } from '@/components/molecules/Table/RankSelector';
 
 export const LaboratoryAnalysisTable = () => {
     const { data, isLoading } = useLaboratoryAnalysis();
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [rankBasis, setRankBasis] = useState<keyof LaboratoryAnalysisRow>('my_sales_ttc');
     const itemsPerPage = 10;
 
     const filteredData = useMemo(() => {
@@ -18,6 +22,10 @@ export const LaboratoryAnalysisTable = () => {
             row.laboratory_name.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [data, searchTerm]);
+
+    // Calculate dynamic ranks based on the filtered dataset (but BEFORE sorting for display)
+    // We want the rank mainly to be consistent across the whole filtered set
+    const rankMap = useCalculatedRank(filteredData, rankBasis, (item) => item.laboratory_name);
 
     const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
         data: filteredData,
@@ -35,6 +43,14 @@ export const LaboratoryAnalysisTable = () => {
         setCurrentPage(1);
     };
 
+    const rankOptions = [
+        { value: 'my_sales_ttc', label: 'CA Vente TTC' },
+        { value: 'my_sales_qty', label: 'Vol. Vente' },
+        { value: 'my_margin_rate', label: 'Marge %' },
+        { value: 'my_pdm_pct', label: 'Part de Marché' },
+        { value: 'my_purchases_ht', label: 'Vol. Achat €' },
+    ];
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section - Always Visible */}
@@ -45,21 +61,27 @@ export const LaboratoryAnalysisTable = () => {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Comparaison détaillée de vos performances vs la moyenne du groupement.
-                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                            Astuce : Ctrl/Cmd + Clic pour filtrer
-                        </span>
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un laboratoire..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
-                        value={searchTerm}
-                        onChange={handleSearch}
-                    />
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Rank Selector */}
+                    <RankSelector
+                        value={rankBasis}
+                        onChange={(val) => setRankBasis(val as keyof LaboratoryAnalysisRow)}
+                        options={rankOptions}
+                    /> 
+                    
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un laboratoire..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
+                            value={searchTerm}
+                            onChange={handleSearch}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -82,7 +104,11 @@ export const LaboratoryAnalysisTable = () => {
                                 />
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.map((row) => (
-                                        <LaboratoryTableRow key={row.laboratory_name} row={row} />
+                                        <LaboratoryTableRow 
+                                            key={row.laboratory_name} 
+                                            row={row} 
+                                            customRank={rankMap.get(row.laboratory_name)}
+                                        />
                                     ))}
                                 </tbody>
                             </table>

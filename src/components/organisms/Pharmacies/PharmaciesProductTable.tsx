@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { useProductAnalysis } from '@/components/organisms/ProductAnalysis/hooks/useProductAnalysis';
 import {
     Loader2,
@@ -17,6 +18,8 @@ import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 // but we want checking if it exposes `setPage`, `handleSort` etc.
 // Based on `ProductAnalysisTableV2`, it returns { data, isLoading, page, setPage, search, setSearch, sortBy, sortOrder, handleSort }
 
+import { RankSelector } from '@/components/molecules/Table/RankSelector';
+
 export const PharmaciesProductTable: React.FC = () => {
 
     const {
@@ -31,12 +34,18 @@ export const PharmaciesProductTable: React.FC = () => {
         handleSort
     } = useProductAnalysis();
 
+    // Default rank basis: Sales (can be changed by user)
+    const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
+
     // We treat 'undefined' data as loading state if strict needed, 
     // but hook usually keeps old data
     const resultData = result?.data || [];
     const totalItems = result?.total || 0;
     const itemsPerPage = 20; // Default in hook
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    // Calculate dynamic ranks on current page data
+    const rankMap = useCalculatedRank(resultData, rankBasis as any, (item: any) => item.ean13);
 
     const { handleInteraction } = useChartFilterInteraction({
         filterType: 'product'
@@ -71,20 +80,35 @@ export const PharmaciesProductTable: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un produit, EAN ou Labo..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
-                        value={search}
-                        onChange={handleSearch}
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Rank Selector */}
+                    <RankSelector
+                        value={rankBasis}
+                        onChange={setRankBasis}
+                        options={[
+                            { value: 'my_sales_ttc', label: 'CA Vente TTC' },
+                            { value: 'my_sales_qty', label: 'Vol. Vente' },
+                            { value: 'my_margin_rate', label: 'Marge %' },
+                            { value: 'my_margin_ht', label: 'Marge €' },
+                            { value: 'my_stock_value_ht', label: 'Stock €' },
+                        ]}
                     />
-                    {isLoadingData && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-                        </div>
-                    )}
+
+                    <div className="relative w-full sm:w-auto">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un produit, EAN ou Labo..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                        {isLoadingData && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -146,6 +170,7 @@ export const PharmaciesProductTable: React.FC = () => {
                                         </tr>
                                     ) : (
                                         resultData.map((row, idx) => {
+                                            const displayRank = rankMap.get(row.ean13) ?? row.my_rank;
                                             return (
                                                 <tr key={row.ean13 || idx}
                                                     onClick={(e) => handleInteraction({ id: row.ean13, name: row.product_name }, e)}
@@ -171,8 +196,8 @@ export const PharmaciesProductTable: React.FC = () => {
 
                                                     {/* Rank - Bubble Style */}
                                                     <TableCell align="center">
-                                                        <span className={`inline-flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-full text-[11px] font-bold ${row.my_rank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600 border border-gray-100'}`}>
-                                                            #{row.my_rank}
+                                                        <span className={`inline-flex items-center justify-center w-7 h-7 flex-shrink-0 rounded-full text-[11px] font-bold ${displayRank <= 10 ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700 shadow-sm' : 'bg-gray-100 text-gray-600 border border-gray-100'}`}>
+                                                            #{displayRank}
                                                         </span>
                                                     </TableCell>
 
