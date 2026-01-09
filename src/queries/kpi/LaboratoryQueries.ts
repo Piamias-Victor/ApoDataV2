@@ -40,6 +40,7 @@ export const LaboratoryQueries = {
             ) mv
             LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
+            AND COALESCE(mv.laboratory_name, '') NOT ILIKE '%Non défini%'
             ${conditions}
             GROUP BY 1
         ),
@@ -66,6 +67,7 @@ export const LaboratoryQueries = {
             ) mv
             LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
+            AND COALESCE(mv.laboratory_name, '') NOT ILIKE '%Non défini%'
             ${conditions}
             GROUP BY 1
         ),
@@ -113,6 +115,10 @@ export const LaboratoryQueries = {
                 OR (mv.month >= $3::date AND mv.month <= $4::date)
             )
             AND mv.ean13 != 'NO-EAN'
+            AND mv.laboratory_name IS NOT NULL 
+            AND TRIM(mv.laboratory_name) != '' 
+            AND TRIM(mv.laboratory_name) NOT ILIKE 'Non défini'
+            AND mv.laboratory_name NOT ILIKE '%Non défini%'
             ${conditions}
             ${searchCondition}
             GROUP BY 1
