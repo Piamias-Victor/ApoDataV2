@@ -8,7 +8,8 @@ export const ProductQueries = {
         offsetIdx: number,
         orderByClause: string = 'ORDER BY sales_qty DESC',
         finalOrderByClause: string = 'ORDER BY sales_qty DESC',
-        genericStatusFilter?: string
+        genericStatusFilter?: string,
+        productTypeFilter?: string
     ) => `
         WITH 
         last_stock AS (
@@ -86,6 +87,7 @@ export const ProductQueries = {
             AND ($5::uuid IS NULL OR true)
             AND mv.ean13 != 'NO-EAN'
             ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}
+            ${productTypeFilter ? `AND ${productTypeFilter}` : ''}
             ${conditions}
             ${searchCondition}
             GROUP BY mv.ean13
@@ -219,7 +221,8 @@ export const ProductQueries = {
         offsetIdx: number,
         orderByClause: string = 'ORDER BY my_sales_qty DESC',
         finalOrderByClause: string = 'ORDER BY my_sales_qty DESC',
-        genericStatusFilter?: string
+        genericStatusFilter?: string,
+        productTypeFilter?: string
     ) => `
         WITH 
         pharmacy_counts AS (
@@ -303,6 +306,7 @@ export const ProductQueries = {
               AND ((mv.month >= $1::date AND mv.month <= $2::date) OR (mv.month >= $3::date AND mv.month <= $4::date))
               AND mv.ean13 != 'NO-EAN'
               ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}
+              ${productTypeFilter ? `AND ${productTypeFilter}` : ''}
               ${conditions}
               ${searchCondition}
             GROUP BY mv.ean13

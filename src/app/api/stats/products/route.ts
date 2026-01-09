@@ -23,7 +23,15 @@ export async function POST(req: Request) {
             ? "gp.bcb_generic_status IN ('GÉNÉRIQUE', 'RÉFÉRENT')"
             : undefined;
 
-        const result = await getProductAnalysis(kpiRequest, pageNumber, pageSize, search, sortBy, sortOrder, genericStatusFilter);
+        // Create product type filter
+        let productTypeFilter: string | undefined;
+        if (kpiRequest.productType === 'MEDICAMENT') {
+            productTypeFilter = "mv.ean13 LIKE '34009%'";
+        } else if (kpiRequest.productType === 'PARAPHARMACIE') {
+            productTypeFilter = "mv.ean13 NOT LIKE '34009%'";
+        }
+
+        const result = await getProductAnalysis(kpiRequest, pageNumber, pageSize, search, sortBy, sortOrder, genericStatusFilter, productTypeFilter);
 
         return NextResponse.json(result);
     } catch (error) {

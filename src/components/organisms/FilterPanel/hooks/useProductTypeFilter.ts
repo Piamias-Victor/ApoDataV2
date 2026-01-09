@@ -7,6 +7,7 @@ export const useProductTypeFilter = () => {
     const [selectedTvaRates, setSelectedTvaRates] = useState<number[]>([]);
     const [reimbursementStatus, setReimbursementStatus] = useState<'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED'>('ALL');
     const [isGeneric, setIsGeneric] = useState<'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS'>('ALL');
+    const [productType, setProductType] = useState<'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE'>('ALL');
 
     // Sync with global store on mount/update
     useEffect(() => {
@@ -14,6 +15,7 @@ export const useProductTypeFilter = () => {
             setSelectedTvaRates(settings.tvaRates);
             setReimbursementStatus(settings.reimbursementStatus);
             setIsGeneric(settings.isGeneric);
+            setProductType(settings.productType);
         }
     }, [settings]);
 
@@ -33,6 +35,8 @@ export const useProductTypeFilter = () => {
         reimbursementStatus,
         handleToggleReimbursement, // Exposed as is because it's just a setter wrapper in original code
         isGeneric,
-        setIsGeneric
+        setIsGeneric,
+        productType,
+        setProductType
     };
 };

@@ -24,6 +24,7 @@ export interface AchatsKpiRequest {
     tvaRates?: number[];
     reimbursementStatus?: 'ALL' | 'REIMBURSED' | 'NOT_REIMBURSED';
     isGeneric?: 'ALL' | 'PRINCEPS_GENERIC' | 'GENERIC' | 'PRINCEPS';
+    productType?: 'ALL' | 'MEDICAMENT' | 'PARAPHARMACIE';
     purchasePriceNetRange?: { min: number; max: number };
     purchasePriceGrossRange?: { min: number; max: number };
     sellPriceRange?: { min: number; max: number };

@@ -11,6 +11,7 @@ import { ReimbursementFilterSection } from './components/ReimbursementFilterSect
 import { ProductNameTabContent } from './components/products/ProductNameTabContent';
 
 import { GenericFilterSection } from './components/GenericFilterSection';
+import { ProductTypeFilterSection } from './components/ProductTypeFilterSection';
 import { ProductPriceTabContent } from './components/products/ProductPriceTabContent';
 
 interface ProductsFilterPanelProps { onClose?: () => void; }
@@ -26,6 +27,7 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
         selectedTvaRates, handleToggleTva,
         reimbursementStatus, handleToggleReimbursement,
         isGeneric, setIsGeneric,
+        productType, setProductType,
         purchasePriceNetRange, setPurchasePriceNetRange,
         purchasePriceGrossRange, setPurchasePriceGrossRange,
         sellPriceRange, setSellPriceRange,
@@ -66,6 +68,10 @@ export const ProductsFilterPanel: React.FC<ProductsFilterPanelProps> = ({ onClos
                     />
                 ) : activeTab === 'type' ? (
                     <div className="py-2 divide-y divide-gray-100">
+                        <ProductTypeFilterSection
+                            productType={productType}
+                            onToggle={setProductType}
+                        />
                         <TvaFilterSection
                             selectedTvaRates={selectedTvaRates}
                             onToggleTva={handleToggleTva}

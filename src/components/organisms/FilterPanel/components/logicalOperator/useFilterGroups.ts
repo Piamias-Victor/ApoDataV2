@@ -89,6 +89,20 @@ export const useFilterGroups = () => {
             });
         }
 
+        if (settings.productType !== 'ALL') {
+            let name = '💊 Type';
+            if (settings.productType === 'MEDICAMENT') name = '💊 Médicament';
+            if (settings.productType === 'PARAPHARMACIE') name = '🧴 Parapharmacie';
+
+            groups.push({
+                type: 'productType',
+                id: 'product-type-group',
+                name,
+                count: 1,
+                icon: settings.productType === 'MEDICAMENT' ? '💊' : '🧴'
+            });
+        }
+
         // Count price ranges
         let priceRangeCount = 0;
         if (settings.purchasePriceNetRange &&

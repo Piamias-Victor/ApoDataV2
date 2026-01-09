@@ -32,6 +32,7 @@ export const useKpiRequest = (): AchatsKpiRequest => {
         filterOperators: store.filterOperators,
         reimbursementStatus: store.settings.reimbursementStatus,
         isGeneric: store.settings.isGeneric,
+        productType: store.settings.productType,
         tvaRates: store.settings.tvaRates,
         groups: store.groups.map(g => g.name),
 

@@ -14,6 +14,7 @@ export const useProductFilter = (onClose?: () => void) => {
         setTvaRates: setStoredTvaRates,
         setReimbursementStatus: setStoredReimbursementStatus,
         setIsGeneric: setStoredIsGeneric,
+        setProductType: setStoredProductType,
         setPurchasePriceNetRange: setStoredPurchasePriceNetRange,
         setPurchasePriceGrossRange: setStoredPurchasePriceGrossRange,
         setSellPriceRange: setStoredSellPriceRange,
@@ -43,6 +44,7 @@ export const useProductFilter = (onClose?: () => void) => {
         setStoredTvaRates(typeFilter.selectedTvaRates);
         setStoredReimbursementStatus(typeFilter.reimbursementStatus);
         setStoredIsGeneric(typeFilter.isGeneric);
+        setStoredProductType(typeFilter.productType);
 
         // C. Save Price Ranges
         setStoredPurchasePriceNetRange({
@@ -75,6 +77,7 @@ export const useProductFilter = (onClose?: () => void) => {
         setStoredTvaRates,
         setStoredReimbursementStatus,
         setStoredIsGeneric,
+        setStoredProductType,
         setStoredPurchasePriceNetRange,
         setStoredPurchasePriceGrossRange,
         setStoredSellPriceRange,
