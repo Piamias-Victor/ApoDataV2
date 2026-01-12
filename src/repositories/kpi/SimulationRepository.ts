@@ -57,13 +57,27 @@ export class SimulationRepository {
 
             const result = await db.query(queryText, queryParams);
 
-            return result.rows[0] || {
-                realized_sales_ttc: 0,
-                realized_purchases_ht: 0,
-                prev_total_sales_ttc: 0,
-                prev_total_purchases_ht: 0,
-                prev_remaining_sales_ttc: 0,
-                prev_remaining_purchases_ht: 0
+            const row = result.rows[0];
+
+            if (!row) {
+                return {
+                    realized_sales_ttc: 0,
+                    realized_purchases_ht: 0,
+                    prev_total_sales_ttc: 0,
+                    prev_total_purchases_ht: 0,
+                    prev_remaining_sales_ttc: 0,
+                    prev_remaining_purchases_ht: 0
+                };
+            }
+
+            // Fix: Parse PostgreSQL strings to numbers to avoid string concatenation in frontend
+            return {
+                realized_sales_ttc: Number(row.realized_sales_ttc),
+                realized_purchases_ht: Number(row.realized_purchases_ht),
+                prev_total_sales_ttc: Number(row.prev_total_sales_ttc),
+                prev_total_purchases_ht: Number(row.prev_total_purchases_ht),
+                prev_remaining_sales_ttc: Number(row.prev_remaining_sales_ttc),
+                prev_remaining_purchases_ht: Number(row.prev_remaining_purchases_ht)
             };
         } catch (error) {
             console.error('Error fetching simulation stats:', error);
