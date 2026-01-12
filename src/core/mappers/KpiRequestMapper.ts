@@ -35,13 +35,22 @@ export class KpiRequestMapper {
         const end = endDate ? new Date(endDate) : new Date();
 
         return {
-            dateRange: { start, end },
+            dateRange: { start: start.toISOString(), end: end.toISOString() },
             pharmacyIds: filters.pharmacies?.map((p: any) => p.id) || [],
             productCodes: filters.products?.map((p: any) => p.ean13 || p.code_13_ref) || [],
             laboratories: filters.laboratories?.map((l: any) => l.name) || [],
             categories: filters.categories?.map((c: any) => c) || [],
             groups: filters.groups?.map((g: any) => g.id) || [],
-            settings: filters.settings || {},
+            tvaRates: filters.settings?.tvaRates,
+            reimbursementStatus: filters.settings?.reimbursementStatus,
+            isGeneric: filters.settings?.isGeneric,
+            productType: filters.settings?.productType,
+            purchasePriceNetRange: filters.settings?.priceRange, // Using priceRange as purchasePriceNetRange often maps to it or generic price
+            // Note: Check if filters.settings has distinct ranges. Usually it has 'priceRange' which might map to one of them.
+            // Let's assume standard mapping or keep it simple for now. 
+            // Better: Spread settings if we trust content, but explicit is safer.
+            // Let's use spread with a cast or just mapped fields.
+            ...filters.settings,
             excludedProductCodes: filters.excludedProducts?.map((p: any) => p.ean13) || [],
             excludedLaboratories: filters.excludedLaboratories?.map((l: any) => l.name) || [],
             excludedCategories: filters.excludedCategories || [],
