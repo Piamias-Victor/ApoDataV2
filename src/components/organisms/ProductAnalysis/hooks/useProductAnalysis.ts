@@ -1,10 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
-import { ProductAnalysisRow } from '@/types/kpi';
+import { ProductAnalysisRow, AchatsKpiRequest } from '@/types/kpi';
 import { useState } from 'react';
 
-export const useProductAnalysis = (itemsPerPage: number = 10) => {
-    const request = useKpiRequest();
+export const useProductAnalysis = (options: { itemsPerPage?: number, overrides?: Partial<AchatsKpiRequest> } = {}) => {
+    const { itemsPerPage = 10, overrides } = options;
+    const defaultRequest = useKpiRequest();
+    
+    // Merge overrides
+    const request = { ...defaultRequest, ...overrides };
+
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [sortBy, setSortBy] = useState<string>('my_sales_qty');
@@ -30,8 +35,6 @@ export const useProductAnalysis = (itemsPerPage: number = 10) => {
             if (!res.ok) throw new Error('Failed to fetch product analysis');
             return res.json() as Promise<{ data: ProductAnalysisRow[], total: number }>;
         },
-        // enabled: !!request.pharmacyIds?.length,
-        // placeholderData: (previousData) => previousData // REMOVED to allow skeleton loading on filter change
     });
 
     return {

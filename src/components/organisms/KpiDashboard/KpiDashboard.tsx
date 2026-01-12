@@ -12,11 +12,15 @@ import { useInventoryDaysKpi } from '@/hooks/kpi/useInventoryDaysKpi';
 import { useReceptionRateKpi } from '@/hooks/kpi/useReceptionRateKpi';
 import { usePriceEvolutionKpi } from '@/hooks/kpi/usePriceEvolutionKpi';
 import { formatCurrency, formatNumber } from '@/lib/utils/formatters';
+import { useFilterStore } from '@/stores/useFilterStore';
+import { useState } from 'react';
 
 /**
  * KPI Dashboard section with key performance indicators
  * Displays real data from API with FilterStore integration
  */
+import { ExclusionProductTable } from './ExclusionProductTable/ExclusionProductTable';
+
 export const KpiDashboard: React.FC = () => {
     // Fetch Achats KPI with real filters
     const { data: achatsData, isLoading: achatsLoading, error: achatsError } = useAchatsKpi();
@@ -144,6 +148,206 @@ export const KpiDashboard: React.FC = () => {
                     </p>
                 </div>
             )}
+
+            {/* Exclusion Analysis Section */}
+            <ExclusionAnalysisSection 
+                cleanVentes={ventesData} 
+                cleanVentesLoading={ventesLoading}
+            />
         </div>
     );
 };
+
+// --- Sub-component for Exclusion Analysis ---
+
+const ExclusionAnalysisSection = ({ cleanVentes, cleanVentesLoading }: { cleanVentes: any, cleanVentesLoading: boolean }) => {
+    const { excludedLaboratories, excludedCategories, excludedProducts, excludedPharmacies } = useFilterStore();
+    const hasExclusions = excludedLaboratories.length > 0 || excludedCategories.length > 0 || excludedProducts.length > 0 || excludedPharmacies.length > 0;
+    
+    // Simulation State
+    const [simulationDiscount, setSimulationDiscount] = useState<number>(40);
+
+    // Fetch Special Data if exclusions exist
+    // 1. Total Ventes (Included + Excluded)
+    const { data: ventesTotal, isLoading: totalLoading } = useVentesKpi(
+        { exclusionMode: 'include' },
+        { enabled: hasExclusions }
+    );
+
+    // 2. Excluded Ventes (Only Excluded)
+    const { data: ventesExcluded, isLoading: excludedLoading } = useVentesKpi(
+        { exclusionMode: 'only' },
+        { enabled: hasExclusions }
+    );
+
+    // 3. Excluded Achats (For Simulation - Need Manufacturer Price)
+    const { data: achatsExcluded, isLoading: achatsExcludedLoading } = useAchatsKpi(
+        { exclusionMode: 'only' },
+        { enabled: hasExclusions }
+    );
+
+    if (!hasExclusions) return null;
+
+    // Simulation Calculation
+    // Amount bought (Qty * Manufacturer Price) without discount = montant_tarif
+    const manufacturerCosTotal = achatsExcluded?.montant_tarif || 0;
+    
+    // Price with Discount applied
+    // const discountMultiplier = (100 - simulationDiscount) / 100;
+    // const discountedCost = manufacturerCosTotal * discountMultiplier;
+    
+    // Loss = What we paid (Assuming we paid Manufacturer Price?) 
+    // Wait, the user said: "on regarde avec le prix tarif le montant d'acht que ca faitsur la peridoe avec le prix fabricant !! Sans remise / ca c'est ce qu o ndepense... Ensuite a ce montant on applique la remisee et la difference entre rpix remise et prix fabricant payee c'est ce qu on perd"
+    // Interpretation: 
+    // "Cost WITHOUT Discount" = Manufacturer Price * Qty (montant_tarif)
+    // "Cost WITH Discount" = montant_tarif * (1 - discount%)
+    // "Loss" = Difference = montant_tarif * discount%
+    // Basically: "If you had negotiated 40% discount, you would have saved X amount".
+    // "ce qu on perd" = The potential savings missed.
+    const potentialSavings = manufacturerCosTotal * (simulationDiscount / 100);
+
+    return (
+        <div className="mt-12 pt-8 border-t border-gray-200">
+             <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <span className="bg-orange-100 text-orange-700 p-2 rounded-lg">
+                        <TrendingDown className="w-5 h-5" />
+                    </span>
+                    Analyse des Exclusions
+                </h2>
+                <p className="text-gray-600">
+                    Impact des produits exclus sur votre performance globale
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 1. CA TTC (Hors Exclusions) - Reference */}
+                <KpiCard
+                    title="Ventes TTC (Net)"
+                    isLoading={cleanVentesLoading}
+                    primaryValue={formatCurrency(cleanVentes?.montant_ttc || 0)}
+                    evolutionPercent={cleanVentes?.evolution_percent}
+                    secondaryLabel="Qte Net"
+                    secondaryValue={formatNumber(cleanVentes?.quantite_vendue || 0)}
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    accentColor="green"
+                />
+
+                {/* 2. CA TTC (Total: Net + Excluded) */}
+                <KpiCard
+                    title="Ventes TTC (Total)"
+                    isLoading={totalLoading}
+                    primaryValue={formatCurrency(ventesTotal?.montant_ttc || 0)}
+                    evolutionPercent={ventesTotal?.evolution_percent}
+                    secondaryLabel="Qte Total"
+                    secondaryValue={formatNumber(ventesTotal?.quantite_vendue || 0)}
+                    icon={<TrendingUp className="w-5 h-5" />}
+                    accentColor="blue"
+                />
+
+                {/* 3. Impact Exclusions (Values) */}
+                <KpiCard
+                    title="Vente TTC Exclusions"
+                    isLoading={excludedLoading}
+                    primaryValue={formatCurrency(ventesExcluded?.montant_ttc || 0)}
+                    evolutionPercent={ventesExcluded?.evolution_percent}
+                    secondaryLabel="Qte Exclue"
+                    secondaryValue={formatNumber(ventesExcluded?.quantite_vendue || 0)}
+                    icon={<TrendingDown className="w-5 h-5" />}
+                    accentColor="red"
+                />
+
+                {/* 4. Simulation Card - Styled like KpiCard */}
+                <div className="group relative">
+                    {/* Glassmorphism Card */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl border-2 border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 p-6 h-full relative overflow-hidden">
+                        
+                        {/* Loading Overlay */}
+                        {achatsExcludedLoading && (
+                            <div className="absolute inset-0 bg-white/80 z-50 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                            </div>
+                        )}
+
+                        {/* Top Right Decoration */}
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110 -z-10" />
+
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                    Perte Estimée
+                                </h3>
+                            </div>
+                            <div className="p-2.5 bg-orange-50 text-orange-600 rounded-xl transition-transform group-hover:scale-110">
+                                <Euro className="w-5 h-5" />
+                            </div>
+                        </div>
+
+                        {/* Primary Value */}
+                        <div className="mb-4">
+                            <p className="text-3xl font-bold text-gray-900 tracking-tight">
+                                {formatCurrency(potentialSavings)}
+                            </p>
+                        </div>
+
+                        {/* Simulation Inputs & Secondary Values */}
+                        <div className="space-y-4">
+                            {/* Slider + Input */}
+                            <div>
+                                <div className="flex justify-between items-center text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                                    <span>Remise manquante:</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={simulationDiscount}
+                                            onChange={(e) => setSimulationDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
+                                            className="w-12 text-right bg-transparent border-b border-gray-300 focus:border-orange-500 outline-none text-orange-600 font-bold"
+                                        />
+                                        <span className="text-orange-600 font-bold">%</span>
+                                    </div>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="100" 
+                                    value={simulationDiscount} 
+                                    onChange={(e) => setSimulationDiscount(Number(e.target.value))}
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                                />
+                            </div>
+                            
+                            {/* Secondary Stats */}
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+                                        Base Tarif (Fab)
+                                    </p>
+                                    <p className="text-sm font-bold text-gray-700">
+                                        {formatCurrency(manufacturerCosTotal)}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+                                        Qte Achetée Exclue
+                                    </p>
+                                    <p className="text-sm font-bold text-gray-700">
+                                        {formatNumber(achatsExcluded?.quantite_achetee || 0)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Subtle Glow Effect on Hover */}
+                    <div className="absolute inset-0 -z-10 shadow-orange-200 opacity-0 group-hover:opacity-20 blur-xl rounded-2xl transition-opacity duration-300" />
+                </div>
+            </div>
+
+            {/* Detailed Exclusion Table */}
+            <ExclusionProductTable simulationDiscount={simulationDiscount} />
+        </div>
+    );
+}

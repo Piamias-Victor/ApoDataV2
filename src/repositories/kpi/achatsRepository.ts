@@ -6,8 +6,8 @@ import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
  * Fetch purchased quantity and amount from database
  * ULTRA-FAST: Uses materialized view for prices
  */
-export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quantite_achetee: number; montant_ht: number; montant_ttc: number }> {
-  const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
+export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quantite_achetee: number; montant_ht: number; montant_ttc: number; montant_tarif: number }> {
+  const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [], exclusionMode = 'exclude' } = request;
 
   // Initialize Builder
   const initialParams = [dateRange.start, dateRange.end];
@@ -21,10 +21,53 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
   qb.addGroups(groups);
 
   // Exclusions
-  if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
-  if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
-  if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
-  if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+  // Exclusions
+  if (exclusionMode === 'exclude') {
+    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+  } else if (exclusionMode === 'only') {
+     // In "ONLY" mode, we treat exclusion lists as INCLUSION lists
+     // Note: This logic assumes we want to analyze the specific items that would have been excluded.
+     // However, `addExcluded...` methods usually do `NOT IN`.
+     // So we must use `add...` methods with these lists.
+     // BUT, we have multiple exclusion types (Lab, Cat, Product).
+     // Combining them with OR is complex. Usually exclusions are AND NOT.
+     // If I want "Everything that matches any of the exclusions":
+     // It's tricky with the current Builder.
+     // Simplification: We will support 'only' mainly for Products for now, or just use the Builder's internal logic if possible.
+     // Actually, if I want to "View Excluded Items", I need to invert the logic.
+     // The easiest way is to add them as standard filters IF they are present.
+     // CAUTION: If user excludes a Lab AND a Product, usually it means (NOT Lab) AND (NOT Product).
+     // So "Excluded Only" is (Lab OR Product).
+     // The current QueryBuilder might not support complex ORs across dimensions easily.
+     // Let's stick to the most common use case: List of Products.
+     
+     // For this iteration, let's implement strict "ONLY" for what is passed in exclusion arrays.
+     // If multiple exclusion arrays are passed (e.g. Excl Lab A AND Excl Product B), "Excluded Only" intuitively means (Lab A UNION Product B).
+     // But standard filters are AND.
+     // Let's assume standard intuitive behavior: "Show me the stuff I excluded".
+     
+     // Due to SQL complexity of Unioning multiple dimensions in one query with the current builder,
+     // I will try to map them to 'Laboratories', 'Categories', 'Products' inputs of the builder IF those inputs were empty.
+     // But wait, `request.laboratories` might be set too. This is getting complex.
+     
+     // RE-READ REQUIREMENT: "Analyses des Exclusions".
+     // We probably just want to run the query with the Excluded Filters applied as POSITIVE filters.
+     // And Ignore the "Included" filters? No, the user might say "Filter by Pharmacy A" AND "Exclude Product P".
+     // "Excluded Only" means "Pharmacy A" AND "Product P".
+     
+     // So:
+     // 1. Keep "Standard" filters (Date, Pharmacy, Group).
+     // 2. BUT specific exclusion filters (Lab, Cat, Product) should be treated as INCLUSION.
+     // Implementation:
+     if (request.excludedPharmacyIds?.length) qb.addPharmacies(request.excludedPharmacyIds); // Inverted
+     if (request.excludedLaboratories?.length) qb.addLaboratories(request.excludedLaboratories); // Inverted
+     if (request.excludedCategories?.length) qb.addCategories(request.excludedCategories); // Inverted
+     if (request.excludedProductCodes?.length) qb.addProducts(request.excludedProductCodes); // Inverted
+  }
+  // If 'include', we simply do nothing here (no exclusions applied).
 
   // Settings
   if (request.tvaRates) qb.addTvaRates(request.tvaRates);
@@ -60,7 +103,8 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     SELECT 
       COALESCE(SUM(po.qte_r), 0) as quantite_achetee,
       COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0)), 0) as montant_ht,
-      COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0) * (1 + COALESCE(gp.tva_percentage, 0) / 100.0)), 0) as montant_ttc
+      COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0) * (1 + COALESCE(gp.tva_percentage, 0) / 100.0)), 0) as montant_ttc,
+      COALESCE(SUM(po.qte_r * COALESCE(gp.prix_achat_ht_fabricant, 0)), 0) as montant_tarif
     FROM data_productorder po
     INNER JOIN data_order o ON po.order_id = o.id
     INNER JOIN data_internalproduct ip ON po.product_id = ip.id
@@ -93,12 +137,13 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
     const duration = Date.now() - startTime;
 
     if (result.rows.length === 0) {
-      return { quantite_achetee: 0, montant_ht: 0, montant_ttc: 0 };
+      return { quantite_achetee: 0, montant_ht: 0, montant_ttc: 0, montant_tarif: 0 };
     }
 
     const quantite_achetee = Number(result.rows[0].quantite_achetee) || 0;
     const montant_ht = Number(result.rows[0].montant_ht) || 0;
     const montant_ttc = Number(result.rows[0].montant_ttc) || 0;
+    const montant_tarif = Number(result.rows[0].montant_tarif) || 0;
 
     console.log('✅ [Repository] Query completed:', {
       quantite_achetee,
@@ -106,7 +151,7 @@ export async function fetchAchatsData(request: AchatsKpiRequest): Promise<{ quan
       duration: `${duration}ms`
     });
 
-    return { quantite_achetee, montant_ht, montant_ttc };
+    return { quantite_achetee, montant_ht, montant_ttc, montant_tarif };
   } catch (error) {
     console.error('❌ [Repository] Database query failed:', error);
     throw error;

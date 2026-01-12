@@ -60,3 +60,6 @@ CREATE INDEX idx_mv_sales_l2 ON mv_sales_enriched(cat_l2);
 CREATE INDEX idx_mv_sales_l3 ON mv_sales_enriched(cat_l3);
 CREATE INDEX idx_mv_sales_l4 ON mv_sales_enriched(cat_l4);
 CREATE INDEX idx_mv_sales_l5 ON mv_sales_enriched(cat_l5);
+
+-- 4. Index Unique requis pour REFRESH CONCURRENTLY
+CREATE UNIQUE INDEX idx_mv_sales_enriched_unique ON mv_sales_enriched(sale_id);

@@ -9,7 +9,20 @@ import { SupplierAnalysisTable } from '@/components/organisms/GenericAnalysis/Su
 import { GenericProductTable } from '@/components/organisms/GenericAnalysis/GenericProductTable';
 import { AlertTriangle } from 'lucide-react';
 
+import { useEffect } from 'react';
+import { useFilterStore } from '@/stores/useFilterStore';
+
 export default function GenericAnalysisPage() {
+    const { setGroups, setIsGeneric } = useFilterStore();
+
+    useEffect(() => {
+        // Cleanup function to reset groups when leaving the page
+        return () => {
+            setGroups([]);
+            setIsGeneric('ALL');
+        };
+    }, [setGroups, setIsGeneric]);
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 ml-[68px]">
             {/* Animated Background Pattern (From Dashboard) */}

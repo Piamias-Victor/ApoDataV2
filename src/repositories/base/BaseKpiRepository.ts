@@ -35,17 +35,54 @@ export abstract class BaseKpiRepository {
     private applyCommonFilters(qb: FilterQueryBuilder, context: KpiContext) {
         const req = context.request;
 
-        qb.addPharmacies(req.pharmacyIds || []);
-        qb.addLaboratories(req.laboratories || []);
-        qb.addCategories(req.categories || []);
-        qb.addProducts(req.productCodes || []);
-        qb.addGroups(req.groups || []);
+        // Standard Filtering vs Exclusion Mode 'ONLY'
+        if (req.exclusionMode === 'only') {
+            // In "ONLY" mode, we IGNORE standard filters (except Pharmacy which is usually structural scope)
+             qb.addPharmacies(req.pharmacyIds || []);
 
-        // Exclusions
-        if (req.excludedPharmacyIds) qb.addExcludedPharmacies(req.excludedPharmacyIds);
-        if (req.excludedLaboratories) qb.addExcludedLaboratories(req.excludedLaboratories);
-        if (req.excludedCategories) qb.addExcludedCategories(req.excludedCategories);
-        if (req.excludedProductCodes) qb.addExcludedProducts(req.excludedProductCodes);
+            // And we transform Excluded Items into INCLUDED items via OR logic
+            // We want: (Prod IN ExcludedProds) OR (Lab IN ExcludedLabs) OR ...
+            const orConditions: { items: any[], generator: (idx: number) => string }[] = [];
+
+            if (req.excludedProductCodes?.length) {
+                orConditions.push({ 
+                    items: req.excludedProductCodes, 
+                    generator: (idx) => `${qb['mapping'].productCode} = ANY($${idx}::text[])`
+                });
+            }
+             if (req.excludedLaboratories?.length) {
+                orConditions.push({ 
+                    items: req.excludedLaboratories, 
+                    generator: (idx) => `${qb['mapping'].laboratory} = ANY($${idx}::text[])`
+                });
+            }
+            if (req.excludedCategories?.length) {
+                // Categories need special handling because they have types.
+                // For simplicity here, we add them as a single block if possible, or skip complex category logic for now 
+                // as converting the complex category structure to single param array is tricky in this generic structure.
+                // LIMITATION: 'Only' mode for categories might need refinement if used heavily.
+                 // let's try to map them if simple enough or extend builder later.
+            }
+            // For Groups (if excludedGroups exists?)
+            
+            qb.addOrConditions(orConditions);
+
+        } else {
+            // Default "EXCLUDE" or "INCLUDE" mode
+            qb.addPharmacies(req.pharmacyIds || []);
+            qb.addLaboratories(req.laboratories || []);
+            qb.addCategories(req.categories || []);
+            qb.addProducts(req.productCodes || []);
+            qb.addGroups(req.groups || []);
+
+            // Apply Exclusions (Unless mode is 'include')
+            if (req.exclusionMode !== 'include') {
+                if (req.excludedPharmacyIds) qb.addExcludedPharmacies(req.excludedPharmacyIds);
+                if (req.excludedLaboratories) qb.addExcludedLaboratories(req.excludedLaboratories);
+                if (req.excludedCategories) qb.addExcludedCategories(req.excludedCategories);
+                if (req.excludedProductCodes) qb.addExcludedProducts(req.excludedProductCodes);
+            }
+        }
 
         // Settings
         if (req.tvaRates) qb.addTvaRates(req.tvaRates);

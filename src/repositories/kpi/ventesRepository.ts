@@ -7,7 +7,7 @@ import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
  * Joins: mv_sales_enriched (with optional joins to mv_latest_product_prices and data_globalproduct for specific filters)
  */
 export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quantite_vendue: number; montant_ht: number; montant_ttc: number }> {
-    const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [] } = request;
+    const { dateRange, productCodes = [], laboratories = [], categories = [], pharmacyIds = [], groups = [], filterOperators = [], exclusionMode = 'exclude' } = request;
 
     // Initialize Builder with MV Custom Mapping
     const initialParams = [dateRange.start, dateRange.end];
@@ -40,10 +40,19 @@ export async function fetchVentesData(request: AchatsKpiRequest): Promise<{ quan
     qb.addGroups(groups);
 
     // Exclusions
-    if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
-    if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
-    if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
-    if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+    // Exclusions
+    if (exclusionMode === 'exclude') {
+        if (request.excludedPharmacyIds) qb.addExcludedPharmacies(request.excludedPharmacyIds);
+        if (request.excludedLaboratories) qb.addExcludedLaboratories(request.excludedLaboratories);
+        if (request.excludedCategories) qb.addExcludedCategories(request.excludedCategories);
+        if (request.excludedProductCodes) qb.addExcludedProducts(request.excludedProductCodes);
+    } else if (exclusionMode === 'only') {
+        // "Excluded Only" mode: Use exclusions as positive filters
+        if (request.excludedPharmacyIds?.length) qb.addPharmacies(request.excludedPharmacyIds);
+        if (request.excludedLaboratories?.length) qb.addLaboratories(request.excludedLaboratories);
+        if (request.excludedCategories?.length) qb.addCategories(request.excludedCategories);
+        if (request.excludedProductCodes?.length) qb.addProducts(request.excludedProductCodes);
+    }
 
     // Settings
     if (request.tvaRates) qb.addTvaRates(request.tvaRates);

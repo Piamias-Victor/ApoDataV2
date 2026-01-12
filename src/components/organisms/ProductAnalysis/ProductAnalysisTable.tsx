@@ -21,7 +21,7 @@ export const ProductAnalysisTable = () => {
         sortBy,
         sortOrder,
         handleSort
-    } = useProductAnalysis(itemsPerPage);
+    } = useProductAnalysis({ itemsPerPage });
 
     // Default rank basis: Sales
     const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');

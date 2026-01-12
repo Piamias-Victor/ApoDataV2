@@ -22,6 +22,7 @@ export async function getAchatsKpi(request: AchatsKpiRequest): Promise<AchatsKpi
         montant_ht: data.montant_ht,
         montant_ttc: data.montant_ttc,
         quantite_achetee: data.quantite_achetee,
+        montant_tarif: data.montant_tarif,
         ...(quantite_achetee_evolution !== undefined && { quantite_achetee_evolution }),
         ...(evolution_percent !== undefined && { evolution_percent })
       };

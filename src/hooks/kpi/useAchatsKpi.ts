@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { AchatsKpiRequest } from '@/types/kpi';
 
-export const useAchatsKpi = (overrides?: Partial<AchatsKpiRequest>) => {
+export const useAchatsKpi = (overrides?: Partial<AchatsKpiRequest>, options?: { enabled?: boolean }) => {
     const defaultRequest = useKpiRequest();
 
     // Merge overrides with default request
@@ -17,6 +17,7 @@ export const useAchatsKpi = (overrides?: Partial<AchatsKpiRequest>) => {
 
     const query = useQuery({
         queryKey: ['achats-kpi', request],
+        enabled: options?.enabled !== false, // Default true
         queryFn: async () => {
             const res = await fetch('/api/kpi/achats', {
                 method: 'POST',

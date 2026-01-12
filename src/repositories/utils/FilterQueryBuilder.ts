@@ -241,4 +241,33 @@ export class FilterQueryBuilder {
             return `${column} >= $${minParamIdx} AND ${column} <= $${maxParamIdx}`;
         }, false);
     }
+    // --- Advanced Methods ---
+
+    /**
+     * Adds a group of conditions joined by OR.
+     * Useful for "Exclusion Mode: ONLY" where we want (Prod in A) OR (Lab in B).
+     */
+    public addOrConditions(conditions: { items: any[], generator: (idx: number) => string }[]) {
+        const validConditions: string[] = [];
+
+        conditions.forEach(({ items, generator }) => {
+            if (!items || items.length === 0) return;
+            
+            // Add params manually
+            this.params.push(items);
+            const idx = this.paramIndex++;
+            validConditions.push(`(${generator(idx)})`);
+        });
+        
+        if (validConditions.length > 0) {
+            const orSql = validConditions.join(' OR ');
+             if (this.conditions.length > 0) {
+                // Determine operator (default to AND if not specified)
+                // Note: This logic assumes we append this OR group to existing AND logic
+                this.conditions.push('AND');
+            }
+            this.conditions.push(`(${orSql})`);
+            this.cumulativeItemCount += 1;
+        }
+    }
 }

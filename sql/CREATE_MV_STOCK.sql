@@ -44,3 +44,6 @@ WHERE mr.rn = 1; -- On garde uniquement le DERNIER snapshot du mois
 -- 3. Créer les indexes
 CREATE INDEX idx_mv_stock_date ON mv_stock_monthly(month_end_date);
 CREATE INDEX idx_mv_stock_composite ON mv_stock_monthly(month_end_date, pharmacy_id);
+
+-- 4. Index Unique requis pour REFRESH CONCURRENTLY
+CREATE UNIQUE INDEX idx_mv_stock_monthly_unique ON mv_stock_monthly(product_id, month_end_date);

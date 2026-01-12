@@ -31,7 +31,11 @@ export interface AchatsKpiRequest {
     discountRange?: { min: number; max: number };
     marginRange?: { min: number; max: number };
     groups?: string[]; // Generic groups (bcb_generic_group)
+    // Exclusion Mode
+    exclusionMode?: 'exclude' | 'include' | 'only';
 }
+
+export interface VentesKpiRequest extends AchatsKpiRequest {}
 
 export interface GenericLaboratoryRow extends LaboratoryAnalysisRow {
     product_count: number;
@@ -42,6 +46,7 @@ export interface AchatsKpiResponse {
     montant_ht: number;
     montant_ttc: number;
     quantite_achetee: number;
+    montant_tarif?: number; // Manufacturer Price * Quantity
     quantite_achetee_evolution?: number;
     evolution_percent?: number | undefined;
 }

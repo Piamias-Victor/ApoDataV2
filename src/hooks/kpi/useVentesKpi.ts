@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { AchatsKpiRequest } from '@/types/kpi';
 
-export const useVentesKpi = (overrides?: Partial<AchatsKpiRequest>) => {
+export const useVentesKpi = (overrides?: Partial<AchatsKpiRequest>, options?: { enabled?: boolean }) => {
     const defaultRequest = useKpiRequest();
 
     const request = useMemo(() => ({
@@ -13,6 +13,7 @@ export const useVentesKpi = (overrides?: Partial<AchatsKpiRequest>) => {
 
     const query = useQuery({
         queryKey: ['ventes-kpi', request],
+        enabled: options?.enabled !== false, // Default true
         queryFn: async () => {
             const res = await fetch('/api/kpi/ventes', {
                 method: 'POST',
