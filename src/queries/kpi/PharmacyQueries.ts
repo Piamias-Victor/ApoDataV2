@@ -182,5 +182,29 @@ export const PharmacyQueries = {
     LEFT JOIN current_stock cs ON cs.pharmacy_id = ps.pharmacy_id
     LEFT JOIN prev_stock ps_prev ON ps_prev.pharmacy_id = ps.pharmacy_id
     ORDER BY ps.sales_ttc DESC
+    `,
+
+    getMonthlyStats: (conditions: string) => `
+        SELECT 
+            p.id as pharmacy_id,
+            p.name as pharmacy_name,
+            CAST(EXTRACT(MONTH FROM mv.month) AS INTEGER) as month_num,
+            CAST(EXTRACT(YEAR FROM mv.month) AS INTEGER) as year_num,
+            
+            COALESCE(SUM(mv.ht_sold), 0) as sales_ht,
+            COALESCE(SUM(mv.ttc_sold), 0) as sales_ttc,
+            COALESCE(SUM(mv.qty_sold), 0) as sales_qty,
+            COALESCE(SUM(mv.ht_purchased), 0) as purchases_ht,
+            COALESCE(SUM(mv.qty_purchased), 0) as purchases_qty,
+            COALESCE(SUM(mv.margin_sold), 0) as margin_ht
+
+        FROM mv_product_stats_monthly mv
+        JOIN data_pharmacy p ON p.id = mv.pharmacy_id
+        LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
+        WHERE 
+            (EXTRACT(YEAR FROM mv.month) = $1::int OR EXTRACT(YEAR FROM mv.month) = $2::int)
+            ${conditions}
+        GROUP BY 1, 2, 3, 4
+        ORDER BY p.name ASC, year_num DESC, month_num ASC
     `
 };

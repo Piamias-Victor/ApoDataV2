@@ -11,6 +11,7 @@ import { PharmaciesLaboratoryTable } from '@/components/organisms/Pharmacies/Pha
 import { PharmaciesProductTable } from '@/components/organisms/Pharmacies/PharmaciesProductTable';
 import { PharmaciesGeoAnalysis } from '@/components/organisms/Pharmacies/PharmaciesGeoAnalysis';
 import { SimulationDashboard } from '@/components/organisms/Simulation/SimulationDashboard';
+import { PharmacyMonthlyTable } from '@/components/organisms/Pharmacies/PharmacyMonthlyTable';
 import { PreorderEvolutionChart } from '@/components/organisms/PreorderAnalysis/PreorderEvolutionChart';
 
 export default function PharmaciesPage() {
@@ -77,6 +78,9 @@ export default function PharmaciesPage() {
 
                     {/* Simulation */}
                     <SimulationDashboard />
+
+                    {/* Monthly Trends Table */}
+                    <PharmacyMonthlyTable />
 
                     {/* Pre-order Temporal Evolution */}
                     <PreorderEvolutionChart />
