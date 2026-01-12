@@ -118,7 +118,7 @@ export const PharmaciesDetailedTable: React.FC = () => {
                                 <thead className="bg-gray-50/80 backdrop-blur sticky top-0 z-10 border-b border-gray-100">
                                     <tr>
                                         {/* PHARMACIE */}
-                                        <TableHeaderCell width="18%" {...getSortProps('pharmacy_name')}>Pharmacie</TableHeaderCell>
+                                        <TableHeaderCell width="18%" isSticky {...getSortProps('pharmacy_name')}>Pharmacie</TableHeaderCell>
                                         <TableHeaderCell width="4%" align="center" {...getSortProps('rank')}>Rang</TableHeaderCell>
 
                                         {/* ACHAT - Purple */}
@@ -173,7 +173,7 @@ export const PharmaciesDetailedTable: React.FC = () => {
                                                 >
 
                                                     {/* Pharmacy Name */}
-                                                    <TableCell>
+                                                    <TableCell isSticky>
                                                         <div className="flex flex-col max-w-[180px]">
                                                             <span className="font-medium text-gray-900 text-xs truncate block" title={row.pharmacy_name}>
                                                                 {row.pharmacy_name}

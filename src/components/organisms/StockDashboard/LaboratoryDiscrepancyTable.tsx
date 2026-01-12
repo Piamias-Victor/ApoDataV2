@@ -158,6 +158,7 @@ export const LaboratoryDiscrepancyTable = () => {
                                         onSort={() => handleSort(header.key as any)}
                                         align={header.align as 'left' | 'right'}
                                         className={header.width}
+                                        isSticky={header.key === 'laboratory_name'}
                                         {...(header.variant ? { variant: header.variant } : {})}
                                     >
                                         {header.key === 'qte_a_commander' ? (
@@ -199,7 +200,7 @@ export const LaboratoryDiscrepancyTable = () => {
                                             onClick={(e) => handleRowClick(row, e)}
                                             className="group hover:bg-indigo-50/30 transition-colors cursor-pointer"
                                         >
-                                            <TableCell className="font-medium text-gray-900 truncate text-xs">
+                                            <TableCell isSticky className="font-medium text-gray-900 truncate text-xs">
                                                 {row.laboratory_name}
                                             </TableCell>
                                             <TableCell align="right" className="text-xs">{formatNumber(row.qte_commandee)}</TableCell>

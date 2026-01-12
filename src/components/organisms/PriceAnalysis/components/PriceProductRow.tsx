@@ -36,7 +36,7 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
                 onClick={handleRowClick}
                 className={`cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 ${isSelected ? "bg-purple-50 hover:bg-purple-100" : ""} ${isExpanded ? "bg-gray-50 border-gray-200" : ""}`}
             >
-                <TableCell>
+                <TableCell isSticky>
                     <div className="flex flex-col max-w-[300px]">
                         <span className="font-medium text-gray-900 truncate text-xs" title={row.product_name}>
                             {row.product_name}

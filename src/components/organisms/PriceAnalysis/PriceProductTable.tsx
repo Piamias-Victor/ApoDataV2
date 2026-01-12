@@ -86,7 +86,7 @@ export const PriceProductTable = () => {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr>
-                                        <TableHeaderCell width="35%" align="left" {...getSortProps('product_name')}>PRODUIT / EAN / LABO</TableHeaderCell>
+                                        <TableHeaderCell width="35%" align="left" isSticky {...getSortProps('product_name')}>PRODUIT / EAN / LABO</TableHeaderCell>
                                         <TableHeaderCell align="right" className="bg-gray-50 text-gray-900 border-l border-gray-200">PRIX FAB</TableHeaderCell>
 
                                         {/* Achat (Violet) */}

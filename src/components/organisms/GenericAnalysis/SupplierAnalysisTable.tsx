@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
+import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 import { EvolutionBadge } from '@/components/atoms/EvolutionBadge';
 import { SupplierAnalysisRow } from '@/repositories/kpi/SupplierAnalysisRepository';
@@ -145,7 +146,7 @@ export const SupplierAnalysisTable = () => {
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50/50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fournisseur</th>
+                                        <TableHeaderCell isSticky className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fournisseur</TableHeaderCell>
                                         <TableHeaderCell align="right">Commandes</TableHeaderCell>
                                         <TableHeaderCell align="right">Volume Acheté</TableHeaderCell>
                                         <TableHeaderCell align="right">CA Achats HT</TableHeaderCell>
@@ -161,9 +162,13 @@ export const SupplierAnalysisTable = () => {
                                                 key={row.supplier_category}
                                                 className={`transition-colors ${isHidden ? 'opacity-40 grayscale bg-gray-50' : 'hover:bg-gray-50/50'}`}
                                             >
-                                                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 border-l-4" style={{ borderLeftColor: isHidden ? 'transparent' : COLORS[colorIndex] }}>
+                                                <TableCell 
+                                                    isSticky
+                                                    className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 border-l-4" 
+                                                    style={{ borderLeftColor: isHidden ? 'transparent' : COLORS[colorIndex] }}
+                                                >
                                                     {row.supplier_category}
-                                                </td>
+                                                </TableCell>
 
                                                 {/* Nb Commandes */}
                                                 <td className="px-6 py-4 text-right">
