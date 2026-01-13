@@ -56,24 +56,24 @@ export const GenericProductTableRow: React.FC<TableRowProps> = ({ row }) => {
                 </div>
             </TableCell>
 
-            {/* Vol.Achat - Purple */}
-            <TableCell align="right" variant="purple">
-                <ValueCell value={row.my_purchases_qty} evolution={row.my_purchases_qty_evolution} textSize="text-xs" />
-            </TableCell>
-
-            {/* CA.Achat - Purple */}
+            {/* Vol.Achat -> ACHAT HT - Purple */}
             <TableCell align="right" variant="purple">
                 <ValueCell value={row.my_purchases_ht} evolution={row.my_purchases_evolution} isCurrency textSize="text-xs" />
             </TableCell>
 
-            {/* Vol.Vente - Blue */}
-            <TableCell align="right" variant="blue">
-                <ValueCell value={row.my_sales_qty} evolution={row.my_sales_qty_evolution} textSize="text-xs" />
+            {/* CA.Achat -> ACHAT QTE - Purple */}
+            <TableCell align="right" variant="purple">
+                 <ValueCell value={row.my_purchases_qty} evolution={row.my_purchases_qty_evolution} textSize="text-xs" />
             </TableCell>
 
-            {/* CA.Vente - Blue */}
+            {/* Vol.Vente -> VENTES TTC - Blue */}
             <TableCell align="right" variant="blue">
                 <ValueCell value={row.my_sales_ttc} evolution={row.my_sales_evolution} isCurrency textSize="text-xs" />
+            </TableCell>
+
+            {/* CA.Vente -> VENTES QTE - Blue */}
+            <TableCell align="right" variant="blue">
+                <ValueCell value={row.my_sales_qty} evolution={row.my_sales_qty_evolution} textSize="text-xs" />
             </TableCell>
 
             {/* %Marge - Orange */}

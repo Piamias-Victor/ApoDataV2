@@ -87,7 +87,7 @@ export default function GenericAnalysisPage() {
                     </div>
 
                     {/* KPI Dashboard */}
-                    <KpiDashboard />
+                    <KpiDashboard analysisType="generic" />
 
                     {/* Generic Lab Table */}
                     {/* Generic Lab Table */}
