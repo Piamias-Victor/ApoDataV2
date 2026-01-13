@@ -133,41 +133,41 @@ export const KpiCard: React.FC<KpiCardProps> = ({
                     )}
                 </div>
 
-                {/* Primary Value */}
-                <div className="mb-4">
+                {/* Primary Value & Evolution */}
+                <div className="mb-4 flex items-end justify-between gap-2">
                     <p className="text-3xl font-bold text-gray-900 tracking-tight">
                         {primaryValue}
                     </p>
+                    {/* Primary Evolution Badge moved here */}
+                    <div className="mb-1">
+                         <EvolutionBadge
+                            evolutionPercent={evolutionPercent}
+                            label={evolutionLabel}
+                        />
+                    </div>
                 </div>
 
-                {/* Secondary Value and Evolution */}
-                <div className="flex items-center justify-between">
-                    {/* Secondary Value - only show if provided */}
-                    {secondaryLabel && secondaryValue ? (
+                {/* Secondary Value and Secondary Evolution */}
+                {(secondaryLabel || secondaryValue) && (
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-2">
                         <div>
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
                                 {secondaryLabel}
                             </p>
-                            <p className="text-lg font-bold text-gray-700">
-                                {secondaryValue}
-                            </p>
-                            {/* Secondary Evolution Badge */}
-                            <EvolutionBadge
-                                evolutionPercent={secondaryEvolutionPercent}
-                                label={secondaryEvolutionLabel}
-                                isSecondary
-                            />
+                            <div className="flex items-center gap-2">
+                                <p className="text-lg font-bold text-gray-700">
+                                    {secondaryValue}
+                                </p>
+                                {/* Secondary Evolution Badge */}
+                                <EvolutionBadge
+                                    evolutionPercent={secondaryEvolutionPercent}
+                                    label={secondaryEvolutionLabel}
+                                    isSecondary
+                                />
+                            </div>
                         </div>
-                    ) : (
-                        <div />
-                    )}
-
-                    {/* Evolution Badge - only show if provided */}
-                    <EvolutionBadge
-                        evolutionPercent={evolutionPercent}
-                        label={evolutionLabel}
-                    />
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* Subtle Glow Effect on Hover */}

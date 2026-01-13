@@ -103,9 +103,18 @@ export const PharmaciesKpiGrid: React.FC = () => {
             <KpiCard
                 title="Achats HT"
                 primaryValue={formatCurrency(achatsAmount)}
-                secondaryLabel="Qte / Moy. Groupement"
-                secondaryValue={`${formatNumber(achatsQty)} / ${formatCurrency(globalAchatsAvg)}`}
+                secondaryLabel="Qte / Moy. du Groupe"
+                secondaryValue={
+                    <div className="flex items-center gap-2">
+                        <span>{formatNumber(achatsQty)}</span>
+                        <span className="text-xs font-normal text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                            Grp: {formatCurrency(globalAchatsAvg)}
+                        </span>
+                    </div>
+                }
                 evolutionPercent={achats.data?.evolution_percent}
+                secondaryEvolutionPercent={achats.data?.quantite_achetee_evolution}
+                secondaryEvolutionLabel="Evol. Qte"
                 icon={<ShoppingCart className="w-5 h-5" />}
                 accentColor="purple"
                 isLoading={achats.isLoading || globalAchats.isLoading}
@@ -115,9 +124,18 @@ export const PharmaciesKpiGrid: React.FC = () => {
             <KpiCard
                 title="Ventes TTC"
                 primaryValue={formatCurrency(ventesAmount)}
-                secondaryLabel="Qte / Moy. Groupement"
-                secondaryValue={`${formatNumber(ventesQty)} / ${formatCurrency(globalVentesAvg)}`}
+                secondaryLabel="Qte / Moy. du Groupe"
+                secondaryValue={
+                    <div className="flex items-center gap-2">
+                        <span>{formatNumber(ventesQty)}</span>
+                        <span className="text-xs font-normal text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                            Grp: {formatCurrency(globalVentesAvg)}
+                        </span>
+                    </div>
+                }
                 evolutionPercent={ventes.data?.evolution_percent}
+                secondaryEvolutionPercent={ventes.data?.quantite_vendue_evolution}
+                secondaryEvolutionLabel="Evol. Qte"
                 icon={<TrendingUp className="w-5 h-5" />}
                 accentColor="blue"
                 isLoading={ventes.isLoading || globalVentes.isLoading}
@@ -130,6 +148,8 @@ export const PharmaciesKpiGrid: React.FC = () => {
                 secondaryLabel="Taux de Marge"
                 secondaryValue={`${margeRate.toFixed(1)}%`}
                 evolutionPercent={marge.data?.evolution_percent}
+                secondaryEvolutionPercent={marge.data?.marge_percent_evolution}
+                secondaryEvolutionLabel="Evol. %"
                 icon={<DollarSign className="w-5 h-5" />}
                 accentColor="orange"
                 isLoading={marge.isLoading}
@@ -153,6 +173,9 @@ export const PharmaciesKpiGrid: React.FC = () => {
                 primaryValue={`${Math.round(inventoryDays)}j Stock`}
                 secondaryLabel="Taux Réception"
                 secondaryValue={`${receptionRate.toFixed(1)}%`}
+                evolutionPercent={days.data?.evolution_percent}
+                secondaryEvolutionPercent={reception.data?.evolution_percent}
+                secondaryEvolutionLabel="Evol. Taux"
                 icon={<Truck className="w-5 h-5" />}
                 accentColor="indigo"
                 isLoading={days.isLoading}
@@ -165,6 +188,8 @@ export const PharmaciesKpiGrid: React.FC = () => {
                 secondaryLabel="Prix Vente Moyen"
                 secondaryValue={formatCurrency(sellPrice)}
                 evolutionPercent={buyEvolution}
+                secondaryEvolutionPercent={priceData?.sell_evolution_percent} // Added
+                secondaryEvolutionLabel="Evol. Vente"
                 icon={<Activity className="w-5 h-5" />}
                 accentColor="green"
                 isLoading={price.isLoading}
