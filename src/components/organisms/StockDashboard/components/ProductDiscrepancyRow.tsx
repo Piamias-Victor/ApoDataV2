@@ -18,8 +18,17 @@ export const ProductDiscrepancyRow: React.FC<ProductDiscrepancyRowProps> = ({ ro
         return Math.round(Math.max(0, needed));
     };
 
-    const qtyToOrder = getQtyToOrder(row.qte_vendue, row.stock_actuel);
+    // Use parent calculated value if available (for sorting consistency), else calculate locally
+    const qtyToOrder = row.qte_a_commander !== undefined 
+        ? row.qte_a_commander 
+        : getQtyToOrder(row.qte_vendue, row.stock_actuel);
+        
     const isUrgent = qtyToOrder > 0;
+    
+    // Use parent calculated ventes_par_mois if available
+    const ventesParMois = row.ventes_par_mois !== undefined
+        ? row.ventes_par_mois
+        : (row.qte_vendue / daysInPeriod) * 30;
 
     return (
         <tr
@@ -68,6 +77,10 @@ export const ProductDiscrepancyRow: React.FC<ProductDiscrepancyRowProps> = ({ ro
             </TableCell>
 
             <TableCell align="right" className="text-xs">{formatNumber(row.qte_vendue)}</TableCell>
+            {/* Ventes / Mois (Calculated) */}
+            <TableCell align="right" className="text-xs text-blue-600 font-medium">
+                {formatNumber(ventesParMois)}
+            </TableCell>
             <TableCell align="right" className="text-xs">{formatCurrency(row.prix_vente_moyen)}</TableCell>
 
             <TableCell align="right">

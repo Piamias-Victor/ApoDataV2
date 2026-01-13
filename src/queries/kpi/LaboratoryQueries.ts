@@ -35,11 +35,8 @@ export const LaboratoryQueries = {
                 SUM(CASE WHEN mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_ht ELSE 0 END) as group_sales_ht_prev
 
             FROM mv_sales_enriched mv
-            -- Fix: Map alias for conditions (mv.ean13 -> mv.code_13_ref)
-            -- Note: repository config uses 'mv.ean13', but mv_sales_enriched has 'code_13_ref'.
-            -- We can alias it in a subquery or join, or just CROSS JOIN LATERAL for alias compatibility if strictly needed,
-            -- BUT 'mv_sales_enriched' usually has 'code_13_ref'.
-            -- The passed 'conditions' string expects 'mv.ean13'.
+            -- FIX: Join gp so we can filter by gp.bcb_family
+            LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref
             -- Hack: We alias the table as 'source', and project 'ean13' for the WHERE clause.
             CROSS JOIN LATERAL (
                 SELECT mv.code_13_ref as ean13
@@ -123,6 +120,8 @@ export const LaboratoryQueries = {
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
             ) mv
+            -- FIX: Join gp so we can filter by gp.bcb_family
+            LEFT JOIN data_globalproduct gp ON mv.ean13 = gp.code_13_ref
             WHERE 1=1 
             -- Re-inject conditions? Risky if aliases differ. 
             -- Provide minimal filtering or ensure alias match.
@@ -148,6 +147,8 @@ export const LaboratoryQueries = {
                   AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
                 ORDER BY product_id, month_end_date DESC
             ) mv
+            -- FIX: Join gp so we can filter by gp.bcb_family
+            LEFT JOIN data_globalproduct gp ON mv.ean13 = gp.code_13_ref
             WHERE 1=1
             ${conditions}
             GROUP BY 1

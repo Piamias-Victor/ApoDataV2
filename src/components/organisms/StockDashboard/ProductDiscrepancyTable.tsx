@@ -34,15 +34,41 @@ export const ProductDiscrepancyTable = () => {
         }
     });
 
+    // Pre-calculate client-side metrics for sorting
+    const augmentedData = React.useMemo(() => {
+        // daysInPeriod logic
+        const start = new Date(request.dateRange.start);
+        const end = new Date(request.dateRange.end);
+        let daysInPeriod = 30;
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            daysInPeriod = Math.max(1, differenceInDays(end, start));
+        }
+
+        return rawData.map((row: any) => {
+             // Replicate ProductDiscrepancyRow calc logic for sorting consistency
+             const salesQty = row.qte_vendue || 0;
+             const currentStock = row.stock_actuel || 0;
+             const avgDailySales = salesQty / daysInPeriod;
+             const targetStock = avgDailySales * targetDays;
+             const needed = targetStock - currentStock;
+             const qte_a_commander = Math.round(Math.max(0, needed));
+
+             return {
+                 ...row,
+                 qte_a_commander, // Override server 0 with client calc
+                 ventes_par_mois: (salesQty / daysInPeriod) * 30 // Add for sorting
+             };
+        });
+    }, [rawData, targetDays, request.dateRange]);
+
     const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
-        data: rawData,
+        data: augmentedData,
         initialSortBy: 'ecart_qte',
         initialSortOrder: 'asc'
     });
 
     const paginatedData = sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // daysInPeriod logic
     const start = new Date(request.dateRange.start);
     const end = new Date(request.dateRange.end);
     let daysInPeriod = 30;
@@ -64,19 +90,20 @@ export const ProductDiscrepancyTable = () => {
     };
 
     const headers = [
-        { label: 'Produit', key: 'product_name', align: 'left', width: 'w-[20%]', variant: undefined },
-        { label: 'Qte Cmd', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Qte Reçu', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Ecart', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Taux Rec.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
-        { label: 'Achat €', key: 'prix_achat', align: 'right', width: 'w-[7%]', variant: 'purple' },
-        { label: 'Stock Actuel', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
-        { label: 'Stock Moyen', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
-        { label: 'Jours', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
-        { label: 'A Commander', key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
-        { label: 'Ventes', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
-        { label: 'Prix Vente', key: 'prix_vente_moyen', align: 'right', width: 'w-[7%]', variant: 'blue' },
-        { label: 'Marge %', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
+        { label: 'PRODUIT', key: 'product_name', align: 'left', width: 'w-[20%]', variant: undefined },
+        { label: 'QTE CDM', key: 'qte_commandee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'QTE RECU', key: 'qte_receptionnee', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'ECART', key: 'ecart_qte', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'TAUX REC.', key: 'taux_reception', align: 'right', width: 'w-[6%]', variant: 'purple' },
+        { label: 'ACHAT HT', key: 'prix_achat', align: 'right', width: 'w-[7%]', variant: 'purple' },
+        { label: 'STOCK ACTUEL', key: 'stock_actuel', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'STOCK MOYEN', key: 'stock_moyen', align: 'right', width: 'w-[6%]', variant: 'red' },
+        { label: 'JOURS STOCK', key: 'jours_de_stock', align: 'right', width: 'w-[5%]', variant: 'red' },
+        { label: 'A COMMANDER', key: 'qte_a_commander', align: 'right', width: 'w-[8%]', variant: 'purple' },
+        { label: 'VENDU', key: 'qte_vendue', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'VENTES/MOIS', key: 'ventes_par_mois', align: 'right', width: 'w-[6%]', variant: 'blue' },
+        { label: 'PV MOYEN', key: 'prix_vente_moyen', align: 'right', width: 'w-[7%]', variant: 'blue' },
+        { label: '% MARGE', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
     ] as const;
 
     return (
@@ -85,10 +112,10 @@ export const ProductDiscrepancyTable = () => {
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                         <PackageSearch className="w-5 h-5 text-purple-600" />
-                        Rupture par Produit
+                        ANALYSE DÉTAILLÉE PAR PRODUIT (STOCK & RUPTURES)
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Détail par référence.
+                        Vue consolidée : Suivi des Ruptures, Stocks et Prévision de Commande.
                         <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
                             Astuce : Ctrl/Cmd + Clic pour filtrer
                         </span>

@@ -4,7 +4,8 @@ import React from 'react';
 import { useStockDashboard } from '@/hooks/kpi/useStockDashboard';
 import { StockKpiGrid } from './StockKpiGrid';
 import { StockEvolutionChart } from './StockEvolutionChart';
-import { RestockingTable } from './RestockingTable';
+import { ProductDiscrepancyTable } from './ProductDiscrepancyTable';
+// import { RestockingTable } from './RestockingTable'; // Deprecated in favor of standardized ProductDiscrepancyTable
 import { LaboratoryDiscrepancyTable } from './LaboratoryDiscrepancyTable';
 
 export const StockDashboard = () => {
@@ -33,9 +34,9 @@ export const StockDashboard = () => {
                 <LaboratoryDiscrepancyTable />
             </div>
 
-            {/* Product Analysis Table (Restocking + Ruptures) */}
+            {/* Product Analysis Table (Standardized) */}
             <div className="mt-6">
-                <RestockingTable />
+                <ProductDiscrepancyTable />
             </div>
         </div>
     );

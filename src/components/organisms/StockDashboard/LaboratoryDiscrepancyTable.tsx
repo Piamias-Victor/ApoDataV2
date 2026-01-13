@@ -46,11 +46,36 @@ export const LaboratoryDiscrepancyTable = () => {
         }
     });
 
-    // 2. Sorting
+    // 2. Pre-calculate Metrics for Sorting
+    const augmentedData = React.useMemo(() => {
+        const start = new Date(request.dateRange.start);
+        const end = new Date(request.dateRange.end);
+        let daysInPeriod = 30;
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            daysInPeriod = Math.max(1, differenceInDays(end, start));
+        }
+
+        return rawData.map(row => {
+            // Replicate calc logic
+            const salesQty = row.qte_vendue || 0;
+            const currentStock = row.stock_actuel || 0;
+            const avgDailySales = salesQty / daysInPeriod;
+            const targetStock = avgDailySales * targetDays;
+            const needed = targetStock - currentStock;
+            const qte_a_commander = Math.round(Math.max(0, needed));
+
+            return {
+                ...row,
+                qte_a_commander 
+            };
+        });
+    }, [rawData, targetDays, request.dateRange]);
+
+    // 3. Sorting
     const { sortedData, sortBy, sortOrder, handleSort } = useClientTableSort({
-        data: rawData,
-        initialSortBy: 'ecart_qte', // Default: Worst Discrepancy usually? Or Sales? Let's assume Discrepancy (Ecart) is interesting. Or Qte A Commander. 
-        initialSortOrder: 'asc' // Low Ecart (Negative) first? 
+        data: augmentedData,
+        initialSortBy: 'ecart_qte',  
+        initialSortOrder: 'asc' 
     });
 
     // 3. Filtering Logic (Ctrl + Click)

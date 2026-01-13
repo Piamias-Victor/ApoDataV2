@@ -6,7 +6,19 @@ import { DateHelper } from "../helpers/DateHelper";
 export class KpiRequestMapper {
     static toContext(req: AchatsKpiRequest, page: number = 1, pageSize: number = 20): KpiContext {
         const { start, end } = req.dateRange;
-        const periods = DateHelper.getPeriods(start, end);
+
+        // Prioritize explicit comparison range if provided, otherwise fallback to sequential calculation
+        let periods = DateHelper.getPeriods(start, end);
+
+        if (req.comparisonDateRange && req.comparisonDateRange.start && req.comparisonDateRange.end) {
+            periods = {
+                current: periods.current,
+                previous: {
+                    start: new Date(req.comparisonDateRange.start),
+                    end: new Date(req.comparisonDateRange.end)
+                }
+            };
+        }
 
         // Logic from repositories: usually pharmacyIds[0] determines 'COMPARATIVE' (single pharmacy) vs 'GLOBAL'
         const hasPharmacy = req.pharmacyIds && req.pharmacyIds.length > 0;

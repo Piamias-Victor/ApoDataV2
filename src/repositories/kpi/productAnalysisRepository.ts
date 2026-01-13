@@ -51,6 +51,26 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
         let cteSortColumn = 'sales_qty'; // Default
         let finalSortColumn = 'sales_qty';
 
+        // Columns that are calculated in the outer query and do NOT exist in the CTEs
+        // Therefore, they must NOT be prefixed with 'ms.' or 'gs.'
+        const calculatedColumns = [
+            'avg_purchase_price', 'avg_sell_price', 
+            'my_margin_rate', 'group_avg_margin_rate',
+            'my_days_of_stock',
+            'my_pdm_pct', 'group_pdm_pct',
+            'my_pdm_purchases_pct',
+            'my_sales_evolution', 'group_sales_evolution',
+            'my_purchases_evolution', 'group_purchases_evolution',
+            'my_sales_qty_evolution', 'group_sales_qty_evolution',
+            'my_purchases_qty_evolution', 'group_purchases_qty_evolution',
+            'my_margin_rate_evolution', 'group_margin_rate_evolution',
+            'my_pdm_evolution', 'group_pdm_evolution',
+            'my_pdm_purchases_evolution',
+            'my_margin_ht_evolution',
+            'my_stock_qty_evolution',
+            'my_stock_value_ht_evolution'
+        ];
+
         if (myPharmacyId) {
             // Comparative
             if (sortBy === 'product_name') {
@@ -59,10 +79,9 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             } else if (sortBy === 'laboratory_name') {
                 cteSortColumn = 'laboratory_name';
                 finalSortColumn = 'ms.laboratory_name';
-            } else if (['avg_purchase_price', 'avg_sell_price'].includes(sortBy)) {
+            } else if (calculatedColumns.includes(sortBy)) {
                 // Calculated columns in outer query, no prefix needed in final sort
-                // However, they don't exist in CTE, so CTE sort is irrelevant/fallback
-                cteSortColumn = 'my_sales_qty'; 
+                cteSortColumn = 'my_sales_qty'; // Fallback for CTE sort (optimization)
                 finalSortColumn = sortBy;
             } else {
                 cteSortColumn = sortBy;
@@ -78,7 +97,7 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
                 cteSortColumn = 'laboratory_name';
                 finalSortColumn = 'gs.laboratory_name';
             }
-            else if (['avg_purchase_price', 'avg_sell_price'].includes(sortBy)) {
+            else if (calculatedColumns.includes(sortBy)) {
                 // Calculated columns in outer query
                 cteSortColumn = 'sales_qty';
                 finalSortColumn = sortBy;
