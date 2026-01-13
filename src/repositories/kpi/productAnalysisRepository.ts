@@ -57,6 +57,7 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             'avg_purchase_price', 'avg_sell_price', 
             'my_margin_rate', 'group_avg_margin_rate',
             'my_days_of_stock',
+            'my_stock_qty', 'my_stock_value_ht', // Added stock cols here
             'my_pdm_pct', 'group_pdm_pct',
             'my_pdm_purchases_pct',
             'my_sales_evolution', 'group_sales_evolution',
@@ -70,6 +71,10 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             'my_stock_qty_evolution',
             'my_stock_value_ht_evolution'
         ];
+
+        // normalize aliases
+        if (sortBy === 'stock_qty') sortBy = 'my_stock_qty';
+        if (sortBy === 'stock_value_ht') sortBy = 'my_stock_value_ht';
 
         if (myPharmacyId) {
             // Comparative
