@@ -47,7 +47,7 @@ export class LaboratoryAnalysisRepository extends BaseKpiRepository {
         }
 
         // 5. Build SQL
-        const querySql = LaboratoryQueries.getAnalysisQuery(qb.getConditions(), searchCondition);
+        const querySql = LaboratoryQueries.getAnalysisQueryV2(qb.getConditions(), searchCondition);
 
         // 6. Execute & Map
         try {
