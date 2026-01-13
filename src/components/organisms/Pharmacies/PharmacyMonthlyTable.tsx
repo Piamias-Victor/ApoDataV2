@@ -6,20 +6,25 @@ import { Loader2, TrendingUp, Calendar } from 'lucide-react';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
+import { Pagination } from '@/components/molecules/Pagination/Pagination';
 
 
 type MetricKey = 'sales_ht' | 'sales_ttc' | 'sales_qty' | 'purchases_ht' | 'purchases_qty';
 
 const METRICS: { value: MetricKey; label: string; isCurrency: boolean; variant: 'blue' | 'purple' | 'orange' | 'green' }[] = [
-    { value: 'purchases_ht', label: 'Achats HT', isCurrency: true, variant: 'purple' },
-    { value: 'purchases_qty', label: 'Achats Quantité', isCurrency: false, variant: 'purple' },
     { value: 'sales_ttc', label: 'Ventes TTC', isCurrency: true, variant: 'blue' },
     { value: 'sales_qty', label: 'Ventes Quantité', isCurrency: false, variant: 'blue' },
+    { value: 'purchases_ht', label: 'Achats HT', isCurrency: true, variant: 'purple' },
+    { value: 'purchases_qty', label: 'Achats Quantité', isCurrency: false, variant: 'purple' },
 ];
 
 export const PharmacyMonthlyTable = () => {
     const { data, isLoading } = usePharmacyMonthlyStats();
-    const [selectedMetric, setSelectedMetric] = useState<MetricKey>('purchases_ht');
+    const [selectedMetric, setSelectedMetric] = useState<MetricKey>('sales_ttc');
+    
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
 
     const currentMetricConfig = METRICS.find(m => m.value === selectedMetric)!;
 
@@ -74,6 +79,17 @@ export const PharmacyMonthlyTable = () => {
 
     }, [data, selectedMetric]);
 
+    // Pagination Logic
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return processedData.slice(startIndex, startIndex + itemsPerPage);
+    }, [processedData, currentPage]);
+
+    const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedMetric(e.target.value as MetricKey);
+        setCurrentPage(1); // Reset to page 1 on filter change
+    };
+
     return (
         <div className="mt-8 space-y-4">
              {/* Header Section */}
@@ -99,7 +115,7 @@ export const PharmacyMonthlyTable = () => {
                             <div className="relative flex items-center min-w-[140px]">
                                 <select
                                     value={selectedMetric}
-                                    onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
+                                    onChange={handleMetricChange}
                                     className="appearance-none bg-transparent border-none p-0 pr-5 text-sm font-bold text-gray-700 outline-none focus:ring-0 cursor-pointer w-full leading-tight truncate font-sans"
                                 >
                                     {METRICS.map(m => (
@@ -121,80 +137,92 @@ export const PharmacyMonthlyTable = () => {
                         <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <TableHeaderCell isSticky width="15%">Pharmacie</TableHeaderCell>
-                                    
-                                    {/* Months Columns */}
-                                    {['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'].map((month, i) => (
-                                        <TableHeaderCell key={i} align="right" className="min-w-[80px] text-gray-500">
-                                            {month}
-                                        </TableHeaderCell>
-                                    ))}
-
-                                    {/* Total Column */}
-                                    <TableHeaderCell align="right" variant={currentMetricConfig.variant} className="border-l border-gray-200 bg-gray-50">
-                                        Total N
-                                    </TableHeaderCell>
-
-                                    {/* Evolution Column */}
-                                    <TableHeaderCell align="right" variant={currentMetricConfig.variant}>
-                                        Evol N-1
-                                    </TableHeaderCell>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {processedData.map((row) => (
-                                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <TableCell isSticky className="font-medium text-gray-900">
-                                            {row.name}
-                                        </TableCell>
-
-                                        {/* Months Data */}
-                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
-                                            <TableCell key={m} align="right">
-                                                <span className={row.months[m] ? "text-gray-700" : "text-gray-300"}>
-                                                    {row.months[m] 
-                                                        ? (currentMetricConfig.isCurrency 
-                                                            ? row.months[m].toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) 
-                                                            : row.months[m].toLocaleString('fr-FR'))
-                                                        : '-'}
-                                                </span>
-                                            </TableCell>
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <TableHeaderCell isSticky width="15%">Pharmacie</TableHeaderCell>
+                                        
+                                        {/* Months Columns */}
+                                        {['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'].map((month, i) => (
+                                            <TableHeaderCell key={i} align="right" className="min-w-[80px] text-gray-500">
+                                                {month}
+                                            </TableHeaderCell>
                                         ))}
 
-                                        {/* Total */}
-                                        <TableCell align="right" variant={currentMetricConfig.variant} className="border-l border-gray-200 bg-gray-50/30 font-bold">
-                                            <ValueCell 
-                                                value={row.totalCurrent} 
-                                                isCurrency={currentMetricConfig.isCurrency} 
-                                                decimals={0}
-                                            />
-                                        </TableCell>
+                                        {/* Total Column */}
+                                        <TableHeaderCell align="right" variant={currentMetricConfig.variant} className="border-l border-gray-200 bg-gray-50">
+                                            Total N
+                                        </TableHeaderCell>
 
-                                        {/* Evolution */}
-                                        <TableCell align="right" variant={currentMetricConfig.variant}>
-                                            <ValueCell 
-                                                value={row.evolution} 
-                                                suffix="%" 
-                                                decimals={1}
-                                                className={row.evolution > 0 ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}
-                                            />
-                                        </TableCell>
+                                        {/* Evolution Column */}
+                                        <TableHeaderCell align="right" variant={currentMetricConfig.variant}>
+                                            Evol N-1
+                                        </TableHeaderCell>
                                     </tr>
-                                ))}
-                                {processedData.length === 0 && (
-                                    <tr>
-                                        <td colSpan={15} className="p-8 text-center text-gray-500">
-                                            Aucune donnée disponible.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedData.map((row) => (
+                                        <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <TableCell isSticky className="font-medium text-gray-900">
+                                                {row.name}
+                                            </TableCell>
+
+                                            {/* Months Data */}
+                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
+                                                <TableCell key={m} align="right">
+                                                    <span className={row.months[m] ? "text-gray-700" : "text-gray-300"}>
+                                                        {row.months[m] 
+                                                            ? (currentMetricConfig.isCurrency 
+                                                                ? row.months[m].toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }) 
+                                                                : row.months[m].toLocaleString('fr-FR'))
+                                                            : '-'}
+                                                    </span>
+                                                </TableCell>
+                                            ))}
+
+                                            {/* Total */}
+                                            <TableCell align="right" variant={currentMetricConfig.variant} className="border-l border-gray-200 bg-gray-50/30 font-bold">
+                                                <ValueCell 
+                                                    value={row.totalCurrent} 
+                                                    isCurrency={currentMetricConfig.isCurrency} 
+                                                    decimals={0}
+                                                />
+                                            </TableCell>
+
+                                            {/* Evolution */}
+                                            <TableCell align="right" variant={currentMetricConfig.variant}>
+                                                <ValueCell 
+                                                    value={row.evolution} 
+                                                    suffix="%" 
+                                                    decimals={1}
+                                                    className={row.evolution > 0 ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}
+                                                />
+                                            </TableCell>
+                                        </tr>
+                                    ))}
+                                    {processedData.length === 0 && (
+                                        <tr>
+                                            <td colSpan={15} className="p-8 text-center text-gray-500">
+                                                Aucune donnée disponible.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                         {/* Pagination */}
+                        <Pagination 
+                            currentPage={currentPage}
+                            totalPages={Math.ceil(processedData.length / itemsPerPage)}
+                            onPageChange={setCurrentPage}
+                            totalItems={processedData.length}
+                            itemsPerPage={itemsPerPage}
+                            className="bg-gray-50 border-t border-gray-200"
+                        />
+                    </>
                 )}
             </div>
         </div>
