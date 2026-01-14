@@ -36,7 +36,7 @@ export interface CategoryMetric {
 }
 
 export async function getCategoryMetrics(request: AchatsKpiRequest, path: string[]): Promise<CategoryMetric[]> {
-    const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
+    const { pharmacyIds = [], laboratories = [], categories = [], productCodes = [], filterOperators = [] } = request;
 
     // 1. Determine Target Level (0 to 5)
     // path = [] -> Group by l0

@@ -52,12 +52,12 @@ class MargeRepository extends BaseKpiRepository {
         `;
 
         // 6. Execute
-        const startTime = Date.now();
+        // const startTime = Date.now();
         console.log('🔍 [Repository] Executing ULTRA-FAST Marge query (MV)');
 
         try {
             const result = await db.query(query, qb.getParams());
-            const duration = Date.now() - startTime;
+            // const duration = Date.now() - startTime;
             const row = result.rows[0];
             
             const montant_marge = Number(row?.montant_marge) || 0;
