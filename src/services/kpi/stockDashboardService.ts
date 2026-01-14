@@ -154,11 +154,15 @@ export async function getStockEvolution(originalRequest: AchatsKpiRequest) {
     };
 
     // --- Populate History ---
+    // --- Populate History ---
+    // stockHistory now contains a FULL timeline (monthly spine) with gaps filled
+    // so we trust it to initialize the keys properly.
     stockHistory.forEach(item => {
         const d = new Date(item.date);
         const k = getMonthKey(d);
         const obj = getOrInit(k, d);
-        obj.stock_real = item.stock_qte;
+        // FORCE 'stock_real' value from SQL because SQL handles the gap filling now
+        obj.stock_real = item.stock_qte; 
     });
     salesHistory.forEach(item => {
         const d = new Date(item.date);

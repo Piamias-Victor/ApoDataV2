@@ -11,16 +11,16 @@ export const LaboratoryQueries = {
                 COALESCE(mv.laboratory_name, 'Non défini') as laboratory_name,
                 
                 -- My Metrics (Current)
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as my_sales_ttc,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.quantity ELSE 0 END) as my_sales_qty,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_marge ELSE 0 END) as my_margin_ht,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_ht ELSE 0 END) as my_sales_ht,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as my_sales_ttc,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.quantity ELSE 0 END) as my_sales_qty,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_marge ELSE 0 END) as my_margin_ht,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_ht ELSE 0 END) as my_sales_ht,
                 
                 -- My Metrics (Previous)
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as my_sales_ttc_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.quantity ELSE 0 END) as my_sales_qty_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_marge ELSE 0 END) as my_margin_ht_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_ht ELSE 0 END) as my_sales_ht_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as my_sales_ttc_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.quantity ELSE 0 END) as my_sales_qty_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_marge ELSE 0 END) as my_margin_ht_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_ht ELSE 0 END) as my_sales_ht_prev,
 
                 -- Group Metrics (Current)
                 SUM(CASE WHEN mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as group_sales_ttc,
@@ -63,12 +63,12 @@ export const LaboratoryQueries = {
                 COALESCE(gp.bcb_lab, 'Non défini') as laboratory_name,
 
                 -- My Metrics (Current)
-                SUM(CASE WHEN ($5::uuid IS NULL OR o.pharmacy_id = $5::uuid) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as my_purchases_ht,
-                SUM(CASE WHEN ($5::uuid IS NULL OR o.pharmacy_id = $5::uuid) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN po.qte_r ELSE 0 END) as my_purchases_qty,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as my_purchases_ht,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN po.qte_r ELSE 0 END) as my_purchases_qty,
                 
                 -- My Metrics (Previous)
-                SUM(CASE WHEN ($5::uuid IS NULL OR o.pharmacy_id = $5::uuid) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as my_purchases_ht_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR o.pharmacy_id = $5::uuid) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN po.qte_r ELSE 0 END) as my_purchases_qty_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as my_purchases_ht_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN po.qte_r ELSE 0 END) as my_purchases_qty_prev,
 
                 -- Group Metrics (Current)
                 SUM(CASE WHEN o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as group_purchases_ht,
@@ -117,7 +117,7 @@ export const LaboratoryQueries = {
                     pharmacy_id
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $2::date 
-                  AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
+                  AND ($5::uuid[] IS NULL OR pharmacy_id = ANY($5::uuid[]))
                 ORDER BY product_id, month_end_date DESC
             ) mv
             -- FIX: Join gp so we can filter by gp.bcb_family
@@ -144,7 +144,7 @@ export const LaboratoryQueries = {
                     pharmacy_id
                 FROM mv_stock_monthly
                 WHERE month_end_date <= $4::date
-                  AND ($5::uuid IS NULL OR pharmacy_id = $5::uuid)
+                  AND ($5::uuid[] IS NULL OR pharmacy_id = ANY($5::uuid[]))
                 ORDER BY product_id, month_end_date DESC
             ) mv
             -- FIX: Join gp so we can filter by gp.bcb_family

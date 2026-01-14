@@ -24,7 +24,7 @@ export const ProductQueries = {
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
                 WHERE ms.month_end_date <= $2::date 
-                  AND ($5::uuid IS NULL OR ms.pharmacy_id = $5::uuid)
+                  AND ($5::uuid[] IS NULL OR ms.pharmacy_id = ANY($5::uuid[]))
                 ORDER BY ms.product_id, ms.month_end_date DESC
             ) t
             WHERE ean13 IS NOT NULL
@@ -43,7 +43,7 @@ export const ProductQueries = {
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
                 WHERE ms.month_end_date <= $4::date 
-                  AND ($5::uuid IS NULL OR ms.pharmacy_id = $5::uuid)
+                  AND ($5::uuid[] IS NULL OR ms.pharmacy_id = ANY($5::uuid[]))
                 ORDER BY ms.product_id, ms.month_end_date DESC
             ) t
             WHERE ean13 IS NOT NULL
@@ -84,7 +84,7 @@ export const ProductQueries = {
                 (mv.month >= $1::date AND mv.month <= $2::date) 
                 OR (mv.month >= $3::date AND mv.month <= $4::date)
             )
-            AND ($5::uuid IS NULL OR true)
+            AND ($5::uuid[] IS NULL OR true)
             AND mv.ean13 != 'NO-EAN'
             ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}
             ${productTypeFilter ? `AND ${productTypeFilter}` : ''}
@@ -250,7 +250,7 @@ export const ProductQueries = {
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
                 WHERE ms.month_end_date <= $2::date 
-                  AND ms.pharmacy_id = $5::uuid
+                  AND ms.pharmacy_id = ANY($5::uuid[])
                 ORDER BY ms.product_id, ms.month_end_date DESC
             ) t
             WHERE ean13 IS NOT NULL
@@ -269,7 +269,7 @@ export const ProductQueries = {
                     ms.stock_value_ht
                 FROM mv_stock_monthly ms
                 WHERE ms.month_end_date <= $4::date
-                  AND ms.pharmacy_id = $5::uuid
+                  AND ms.pharmacy_id = ANY($5::uuid[])
                 ORDER BY ms.product_id, ms.month_end_date DESC
             ) t
             WHERE ean13 IS NOT NULL
@@ -302,7 +302,7 @@ export const ProductQueries = {
             FROM mv_product_stats_monthly mv
             LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             LEFT JOIN mv_latest_product_prices lp ON lp.product_id = mv.product_id
-            WHERE mv.pharmacy_id = $5::uuid 
+            WHERE mv.pharmacy_id = ANY($5::uuid[]) 
               AND ((mv.month >= $1::date AND mv.month <= $2::date) OR (mv.month >= $3::date AND mv.month <= $4::date))
               AND mv.ean13 != 'NO-EAN'
               ${genericStatusFilter ? `AND ${genericStatusFilter}` : ''}

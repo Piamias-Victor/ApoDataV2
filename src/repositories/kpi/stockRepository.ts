@@ -128,22 +128,79 @@ export async function getStockSnapshots(request: AchatsKpiRequest): Promise<{ da
         (request.excludedCategories && request.excludedCategories.length > 0);
 
     const query = `
+        WITH MonthSpine AS (
+            SELECT generate_series(
+                DATE_TRUNC('month', $1::date), 
+                DATE_TRUNC('month', $2::date), 
+                '1 month'::interval
+            ) as month_date
+        ),
+        -- Identify all pharmacies involved in this analysis (based on filters)
+        ActivePharmacies AS (
+            SELECT DISTINCT mv.pharmacy_id
+            FROM mv_stock_monthly mv
+            ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
+            WHERE mv.month_end_date >= ($1::date - INTERVAL '1 month') 
+              AND mv.month_end_date <= $2::date
+              ${conditions}
+        ),
+        -- Create a grid: Every Pharmacy x Every Month
+        PharmacyGrid AS (
+            SELECT 
+                m.month_date, 
+                p.pharmacy_id
+            FROM MonthSpine m
+            CROSS JOIN ActivePharmacies p
+        ),
+        -- Get raw stock per Pharmacy per Month
+        RawData AS (
+            SELECT 
+                DATE_TRUNC('month', mv.month_end_date) as month_date,
+                mv.pharmacy_id,
+                SUM(mv.stock) as raw_stock
+            FROM mv_stock_monthly mv
+            ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
+            WHERE mv.month_end_date >= ($1::date - INTERVAL '1 month') 
+              AND mv.month_end_date <= $2::date
+              ${conditions}
+            GROUP BY 1, 2
+        ),
+        -- Fill Gaps PER PHARMACY
+        PharmacyFilled AS (
+            SELECT 
+                pg.month_date,
+                pg.pharmacy_id,
+                -- Partition logic for this specific pharmacy
+                COUNT(NULLIF(r.raw_stock, 0)) OVER (PARTITION BY pg.pharmacy_id ORDER BY pg.month_date) as grp,
+                r.raw_stock
+            FROM PharmacyGrid pg
+            LEFT JOIN RawData r ON pg.month_date = r.month_date AND pg.pharmacy_id = r.pharmacy_id
+        ),
+        PharmacyCorrected AS (
+            SELECT
+                month_date,
+                pharmacy_id,
+                COALESCE(
+                    FIRST_VALUE(NULLIF(raw_stock, 0)) OVER (PARTITION BY pharmacy_id, grp ORDER BY month_date),
+                    0
+                ) as filled_stock
+            FROM PharmacyFilled
+        )
+        -- Aggregate the Corrected Data
         SELECT 
-            mv.month_end_date as date,
-            SUM(mv.stock) as stock_qte
-        FROM mv_stock_monthly mv
-        ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref' : ''}
-        WHERE mv.month_end_date >= ($1::date - INTERVAL '1 month') 
-          AND mv.month_end_date <= $2::date
-          ${conditions}
+            -- Fix Time Shift: Shift back by 1 month so 'Start of Month' aligns with the previous 'End of Month' snapshot visually
+            (month_date - INTERVAL '1 month') as date,
+            SUM(filled_stock) as stock_qte
+        FROM PharmacyCorrected
         GROUP BY 1
         ORDER BY 1 ASC
     `;
 
     const result = await db.query(query, params);
+    
     return result.rows.map(row => ({
         date: row.date.toISOString(),
-        stock_qte: Number(row.stock_qte)
+        stock_qte: Number(row.stock_qte || 0)
     }));
 }
 // ... existing imports

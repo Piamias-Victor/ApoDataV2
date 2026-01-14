@@ -19,9 +19,8 @@ export async function getMargeKpi(request: AchatsKpiRequest): Promise<MargeKpiRe
             if (comparisonData && comparisonData.montant_ht > 0) {
                 const prev_marge_percent = (comparisonData.montant_marge / comparisonData.montant_ht) * 100;
                 
-                if (prev_marge_percent !== 0) {
-                     marge_percent_evolution = ((marge_percent - prev_marge_percent) / Math.abs(prev_marge_percent)) * 100;
-                }
+                // Points Difference for Rates
+                marge_percent_evolution = marge_percent - prev_marge_percent;
             }
 
             return {

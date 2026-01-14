@@ -8,7 +8,12 @@ class MargeRepository extends BaseKpiRepository {
     async execute(request: AchatsKpiRequest): Promise<{ montant_marge: number; montant_ht: number }> {
         // 1. Prepare Context & Params
         const context = KpiRequestMapper.toContext(request);
-        const baseParams = [context.periods.current.start, context.periods.current.end];
+        const baseParams = [
+            context.periods.current.start, 
+            context.periods.current.end,
+            context.periods.previous.start, 
+            context.periods.previous.end
+        ];
 
         // 2. Build Query Builder
         const qb = this.createBuilder(context, baseParams, {
@@ -54,13 +59,31 @@ class MargeRepository extends BaseKpiRepository {
             const result = await db.query(query, qb.getParams());
             const duration = Date.now() - startTime;
             const row = result.rows[0];
+            
+            const montant_marge = Number(row?.montant_marge) || 0;
+            const montant_ht = Number(row?.montant_ht) || 0;
+            const marge_percent = montant_ht ? (montant_marge / montant_ht) * 100 : 0;
+
+            // Previous
+            const montant_marge_prev = Number(row?.montant_marge_prev) || 0;
+            const montant_ht_prev = Number(row?.montant_ht_prev) || 0;
+            const marge_percent_prev = montant_ht_prev ? (montant_marge_prev / montant_ht_prev) * 100 : 0;
+
+            // Evolution (Points)
+            const marge_percent_evolution = marge_percent - marge_percent_prev;
+            
+            // Standard Evolutions
+            const evolution_percent = montant_marge_prev ? ((montant_marge - montant_marge_prev) / montant_marge_prev) * 100 : 0;
 
             const data = {
-                montant_marge: Number(row?.montant_marge) || 0,
-                montant_ht: Number(row?.montant_ht) || 0
+                montant_marge,
+                montant_ht,
+                marge_percent,
+                evolution_percent,
+                marge_percent_evolution // Points diff
             };
 
-            console.log(`✅ [Repository] Marge Query completed: { montant_marge: ${data.montant_marge}, montant_ht: ${data.montant_ht}, duration: '${duration}ms' }`);
+            console.log(`✅ [Repository] Marge Query completed: { montant_marge: ${data.montant_marge}, marge_percent: ${data.marge_percent}%, evo_pts: ${data.marge_percent_evolution} }`);
             return data;
         } catch (error) {
             console.error('❌ [Repository] Marge query failed:', error);

@@ -4,42 +4,45 @@ DROP MATERIALIZED VIEW IF EXISTS mv_stock_monthly;
 -- 2. Créer la Vue Matérialisée Stock Fin de Mois
 -- Elle ne garde que le DERNIER snapshot de chaque mois pour chaque produit
 CREATE MATERIALIZED VIEW mv_stock_monthly AS
-WITH MonthlyRanked AS (
+WITH RankedSnapshots AS (
     SELECT
-        inv.product_id,
+        inv.product_id, -- On garde l'ID technique pour les jointures, mais ce n'est plus la clé de dédoublonnage
+        ip.pharmacy_id,
+        ip.code_13_ref_id as code_13_ref,
         inv.date,
         inv.stock,
         inv.weighted_average_price,
-        -- Identifier le dernier snapshot du mois
+        -- C'EST ICI QUE TOUT SE JOUE : 
+        -- On ne regarde plus l'ID technique (qui double), mais le couple (Pharmacie + Code CIP)
+        -- On ne garde que la DERNIERE photo du mois pour ce CIP dans cette Pharmacie.
         ROW_NUMBER() OVER (
-            PARTITION BY inv.product_id, DATE_TRUNC('month', inv.date) 
+            PARTITION BY ip.pharmacy_id, ip.code_13_ref_id, DATE_TRUNC('month', inv.date) 
             ORDER BY inv.date DESC
         ) as rn,
-        -- Créer une colonne clé "2024-01-01" pour le mois de Janvier
+        -- On définit la date de fin de mois (ex: 2025-10-31)
         CAST(DATE_TRUNC('month', inv.date) AS DATE) + INTERVAL '1 month' - INTERVAL '1 day' as month_end_date
     FROM data_inventorysnapshot inv
+    JOIN data_internalproduct ip ON inv.product_id = ip.id
 )
 SELECT
-    mr.product_id,
-    mr.month_end_date,
-    mr.stock,
-    -- Calcul Valeur HT = Stock * PAMP
-    CAST(mr.stock * COALESCE(mr.weighted_average_price, 0) AS DECIMAL(15,2)) as stock_value_ht,
+    rs.product_id, -- ID du "gagnant" (le snapshot retenu)
+    rs.month_end_date,
+    rs.stock,
+    -- Calcul Valeur HT
+    CAST(rs.stock * COALESCE(rs.weighted_average_price, 0) AS DECIMAL(15,2)) as stock_value_ht,
+    rs.pharmacy_id,
+    rs.code_13_ref,
     
-    -- IDs pour relations
-    ip.pharmacy_id,
-    gp.code_13_ref,
-    
-    -- Colonnes filtres
+    -- Colonnes filtres (enrichissement)
     gp.bcb_lab AS laboratory_name,
     gp.bcb_segment_l1 AS category_name,
     gp.is_reimbursable,
     gp.bcb_generic_status
 
-FROM MonthlyRanked mr
-    INNER JOIN data_internalproduct ip ON mr.product_id = ip.id
-    LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
-WHERE mr.rn = 1; -- On garde uniquement le DERNIER snapshot du mois
+FROM RankedSnapshots rs
+    LEFT JOIN data_globalproduct gp ON rs.code_13_ref = gp.code_13_ref
+    -- On garde uniquement le champion du mois pour ce CIP
+WHERE rs.rn = 1;
 
 -- 3. Créer les indexes
 CREATE INDEX idx_mv_stock_date ON mv_stock_monthly(month_end_date);

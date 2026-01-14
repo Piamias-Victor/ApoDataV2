@@ -8,14 +8,14 @@ import { LaboratoryQueries } from '@/queries/kpi/LaboratoryQueries';
 export class LaboratoryAnalysisRepository extends BaseKpiRepository {
     async execute(request: AchatsKpiRequest & { search?: string }): Promise<LaboratoryAnalysisRow[]> {
         const context = KpiRequestMapper.toContext(request);
-        const myPharmacyId = request.pharmacyIds?.[0] || null;
+        const myPharmacyIds = request.pharmacyIds?.length ? request.pharmacyIds : null;
 
         // 1. Prepare Base Params
         const { current, previous } = context.periods;
-        const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyId];
+        const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyIds];
 
         // 2. Operators Tuning: Remove the first operator if we have a pharmacy filter (since we manually remove the filter below)
-        const operators = (myPharmacyId && request.filterOperators) ? request.filterOperators.slice(1) : request.filterOperators;
+        const operators = (myPharmacyIds && request.filterOperators) ? request.filterOperators.slice(1) : request.filterOperators;
 
         // CRITICAL: BaseKpiRepository automatically adds pharmacyIds filters from the request.
         // We MUST prevent this for Laboratory Analysis because we need the full Group dataset.

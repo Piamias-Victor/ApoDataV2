@@ -2,6 +2,7 @@
 import { db } from '@/lib/db';
 import { AchatsKpiRequest } from '@/types/kpi';
 import { FilterQueryBuilder } from '@/repositories/utils/FilterQueryBuilder';
+import { KpiRequestMapper } from '@/core/mappers/KpiRequestMapper';
 
 export interface CategoryMetric {
     name: string;
@@ -52,30 +53,22 @@ export async function getCategoryMetrics(request: AchatsKpiRequest, path: string
         return [];
     }
 
-    const myPharmacyId = pharmacyIds[0] || null;
+    const myPharmacyIds = pharmacyIds.length ? pharmacyIds : null;
 
-    // 2. Dates
-    const start = new Date(dateRange.start);
-    const end = new Date(dateRange.end);
-    const duration = end.getTime() - start.getTime();
-    // Previous period: simple shift
-    const prevStart = new Date(start.getTime() - duration - 86400000);
-    const prevEnd = new Date(start.getTime() - 86400000);
+    // 2. Dates (Use Mapper to respect Comparison Range)
+    const context = KpiRequestMapper.toContext(request);
+    const { current, previous } = context.periods;
 
     // 3. Query Phase
-    // We need TOTAL market for PDM calculation.
-    // "Total Market" = Sum of sales of ALL categories at this level (or all products in scope?).
-    // PDM is usually relative to the scope.
-
     // Let's use similar CTE structure as LaboratoryAnalysis to get Current/Previous totals.
 
-    const baseParams = [dateRange.start, dateRange.end, prevStart.toISOString(), prevEnd.toISOString(), myPharmacyId];
+    const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyIds];
 
     // Filter Builder
     const qb = new FilterQueryBuilder(
         baseParams,
         6,
-        (myPharmacyId) ? (filterOperators || []).slice(1) : filterOperators,
+        (myPharmacyIds) ? (filterOperators || []).slice(1) : filterOperators,
         {
             pharmacyId: 'mv.pharmacy_id',
             laboratory: 'mv.laboratory_name',
@@ -112,46 +105,94 @@ export async function getCategoryMetrics(request: AchatsKpiRequest, path: string
 
     const query = `
     WITH 
-        category_stats AS (
+        sales_stats AS (
             SELECT 
                 ${categoryColumn} as name,
-
-                -- Current
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.ttc_sold ELSE 0 END) as sales_ttc,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.ht_sold ELSE 0 END) as sales_ht,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.qty_sold ELSE 0 END) as sales_qty,
                 
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.ht_purchased ELSE 0 END) as purchases_ht,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.qty_purchased ELSE 0 END) as purchases_qty,
-
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $1::date AND mv.month <= $2::date THEN mv.margin_sold ELSE 0 END) as margin_ht,
-
-                -- Previous
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.ttc_sold ELSE 0 END) as sales_ttc_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.ht_sold ELSE 0 END) as sales_ht_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.qty_sold ELSE 0 END) as sales_qty_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.ht_purchased ELSE 0 END) as purchases_ht_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.qty_purchased ELSE 0 END) as purchases_qty_prev,
-                SUM(CASE WHEN ($5::uuid IS NULL OR mv.pharmacy_id = $5::uuid) AND mv.month >= $3::date AND mv.month <= $4::date THEN mv.margin_sold ELSE 0 END) as margin_ht_prev
+                -- My Metrics (Current)
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as sales_ttc,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.quantity ELSE 0 END) as sales_qty,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_marge ELSE 0 END) as margin_ht,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $1::date AND mv.sale_date <= $2::date THEN mv.montant_ht ELSE 0 END) as sales_ht,
                 
-            FROM mv_product_stats_monthly mv
-            LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
+                -- My Metrics (Previous)
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN (mv.montant_ht * (1 + COALESCE(mv.tva_rate, 0) / 100.0)) ELSE 0 END) as sales_ttc_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.quantity ELSE 0 END) as sales_qty_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_marge ELSE 0 END) as margin_ht_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR mv.pharmacy_id = ANY($5::uuid[])) AND mv.sale_date >= $3::date AND mv.sale_date <= $4::date THEN mv.montant_ht ELSE 0 END) as sales_ht_prev
+
+            FROM mv_sales_enriched mv
+            LEFT JOIN data_globalproduct gp ON mv.code_13_ref = gp.code_13_ref
             WHERE (
-                (mv.month >= $1::date AND mv.month <= $2::date) 
-                OR (mv.month >= $3::date AND mv.month <= $4::date)
+                (mv.sale_date >= $1::date AND mv.sale_date <= $2::date) 
+                OR (mv.sale_date >= $3::date AND mv.sale_date <= $4::date)
             )
             AND ${categoryColumn} IS NOT NULL 
             AND ${categoryColumn} != ''
             AND ${categoryColumn} != 'NaN'
-            ${conditions}
+            ${conditions.replace(/mv\.ean13/g, 'mv.code_13_ref').replace(/mv\.product_label/g, 'mv.product_name')}
             GROUP BY 1
+        ),
+
+        purchases_stats AS (
+            SELECT
+                ${categoryColumn} as name,
+
+                -- My Metrics (Current)
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as purchases_ht,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $1::date AND o.delivery_date <= $2::date THEN po.qte_r ELSE 0 END) as purchases_qty,
+                
+                -- My Metrics (Previous)
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN (po.qte_r * COALESCE(lp.weighted_average_price, 0)) ELSE 0 END) as purchases_ht_prev,
+                SUM(CASE WHEN ($5::uuid[] IS NULL OR o.pharmacy_id = ANY($5::uuid[])) AND o.delivery_date >= $3::date AND o.delivery_date <= $4::date THEN po.qte_r ELSE 0 END) as purchases_qty_prev
+
+            FROM data_productorder po
+            INNER JOIN data_order o ON po.order_id = o.id
+            INNER JOIN data_internalproduct ip ON po.product_id = ip.id
+            LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref
+            LEFT JOIN mv_latest_product_prices lp ON po.product_id = lp.product_id
+            
+            WHERE (
+                (o.delivery_date >= $1::date AND o.delivery_date <= $2::date) 
+                OR (o.delivery_date >= $3::date AND o.delivery_date <= $4::date)
+            )
+            AND po.qte_r > 0
+            AND ${categoryColumn} IS NOT NULL 
+            AND ${categoryColumn} != ''
+            AND ${categoryColumn} != 'NaN'
+            ${conditions.replace(/mv\.ean13/g, 'ip.code_13_ref_id').replace(/mv\.laboratory_name/g, 'gp.bcb_lab').replace(/mv\.pharmacy_id/g, 'o.pharmacy_id')}
+            GROUP BY 1
+        ),
+
+        combined_stats AS (
+            SELECT 
+                COALESCE(s.name, p.name) as name,
+                
+                COALESCE(s.sales_ttc, 0) as sales_ttc,
+                COALESCE(s.sales_ht, 0) as sales_ht,
+                COALESCE(s.sales_qty, 0) as sales_qty,
+                COALESCE(s.margin_ht, 0) as margin_ht,
+                
+                COALESCE(p.purchases_ht, 0) as purchases_ht,
+                COALESCE(p.purchases_qty, 0) as purchases_qty,
+
+                COALESCE(s.sales_ttc_prev, 0) as sales_ttc_prev,
+                COALESCE(s.sales_ht_prev, 0) as sales_ht_prev,
+                COALESCE(s.sales_qty_prev, 0) as sales_qty_prev,
+                COALESCE(s.margin_ht_prev, 0) as margin_ht_prev,
+
+                COALESCE(p.purchases_ht_prev, 0) as purchases_ht_prev,
+                COALESCE(p.purchases_qty_prev, 0) as purchases_qty_prev
+
+            FROM sales_stats s
+            FULL OUTER JOIN purchases_stats p ON s.name = p.name
         )
     
     SELECT 
         *,
         SUM(sales_ttc) OVER() as total_sales_ttc,
         SUM(sales_ttc_prev) OVER() as total_sales_ttc_prev
-    FROM category_stats
+    FROM combined_stats
     ORDER BY sales_ttc DESC
     `;
 

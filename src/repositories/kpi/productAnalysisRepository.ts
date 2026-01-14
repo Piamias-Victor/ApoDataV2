@@ -9,14 +9,14 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
     async execute(request: AchatsKpiRequest, page = 1, pageSize = 20, search = '', sortBy = 'my_sales_qty', sortOrder: 'asc' | 'desc' = 'desc', genericStatusFilter?: string, productTypeFilter?: string): Promise<{ data: ProductAnalysisRow[], total: number }> {
         const context = KpiRequestMapper.toContext(request, page, pageSize);
-        const myPharmacyId = request.pharmacyIds?.[0] || null;
+        const myPharmacyIds = request.pharmacyIds?.length ? request.pharmacyIds : null;
 
         // 1. Prepare Base Params
         const { current, previous } = context.periods;
-        const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyId];
+        const baseParams = [current.start, current.end, previous.start, previous.end, myPharmacyIds];
 
         // 2. Operators Tuning (Manual pharmacy handling in SQL)
-        const operators = (myPharmacyId) ? (request.filterOperators || []).slice(1) : request.filterOperators;
+        const operators = (myPharmacyIds) ? (request.filterOperators || []).slice(1) : request.filterOperators;
 
         // 3. Build Query
         const qb = this.createBuilder(context, baseParams, {
@@ -76,7 +76,7 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
         if (sortBy === 'stock_qty') sortBy = 'my_stock_qty';
         if (sortBy === 'stock_value_ht') sortBy = 'my_stock_value_ht';
 
-        if (myPharmacyId) {
+        if (myPharmacyIds) {
             // Comparative
             if (sortBy === 'product_name') {
                 cteSortColumn = 'product_name';
@@ -135,7 +135,7 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
         params.push(pageSize, context.pagination!.offset);
 
         // 7. Select Strategy & SQL
-        const querySql = (!myPharmacyId)
+        const querySql = (!myPharmacyIds)
             ? ProductQueries.getGlobalQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause, genericStatusFilter, productTypeFilter)
             : ProductQueries.getComparativeQuery(qb.getConditions(), searchCondition, limitClause, limitIdx, offsetIdx, orderByClause, finalOrderByClause, genericStatusFilter, productTypeFilter);
 
