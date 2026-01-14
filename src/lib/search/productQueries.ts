@@ -62,7 +62,6 @@ function buildProductQuery(
             FROM ranked_products
             WHERE rn = 1
             ORDER BY name ASC
-            LIMIT 50
         `,
         params
     };
@@ -110,7 +109,6 @@ export const getUserProductQuery = (
                 INNER JOIN data_globalproduct dgp ON dip.code_13_ref_id = dgp.code_13_ref
                 WHERE ${constraint}
                 ORDER BY name ASC
-                LIMIT 50
             `,
             params: [pharmacyId]
         };
@@ -131,7 +129,6 @@ export const getUserProductQuery = (
                 WHERE ${constraint}
                   AND (dgp.code_13_ref LIKE $2 OR LOWER(${nameSelection}) LIKE LOWER($2))
                 ORDER BY name ASC
-                LIMIT 50
             `,
             params: [pharmacyId, `%${cleanQuery}%`]
         };
@@ -151,7 +148,6 @@ export const getUserProductQuery = (
                 WHERE ${constraint}
                   AND dgp.code_13_ref LIKE $2
                 ORDER BY name ASC
-                LIMIT 50
             `,
             params: [pharmacyId, `${searchQuery}%`]
         };
@@ -174,7 +170,7 @@ export const getUserProductQuery = (
                   OR LOWER(dip.name) LIKE LOWER($2)
               )
             ORDER BY name ASC
-            LIMIT 50
         `,
+        params: [pharmacyId, `%${searchQuery}%`]
     };
 };
