@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { query, minCa, maxCa, regions } = body;
+        const { query, minCa, maxCa, regions, codes } = body;
 
         let sqlQuery = `
             SELECT id, name, address, ca, area as region, id_nat, cip
@@ -29,6 +29,13 @@ export async function POST(request: NextRequest) {
 
         const queryParams: any[] = [];
         let paramIndex = 1;
+
+        // Bulk Code Search (CIP / ID_NAT / ID)
+        if (codes && Array.isArray(codes) && codes.length > 0) {
+            sqlQuery += ` AND (cip = ANY($${paramIndex}) OR id_nat = ANY($${paramIndex}) OR id::text = ANY($${paramIndex}))`;
+            queryParams.push(codes);
+            paramIndex++;
+        }
 
         // Text Search
         if (query && query.trim().length > 0) {

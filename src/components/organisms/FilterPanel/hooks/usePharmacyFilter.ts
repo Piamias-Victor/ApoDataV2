@@ -107,6 +107,32 @@ export const usePharmacyFilter = (onClose?: () => void) => {
         if (onClose) onClose();
     };
 
+    const searchAndSelectByCIPs = async (codes: string[]) => {
+        if (!codes.length) return;
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/pharmacies/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codes })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const foundPharmacies: Pharmacy[] = data.pharmacies || [];
+                
+                if (foundPharmacies.length > 0) {
+                    const newMap = new Map(selectedMap);
+                    foundPharmacies.forEach(p => newMap.set(p.id, p));
+                    setSelectedMap(newMap);
+                }
+            }
+        } catch (error) {
+            console.error('Error in bulk search:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return {
         activeTab, setActiveTab,
         searchQuery, setSearchQuery,
@@ -116,6 +142,7 @@ export const usePharmacyFilter = (onClose?: () => void) => {
         selectedMap,
         handleToggle,
         handleBatchAction,
-        handleApply
+        handleApply,
+        searchAndSelectByCIPs
     };
 };

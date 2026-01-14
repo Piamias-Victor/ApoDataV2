@@ -1,6 +1,8 @@
 import React from 'react';
 import { Building2 } from 'lucide-react';
 import { FilterSearchInput } from '../shared/FilterSearchInput';
+import { BulkCodeInput } from '../shared/BulkCodeInput';
+import { extractPharmacyCodes } from '../../utils/pharmacyCodeExtractor';
 import { PinnedSelectionList } from '../shared/PinnedSelectionList';
 import { PharmacyList } from '../PharmacyList';
 // import { Pharmacy } from '../../hooks/usePharmacyFilter'; // Assuming type exists or is compatible
@@ -13,11 +15,12 @@ interface PharmacySearchTabContentProps {
     selectedMap: Map<string, any>;
     onToggle: (pharmacy: any) => void;
     onBatchAction: (action: 'all' | 'none') => void;
+    onBulkSearch: (codes: string[]) => Promise<void>;
 }
 
 export const PharmacySearchTabContent: React.FC<PharmacySearchTabContentProps> = ({
     searchQuery, onSearchChange, results, isLoading, selectedMap,
-    onToggle, onBatchAction
+    onToggle, onBatchAction, onBulkSearch
 }) => {
     // Use results directly
     // const unselectedPharmacies = results.filter(p => !selectedMap.has(p.id));
@@ -26,12 +29,17 @@ export const PharmacySearchTabContent: React.FC<PharmacySearchTabContentProps> =
 
     return (
         <>
-            <div className="sticky top-0 p-6 bg-white/95 backdrop-blur z-20 border-b border-gray-100">
+            <div className="sticky top-0 p-6 bg-white/95 backdrop-blur z-20 border-b border-gray-100 space-y-3">
                 <FilterSearchInput
                     value={searchQuery}
                     onChange={onSearchChange}
                     placeholder="Rechercher (Nom, ID, Ville)..."
                     focusColor="orange"
+                />
+                <BulkCodeInput 
+                    onCodesExtracted={onBulkSearch} 
+                    buttonColor="orange"
+                    codeExtractor={extractPharmacyCodes}
                 />
             </div>
 

@@ -17,7 +17,8 @@ export const PharmacyFilterPanel: React.FC<PharmacyFilterPanelProps> = ({ onClos
         activeTab, setActiveTab, searchQuery, setSearchQuery,
         selectedRegions, setSelectedRegions, caRange, setCaRange,
         pharmacies, isLoading, selectedMap,
-        handleToggle, handleBatchAction, handleApply
+        handleToggle, handleBatchAction, handleApply,
+        searchAndSelectByCIPs
     } = usePharmacyFilter(onClose);
 
     // const unselectedPharmacies = pharmacies.filter(p => !selectedMap.has(p.id)); -- Allow already selected to show so they can be deselected
@@ -45,6 +46,7 @@ export const PharmacyFilterPanel: React.FC<PharmacyFilterPanelProps> = ({ onClos
                         selectedMap={selectedMap}
                         onToggle={handleToggle}
                         onBatchAction={handleBatchAction}
+                        onBulkSearch={searchAndSelectByCIPs}
                     />
                 ) : (
                     <div className="space-y-6">
