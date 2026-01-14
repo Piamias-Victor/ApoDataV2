@@ -8,6 +8,7 @@ export type DrawerType = 'pharmacy' | 'date' | 'laboratories' | 'categories' | '
 export const useFilterBarLogic = () => {
     const [isScrolled, setIsScrolled] = useState(false);
     const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
+    const [presentationMode, setPresentationMode] = useState(false);
     const {
         pharmacies, dateRange, laboratories, categories, products,
         excludedProducts, excludedLaboratories, excludedCategories,
@@ -122,6 +123,8 @@ export const useFilterBarLogic = () => {
             exclusionsCount,
             isProductsActive
         },
-        canEditPharmacies
+        canEditPharmacies,
+        presentationMode,
+        setPresentationMode
     };
 };

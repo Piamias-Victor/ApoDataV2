@@ -6,6 +6,7 @@ import { FilterSaveLoadBadges } from './FilterSaveLoadBadges';
 import { FilterButton } from './components/FilterButton';
 import { useFilterBarLogic } from './hooks/useFilterBarLogic';
 import { FilterDrawerList } from './components/FilterDrawerList';
+import { ActiveFiltersDisplay } from './components/ActiveFiltersDisplay';
 
 interface FilterBarProps {
     hiddenFilters?: ('products' | 'laboratories' | 'categories')[];
@@ -21,7 +22,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ hiddenFilters = [] }) => {
         tooltips,
         storeState,
         computedState,
-        canEditPharmacies
+        canEditPharmacies,
+        presentationMode,
+        setPresentationMode
     } = useFilterBarLogic();
 
     return (
@@ -134,7 +137,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({ hiddenFilters = [] }) => {
                     />
                 </div>
 
-                <FilterSaveLoadBadges />
+                <FilterSaveLoadBadges 
+                    presentationMode={presentationMode}
+                    onTogglePresentationMode={() => setPresentationMode(!presentationMode)}
+                />
+                
+                {/* Presentation Display - Integrated */}
+                {presentationMode && <ActiveFiltersDisplay onClose={() => setPresentationMode(false)} />}
             </div>
 
             <FilterDrawerList activeDrawer={activeDrawer} onClose={handleClose} />
