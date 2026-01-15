@@ -55,6 +55,7 @@
   ],
   "exclude": [
     "node_modules",
-    "_old"
+    "_old",
+    "debug_monthly_stats.ts"
   ]
 }
