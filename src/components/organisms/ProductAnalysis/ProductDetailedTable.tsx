@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { useProductAnalysis } from './hooks/useProductAnalysis';
 import {
     ArrowUp,
@@ -83,8 +82,7 @@ export const ProductAnalysisTable: React.FC = () => {
     const totalItems = result?.total || 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-    // Calculate dynamic ranks on current page data
-    const rankMap = useCalculatedRank(resultData, rankBasis as any, (item: any) => item.ean13);
+    // Ranks are now calculated server-side in the SQL query
 
     // Reset page on search change is already handled in the hook or parent component,
     // but just to be safe if useProductAnalysis doesn't do it automatically on external state change
@@ -208,7 +206,7 @@ export const ProductAnalysisTable: React.FC = () => {
                                         </tr>
                                     ) : (
                                         resultData.map((row) => {
-                                            const displayRank = rankMap.get(row.ean13) ?? row.my_rank;
+                                            const displayRank = row.my_rank;
                                             return (
                                             <tr key={row.ean13} className="hover:bg-purple-50/30 transition-colors group">
                                                 {/* Product Info */}

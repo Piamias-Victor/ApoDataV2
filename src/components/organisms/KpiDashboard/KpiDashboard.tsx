@@ -26,7 +26,6 @@ import { useState } from 'react';
  * KPI Dashboard section with key performance indicators
  * Displays real data from API with FilterStore integration
  */
-import { ExclusionProductTable } from './ExclusionProductTable/ExclusionProductTable';
 
 export const KpiDashboard: React.FC<{
   analysisType?: 'generic' | 'standard';
@@ -487,7 +486,7 @@ const ExclusionAnalysisSection = ({
       </div>
 
       {/* Detailed Exclusion Table */}
-      <ExclusionProductTable simulationDiscount={simulationDiscount} />
+      {/* <ExclusionProductTable simulationDiscount={simulationDiscount} /> */}
     </div>
   );
 };

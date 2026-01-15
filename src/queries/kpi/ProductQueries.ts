@@ -115,98 +115,121 @@ export const ProductQueries = {
                 SUM(sales_ttc_prev) as total_sales_market_prev,
                 SUM(purchases_ht_prev) as total_purchases_market_prev
             FROM global_stats
+        ),
+        
+        ranked_stats AS (
+            SELECT
+                gs.*,
+                lst.stock_qty,
+                lst.stock_value_ht,
+                lstp.stock_qty as stock_qty_prev,
+                lstp.stock_value_ht as stock_value_ht_prev,
+                
+                -- Calculate ranks BEFORE pagination
+                RANK() OVER(ORDER BY gs.sales_qty DESC) as my_rank,
+                RANK() OVER(ORDER BY gs.sales_qty DESC) as group_rank,
+                
+                -- Calculated fields needed for sorting
+                CASE WHEN gs.purchases_qty = 0 THEN 0 ELSE gs.purchases_ht / gs.purchases_qty END as avg_purchase_price,
+                CASE WHEN gs.sales_qty = 0 THEN 0 ELSE gs.sales_ttc / gs.sales_qty END as avg_sell_price,
+                CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END as my_margin_rate,
+                
+                -- Days of Stock
+                CASE 
+                    WHEN (gs.sales_ht - gs.margin_ht) > 0 THEN 
+                        (COALESCE(lst.stock_value_ht, 0) / ((gs.sales_ht - gs.margin_ht) / GREATEST(1, ($2::date - $1::date)))) 
+                    ELSE 0 
+                END as my_days_of_stock
+                
+            FROM global_stats gs
+            LEFT JOIN last_stock lst ON lst.ean13 = gs.ean13
+            LEFT JOIN last_stock_prev lstp ON lstp.ean13 = gs.ean13
         )
 
         SELECT
-            gs.product_name,
-            gs.ean13,
-            gs.laboratory_name,
+            rs.product_name,
+            rs.ean13,
+            rs.laboratory_name,
             
             -- Price Info (NEW)
-            COALESCE(gs.prix_brut, 0) as prix_brut,
-            COALESCE(gs.discount_pct, 0) as discount_pct,
+            COALESCE(rs.prix_brut, 0) as prix_brut,
+            COALESCE(rs.discount_pct, 0) as discount_pct,
 
             -- "Me" = "Group" (Global)
-            gs.sales_ttc as my_sales_ttc,
-            gs.sales_qty as my_sales_qty,
-            gs.purchases_ht as my_purchases_ht,
-            gs.purchases_qty as my_purchases_qty,
-            gs.margin_ht as my_margin_ht,
+            rs.sales_ttc as my_sales_ttc,
+            rs.sales_qty as my_sales_qty,
+            rs.purchases_ht as my_purchases_ht,
+            rs.purchases_qty as my_purchases_qty,
+            rs.margin_ht as my_margin_ht,
             
             -- Calculated Prices for Sorting
-            CASE WHEN gs.purchases_qty = 0 THEN 0 ELSE gs.purchases_ht / gs.purchases_qty END as avg_purchase_price,
-            CASE WHEN gs.sales_qty = 0 THEN 0 ELSE gs.sales_ttc / gs.sales_qty END as avg_sell_price,
+            rs.avg_purchase_price,
+            rs.avg_sell_price,
 
             -- Stock
-            COALESCE(lst.stock_qty, 0) as my_stock_qty,
-            COALESCE(lst.stock_value_ht, 0) as my_stock_value_ht,
+            COALESCE(rs.stock_qty, 0) as my_stock_qty,
+            COALESCE(rs.stock_value_ht, 0) as my_stock_value_ht,
 
             -- Days of Stock
-            CASE 
-                WHEN (gs.sales_ht - gs.margin_ht) > 0 THEN 
-                    (COALESCE(lst.stock_value_ht, 0) / ((gs.sales_ht - gs.margin_ht) / GREATEST(1, ($2::date - $1::date)))) 
-                ELSE 0 
-            END as my_days_of_stock,
+            rs.my_days_of_stock,
 
-            CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END as my_margin_rate,
-            (gs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100 as my_pdm_pct,
-            (gs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100 as my_pdm_purchases_pct,
+            rs.my_margin_rate,
+            (rs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100 as my_pdm_pct,
+            (rs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100 as my_pdm_purchases_pct,
 
-            RANK() OVER(ORDER BY gs.sales_qty DESC) as my_rank,
+            rs.my_rank,
 
             -- Group Averages
-            gs.sales_ttc / NULLIF(pc_current.count, 0) as group_avg_sales_ttc,
-            gs.sales_qty / NULLIF(pc_current.count, 0) as group_avg_sales_qty,
-            gs.purchases_ht / NULLIF(pc_current.count, 0) as group_avg_purchases_ht,
-            gs.purchases_qty / NULLIF(pc_current.count, 0) as group_avg_purchases_qty,
+            rs.sales_ttc / NULLIF(pc_current.count, 0) as group_avg_sales_ttc,
+            rs.sales_qty / NULLIF(pc_current.count, 0) as group_avg_sales_qty,
+            rs.purchases_ht / NULLIF(pc_current.count, 0) as group_avg_purchases_ht,
+            rs.purchases_qty / NULLIF(pc_current.count, 0) as group_avg_purchases_qty,
 
-            CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END as group_avg_margin_rate,
-            (gs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100 as group_pdm_pct,
-            RANK() OVER(ORDER BY gs.sales_qty DESC) as group_rank,
+            rs.my_margin_rate as group_avg_margin_rate,
+            (rs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100 as group_pdm_pct,
+            rs.group_rank,
 
             -- Evolutions
-            CASE WHEN gs.sales_ttc_prev = 0 THEN 0 ELSE ((gs.sales_ttc - gs.sales_ttc_prev) / gs.sales_ttc_prev) * 100 END as my_sales_evolution,
-            CASE WHEN gs.sales_ttc_prev = 0 THEN 0 ELSE ((gs.sales_ttc - gs.sales_ttc_prev) / gs.sales_ttc_prev) * 100 END as group_sales_evolution,
+            CASE WHEN rs.sales_ttc_prev = 0 THEN 0 ELSE ((rs.sales_ttc - rs.sales_ttc_prev) / rs.sales_ttc_prev) * 100 END as my_sales_evolution,
+            CASE WHEN rs.sales_ttc_prev = 0 THEN 0 ELSE ((rs.sales_ttc - rs.sales_ttc_prev) / rs.sales_ttc_prev) * 100 END as group_sales_evolution,
 
-            CASE WHEN gs.purchases_ht_prev = 0 THEN 0 ELSE ((gs.purchases_ht - gs.purchases_ht_prev) / gs.purchases_ht_prev) * 100 END as my_purchases_evolution,
-            CASE WHEN gs.purchases_ht_prev = 0 THEN 0 ELSE ((gs.purchases_ht - gs.purchases_ht_prev) / gs.purchases_ht_prev) * 100 END as group_purchases_evolution,
+            CASE WHEN rs.purchases_ht_prev = 0 THEN 0 ELSE ((rs.purchases_ht - rs.purchases_ht_prev) / rs.purchases_ht_prev) * 100 END as my_purchases_evolution,
+            CASE WHEN rs.purchases_ht_prev = 0 THEN 0 ELSE ((rs.purchases_ht - rs.purchases_ht_prev) / rs.purchases_ht_prev) * 100 END as group_purchases_evolution,
 
-            CASE WHEN gs.sales_qty_prev = 0 THEN 0 ELSE ((gs.sales_qty - gs.sales_qty_prev) / gs.sales_qty_prev) * 100 END as my_sales_qty_evolution,
-            CASE WHEN gs.sales_qty_prev = 0 THEN 0 ELSE ((gs.sales_qty - gs.sales_qty_prev) / gs.sales_qty_prev) * 100 END as group_sales_qty_evolution,
+            CASE WHEN rs.sales_qty_prev = 0 THEN 0 ELSE ((rs.sales_qty - rs.sales_qty_prev) / rs.sales_qty_prev) * 100 END as my_sales_qty_evolution,
+            CASE WHEN rs.sales_qty_prev = 0 THEN 0 ELSE ((rs.sales_qty - rs.sales_qty_prev) / rs.sales_qty_prev) * 100 END as group_sales_qty_evolution,
 
-            CASE WHEN gs.purchases_qty_prev = 0 THEN 0 ELSE ((gs.purchases_qty - gs.purchases_qty_prev) / gs.purchases_qty_prev) * 100 END as my_purchases_qty_evolution,
-            CASE WHEN gs.purchases_qty_prev = 0 THEN 0 ELSE ((gs.purchases_qty - gs.purchases_qty_prev) / gs.purchases_qty_prev) * 100 END as group_purchases_qty_evolution,
+            CASE WHEN rs.purchases_qty_prev = 0 THEN 0 ELSE ((rs.purchases_qty - rs.purchases_qty_prev) / rs.purchases_qty_prev) * 100 END as my_purchases_qty_evolution,
+            CASE WHEN rs.purchases_qty_prev = 0 THEN 0 ELSE ((rs.purchases_qty - rs.purchases_qty_prev) / rs.purchases_qty_prev) * 100 END as group_purchases_qty_evolution,
 
             CASE
-                WHEN (gs.sales_ht_prev = 0) THEN 0
-                ELSE ((CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END) - ((gs.margin_ht_prev / gs.sales_ht_prev) * 100))
+                WHEN (rs.sales_ht_prev = 0) THEN 0
+                ELSE ((rs.my_margin_rate) - ((rs.margin_ht_prev / rs.sales_ht_prev) * 100))
             END as my_margin_rate_evolution,
             CASE
-                WHEN (gs.sales_ht_prev = 0) THEN 0
-                ELSE ((CASE WHEN gs.sales_ht = 0 THEN 0 ELSE (gs.margin_ht / gs.sales_ht) * 100 END) - ((gs.margin_ht_prev / gs.sales_ht_prev) * 100))
+                WHEN (rs.sales_ht_prev = 0) THEN 0
+                ELSE ((rs.my_margin_rate) - ((rs.margin_ht_prev / rs.sales_ht_prev) * 100))
             END as group_margin_rate_evolution,
 
-            ((gs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100) - ((gs.sales_ttc_prev / NULLIF(gt.total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
+            ((rs.sales_ttc / NULLIF(gt.total_sales_market, 0)) * 100) - ((rs.sales_ttc_prev / NULLIF(gt.total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
             0 as group_pdm_evolution,
 
-            ((gs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100) - ((gt.total_purchases_market_prev / NULLIF(gt.total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
-            CASE WHEN gs.margin_ht_prev = 0 THEN 0 ELSE ((gs.margin_ht - gs.margin_ht_prev) / ABS(gs.margin_ht_prev)) * 100 END as my_margin_ht_evolution,
+            ((rs.purchases_ht / NULLIF(gt.total_purchases_market, 0)) * 100) - ((gt.total_purchases_market_prev / NULLIF(gt.total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
+            CASE WHEN rs.margin_ht_prev = 0 THEN 0 ELSE ((rs.margin_ht - rs.margin_ht_prev) / ABS(rs.margin_ht_prev)) * 100 END as my_margin_ht_evolution,
             
              CASE 
-                WHEN COALESCE(lstp.stock_qty, 0) = 0 THEN 0 
-                ELSE ((COALESCE(lst.stock_qty, 0) - COALESCE(lstp.stock_qty, 0)) / COALESCE(lstp.stock_qty, 0)) * 100 
+                WHEN COALESCE(rs.stock_qty_prev, 0) = 0 THEN 0 
+                ELSE ((COALESCE(rs.stock_qty, 0) - COALESCE(rs.stock_qty_prev, 0)) / COALESCE(rs.stock_qty_prev, 0)) * 100 
             END as my_stock_qty_evolution,
             
             CASE 
-                WHEN COALESCE(lstp.stock_value_ht, 0) = 0 THEN 0 
-                ELSE ((COALESCE(lst.stock_value_ht, 0) - COALESCE(lstp.stock_value_ht, 0)) / COALESCE(lstp.stock_value_ht, 0)) * 100 
+                WHEN COALESCE(rs.stock_value_ht_prev, 0) = 0 THEN 0 
+                ELSE ((COALESCE(rs.stock_value_ht, 0) - COALESCE(rs.stock_value_ht_prev, 0)) / COALESCE(rs.stock_value_ht_prev, 0)) * 100 
             END as my_stock_value_ht_evolution,
             
             COUNT(*) OVER() as total_rows
             
-        FROM global_stats gs
-        LEFT JOIN last_stock lst ON lst.ean13 = gs.ean13
-        LEFT JOIN last_stock_prev lstp ON lstp.ean13 = gs.ean13
+        FROM ranked_stats rs
         CROSS JOIN global_totals gt
         LEFT JOIN pharmacy_counts pc_current ON pc_current.period = 'CURRENT'
         ${finalOrderByClause}
@@ -347,98 +370,129 @@ export const ProductQueries = {
                 COUNT(*) as total_rows
             FROM my_stats 
             JOIN group_stats USING (ean13)
+        ),
+        
+        ranked_my_stats AS (
+            SELECT
+                ms.*,
+                lst.stock_qty,
+                lst.stock_value_ht,
+                lstp.stock_qty as stock_qty_prev,
+                lstp.stock_value_ht as stock_value_ht_prev,
+                
+                -- Calculate my_rank BEFORE pagination
+                RANK() OVER(ORDER BY ms.my_sales_qty DESC) as my_rank,
+                
+                -- Calculated fields needed for sorting
+                CASE WHEN ms.my_purchases_qty = 0 THEN 0 ELSE ms.my_purchases_ht / ms.my_purchases_qty END as avg_purchase_price,
+                CASE WHEN ms.my_sales_qty = 0 THEN 0 ELSE ms.my_sales_ttc / ms.my_sales_qty END as avg_sell_price,
+                CASE WHEN ms.my_sales_ht = 0 THEN 0 ELSE (ms.my_margin_ht / ms.my_sales_ht) * 100 END as my_margin_rate,
+                
+                -- Days of Stock
+                CASE 
+                    WHEN (ms.my_sales_ht - ms.my_margin_ht) > 0 THEN 
+                        (COALESCE(lst.stock_value_ht, 0) / ((ms.my_sales_ht - ms.my_margin_ht) / GREATEST(1, ($2::date - $1::date)))) 
+                    ELSE 0 
+                END as my_days_of_stock
+                
+            FROM my_stats ms
+            LEFT JOIN last_stock lst ON lst.ean13 = ms.ean13
+            LEFT JOIN last_stock_prev lstp ON lstp.ean13 = ms.ean13
+        ),
+        
+        ranked_group_stats AS (
+            SELECT
+                gs.*,
+                -- Calculate group_rank BEFORE pagination
+                RANK() OVER(ORDER BY gs.group_total_sales_qty DESC) as group_rank,
+                CASE WHEN gs.group_total_sales_ht = 0 THEN 0 ELSE (gs.group_total_margin_ht / gs.group_total_sales_ht) * 100 END as group_avg_margin_rate
+            FROM group_stats gs
         )
 
         SELECT
-            ms.product_name,
-            ms.ean13,
-            ms.laboratory_name,
+            rms.product_name,
+            rms.ean13,
+            rms.laboratory_name,
             
             -- Price Info (NEW)
-            COALESCE(ms.prix_brut, 0) as prix_brut,
-            COALESCE(ms.discount_pct, 0) as discount_pct,
+            COALESCE(rms.prix_brut, 0) as prix_brut,
+            COALESCE(rms.discount_pct, 0) as discount_pct,
             
-            ms.my_sales_ttc,
-            ms.my_sales_qty,
-            ms.my_purchases_ht,
-            ms.my_purchases_qty,
-            ms.my_margin_ht,
+            rms.my_sales_ttc,
+            rms.my_sales_qty,
+            rms.my_purchases_ht,
+            rms.my_purchases_qty,
+            rms.my_margin_ht,
 
             -- Calculated Prices for Sorting
-            CASE WHEN ms.my_purchases_qty = 0 THEN 0 ELSE ms.my_purchases_ht / ms.my_purchases_qty END as avg_purchase_price,
-            CASE WHEN ms.my_sales_qty = 0 THEN 0 ELSE ms.my_sales_ttc / ms.my_sales_qty END as avg_sell_price,
+            rms.avg_purchase_price,
+            rms.avg_sell_price,
 
             -- Stock
-            COALESCE(lst.stock_qty, 0) as my_stock_qty,
-            COALESCE(lst.stock_value_ht, 0) as my_stock_value_ht,
+            COALESCE(rms.stock_qty, 0) as my_stock_qty,
+            COALESCE(rms.stock_value_ht, 0) as my_stock_value_ht,
 
             -- Days of Stock
-            CASE 
-                WHEN (ms.my_sales_ht - ms.my_margin_ht) > 0 THEN 
-                    (COALESCE(lst.stock_value_ht, 0) / ((ms.my_sales_ht - ms.my_margin_ht) / GREATEST(1, ($2::date - $1::date)))) 
-                ELSE 0 
-            END as my_days_of_stock,
+            rms.my_days_of_stock,
 
-            CASE WHEN ms.my_sales_ht = 0 THEN 0 ELSE (ms.my_margin_ht / ms.my_sales_ht) * 100 END as my_margin_rate,
-            (ms.my_sales_ttc / NULLIF(gt.my_total_sales_market, 0)) * 100 as my_pdm_pct,
-            (ms.my_purchases_ht / NULLIF(gt.my_total_purchases_market, 0)) * 100 as my_pdm_purchases_pct,
+            rms.my_margin_rate,
+            (rms.my_sales_ttc / NULLIF(gt.my_total_sales_market, 0)) * 100 as my_pdm_pct,
+            (rms.my_purchases_ht / NULLIF(gt.my_total_purchases_market, 0)) * 100 as my_pdm_purchases_pct,
 
-            RANK() OVER(ORDER BY ms.my_sales_qty DESC) as my_rank,
+            rms.my_rank,
 
-            gs.group_total_sales_ttc / NULLIF(pc_current.count, 0) as group_avg_sales_ttc,
-            gs.group_total_sales_qty / NULLIF(pc_current.count, 0) as group_avg_sales_qty,
-            gs.group_total_purchases_ht / NULLIF(pc_current.count, 0) as group_avg_purchases_ht,
-            gs.group_total_purchases_qty / NULLIF(pc_current.count, 0) as group_avg_purchases_qty,
+            rgs.group_total_sales_ttc / NULLIF(pc_current.count, 0) as group_avg_sales_ttc,
+            rgs.group_total_sales_qty / NULLIF(pc_current.count, 0) as group_avg_sales_qty,
+            rgs.group_total_purchases_ht / NULLIF(pc_current.count, 0) as group_avg_purchases_ht,
+            rgs.group_total_purchases_qty / NULLIF(pc_current.count, 0) as group_avg_purchases_qty,
 
-            CASE WHEN gs.group_total_sales_ht = 0 THEN 0 ELSE (gs.group_total_margin_ht / gs.group_total_sales_ht) * 100 END as group_avg_margin_rate,
-            (gs.group_total_sales_ttc / NULLIF(gt.group_total_sales_market, 0)) * 100 as group_pdm_pct,
+            rgs.group_avg_margin_rate,
+            (rgs.group_total_sales_ttc / NULLIF(gt.group_total_sales_market, 0)) * 100 as group_pdm_pct,
 
-            RANK() OVER(ORDER BY gs.group_total_sales_qty DESC) as group_rank,
+            rgs.group_rank,
 
-            CASE WHEN ms.my_sales_ttc_prev = 0 THEN 0 ELSE ((ms.my_sales_ttc - ms.my_sales_ttc_prev) / ms.my_sales_ttc_prev) * 100 END as my_sales_evolution,
-            CASE WHEN gs.group_total_sales_ttc_prev = 0 THEN 0 ELSE ((gs.group_total_sales_ttc - gs.group_total_sales_ttc_prev) / gs.group_total_sales_ttc_prev) * 100 END as group_sales_evolution,
+            CASE WHEN rms.my_sales_ttc_prev = 0 THEN 0 ELSE ((rms.my_sales_ttc - rms.my_sales_ttc_prev) / rms.my_sales_ttc_prev) * 100 END as my_sales_evolution,
+            CASE WHEN rgs.group_total_sales_ttc_prev = 0 THEN 0 ELSE ((rgs.group_total_sales_ttc - rgs.group_total_sales_ttc_prev) / rgs.group_total_sales_ttc_prev) * 100 END as group_sales_evolution,
 
-            CASE WHEN ms.my_purchases_ht_prev = 0 THEN 0 ELSE ((ms.my_purchases_ht - ms.my_purchases_ht_prev) / ms.my_purchases_ht_prev) * 100 END as my_purchases_evolution,
-            CASE WHEN gs.group_total_purchases_ht_prev = 0 THEN 0 ELSE ((gs.group_total_purchases_ht - gs.group_total_purchases_ht_prev) / gs.group_total_purchases_ht_prev) * 100 END as group_purchases_evolution,
+            CASE WHEN rms.my_purchases_ht_prev = 0 THEN 0 ELSE ((rms.my_purchases_ht - rms.my_purchases_ht_prev) / rms.my_purchases_ht_prev) * 100 END as my_purchases_evolution,
+            CASE WHEN rgs.group_total_purchases_ht_prev = 0 THEN 0 ELSE ((rgs.group_total_purchases_ht - rgs.group_total_purchases_ht_prev) / rgs.group_total_purchases_ht_prev) * 100 END as group_purchases_evolution,
 
-            CASE WHEN ms.my_sales_qty_prev = 0 THEN 0 ELSE ((ms.my_sales_qty - ms.my_sales_qty_prev) / ms.my_sales_qty_prev) * 100 END as my_sales_qty_evolution,
-            CASE WHEN gs.group_total_sales_qty_prev = 0 THEN 0 ELSE ((gs.group_total_sales_qty - gs.group_total_sales_qty_prev) / gs.group_total_sales_qty_prev) * 100 END as group_sales_qty_evolution,
+            CASE WHEN rms.my_sales_qty_prev = 0 THEN 0 ELSE ((rms.my_sales_qty - rms.my_sales_qty_prev) / rms.my_sales_qty_prev) * 100 END as my_sales_qty_evolution,
+            CASE WHEN rgs.group_total_sales_qty_prev = 0 THEN 0 ELSE ((rgs.group_total_sales_qty - rgs.group_total_sales_qty_prev) / rgs.group_total_sales_qty_prev) * 100 END as group_sales_qty_evolution,
 
-            CASE WHEN ms.my_purchases_qty_prev = 0 THEN 0 ELSE ((ms.my_purchases_qty - ms.my_purchases_qty_prev) / ms.my_purchases_qty_prev) * 100 END as my_purchases_qty_evolution,
-            CASE WHEN gs.group_total_purchases_qty_prev = 0 THEN 0 ELSE ((gs.group_total_purchases_qty - gs.group_total_purchases_qty_prev) / gs.group_total_purchases_qty_prev) * 100 END as group_purchases_qty_evolution,
+            CASE WHEN rms.my_purchases_qty_prev = 0 THEN 0 ELSE ((rms.my_purchases_qty - rms.my_purchases_qty_prev) / rms.my_purchases_qty_prev) * 100 END as my_purchases_qty_evolution,
+            CASE WHEN rgs.group_total_purchases_qty_prev = 0 THEN 0 ELSE ((rgs.group_total_purchases_qty - rgs.group_total_purchases_qty_prev) / rgs.group_total_purchases_qty_prev) * 100 END as group_purchases_qty_evolution,
 
             CASE
-                WHEN (ms.my_sales_ht_prev = 0) THEN 0
-                ELSE ((CASE WHEN ms.my_sales_ht = 0 THEN 0 ELSE (ms.my_margin_ht / ms.my_sales_ht) * 100 END) - ((ms.my_margin_ht_prev / ms.my_sales_ht_prev) * 100))
+                WHEN (rms.my_sales_ht_prev = 0) THEN 0
+                ELSE ((rms.my_margin_rate) - ((rms.my_margin_ht_prev / rms.my_sales_ht_prev) * 100))
             END as my_margin_rate_evolution,
             CASE
-                WHEN (gs.group_total_sales_ht_prev = 0) THEN 0
-                ELSE ((CASE WHEN gs.group_total_sales_ht = 0 THEN 0 ELSE (gs.group_total_margin_ht / gs.group_total_sales_ht) * 100 END) - ((gs.group_total_margin_ht_prev / gs.group_total_sales_ht_prev) * 100))
+                WHEN (rgs.group_total_sales_ht_prev = 0) THEN 0
+                ELSE ((rgs.group_avg_margin_rate) - ((rgs.group_total_margin_ht_prev / rgs.group_total_sales_ht_prev) * 100))
             END as group_margin_rate_evolution,
 
-            ((ms.my_sales_ttc / NULLIF(gt.my_total_sales_market, 0)) * 100) - ((ms.my_sales_ttc_prev / NULLIF(gt.my_total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
-            ((gs.group_total_sales_ttc / NULLIF(gt.group_total_sales_market, 0)) * 100) - ((gs.group_total_sales_ttc_prev / NULLIF(gt.group_total_sales_market_prev, 0)) * 100) as group_pdm_evolution,
+            ((rms.my_sales_ttc / NULLIF(gt.my_total_sales_market, 0)) * 100) - ((rms.my_sales_ttc_prev / NULLIF(gt.my_total_sales_market_prev, 0)) * 100) as my_pdm_evolution,
+            ((rgs.group_total_sales_ttc / NULLIF(gt.group_total_sales_market, 0)) * 100) - ((rgs.group_total_sales_ttc_prev / NULLIF(gt.group_total_sales_market_prev, 0)) * 100) as group_pdm_evolution,
 
-            ((ms.my_purchases_ht / NULLIF(gt.my_total_purchases_market, 0)) * 100) - ((ms.my_purchases_ht_prev / NULLIF(gt.my_total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
+            ((rms.my_purchases_ht / NULLIF(gt.my_total_purchases_market, 0)) * 100) - ((rms.my_purchases_ht_prev / NULLIF(gt.my_total_purchases_market_prev, 0)) * 100) as my_pdm_purchases_evolution,
 
-            CASE WHEN ms.my_margin_ht_prev = 0 THEN 0 ELSE ((ms.my_margin_ht - ms.my_margin_ht_prev) / ABS(ms.my_margin_ht_prev)) * 100 END as my_margin_ht_evolution,
+            CASE WHEN rms.my_margin_ht_prev = 0 THEN 0 ELSE ((rms.my_margin_ht - rms.my_margin_ht_prev) / ABS(rms.my_margin_ht_prev)) * 100 END as my_margin_ht_evolution,
 
              CASE 
-                WHEN COALESCE(lstp.stock_qty, 0) = 0 THEN 0 
-                ELSE ((COALESCE(lst.stock_qty, 0) - COALESCE(lstp.stock_qty, 0)) / COALESCE(lstp.stock_qty, 0)) * 100 
+                WHEN COALESCE(rms.stock_qty_prev, 0) = 0 THEN 0 
+                ELSE ((COALESCE(rms.stock_qty, 0) - COALESCE(rms.stock_qty_prev, 0)) / COALESCE(rms.stock_qty_prev, 0)) * 100 
             END as my_stock_qty_evolution,
             
             CASE 
-                WHEN COALESCE(lstp.stock_value_ht, 0) = 0 THEN 0 
-                ELSE ((COALESCE(lst.stock_value_ht, 0) - COALESCE(lstp.stock_value_ht, 0)) / COALESCE(lstp.stock_value_ht, 0)) * 100 
+                WHEN COALESCE(rms.stock_value_ht_prev, 0) = 0 THEN 0 
+                ELSE ((COALESCE(rms.stock_value_ht, 0) - COALESCE(rms.stock_value_ht_prev, 0)) / COALESCE(rms.stock_value_ht_prev, 0)) * 100 
             END as my_stock_value_ht_evolution,
 
             gt.total_rows
 
-        FROM my_stats ms
-        JOIN group_stats gs ON ms.ean13 = gs.ean13
-        LEFT JOIN last_stock lst ON lst.ean13 = ms.ean13
-        LEFT JOIN last_stock_prev lstp ON lstp.ean13 = ms.ean13
+        FROM ranked_my_stats rms
+        JOIN ranked_group_stats rgs ON rms.ean13 = rgs.ean13
         CROSS JOIN global_totals gt
         LEFT JOIN pharmacy_counts pc_current ON pc_current.period = 'CURRENT'
         ${finalOrderByClause}

@@ -4,7 +4,6 @@ import { Search, Package, Loader2 } from 'lucide-react'; // Changed icon to Pack
 import { ProductTableHeader } from './ProductTableHeader';
 import { ProductTableRow } from './ProductTableRow';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
-import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
 
 export const ProductAnalysisTable = () => {
@@ -30,8 +29,7 @@ export const ProductAnalysisTable = () => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
     const resultData = data?.data || [];
-    // Calculate dynamic ranks on current page data
-    const rankMap = useCalculatedRank(resultData, rankBasis as any, (item: any) => item.ean13);
+    // Ranks are now calculated server-side in the SQL query
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
@@ -111,7 +109,7 @@ export const ProductAnalysisTable = () => {
                                         <ProductTableRow 
                                             key={row.ean13} 
                                             row={row} 
-                                            customRank={rankMap.get(row.ean13)}
+                                            customRank={row.my_rank}
                                         />
                                     ))}
                                 </tbody>

@@ -80,27 +80,27 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
             // Comparative
             if (sortBy === 'product_name') {
                 cteSortColumn = 'product_name';
-                finalSortColumn = 'ms.product_name';
+                finalSortColumn = 'rms.product_name';
             } else if (sortBy === 'laboratory_name') {
                 cteSortColumn = 'laboratory_name';
-                finalSortColumn = 'ms.laboratory_name';
+                finalSortColumn = 'rms.laboratory_name';
             } else if (calculatedColumns.includes(sortBy)) {
                 // Calculated columns in outer query, no prefix needed in final sort
                 cteSortColumn = 'my_sales_qty'; // Fallback for CTE sort (optimization)
                 finalSortColumn = sortBy;
             } else {
                 cteSortColumn = sortBy;
-                finalSortColumn = `ms.${cteSortColumn}`;
+                finalSortColumn = `rms.${cteSortColumn}`;
             }
         } else {
             // Global
             if (sortBy === 'product_name') {
                 cteSortColumn = 'product_name';
-                finalSortColumn = 'gs.product_name';
+                finalSortColumn = 'rs.product_name';
             }
             else if (sortBy === 'laboratory_name') {
                 cteSortColumn = 'laboratory_name';
-                finalSortColumn = 'gs.laboratory_name';
+                finalSortColumn = 'rs.laboratory_name';
             }
             else if (calculatedColumns.includes(sortBy)) {
                 // Calculated columns in outer query
@@ -111,14 +111,14 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
                 // Remove 'my_' prefix for Global CTE columns (sales_qty vs my_sales_qty)
                 const baseCol = sortBy.replace(/^my_/, '');
                 cteSortColumn = baseCol;
-                finalSortColumn = `gs.${baseCol}`;
+                finalSortColumn = `rs.${baseCol}`;
             }
         }
 
         // Prevent SQL Injection by whitelisting (basic check or rely on query strictness, but here we construct string)
         // Simple regex validation
         if (!/^[a-zA-Z0-9_.]+$/.test(cteSortColumn)) cteSortColumn = 'sales_qty';
-        if (!/^[a-zA-Z0-9_.]+$/.test(finalSortColumn)) finalSortColumn = 'gs.sales_qty';
+        if (!/^[a-zA-Z0-9_.]+$/.test(finalSortColumn)) finalSortColumn = 'rs.sales_qty';
 
         const orderByClause = `ORDER BY ${cteSortColumn} ${direction} ${nulls}`;
         const finalOrderByClause = `ORDER BY ${finalSortColumn} ${direction} ${nulls}`;

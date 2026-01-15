@@ -127,8 +127,8 @@ export const ActiveFiltersDisplay: React.FC<ActiveFiltersDisplayProps> = () => {
                                     <span className="text-[10px] uppercase font-bold text-purple-400 tracking-wider">Laboratoires</span>
                                     <span className="bg-purple-100 text-purple-700 text-[10px] px-1.5 rounded-full font-bold">{store.laboratories.length}</span>
                                 </div>
-                                <span className="text-xs font-semibold text-purple-900 truncate block max-w-[200px]">
-                                    {store.laboratories.length === 1 ? store.laboratories[0]?.name : `${store.laboratories.length} sélectionnés`}
+                                <span className="text-xs font-semibold text-purple-900 leading-tight">
+                                    {store.laboratories.map(l => l.name).join(', ')}
                                 </span>
                             </div>
                         </div>
@@ -164,7 +164,8 @@ export const ActiveFiltersDisplay: React.FC<ActiveFiltersDisplayProps> = () => {
                                     <span className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 rounded-full font-bold">{store.products.length}</span>
                                 </div>
                                 <span className="text-xs font-semibold text-emerald-900">
-                                    {store.products.length} produits ciblés
+                                    {store.products.slice(0, 5).map(p => p.name).join(', ')}
+                                    {store.products.length > 5 && `, +${store.products.length - 5} autres`}
                                 </span>
                             </div>
                         </div>
