@@ -112,11 +112,14 @@ export const ProductAnalysisTable: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <Package className="w-6 h-6 text-purple-600" />
-                        Analyse par Produit
+                        <Package className="w-6 h-6 text-purple-500" />
+                        Analyse des Produits
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                        Détail des performances par produit (Achats, Ventes, Marge, Stock)
+                        Détail de vos produits top performeurs avec comparaison groupement.
+                        <span className="ml-2 text-xs font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                            Astuce : Ctrl/Cmd + Clic pour filtrer
+                        </span>
                     </p>
                 </div>
 
@@ -132,7 +135,7 @@ export const ProductAnalysisTable: React.FC = () => {
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Rechercher un produit ou EAN..."
+                            placeholder="Rechercher un produit ou un EAN..."
                             className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
                             value={search}
                             onChange={handleSearch}
