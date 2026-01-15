@@ -72,7 +72,9 @@ export const RegionSalesMap: React.FC<RegionSalesMapProps> = ({
                 return;
             }
 
-            const map = L.map(mapRef.current!, {
+            if (!mapRef.current) return; // Safety check if component unmounted during import
+
+            const map = L.map(mapRef.current, {
                 center: [46.603354, 1.888334],
                 zoom: 5,
                 zoomControl: false,

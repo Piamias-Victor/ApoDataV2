@@ -31,17 +31,32 @@ export class PharmacyMonthlyRepository extends BaseKpiRepository {
             previousYear 
         });
 
-        const baseParams = [currentYear, previousYear];
+        const baseParams = [
+            context.periods.current.start,
+            context.periods.current.end,
+            context.periods.previous.start,
+            context.periods.previous.end
+        ];
 
         const qb = this.createBuilder(context, baseParams, {
             laboratory: 'mv.laboratory_name',
             productCode: 'mv.ean13',
-            pharmacyId: 'mv.pharmacy_id'
+            pharmacyId: 'mv.pharmacy_id',
+            // OPTIMIZATION: Use MV column for main category filter if available to avoid join dependency
+            // Assuming 'category_name' in MV corresponds to L1. Correct me if L0/L2.
+            // If this fails (column not exists), we will revert to gp.
+            // cat_l1: 'mv.category_name', 
+            
+            // Reverting to GP for safety but verifying alias match
+            cat_l1: 'gp.bcb_segment_l1',
+            cat_family: 'gp.bcb_family'
         });
 
         // Add filter conditions (Standard)
         const conditions = qb.getConditions();
         const params = qb.getParams();
+
+        console.log('PharmacyMonthlyRepository Conditions:', conditions);
 
         const querySql = PharmacyQueries.getMonthlyStats(conditions);
 
@@ -62,6 +77,8 @@ export class PharmacyMonthlyRepository extends BaseKpiRepository {
             }));
         } catch (error) {
             console.error("Failed to fetch pharmacy monthly stats:", error);
+            console.error("Query was:", querySql);
+            console.error("Params were:", params);
             throw error;
         }
     }

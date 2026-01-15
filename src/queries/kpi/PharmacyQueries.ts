@@ -83,6 +83,7 @@ export const PharmacyQueries = {
                 WHERE month_end_date <= $2::date
                 ORDER BY product_id, pharmacy_id, month_end_date DESC
             ) mv
+            LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
             ${conditions} -- Filter the snapshot by global conditions (Lab, Product, etc)
             GROUP BY 1
@@ -108,6 +109,7 @@ export const PharmacyQueries = {
                 WHERE month_end_date <= $4::date
                 ORDER BY product_id, pharmacy_id, month_end_date DESC
             ) mv
+            LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
             WHERE 1=1
             ${conditions}
             GROUP BY 1
@@ -202,7 +204,11 @@ export const PharmacyQueries = {
         JOIN data_pharmacy p ON p.id = mv.pharmacy_id
         LEFT JOIN data_globalproduct gp ON gp.code_13_ref = mv.ean13
         WHERE 
-            (EXTRACT(YEAR FROM mv.month) = $1::int OR EXTRACT(YEAR FROM mv.month) = $2::int)
+            (
+                (mv.month >= $1::date AND mv.month <= $2::date) 
+                OR (mv.month >= $3::date AND mv.month <= $4::date)
+            )
+            AND mv.ean13 != 'NO-EAN'
             ${conditions}
         GROUP BY 1, 2, 3, 4
         ORDER BY p.name ASC, year_num DESC, month_num ASC
