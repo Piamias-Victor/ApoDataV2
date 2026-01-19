@@ -12,6 +12,10 @@ const DEFAULT_SCENARIO: Omit<NegotiationScenario, 'id' | 'name'> = {
     prixPublicTTC: '',
     
     // Computed initial values
+    tradeSellOutAmount: '',
+    tradeSellOutPercent: '',
+    
+    // Computed initial values
     prixNetRemise: 0,
     prixNetAvecUG: 0,
     prixNetAvecRFA1: 0,
@@ -19,6 +23,12 @@ const DEFAULT_SCENARIO: Omit<NegotiationScenario, 'id' | 'name'> = {
     margeVal: 0,
     coefficient: 0,
     margePercent: 0,
+    
+    // Trade outputs
+    prixNetTrade: 0,
+    margeTradeVal: 0,
+    margeTradePercent: 0,
+    prixPublicTTCEffectif: 0,
 };
 
 const parseVal = (v: number | string): number => {
@@ -41,6 +51,8 @@ const calculateScenario = (scenario: NegotiationScenario): NegotiationScenario =
     const qteCommandee = parseVal(scenario.qteCommandee);
     const ug = parseVal(scenario.ug);
     const prixPublicTTC = parseVal(scenario.prixPublicTTC);
+    const tradeSellOutAmount = parseVal(scenario.tradeSellOutAmount);
+    const tradeSellOutPercent = parseVal(scenario.tradeSellOutPercent);
 
     // 1. Prix Net Remise
     const prixNetRemise = prixTarif * (1 - (rsfPercent / 100));
@@ -65,7 +77,7 @@ const calculateScenario = (scenario: NegotiationScenario): NegotiationScenario =
         ? prixPublicTTC / (1 + (tvaPercent / 100)) 
         : 0;
 
-    // 6. Marge brute (Valeur)
+    // 6. Marge brute (Valeur) - Standard
     const margeVal = prixVenteHT - prixNetAvecRFA2;
 
     // 7. Coefficient Multiplicateur (PV TTC / PA OPTIMISÉ)
@@ -73,10 +85,40 @@ const calculateScenario = (scenario: NegotiationScenario): NegotiationScenario =
         ? prixPublicTTC / prixNetAvecRFA2 
         : 0;
 
-    // 8. Taux de marque (%)
+    // 8. Taux de marque (%) - Standard
     const margePercent = prixVenteHT > 0 
         ? (margeVal / prixVenteHT) * 100 
         : 0;
+
+
+    // 9. Calculs Trade Sell-Out
+    // Le Trade Sell-Out baisse le prix de vente TTC directement.
+    // TradeValue (€) est absolu et se soustrait du Prix Public TTC.
+    // TradeValue (%) est basé sur le Prix Public TTC.
+    
+    const tradeValueAmount = tradeSellOutAmount;
+    const tradeValuePercentVal = prixPublicTTC * (tradeSellOutPercent / 100);
+    
+    const totalTradeValueTTC = tradeValueAmount + tradeValuePercentVal;
+    
+    // Prix Public TTC Effectif = Prix Public TTC - Trade
+    const prixPublicTTCEffectif = prixPublicTTC - totalTradeValueTTC;
+    
+    // Prix de vente HT effectif après trade
+    const prixVenteEffectiveHT = tvaPercent !== -100 
+        ? prixPublicTTCEffectif / (1 + (tvaPercent / 100)) 
+        : 0;
+
+    // La marge trade se calcule avec ce nouveau prix de vente HT
+    const margeTradeVal = prixVenteEffectiveHT - prixNetAvecRFA2;
+    
+    // Le % de marge se calcule sur le CA effectif
+    const margeTradePercent = prixVenteEffectiveHT > 0 
+        ? (margeTradeVal / prixVenteEffectiveHT) * 100 
+        : 0;
+
+    // PrixNetTrade - on garde le même prix d'achat
+    const prixNetTrade = prixNetAvecRFA2; 
 
     return {
         ...scenario,
@@ -87,6 +129,10 @@ const calculateScenario = (scenario: NegotiationScenario): NegotiationScenario =
         margeVal,
         coefficient,
         margePercent,
+        prixNetTrade, 
+        margeTradeVal,
+        margeTradePercent,
+        prixPublicTTCEffectif,
     };
 };
 

@@ -97,11 +97,24 @@ export const NegotiationTool = () => {
                                 ))}
                             </tr>
 
+                            {/* TRADE SELL-OUT INPUTS */}
+                            <SectionHeader title="Trade Sell-Out (Simulation)" className="bg-yellow-50/30 mt-4" />
+                            <InputRow label="Trade Sell-Out (€)" field="tradeSellOutAmount" scenarios={scenarios} onChange={updateField} />
+                            <InputRow label="Trade Sell-Out (%)" field="tradeSellOutPercent" scenarios={scenarios} onChange={updateField} />
+            
+            {/* PRIX PUBLIC EFFECTIF AVEC TRADE (Calculated) */}
+            <DisplayRow scenarios={scenarios} label="Prix Public TTC Effectif avec Trade (€)" getValue={(s: NegotiationScenario) => s.prixPublicTTCEffectif} format={(v: number) => CURRENCY_FORMAT.format(v)} highlight bold />
+                            
                             {/* RENTABILITÉ SECTION */}
                             <SectionHeader title="Rentabilité & Marge" className="bg-green-50/30" />
                             <DisplayRow scenarios={scenarios} label="Marge Unitaire (€)" getValue={(s: NegotiationScenario) => s.margeVal} format={(v: number) => CURRENCY_FORMAT.format(v)} colorize />
                             <DisplayRow scenarios={scenarios} label="Coefficient" getValue={(s: NegotiationScenario) => s.coefficient} format={(v: number) => NUMBER_FORMAT.format(v)} />
                             <DisplayRow scenarios={scenarios} label="Marge (%)" getValue={(s: NegotiationScenario) => s.margePercent} format={(v: number) => NUMBER_FORMAT.format(v) + ' %'} colorize />
+                            
+                            {/* RENTABILITÉ AVEC TRADE SECTION */}
+                            <SectionHeader title="Rentabilité avec Trade" className="bg-purple-50/30" />
+                            <DisplayRow scenarios={scenarios} label="Marge Trade (€)" getValue={(s: NegotiationScenario) => s.margeTradeVal} format={(v: number) => CURRENCY_FORMAT.format(v)} colorize />
+                            <DisplayRow scenarios={scenarios} label="Marge Trade (%)" getValue={(s: NegotiationScenario) => s.margeTradePercent} format={(v: number) => NUMBER_FORMAT.format(v) + ' %'} colorize />
                         </tbody>
                     </table>
                 </div>
