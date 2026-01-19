@@ -7,6 +7,11 @@ export interface RegionParams {
     value: number;
     pharmacyCount: number;
     averageSales: number;
+    comparison?: {
+        nationalAverage: number;
+        deviation: number;
+        label: string;
+    };
 }
 
 export const useRegionSales = () => {

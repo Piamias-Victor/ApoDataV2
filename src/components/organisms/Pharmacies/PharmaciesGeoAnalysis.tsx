@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Map } from 'lucide-react';
 import { RegionSalesMap } from '@/components/organisms/Pharmacies/components/RegionSalesMap';
+import { EvolutionBadge } from '@/components/atoms/EvolutionBadge';
 import { useRegionSales } from '@/hooks/stats/useRegionSales';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { formatCurrency } from '@/lib/utils/formatters';
@@ -111,6 +112,14 @@ export const PharmaciesGeoAnalysis: React.FC = () => {
                                                 </td>
                                                 <td className="px-4 py-3 text-right text-gray-600">
                                                     {formatCurrency(region.averageSales)}
+                                                    {region.comparison && (
+                                                        <div className="flex justify-end mt-1" title={`${region.comparison.label} : ${formatCurrency(region.comparison.nationalAverage)}`}>
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-[10px] text-gray-400">vs Nat.</span>
+                                                                <EvolutionBadge value={region.comparison.deviation} />
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );

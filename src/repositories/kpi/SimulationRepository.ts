@@ -29,7 +29,7 @@ export class SimulationRepository {
 
             // 4. Categories
             if (filters.categories?.length > 0) {
-                qb.addCategories(filters.categories);
+                qb.addCategories(filters.categories.map((c: any) => ({ code: c.name, type: c.type })));
             }
 
             // 5. Groups (Market Ids)
@@ -46,7 +46,7 @@ export class SimulationRepository {
             if (filters.excludedPharmacies?.length > 0) qb.addExcludedPharmacies(filters.excludedPharmacies.map((p: any) => p.id));
             if (filters.excludedProducts?.length > 0) qb.addExcludedProducts(filters.excludedProducts.map((p: any) => p.ean13));
             if (filters.excludedLaboratories?.length > 0) qb.addExcludedLaboratories(filters.excludedLaboratories.map((l: any) => l.name));
-            if (filters.excludedCategories?.length > 0) qb.addExcludedCategories(filters.excludedCategories);
+            if (filters.excludedCategories?.length > 0) qb.addExcludedCategories(filters.excludedCategories.map((c: any) => ({ code: c.name, type: c.type })));
 
 
             const conditions = qb.getConditions();
