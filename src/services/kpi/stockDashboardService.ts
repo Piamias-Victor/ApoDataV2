@@ -6,7 +6,7 @@ import { fetchInventoryDays } from '@/repositories/kpi/inventoryDaysRepository';
 import { fetchDiscrepancyData } from '@/repositories/kpi/ruptureRepository';
 import * as ventesRepository from '@/repositories/kpi/ventesRepository';
 import * as achatsRepository from '@/repositories/kpi/achatsRepository';
-import { format, subMonths, addDays, addMonths, subDays } from 'date-fns';
+import { format, addDays, addMonths, subDays } from 'date-fns';
 
 /**
  * 1. Reception KPI (Card 1 & 2)
@@ -84,10 +84,10 @@ export async function getDiscrepancyKpi(request: AchatsKpiRequest): Promise<Stoc
  * Forecast: Monthly (Next 3 Months)
  */
 export async function getStockEvolution(originalRequest: AchatsKpiRequest) {
-    // 1. Define Ranges
     const today = new Date();
-    const historyStart = subMonths(today, 12);
-    const historyEnd = today;
+    // Use User-Selected Range for History
+    const historyStart = new Date(originalRequest.dateRange.start);
+    const historyEnd = new Date(originalRequest.dateRange.end);
 
     const forecastStart = addDays(today, 1);
     const forecastEnd = addMonths(today, 3);

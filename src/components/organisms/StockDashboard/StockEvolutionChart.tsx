@@ -83,7 +83,7 @@ export const StockEvolutionChart: React.FC<StockEvolutionChartProps> = ({ data, 
                         Évolution du Stock & Prévisions
                     </h2>
                     <p className="text-slate-500 mt-1">
-                        Historique sur 12 mois et projection sur 3 mois (basée sur vélocité et commandes)
+                        Historique sélectionné et projection sur 3 mois (basée sur vélocité et commandes)
                     </p>
                 </div>
             </div>
