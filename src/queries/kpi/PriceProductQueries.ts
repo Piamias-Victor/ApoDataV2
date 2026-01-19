@@ -140,6 +140,10 @@ ms.product_name,
     CASE WHEN ms.my_sales_ht = 0 THEN 0 ELSE(ms.my_margin_ht / ms.my_sales_ht) * 100 END as my_margin_rate,
     CASE WHEN ms.prev_sales_ht = 0 THEN 0 ELSE(ms.prev_margin_ht / ms.prev_sales_ht) * 100 END as prev_margin_rate,
 
+    -- Quantities (Added)
+    ms.my_purchases_qty,
+    ms.my_sales_qty,
+
         --Count for pagination
             COUNT(*) OVER() as total_rows,
             ms.vat_rate,

@@ -248,6 +248,9 @@ export interface PriceProductAnalysis {
     vat_rate: number;
     manufacturer_price: number | null;
 
+    my_purchases_qty: number;
+    my_sales_qty: number;
+
     total_rows: number;
 }
 
@@ -322,7 +325,10 @@ export async function fetchPriceProducts(
         'group_max_purchase_price': 'ga.group_max_purchase_price',
         'group_min_sell_price': 'ga.group_min_sell_price',
         'group_max_sell_price': 'ga.group_max_sell_price',
-        'my_current_sell_price': 'my_last_sales_ttc' // Sort by last known price
+        'group_max_sell_price': 'ga.group_max_sell_price',
+        'my_current_sell_price': 'my_last_sales_ttc', // Sort by last known price
+        'my_purchases_qty': 'my_purchases_qty',
+        'my_sales_qty': 'my_sales_qty'
     };
     const sqlSort = sortMapping[orderBy] || 'my_avg_sell_price';
     const finalOrderByClause = `ORDER BY ${sqlSort} ${orderDirection.toUpperCase()} NULLS LAST`;
@@ -404,6 +410,9 @@ export async function fetchPriceProducts(
 
             vat_rate: Number(row.vat_rate) || 5.5, // Default to 5.5 if missing (standard med rate)
             manufacturer_price: row.manufacturer_price ? Number(row.manufacturer_price) : null,
+
+            my_purchases_qty: Number(row.my_purchases_qty) || 0,
+            my_sales_qty: Number(row.my_sales_qty) || 0,
 
             total_rows: Number(row.total_rows) || 0
         };

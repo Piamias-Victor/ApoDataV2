@@ -59,12 +59,14 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
                 <TableCell align="right" variant="purple"><ValueCell value={row.group_max_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
                 <TableCell align="right" variant="purple"><ValueCell value={row.group_avg_purchase_price} isCurrency decimals={2} className="text-xs" /></TableCell>
                 <TableCell align="right" variant="purple" className="bg-purple-100/50"><ValueCell value={row.my_avg_purchase_price} evolution={row.my_avg_purchase_price_evolution} isCurrency decimals={2} className="font-semibold text-purple-700 text-xs" /></TableCell>
+                <TableCell align="right" variant="purple"><ValueCell value={row.my_purchases_qty} className="text-xs font-mono" /></TableCell>
 
                 {/* Sell Prices (Blue Variant) */}
                 <TableCell align="right" variant="blue" className="border-l border-blue-100"><ValueCell value={row.group_min_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
                 <TableCell align="right" variant="blue"><ValueCell value={row.group_max_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
                 <TableCell align="right" variant="blue"><ValueCell value={row.group_avg_sell_price} isCurrency decimals={2} className="text-xs" /></TableCell>
                 <TableCell align="right" variant="blue" className="bg-blue-100/50"><ValueCell value={row.my_avg_sell_price} evolution={row.my_avg_sell_price_evolution} isCurrency decimals={2} className="font-semibold text-blue-700 text-xs" /></TableCell>
+                <TableCell align="right" variant="blue"><ValueCell value={row.my_sales_qty} className="text-xs font-mono" /></TableCell>
 
                 {/* Current Sell Price */}
                 <TableCell align="right" className="border-l border-gray-200 bg-gray-50/50"><ValueCell value={row.my_current_sell_price} isCurrency decimals={2} className="font-bold text-gray-900 text-xs" /></TableCell>
@@ -76,7 +78,7 @@ export const PriceProductRow: React.FC<PriceProductRowProps> = ({ row }) => {
             {/* Simulation Row */}
             {isExpanded && (
                 <tr className="bg-gray-50/50 animate-in fade-in zoom-in-95 duration-200">
-                    <td colSpan={14} className="p-4 border-b border-gray-200">
+                    <td colSpan={16} className="p-4 border-b border-gray-200">
                         <PriceSimulator
                             initialPurchasePrice={row.my_avg_purchase_price}
                             initialSellPrice={row.my_current_sell_price > 0 ? row.my_current_sell_price : row.my_avg_sell_price}
