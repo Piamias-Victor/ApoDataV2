@@ -325,7 +325,6 @@ export async function fetchPriceProducts(
         'group_max_purchase_price': 'ga.group_max_purchase_price',
         'group_min_sell_price': 'ga.group_min_sell_price',
         'group_max_sell_price': 'ga.group_max_sell_price',
-        'group_max_sell_price': 'ga.group_max_sell_price',
         'my_current_sell_price': 'my_last_sales_ttc', // Sort by last known price
         'my_purchases_qty': 'my_purchases_qty',
         'my_sales_qty': 'my_sales_qty'
