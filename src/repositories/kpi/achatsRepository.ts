@@ -251,6 +251,7 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
         WHERE o.sent_date >= $1::date 
           AND o.sent_date <= $2::date
           AND o.sent_date IS NOT NULL
+          AND po.qte_r <= po.qte -- Filter: exclude ONLY over-deliveries (>), keep perfect (=) and partial (<)
           ${conditions}
         GROUP BY 1
         ORDER BY 1 ASC

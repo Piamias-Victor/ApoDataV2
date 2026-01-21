@@ -7,6 +7,8 @@ import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 
 type MetricKey = 'sales_ht' | 'sales_ttc' | 'sales_qty' | 'purchases_ht' | 'purchases_qty';
@@ -21,6 +23,7 @@ const METRICS: { value: MetricKey; label: string; isCurrency: boolean; variant: 
 export const PharmacyMonthlyTable = () => {
     const { data, isLoading } = usePharmacyMonthlyStats();
     const [selectedMetric, setSelectedMetric] = useState<MetricKey>('sales_ttc');
+    const { exportToCSV, isExporting } = useCSVExport();
     
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -90,6 +93,49 @@ export const PharmacyMonthlyTable = () => {
         setCurrentPage(1); // Reset to page 1 on filter change
     };
 
+    const handleExport = () => {
+        const exportData = processedData.map(p => ({
+            pharmacy_name: p.name,
+            jan: p.months[1] || 0,
+            feb: p.months[2] || 0,
+            mar: p.months[3] || 0,
+            apr: p.months[4] || 0,
+            may: p.months[5] || 0,
+            jun: p.months[6] || 0,
+            jul: p.months[7] || 0,
+            aug: p.months[8] || 0,
+            sep: p.months[9] || 0,
+            oct: p.months[10] || 0,
+            nov: p.months[11] || 0,
+            dec: p.months[12] || 0,
+            total: p.totalCurrent,
+            evolution: p.evolution,
+        }));
+
+        const isCurrency = currentMetricConfig.isCurrency;
+        exportToCSV({
+            data: exportData,
+            columns: [
+                { key: 'pharmacy_name', label: 'Pharmacie', type: 'text' },
+                { key: 'jan', label: 'Janvier', type: isCurrency ? 'currency' : 'number' },
+                { key: 'feb', label: 'Février', type: isCurrency ? 'currency' : 'number' },
+                { key: 'mar', label: 'Mars', type: isCurrency ? 'currency' : 'number' },
+                { key: 'apr', label: 'Avril', type: isCurrency ? 'currency' : 'number' },
+                { key: 'may', label: 'Mai', type: isCurrency ? 'currency' : 'number' },
+                { key: 'jun', label: 'Juin', type: isCurrency ? 'currency' : 'number' },
+                { key: 'jul', label: 'Juillet', type: isCurrency ? 'currency' : 'number' },
+                { key: 'aug', label: 'Août', type: isCurrency ? 'currency' : 'number' },
+                { key: 'sep', label: 'Septembre', type: isCurrency ? 'currency' : 'number' },
+                { key: 'oct', label: 'Octobre', type: isCurrency ? 'currency' : 'number' },
+                { key: 'nov', label: 'Novembre', type: isCurrency ? 'currency' : 'number' },
+                { key: 'dec', label: 'Décembre', type: isCurrency ? 'currency' : 'number' },
+                { key: 'total', label: 'Total N', type: isCurrency ? 'currency' : 'number' },
+                { key: 'evolution', label: 'Évol N-1 %', type: 'percentage' },
+            ],
+            filename: `pharmacies-mensuel-${selectedMetric}-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
              {/* Header Section */}
@@ -129,6 +175,8 @@ export const PharmacyMonthlyTable = () => {
                         </div>
                     </div>
                 </div>
+
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">

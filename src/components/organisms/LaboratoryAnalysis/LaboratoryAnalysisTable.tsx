@@ -8,6 +8,8 @@ import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { LaboratoryAnalysisRow } from '@/types/kpi';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const LaboratoryAnalysisTable = () => {
     const { data, isLoading } = useLaboratoryAnalysis();
@@ -15,6 +17,9 @@ export const LaboratoryAnalysisTable = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [rankBasis, setRankBasis] = useState<keyof LaboratoryAnalysisRow>('my_sales_ttc');
     const itemsPerPage = 10;
+    
+    // CSV Export
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const filteredData = useMemo(() => {
         if (!data) return [];
@@ -51,6 +56,25 @@ export const LaboratoryAnalysisTable = () => {
         { value: 'my_purchases_ht', label: 'Vol. Achat €' },
     ];
 
+    const handleExport = () => {
+        exportToCSV({
+            data: filteredData,
+            columns: [
+                { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                { key: 'my_sales_qty', label: 'Vol. Vente', type: 'number' },
+                { key: 'my_purchases_ht', label: 'Achats HT', type: 'currency' },
+                { key: 'my_purchases_qty', label: 'Vol. Achat', type: 'number' },
+                { key: 'my_margin_ht', label: 'Marge HT', type: 'currency' },
+                { key: 'my_margin_rate', label: 'Taux Marge', type: 'percentage' },
+                { key: 'my_pdm_pct', label: 'PDM %', type: 'percentage' },
+                { key: 'group_avg_sales_ttc', label: 'Moy. Groupe CA', type: 'currency' },
+                { key: 'group_avg_margin_rate', label: 'Moy. Groupe Marge %', type: 'percentage' },
+            ],
+            filename: `analyse-laboratoires-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section - Always Visible */}
@@ -65,6 +89,12 @@ export const LaboratoryAnalysisTable = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Export Button */}
+                    <ExportCSVButton 
+                        onClick={handleExport} 
+                        isLoading={isExporting}
+                    />
+                    
                     {/* Rank Selector */}
                     <RankSelector
                         value={rankBasis}

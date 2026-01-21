@@ -5,6 +5,8 @@ import { useNegotiation } from '@/hooks/useNegotiation';
 import { NegotiationScenario } from '@/types/negotiation';
 import { Input } from '@/components/atoms/Input/Input';
 import { Calculator } from 'lucide-react';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 const CURRENCY_FORMAT = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 
@@ -17,11 +19,52 @@ export const NegotiationTool = () => {
 
         calculateTargetPP_forMarginPercent 
     } = useNegotiation();
+    
+    const { exportToCSV, isExporting } = useCSVExport();
+
+    const handleExport = () => {
+        const exportData = scenarios.map(s => ({
+            scenario: s.name,
+            prix_tarif: s.prixTarif,
+            rsf_percent: s.rsfPercent,
+            rfa1_percent: s.rfa1Percent,
+            rfa2_percent: s.rfa2Percent,
+            tva_percent: s.tvaPercent,
+            qte_commandee: s.qteCommandee,
+            ug: s.ug,
+            prix_net_remise: s.prixNetRemise,
+            prix_net_avec_ug: s.prixNetAvecUG,
+            prix_net_avec_rfa1: s.prixNetAvecRFA1,
+            prix_net_final: s.prixNetAvecRFA2,
+            prix_public_ttc: s.prixPublicTTC,
+            marge_val: s.margeVal,
+            marge_percent: s.margePercent,
+        }));
+
+        exportToCSV({
+            data: exportData,
+            columns: [
+                { key: 'scenario', label: 'Scénario', type: 'text' },
+                { key: 'prix_tarif', label: 'Prix Tarif', type: 'currency' },
+                { key: 'rsf_percent', label: 'RSF %', type: 'percentage' },
+                { key: 'rfa1_percent', label: 'RFA1 %', type: 'percentage' },
+                { key: 'rfa2_percent', label: 'RFA2 %', type: 'percentage' },
+                { key: 'prix_net_final', label: 'Prix Net Final', type: 'currency' },
+                { key: 'prix_public_ttc', label: 'Prix Public TTC', type: 'currency' },
+                { key: 'marge_val', label: 'Marge €', type: 'currency' },
+                { key: 'marge_percent', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `negociation-${new Date().toISOString().split('T')[0]}`
+        });
+    };
 
 
 
     return (
         <div className="space-y-6">
+            <div className="flex justify-end mb-4">
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
+            </div>
             <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/60 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">

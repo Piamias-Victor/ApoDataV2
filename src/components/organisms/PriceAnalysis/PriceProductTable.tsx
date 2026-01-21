@@ -7,12 +7,18 @@ import { PriceProductRow } from './components/PriceProductRow';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { Search } from 'lucide-react';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
+import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 
 export const PriceProductTable = () => {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const [orderBy, setOrderBy] = useState('my_avg_sell_price');
     const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc');
+    
+    const { exportToCSV, isExporting } = useCSVExport();
+    const request = useKpiRequest();
 
     const itemsPerPage = 10;
 
@@ -42,6 +48,43 @@ export const PriceProductTable = () => {
     const totalItems = data && data.length > 0 ? data[0]?.total_rows ?? 0 : 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
+    const handleExport = async () => {
+        try {
+            const res = await fetch('/api/stats/price-products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...request, page: 1, limit: 999999, orderBy, orderDirection, search })
+            });
+            if (!res.ok) throw new Error('Failed to fetch data');
+            const allData = await res.json();
+
+            exportToCSV({
+                data: allData,
+                columns: [
+                    { key: 'product_name', label: 'Produit', type: 'text' },
+                    { key: 'ean13', label: 'EAN13', type: 'text' },
+                    { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                    { key: 'fabricant_price', label: 'Prix Fab', type: 'currency' },
+                    { key: 'group_min_purchase_price', label: 'PA Min Grp', type: 'currency' },
+                    { key: 'group_max_purchase_price', label: 'PA Max Grp', type: 'currency' },
+                    { key: 'group_avg_purchase_price', label: 'PA Moy Grp', type: 'currency' },
+                    { key: 'my_avg_purchase_price', label: 'PA Moy Moi', type: 'currency' },
+                    { key: 'my_purchases_qty', label: 'Achat Qté', type: 'number' },
+                    { key: 'group_min_sell_price', label: 'PV Min Grp', type: 'currency' },
+                    { key: 'group_max_sell_price', label: 'PV Max Grp', type: 'currency' },
+                    { key: 'group_avg_sell_price', label: 'PV Moy Grp', type: 'currency' },
+                    { key: 'my_avg_sell_price', label: 'PV Moy Moi', type: 'currency' },
+                    { key: 'my_sales_qty', label: 'Vente Qté', type: 'number' },
+                    { key: 'my_current_sell_price', label: 'PV Actuel', type: 'currency' },
+                    { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+                ],
+                filename: `analyse-prix-${new Date().toISOString().split('T')[0]}`
+            });
+        } catch (error) {
+            console.error('Erreur export CSV:', error);
+        }
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header / Actions */}
@@ -60,15 +103,21 @@ export const PriceProductTable = () => {
                         </span>
                     </p>
                 </div>
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher (Nom, EAN)..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none w-full md:w-80"
-                        value={search}
-                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                <div className="flex gap-3 items-center">
+                    <ExportCSVButton 
+                        onClick={handleExport} 
+                        isLoading={isExporting}
                     />
+                    <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher (Nom, EAN)..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none w-full md:w-80"
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                        />
+                    </div>
                 </div>
             </div>
 

@@ -34,7 +34,7 @@ export const StockKpiGrid: React.FC<StockKpiGridProps> = ({
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <KpiCard
-                title="VOLUME COMMANDES"
+                title="VOLUME COMMANDES (Hors Sur Livraison)"
                 icon={<Package className="w-5 h-5" />}
                 accentColor="blue"
                 isLoading={reception.isLoading}

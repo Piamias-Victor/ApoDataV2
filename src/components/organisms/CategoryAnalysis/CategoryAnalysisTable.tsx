@@ -16,11 +16,16 @@ import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const CategoryAnalysisTable: React.FC = () => {
     const [path, setPath] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    
+    // CSV Export
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const { data: rawData, isLoading, isFetching } = useCategoryTree(path, false);
     const data = rawData as any[];
@@ -75,6 +80,22 @@ export const CategoryAnalysisTable: React.FC = () => {
         );
     };
 
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'name', label: 'Catégorie', type: 'text' },
+                { key: 'purchases_ht', label: 'Achat €', type: 'currency' },
+                { key: 'purchases_qty', label: 'Achat Qté', type: 'number' },
+                { key: 'sales_ttc', label: 'Vente €', type: 'currency' },
+                { key: 'sales_qty', label: 'Vente Qté', type: 'number' },
+                { key: 'margin_rate', label: 'Marge %', type: 'percentage' },
+                { key: 'market_share_pct', label: 'PDM %', type: 'percentage' },
+            ],
+            filename: `analyse-categories-${path.length > 0 ? path.join('-') : 'univers'}-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -93,6 +114,12 @@ export const CategoryAnalysisTable: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Export Button */}
+                    <ExportCSVButton 
+                        onClick={handleExport} 
+                        isLoading={isExporting}
+                    />
+                    
                     {/* Loader Indicator */}
                     {isFetching && (
                         <div className="flex items-center gap-2 text-blue-600 text-xs font-medium bg-blue-50 px-3 py-1.5 rounded-full animate-pulse">

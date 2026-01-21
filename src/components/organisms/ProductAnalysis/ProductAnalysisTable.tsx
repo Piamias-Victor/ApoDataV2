@@ -5,6 +5,9 @@ import { ProductTableHeader } from './ProductTableHeader';
 import { ProductTableRow } from './ProductTableRow';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
+import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 
 export const ProductAnalysisTable = () => {
     // Server-side pagination
@@ -24,6 +27,8 @@ export const ProductAnalysisTable = () => {
 
     // Default rank basis: Sales
     const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
+    const { exportToCSV, isExporting } = useCSVExport();
+    const request = useKpiRequest();
 
     const totalItems = data?.total || 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -44,6 +49,36 @@ export const ProductAnalysisTable = () => {
         { value: 'my_pdm_pct', label: 'Part de Marché' },
     ];
 
+    const handleExport = async () => {
+        try {
+            const res = await fetch('/api/stats/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...request, page: 1, limit: 999999, orderBy: sortBy, orderDirection: sortOrder, search })
+            });
+            if (!res.ok) throw new Error('Failed to fetch data');
+            const result = await res.json();
+            const allData = result.data || [];
+
+            exportToCSV({
+                data: allData,
+                columns: [
+                    { key: 'product_name', label: 'Produit', type: 'text' },
+                    { key: 'ean13', label: 'EAN13', type: 'text' },
+                    { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                    { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                    { key: 'my_sales_qty', label: 'Vol. Vente', type: 'number' },
+                    { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+                    { key: 'my_margin_ht', label: 'Marge €', type: 'currency' },
+                    { key: 'my_pdm_pct', label: 'PDM %', type: 'percentage' },
+                ],
+                filename: `analyse-produits-${new Date().toISOString().split('T')[0]}`
+            });
+        } catch (error) {
+            console.error('Erreur export CSV:', error);
+        }
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -62,6 +97,7 @@ export const ProductAnalysisTable = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
                     {/* Rank Selector */}
                     <RankSelector
                         value={rankBasis}

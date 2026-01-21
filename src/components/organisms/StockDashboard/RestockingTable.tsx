@@ -12,6 +12,8 @@ import { TableCell } from '@/components/atoms/Table/TableCell';
 import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 import { useFilterStore } from '@/stores/useFilterStore'; // For Ctrl+Click
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 // Type for the data returned by our API
 interface RestockingItem {
@@ -37,6 +39,7 @@ export const RestockingTable: React.FC = () => {
     const [search, setSearch] = useState('');
 
     const itemsPerPage = 10;
+    const { exportToCSV, isExporting } = useCSVExport();
 
     // 2. Data Fetching
     const { data: allData = [], isLoading, error } = useQuery({
@@ -95,6 +98,35 @@ export const RestockingTable: React.FC = () => {
         }
     };
 
+    const handleExport = () => {
+        const exportData = filteredData.map(item => ({
+            ...item,
+            qty_to_order: getQtyToOrder(item.sales_velocity, item.stock_actuel),
+            ecart: item.qte_receptionnee - item.qte_commandee,
+            taux_reception: item.qte_commandee > 0 ? (item.qte_receptionnee / item.qte_commandee) * 100 : 100,
+        }));
+
+        exportToCSV({
+            data: exportData,
+            columns: [
+                { key: 'name', label: 'Produit', type: 'text' },
+                { key: 'code', label: 'EAN', type: 'text' },
+                { key: 'labo', label: 'Laboratoire', type: 'text' },
+                { key: 'qte_commandee', label: 'Qté Cmd', type: 'number' },
+                { key: 'qte_receptionnee', label: 'Qté Reçu', type: 'number' },
+                { key: 'ecart', label: 'Écart', type: 'number' },
+                { key: 'taux_reception', label: 'Taux %', type: 'percentage' },
+                { key: 'stock_actuel', label: 'Stock Actuel', type: 'number' },
+                { key: 'stock_moyen', label: 'Stock Moyen', type: 'number' },
+                { key: 'sales_velocity', label: 'Vente/Mois', type: 'number' },
+                { key: 'qty_to_order', label: `A Cmd (${targetDays}j)`, type: 'number' },
+                { key: 'prix_achat', label: 'Prix Achat', type: 'currency' },
+                { key: 'marge_pct', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `reapprovisionnement-${targetDays}j-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     if (error) return <div className="text-red-500">Erreur de chargement: {(error as Error).message}</div>;
 
     return (
@@ -143,6 +175,7 @@ export const RestockingTable: React.FC = () => {
                         />
                     </div>
                 </div>
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             {/* Content Section */}

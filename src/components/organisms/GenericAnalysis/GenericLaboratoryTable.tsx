@@ -7,12 +7,15 @@ import { GenericLaboratoryTableRow } from './GenericLaboratoryTableRow';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { LaboratoryAnalysisRow } from '@/types/kpi';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const GenericLaboratoryTable = () => {
     const { data, isLoading } = useLaboratoryAnalysis();
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const filteredData = useMemo(() => {
         if (!data) return [];
@@ -37,6 +40,19 @@ export const GenericLaboratoryTable = () => {
         setCurrentPage(1);
     };
 
+    const handleExport = () => {
+        exportToCSV({
+            data: filteredData,
+            columns: [
+                { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                { key: 'my_sales_qty', label: 'Vol. Vente', type: 'number' },
+                { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `generiques-laboratoires-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -53,15 +69,18 @@ export const GenericLaboratoryTable = () => {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un laboratoire..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
-                        value={searchTerm}
-                        onChange={handleSearch}
-                    />
+                <div className="flex gap-3 items-center">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
+                    <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un laboratoire..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none shadow-sm w-full md:w-64 transition-all"
+                            value={searchTerm}
+                            onChange={handleSearch}
+                        />
+                    </div>
                 </div>
             </div>
 

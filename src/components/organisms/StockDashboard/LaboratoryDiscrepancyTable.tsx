@@ -11,6 +11,8 @@ import { AlertTriangle, Calculator } from 'lucide-react';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { differenceInDays } from 'date-fns';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 interface LaboratoryDiscrepancyRow {
     laboratory_name: string;
@@ -29,9 +31,9 @@ interface LaboratoryDiscrepancyRow {
 }
 
 export const LaboratoryDiscrepancyTable = () => {
-    // 1. Context & State
     const request = useKpiRequest();
     const [targetDays, setTargetDays] = useState<number>(30);
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const { data: rawData = [], isLoading } = useQuery({
         queryKey: ['laboratory-discrepancy', request],
@@ -130,6 +132,28 @@ export const LaboratoryDiscrepancyTable = () => {
         { label: '% MARGE', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
     ] as const;
 
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                { key: 'qte_commandee', label: 'Qté Commandée', type: 'number' },
+                { key: 'qte_receptionnee', label: 'Qté Reçue', type: 'number' },
+                { key: 'ecart_qte', label: 'Écart', type: 'number' },
+                { key: 'taux_reception', label: 'Taux Réception', type: 'percentage' },
+                { key: 'prix_achat', label: 'Achat HT', type: 'currency' },
+                { key: 'stock_actuel', label: 'Stock Actuel', type: 'number' },
+                { key: 'stock_moyen', label: 'Stock Moyen', type: 'number' },
+                { key: 'jours_de_stock', label: 'Jours Stock', type: 'number' },
+                { key: 'qte_a_commander', label: `A Commander (${targetDays}j)`, type: 'number' },
+                { key: 'qte_vendue', label: 'Vendu', type: 'number' },
+                { key: 'prix_vente_moyen', label: 'PV Moyen', type: 'currency' },
+                { key: 'marge_moyen_pct', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `stock-ruptures-laboratoires-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -148,6 +172,7 @@ export const LaboratoryDiscrepancyTable = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
                     {/* Simulator Input */}
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
                         <Calculator className="w-4 h-4 text-indigo-600" />

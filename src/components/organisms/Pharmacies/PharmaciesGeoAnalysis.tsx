@@ -8,6 +8,8 @@ import { useRegionSales } from '@/hooks/stats/useRegionSales';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const PharmaciesGeoAnalysis: React.FC = () => {
     const regions = useRegionSales();
@@ -19,6 +21,21 @@ export const PharmaciesGeoAnalysis: React.FC = () => {
         if (isCtrl) {
             setRegion(regionName);
         }
+    };
+
+    const { exportToCSV, isExporting } = useCSVExport();
+
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'region', label: 'Région', type: 'text' },
+                { key: 'value', label: 'CA Total', type: 'currency' },
+                { key: 'pharmacyCount', label: 'Nombre Pharmacies', type: 'number' },
+                { key: 'averageSales', label: 'CA Moyen', type: 'currency' },
+            ],
+            filename: `analyse-regionale-${new Date().toISOString().split('T')[0]}`
+        });
     };
 
     // Filter & Pagination Logic
@@ -42,6 +59,7 @@ export const PharmaciesGeoAnalysis: React.FC = () => {
                         </span>
                     </p>
                 </div>
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

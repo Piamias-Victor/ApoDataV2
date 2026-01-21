@@ -16,14 +16,16 @@ import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { useChartFilterInteraction } from '@/hooks/useChartFilterInteraction';
 import { useCalculatedRank } from '@/hooks/useCalculatedRank';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const PharmaciesLaboratoryTable: React.FC = () => {
 
-    // State
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
     const pageSize = 10;
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const { data: rawData, isLoading, isFetching } = useLaboratoryAnalysis();
 
@@ -73,6 +75,26 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
         onSort: () => handleSort(column)
     });
 
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                { key: 'my_purchases_ht', label: 'Achat HT', type: 'currency' },
+                { key: 'my_purchases_qty', label: 'Achat Qté', type: 'number' },
+                { key: 'my_pdm_purchases_pct', label: 'PDM Achat %', type: 'percentage' },
+                { key: 'my_sales_ttc', label: 'CA Vente TTC', type: 'currency' },
+                { key: 'my_sales_qty', label: 'Vente Qté', type: 'number' },
+                { key: 'my_pdm_pct', label: 'PDM CA Vente %', type: 'percentage' },
+                { key: 'my_margin_ht', label: 'Marge €', type: 'currency' },
+                { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+                { key: 'my_stock_value_ht', label: 'Stock', type: 'currency' },
+                { key: 'my_days_of_stock', label: 'J.Stock', type: 'number' },
+            ],
+            filename: `pharmacies-laboratoires-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -91,6 +113,7 @@ export const PharmaciesLaboratoryTable: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
                     {/* Rank Selector */}
                     {/* Rank Selector */}
                     <RankSelector

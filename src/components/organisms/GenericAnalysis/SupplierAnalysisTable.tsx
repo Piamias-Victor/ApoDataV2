@@ -6,6 +6,8 @@ import { ValueCell } from '@/components/molecules/Table/ValueCell';
 import { EvolutionBadge } from '@/components/atoms/EvolutionBadge';
 import { SupplierAnalysisRow } from '@/repositories/kpi/SupplierAnalysisRepository';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -14,6 +16,7 @@ export const SupplierAnalysisTable = () => {
     const [data, setData] = useState<SupplierAnalysisRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [hiddenSuppliers, setHiddenSuppliers] = useState<string[]>([]);
+    const { exportToCSV, isExporting } = useCSVExport();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -24,6 +27,8 @@ export const SupplierAnalysisTable = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(kpiRequest),
                 });
+
+
                 if (response.ok) {
                     const result = await response.json();
                     setData(result);
@@ -37,6 +42,20 @@ export const SupplierAnalysisTable = () => {
 
         fetchData();
     }, [kpiRequest]); // Re-fetch when filters change (including groups)
+
+    const handleExport = () => {
+        exportToCSV({
+            data: data,
+            columns: [
+                { key: 'supplier_category', label: 'Fournisseur', type: 'text' },
+                { key: 'nb_commandes', label: 'Nb Commandes', type: 'number' },
+                { key: 'quantity_bought', label: 'Volume Acheté', type: 'number' },
+                { key: 'ca_achats', label: 'CA Achats HT', type: 'currency' },
+                { key: 'nb_produits_distincts', label: 'Produits Distincts', type: 'number' },
+            ],
+            filename: `fournisseurs-${new Date().toISOString().split('T')[0]}`
+        });
+    };
 
     // Calculate totals for footer
     const totals = data.reduce((acc: any, row: SupplierAnalysisRow) => ({
@@ -84,6 +103,7 @@ export const SupplierAnalysisTable = () => {
                         Performance par grossiste pour les produits sélectionnés.
                     </p>
                 </div>
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             {/* Content Section */}

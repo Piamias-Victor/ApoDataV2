@@ -5,6 +5,8 @@ import { Mail, Loader2, CheckCircle, Trash2, Building2, Pencil } from 'lucide-re
 import { toast } from 'sonner';
 import { EditUserModal } from './EditUserModal';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 interface AdminUser {
     id: string;
@@ -24,6 +26,7 @@ export function AdminUsersTable() {
     const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
     const [page, setPage] = useState(1);
     const pageSize = 10;
+    const { exportToCSV, isExporting } = useCSVExport();
 
     useEffect(() => {
         fetchUsers();
@@ -111,6 +114,20 @@ export function AdminUsersTable() {
     const paginatedUsers = users.slice((page - 1) * pageSize, page * pageSize);
     const totalPages = Math.ceil(users.length / pageSize);
 
+    const handleExport = () => {
+        exportToCSV({
+            data: users,
+            columns: [
+                { key: 'name', label: 'Nom', type: 'text' },
+                { key: 'email', label: 'Email', type: 'text' },
+                { key: 'pharmacy_name', label: 'Pharmacie', type: 'text' },
+                { key: 'role', label: 'Rôle', type: 'text' },
+                { key: 'created_at', label: 'Créé le', type: 'date' },
+            ],
+            filename: `utilisateurs-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     if (loading) {
         return (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex items-center justify-center">
@@ -121,6 +138,9 @@ export function AdminUsersTable() {
 
     return (
         <>
+            <div className="mb-4 flex justify-end">
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
+            </div>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">

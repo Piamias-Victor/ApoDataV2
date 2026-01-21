@@ -13,6 +13,9 @@ import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
+import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 
 // --- Internal Helper Components to match Dashboard Design ---
 
@@ -77,6 +80,8 @@ export const ProductAnalysisTable: React.FC = () => {
 
     // Default rank basis: Sales
     const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
+    const { exportToCSV, isExporting } = useCSVExport();
+    const request = useKpiRequest();
 
     const resultData = result?.data || [];
     const totalItems = result?.total || 0;
@@ -106,6 +111,40 @@ export const ProductAnalysisTable: React.FC = () => {
         { value: 'my_stock_value_ht', label: 'Stock €' },
     ];
 
+    const handleExport = async () => {
+        try {
+            const res = await fetch('/api/stats/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...request, page: 1, limit: 999999, orderBy: sortBy, orderDirection: sortOrder, search })
+            });
+            if (!res.ok) throw new Error('Failed to fetch data');
+            const result = await res.json();
+            const allData = result.data || [];
+
+            exportToCSV({
+                data: allData,
+                columns: [
+                    { key: 'product_name', label: 'Produit', type: 'text' },
+                    { key: 'ean13', label: 'EAN13', type: 'text' },
+                    { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                    { key: 'my_purchases_ht', label: 'Achat HT', type: 'currency' },
+                    { key: 'my_purchases_qty', label: 'Achat Qté', type: 'number' },
+                    { key: 'my_sales_ttc', label: 'Vente TTC', type: 'currency' },
+                    { key: 'my_sales_qty', label: 'Vente Qté', type: 'number' },
+                    { key: 'my_margin_ht', label: 'Marge €', type: 'currency' },
+                    { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+                    { key: 'my_stock_value_ht', label: 'Stock €', type: 'currency' },
+                    { key: 'my_stock_qty', label: 'Stock Qté', type: 'number' },
+                    { key: 'my_days_of_stock', label: 'J.Stock', type: 'number' },
+                ],
+                filename: `produits-detailles-${new Date().toISOString().split('T')[0]}`
+            });
+        } catch (error) {
+            console.error('Erreur export CSV:', error);
+        }
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -124,6 +163,7 @@ export const ProductAnalysisTable: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
                     {/* Rank Selector */}
                     <RankSelector
                         value={rankBasis}

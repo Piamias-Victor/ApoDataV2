@@ -7,12 +7,15 @@ import { GenericProductTableHeader } from './GenericProductTableHeader';
 import { GenericProductTableRow } from './GenericProductTableRow';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const GenericProductTable: React.FC = () => {
     const { data: result, isLoading } = useGenericProductAnalysis();
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const filteredData = useMemo(() => {
         if (!result?.data) return [];
@@ -39,6 +42,21 @@ export const GenericProductTable: React.FC = () => {
         setCurrentPage(1);
     };
 
+    const handleExport = () => {
+        exportToCSV({
+            data: filteredData,
+            columns: [
+                { key: 'product_name', label: 'Produit', type: 'text' },
+                { key: 'ean13', label: 'EAN13', type: 'text' },
+                { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                { key: 'my_sales_qty', label: 'Vol. Vente', type: 'number' },
+                { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `generiques-produits-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -56,15 +74,18 @@ export const GenericProductTable: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un produit, EAN ou Labo..."
-                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
-                        value={searchTerm}
-                        onChange={handleSearch}
-                    />
+                <div className="flex gap-3 items-center">
+                    <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
+                    <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Rechercher un produit, EAN ou Labo..."
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-sm w-full md:w-80 transition-all"
+                            value={searchTerm}
+                            onChange={handleSearch}
+                        />
+                    </div>
                 </div>
             </div>
 

@@ -7,12 +7,12 @@ import { TableHeaderCell } from '@/components/atoms/Table/TableHeaderCell';
 import { Calculator, PackageSearch } from 'lucide-react';
 import { useClientTableSort } from '@/hooks/useClientTableSort';
 import { differenceInDays } from 'date-fns';
-// Remove service import
-// import { getProductDiscrepancy } from '@/services/kpi/stockDashboardService';
 import { ProductDiscrepancyRow } from './components/ProductDiscrepancyRow';
 import { TableCell } from '@/components/atoms/Table/TableCell';
 import { useFilterStore } from '@/stores/useFilterStore';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const ProductDiscrepancyTable = () => {
     const request = useKpiRequest();
@@ -20,6 +20,8 @@ export const ProductDiscrepancyTable = () => {
     const [targetDays, setTargetDays] = useState<number>(30);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    
+    const { exportToCSV, isExporting } = useCSVExport();
 
     const { data: rawData = [], isLoading } = useQuery({
         queryKey: ['product-discrepancy', request],
@@ -106,6 +108,29 @@ export const ProductDiscrepancyTable = () => {
         { label: '% MARGE', key: 'marge_moyen_pct', align: 'right', width: 'w-[6%]', variant: 'orange' },
     ] as const;
 
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'product_name', label: 'Produit', type: 'text' },
+                { key: 'qte_commandee', label: 'Qté Commandée', type: 'number' },
+                { key: 'qte_receptionnee', label: 'Qté Reçue', type: 'number' },
+                { key: 'ecart_qte', label: 'Écart', type: 'number' },
+                { key: 'taux_reception', label: 'Taux Réception', type: 'percentage' },
+                { key: 'prix_achat', label: 'Achat HT', type: 'currency' },
+                { key: 'stock_actuel', label: 'Stock Actuel', type: 'number' },
+                { key: 'stock_moyen', label: 'Stock Moyen', type: 'number' },
+                { key: 'jours_de_stock', label: 'Jours Stock', type: 'number' },
+                { key: 'qte_a_commander', label: `A Commander (${targetDays}j)`, type: 'number' },
+                { key: 'qte_vendue', label: 'Vendu', type: 'number' },
+                { key: 'ventes_par_mois', label: 'Ventes/Mois', type: 'number' },
+                { key: 'prix_vente_moyen', label: 'PV Moyen', type: 'currency' },
+                { key: 'marge_moyen_pct', label: 'Marge %', type: 'percentage' },
+            ],
+            filename: `stock-ruptures-produits-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -122,6 +147,10 @@ export const ProductDiscrepancyTable = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <ExportCSVButton 
+                        onClick={handleExport} 
+                        isLoading={isExporting}
+                    />
                     <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
                         <Calculator className="w-4 h-4 text-indigo-600" />
                         <span className="text-sm font-medium text-indigo-900 whitespace-nowrap">Objectif Stock :</span>

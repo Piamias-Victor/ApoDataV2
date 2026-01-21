@@ -5,6 +5,9 @@ import { TableHeader } from './TableHeader';
 import { TableRow } from './TableRow';
 import { Pagination } from '@/components/molecules/Pagination/Pagination';
 import { RankSelector } from '@/components/molecules/Table/RankSelector';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
+import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 
 export const ProductAnalysisTableV2: React.FC = () => {
     // Server-side pagination
@@ -24,6 +27,10 @@ export const ProductAnalysisTableV2: React.FC = () => {
 
     // Default rank basis: Sales
     const [rankBasis, setRankBasis] = useState<string>('my_sales_ttc');
+    
+    // CSV Export
+    const { exportToCSV, isExporting } = useCSVExport();
+    const request = useKpiRequest();
 
     const totalItems = data?.total || 0;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -44,6 +51,45 @@ export const ProductAnalysisTableV2: React.FC = () => {
         { value: 'my_pdm_pct', label: 'Part de Marché' },
     ];
 
+    const handleExport = async () => {
+        try {
+            // Fetch ALL data (no pagination) for export
+            const res = await fetch('/api/stats/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...request, page: 1, limit: 999999, search, sortBy, sortOrder })
+            });
+            
+            if (!res.ok) throw new Error('Failed to fetch data for export');
+            const allData = await res.json();
+
+            exportToCSV({
+                data: allData.data,
+                columns: [
+                    { key: 'my_rank', label: 'Rang', type: 'number' },
+                    { key: 'ean13', label: 'EAN13', type: 'text' },
+                    { key: 'product_name', label: 'Produit', type: 'text' },
+                    { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                    { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                    { key: 'my_sales_qty', label: 'Vol. Vente', type: 'number' },
+                    { key: 'my_purchases_ht', label: 'Achats HT', type: 'currency' },
+                    { key: 'my_purchases_qty', label: 'Vol. Achat', type: 'number' },
+                    { key: 'my_margin_ht', label: 'Marge HT', type: 'currency' },
+                    { key: 'my_margin_rate', label: 'Taux Marge', type: 'percentage' },
+                    { key: 'my_stock_qty', label: 'Stock Qté', type: 'number' },
+                    { key: 'my_stock_value_ht', label: 'Stock Valeur', type: 'currency' },
+                    { key: 'my_days_of_stock', label: 'Jours Stock', type: 'number' },
+                    { key: 'my_pdm_pct', label: 'PDM %', type: 'percentage' },
+                    { key: 'group_avg_sales_ttc', label: 'Moy. Groupe CA', type: 'currency' },
+                    { key: 'group_avg_margin_rate', label: 'Moy. Groupe Marge %', type: 'percentage' },
+                ],
+                filename: `analyse-produits-${new Date().toISOString().split('T')[0]}`
+            });
+        } catch (error) {
+            console.error('Erreur export CSV:', error);
+        }
+    };
+
     return (
         <div className="mt-8 space-y-4">
             {/* Header Section */}
@@ -62,6 +108,12 @@ export const ProductAnalysisTableV2: React.FC = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    {/* Export Button */}
+                    <ExportCSVButton 
+                        onClick={handleExport} 
+                        isLoading={isExporting}
+                    />
+                    
                     {/* Rank Selector */}
                     <RankSelector
                         value={rankBasis}

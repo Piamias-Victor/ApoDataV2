@@ -6,10 +6,13 @@ import { Card } from '@/components/atoms/Card/Card';
 import { ValueCell } from '@/components/molecules/Table/ValueCell';
 import { Package, TestTube, Tag } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const ComparisonTable: React.FC = () => {
     const { data: statsResults, isLoading } = useComparisonData();
     const { entities } = useComparisonStore();
+    const { exportToCSV, isExporting } = useCSVExport();
 
     if (entities.length === 0) return null;
 
@@ -85,8 +88,40 @@ export const ComparisonTable: React.FC = () => {
         }
     ];
 
+    const handleExport = () => {
+        const exportData = entities.map(entity => {
+            const stats = dataMap.get(entity.id) || {};
+            return {
+                entity_name: entity.label,
+                entity_type: entity.type,
+                ...stats
+            };
+        });
+
+        exportToCSV({
+            data: exportData,
+            columns: [
+                { key: 'entity_name', label: 'Entité', type: 'text' },
+                { key: 'entity_type', label: 'Type', type: 'text' },
+                { key: 'sales_ht', label: 'Vente HT', type: 'currency' },
+                { key: 'margin_eur', label: 'Marge €', type: 'currency' },
+                { key: 'margin_rate', label: 'Marge %', type: 'percentage' },
+                { key: 'qty_sold', label: 'Qté Vendue', type: 'number' },
+                { key: 'qty_bought', label: 'Qté Achetée', type: 'number' },
+                { key: 'purchases_ht', label: 'Achats HT', type: 'currency' },
+                { key: 'stock_value', label: 'Valeur Stock', type: 'currency' },
+                { key: 'stock_quantity', label: 'Qté Stock', type: 'number' },
+                { key: 'nb_refs', label: 'Nb Réf', type: 'number' },
+            ],
+            filename: `comparaison-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <Card variant="glass" padding="lg" className="overflow-hidden">
+            <div className="mb-4 flex justify-end">
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
+            </div>
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>

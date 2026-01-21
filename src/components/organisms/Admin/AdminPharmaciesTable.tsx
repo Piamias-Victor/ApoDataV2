@@ -15,6 +15,8 @@ import { useClientTableSort } from '@/hooks/useClientTableSort';
 
 import { EditPharmacyModal } from './EditPharmacyModal';
 import { useQueryClient } from '@tanstack/react-query';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
 
 export const AdminPharmaciesTable: React.FC = () => {
     const queryClient = useQueryClient();
@@ -25,6 +27,7 @@ export const AdminPharmaciesTable: React.FC = () => {
     // State for Editing
     const [editingPharmacy, setEditingPharmacy] = useState<any | null>(null);
     const [usersMap, setUsersMap] = useState<Record<string, string[]>>({});
+    const { exportToCSV, isExporting } = useCSVExport();
 
     // Use existing hook as it now provides City/Region
     const { data: rawData, isLoading, isFetching } = usePharmaciesAnalysis();
@@ -82,6 +85,19 @@ export const AdminPharmaciesTable: React.FC = () => {
         onSort: () => handleSort(column)
     });
 
+    const handleExport = () => {
+        exportToCSV({
+            data: sortedData,
+            columns: [
+                { key: 'pharmacy_name', label: 'Pharmacie', type: 'text' },
+                { key: 'pharmacy_city', label: 'Ville', type: 'text' },
+                { key: 'pharmacy_region', label: 'Région', type: 'text' },
+                { key: 'sales_ttc', label: 'CA Total TTC', type: 'currency' },
+            ],
+            filename: `pharmacies-admin-${new Date().toISOString().split('T')[0]}`
+        });
+    };
+
     return (
         <div className="space-y-4">
             {/* Header Section */}
@@ -101,6 +117,7 @@ export const AdminPharmaciesTable: React.FC = () => {
                         </div>
                     )}
                 </div>
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             {/* Content Section */}

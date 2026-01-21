@@ -3,6 +3,9 @@ import { useProductAnalysis } from '@/components/organisms/ProductAnalysis/hooks
 import { Loader2, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { ExclusionTableHeader } from './ExclusionTableHeader';
 import { ExclusionTableRow } from './ExclusionTableRow';
+import { ExportCSVButton } from '@/components/molecules/ExportCSVButton';
+import { useCSVExport } from '@/hooks/useCSVExport';
+import { useKpiRequest } from '@/hooks/kpi/useKpiRequest';
 
 interface ExclusionProductTableProps {
     simulationDiscount: number;
@@ -28,6 +31,35 @@ export const ExclusionProductTable: React.FC<ExclusionProductTableProps> = ({ si
     const totalItems = result?.total || 0;
     const itemsPerPage = 10;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const { exportToCSV, isExporting } = useCSVExport();
+    const request = useKpiRequest();
+
+    const handleExport = async () => {
+        try {
+            const res = await fetch('/api/stats/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...request, page: 1, limit: 999999, exclusionMode: 'only' })
+            });
+            if (!res.ok) throw new Error('Failed to fetch data');
+            const result = await res.json();
+            const allData = result.data || [];
+
+            exportToCSV({
+                data: allData,
+                columns: [
+                    { key: 'product_name', label: 'Produit', type: 'text' },
+                    { key: 'ean13', label: 'EAN13', type: 'text' },
+                    { key: 'laboratory_name', label: 'Laboratoire', type: 'text' },
+                    { key: 'my_sales_ttc', label: 'CA TTC', type: 'currency' },
+                    { key: 'my_margin_rate', label: 'Marge %', type: 'percentage' },
+                ],
+                filename: `produits-exclus-${new Date().toISOString().split('T')[0]}`
+            });
+        } catch (error) {
+            console.error('Erreur export CSV:', error);
+        }
+    };
 
     return (
         <div className="mt-6 space-y-4">
@@ -38,6 +70,7 @@ export const ExclusionProductTable: React.FC<ExclusionProductTableProps> = ({ si
                 <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
                     Détail des Produits Exclus
                 </h3>
+                <ExportCSVButton onClick={handleExport} isLoading={isExporting} />
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
