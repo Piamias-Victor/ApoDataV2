@@ -19,6 +19,7 @@ export interface PharmacyAnalysisRow {
     margin_rate: number;
     pdm_sales_pct: number;
     pdm_purchases_pct: number;
+    avg_sell_price_ttc: number;
 
     stock_qty: number;
     stock_value_ht: number;
@@ -31,6 +32,7 @@ export interface PharmacyAnalysisRow {
     margin_ht_evolution: number;
     margin_rate_evolution: number;
     pdm_sales_evolution: number;
+    avg_sell_price_evolution: number;
     stock_value_evolution: number;
     stock_qty_evolution: number;
 
@@ -89,6 +91,7 @@ export class PharmacyAnalysisRepository extends BaseKpiRepository {
                 margin_rate: Number(row.margin_rate),
                 pdm_sales_pct: Number(row.pdm_sales_pct),
                 pdm_purchases_pct: Number(row.pdm_purchases_pct),
+                avg_sell_price_ttc: Number(row.avg_sell_price_ttc),
 
                 stock_qty: Number(row.stock_qty),
                 stock_value_ht: Number(row.stock_value_ht),
@@ -101,6 +104,7 @@ export class PharmacyAnalysisRepository extends BaseKpiRepository {
                 margin_ht_evolution: Number(row.margin_ht_evolution),
                 margin_rate_evolution: Number(row.margin_rate_evolution),
                 pdm_sales_evolution: Number(row.pdm_sales_evolution),
+                avg_sell_price_evolution: Number(row.avg_sell_price_evolution),
                 stock_value_evolution: Number(row.stock_value_evolution),
                 stock_qty_evolution: Number(row.stock_qty_evolution),
 

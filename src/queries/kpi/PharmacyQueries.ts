@@ -128,6 +128,9 @@ export const PharmacyQueries = {
         ps.purchases_qty,
         ps.margin_ht,
         
+        -- Average Selling Price TTC
+        CASE WHEN ps.sales_qty = 0 THEN 0 ELSE ps.sales_ttc / ps.sales_qty END as avg_sell_price_ttc,
+        
         -- Sales PDM
         (ps.sales_ttc / NULLIF(ms.market_sales_ttc, 0)) * 100 as pdm_sales_pct,
         -- Purchases PDM
@@ -163,6 +166,15 @@ export const PharmacyQueries = {
         
         -- PDM Evolution
         ((ps.sales_ttc / NULLIF(ms.market_sales_ttc, 0)) * 100) - ((ps.sales_ttc_prev / NULLIF(ms.market_sales_ttc_prev, 0)) * 100) as pdm_sales_evolution,
+        
+        -- Average Selling Price Evolution
+        CASE 
+            WHEN ps.sales_qty_prev = 0 OR ps.sales_ttc_prev = 0 THEN 0 
+            ELSE (
+                ((ps.sales_ttc / NULLIF(ps.sales_qty, 0)) - (ps.sales_ttc_prev / NULLIF(ps.sales_qty_prev, 0))) 
+                / (ps.sales_ttc_prev / NULLIF(ps.sales_qty_prev, 0))
+            ) * 100 
+        END as avg_sell_price_evolution,
         
         -- Stock Evolution
         CASE 

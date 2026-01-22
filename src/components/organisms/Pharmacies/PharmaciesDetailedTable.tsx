@@ -85,6 +85,7 @@ export const PharmaciesDetailedTable: React.FC = () => {
                 { key: 'pdm_purchases_pct', label: 'PDM Achat %', type: 'percentage' },
                 { key: 'sales_ttc', label: 'Vente TTC', type: 'currency' },
                 { key: 'sales_qty', label: 'Vente Qté', type: 'number' },
+                { key: 'avg_sell_price_ttc', label: 'PV Moy TTC', type: 'currency' },
                 { key: 'pdm_sales_pct', label: 'PDM Vente %', type: 'percentage' },
                 { key: 'margin_ht', label: 'Marge €', type: 'currency' },
                 { key: 'margin_rate', label: 'Marge %', type: 'percentage' },
@@ -168,6 +169,7 @@ export const PharmaciesDetailedTable: React.FC = () => {
                                         {/* VENTE - Blue */}
                                         <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('sales_ttc')}>Vente TTC</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="blue" width="5%" {...getSortProps('sales_qty')}>Vente Qte</TableHeaderCell>
+                                        <TableHeaderCell align="right" variant="blue" width="6%" {...getSortProps('avg_sell_price_ttc')}>PV Moy TTC</TableHeaderCell>
                                         <TableHeaderCell align="right" variant="green" width="5%" {...getSortProps('pdm_sales_pct')}>
                                             <div className="flex flex-col items-end">
                                                 <span>PDM Vente</span>
@@ -187,7 +189,7 @@ export const PharmaciesDetailedTable: React.FC = () => {
                                 <tbody className="divide-y divide-gray-100/50">
                                     {paginatedData.length === 0 ? (
                                         <tr>
-                                            <td colSpan={15} className="p-12 text-center text-gray-500">
+                                            <td colSpan={16} className="p-12 text-center text-gray-500">
                                                 Aucune pharmacie trouvée.
                                             </td>
                                         </tr>
@@ -242,6 +244,10 @@ export const PharmaciesDetailedTable: React.FC = () => {
                                                     {/* Vente Qte */}
                                                     <TableCell align="right" variant="blue">
                                                         <ValueCell value={row.sales_qty} evolution={row.sales_qty_evolution} textSize="text-xs" />
+                                                    </TableCell>
+                                                    {/* PV Moy TTC */}
+                                                    <TableCell align="right" variant="blue">
+                                                        <ValueCell value={row.avg_sell_price_ttc} evolution={row.avg_sell_price_evolution} isCurrency decimals={2} textSize="text-xs" />
                                                     </TableCell>
                                                     {/* PDM Vente */}
                                                     <TableCell align="right" variant="green">

@@ -99,6 +99,7 @@ export async function fetchPriceGlobalKpis(request: AchatsKpiRequest): Promise<P
             WHERE (
                 (month >= $1 AND month <= $2) OR (month >= $3 AND month <= $4)
             )
+            AND mv.ean13 != 'NO-EAN'
             ${conditions}
         )
         SELECT * FROM stats
@@ -199,6 +200,7 @@ export async function fetchPriceEvolution(request: AchatsKpiRequest): Promise<Pr
         WHERE 
             month >= $1 AND month <= $2
             AND ($${pharmacyIdsParamIdx}::uuid[] IS NULL OR mv.pharmacy_id = ANY($${pharmacyIdsParamIdx}))
+            AND mv.ean13 != 'NO-EAN'
             ${conditions}
         GROUP BY month
         ORDER BY month ASC
