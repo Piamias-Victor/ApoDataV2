@@ -57,7 +57,6 @@ export const PharmacyQueries = {
                 (mv.month >= $1::date AND mv.month <= $2::date) 
                 OR (mv.month >= $3::date AND mv.month <= $4::date)
             )
-            AND mv.ean13 != 'NO-EAN'
             ${conditions}
             ${searchCondition}
             GROUP BY 1
