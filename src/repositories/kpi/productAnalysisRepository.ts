@@ -31,7 +31,20 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
         if (search) {
             const idx = params.length + 1;
-            searchCondition = `AND (gp.name ILIKE $${idx} OR mv.product_label ILIKE $${idx} OR mv.ean13 ILIKE $${idx} OR mv.laboratory_name ILIKE $${idx})`;
+            // Enhanced Search Strategy:
+            // Instead of filtering rows directly (which excludes historical rows with different labels),
+            // we find matching EANs first, then blindly include ALL rows for those EANs.
+            searchCondition = `
+                AND mv.ean13 IN (
+                    SELECT DISTINCT sub.ean13
+                    FROM mv_product_stats_monthly sub
+                    LEFT JOIN data_globalproduct gp ON gp.code_13_ref = sub.ean13
+                    WHERE sub.product_label ILIKE $${idx} 
+                       OR sub.ean13 ILIKE $${idx}
+                       OR sub.laboratory_name ILIKE $${idx}
+                       OR gp.name ILIKE $${idx}
+                )
+            `;
             params.push(`%${search}%`);
         }
 
