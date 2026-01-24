@@ -31,7 +31,7 @@ export class ProductAnalysisRepository extends BaseKpiRepository {
 
         if (search) {
             const idx = params.length + 1;
-            searchCondition = `AND (mv.product_label ILIKE $${idx} OR mv.ean13 ILIKE $${idx} OR mv.laboratory_name ILIKE $${idx})`;
+            searchCondition = `AND (gp.name ILIKE $${idx} OR mv.product_label ILIKE $${idx} OR mv.ean13 ILIKE $${idx} OR mv.laboratory_name ILIKE $${idx})`;
             params.push(`%${search}%`);
         }
 
