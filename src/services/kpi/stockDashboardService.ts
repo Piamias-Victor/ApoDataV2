@@ -18,19 +18,22 @@ export async function getStockReceptionKpi(request: AchatsKpiRequest): Promise<S
 
     // Sum totals based on actual database values (no estimation)
     const totalOrderedQty = orderedStats.reduce((acc, curr) => acc + curr.achat_qty, 0);
-    const totalReceivedQty = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_qty, 0);
+    // Use CAPPED received qty for Completion Rate (ignore over-delivery)
+    const totalReceivedQtyCapped = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_qty_capped, 0);
+    
     const totalOrderedAmount = orderedStats.reduce((acc, curr) => acc + curr.achat_ht, 0);
-    const totalReceivedAmount = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_ht, 0);
+    // Use REAL received amount (Financial Reality, including over-delivery)
+    const totalReceivedAmountReal = orderedStats.reduce((acc, curr) => acc + curr.achat_rec_ht, 0);
 
-    // Calculate Rate
-    const rate = totalOrderedQty > 0 ? (totalReceivedQty / totalOrderedQty) * 100 : 0;
+    // Calculate Rate based on Completion (Capped / Ordered)
+    const rate = totalOrderedQty > 0 ? (totalReceivedQtyCapped / totalOrderedQty) * 100 : 0;
 
     return {
         qte_commandee: Math.round(totalOrderedQty),
-        qte_receptionnee: Math.round(totalReceivedQty),
+        qte_receptionnee: Math.round(totalReceivedQtyCapped), // Display "Volume Reçu (Hors Sur Livraison)"
         taux_reception: rate,
         montant_commande_ht: totalOrderedAmount,
-        montant_receptionne_ht: totalReceivedAmount
+        montant_receptionne_ht: totalReceivedAmountReal // Display "Montant Reçu (Réel)"
     };
 }
 

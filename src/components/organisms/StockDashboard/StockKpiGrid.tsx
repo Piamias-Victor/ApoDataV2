@@ -34,12 +34,12 @@ export const StockKpiGrid: React.FC<StockKpiGridProps> = ({
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <KpiCard
-                title="VOLUME COMMANDES (Hors Sur Livraison)"
+                title="VOLUME COMMANDES"
                 icon={<Package className="w-5 h-5" />}
                 accentColor="blue"
                 isLoading={reception.isLoading}
                 primaryValue={formatNumber(reception.data?.qte_commandee || 0)}
-                secondaryLabel="VOLUME REçU / TAUX DE RECEPTION"
+                secondaryLabel="VOLUME REçU (HORS SUR-LIVRAISON) / TAUX DE COMPLÉTION"
                 secondaryValue={`${formatNumber(reception.data?.qte_receptionnee || 0)} (${(reception.data?.taux_reception || 0).toFixed(1)}%)`}
                 evolutionPercent={reception.data?.evolution_percent || undefined}
             />

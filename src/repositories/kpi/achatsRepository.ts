@@ -210,7 +210,7 @@ export async function getPurchasesEvolution(request: AchatsKpiRequest, grain: Gr
 /**
  * Get Pre-order Evolution (Based on sent_date)
  */
-export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number; achat_rec_qty: number; achat_rec_ht: number }[]> {
+export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: Grain): Promise<{ date: string; achat_ht: number; achat_qty: number; achat_rec_qty: number; achat_rec_ht: number; achat_rec_qty_capped: number; achat_rec_ht_capped: number }[]> {
   const { dateRange, pharmacyIds = [], laboratories = [], categories = [], productCodes = [], groups = [], filterOperators = [] } = request;
 
   const initialParams = [dateRange.start, dateRange.end];
@@ -238,20 +238,22 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
 
   const query = `
         SELECT 
-            DATE_TRUNC('${trunc}', o.sent_date) as date,
+            DATE_TRUNC('${trunc}', o.delivery_date) as date,
             COALESCE(SUM(po.qte), 0) as achat_qty,
             COALESCE(SUM(po.qte_r), 0) as achat_rec_qty,
+            COALESCE(SUM(LEAST(po.qte_r, po.qte)), 0) as achat_rec_qty_capped,
             COALESCE(SUM(po.qte * COALESCE(lp.weighted_average_price, 0)), 0) as achat_ht,
-            COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0)), 0) as achat_rec_ht
+            COALESCE(SUM(po.qte_r * COALESCE(lp.weighted_average_price, 0)), 0) as achat_rec_ht,
+            COALESCE(SUM(LEAST(po.qte_r, po.qte) * COALESCE(lp.weighted_average_price, 0)), 0) as achat_rec_ht_capped
         FROM data_productorder po
         INNER JOIN data_order o ON po.order_id = o.id
         INNER JOIN data_internalproduct ip ON po.product_id = ip.id
         ${needsGlobalProductJoin ? 'LEFT JOIN data_globalproduct gp ON ip.code_13_ref_id = gp.code_13_ref' : ''}
         LEFT JOIN mv_latest_product_prices lp ON po.product_id = lp.product_id
-        WHERE o.sent_date >= $1::date 
-          AND o.sent_date <= $2::date
-          AND o.sent_date IS NOT NULL
-          AND po.qte_r <= po.qte -- Filter: exclude ONLY over-deliveries (>), keep perfect (=) and partial (<)
+        WHERE o.delivery_date >= $1::date 
+          AND o.delivery_date <= $2::date
+          AND o.delivery_date IS NOT NULL
+          -- Filter removed to include ALL orders
           ${conditions}
         GROUP BY 1
         ORDER BY 1 ASC
@@ -263,7 +265,9 @@ export async function fetchPreorderEvolution(request: AchatsKpiRequest, grain: G
     achat_ht: Number(row.achat_ht),
     achat_qty: Number(row.achat_qty),
     achat_rec_qty: Number(row.achat_rec_qty),
-    achat_rec_ht: Number(row.achat_rec_ht)
+    achat_rec_ht: Number(row.achat_rec_ht),
+    achat_rec_qty_capped: Number(row.achat_rec_qty_capped),
+    achat_rec_ht_capped: Number(row.achat_rec_ht_capped)
   }));
 }
 
